@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+pydantic
+
+redis
+google-genai
+google-cloud-aiplatform
+python-dotenv
+chromadb>=0.5.0
+httpx
+huggingface_hub
+transformers
+onnxruntime-gpu
+numpy

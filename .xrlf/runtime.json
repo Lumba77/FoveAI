@@ -1,0 +1,73 @@
+{
+  "xrlf_version": "1.0",
+  "format_version": 1,
+  "identity": {
+    "name": "FoveAI Cognitive Runtime",
+    "version": "3.1.0"
+  },
+  "model": {
+    "core": "qwen3.5-4b-mtp-multimodal-v1.0.xrlf",
+    "xrl_source": "qwen3.5-4b",
+    "gpu_layers": -1,
+    "n_ctx": 8192,
+    "capabilities": {
+      "input": {
+        "text": { "native": true, "hook": null },
+        "image": { "native": true, "hook": null },
+        "video": { "native": true, "hook": null },
+        "audio": { "native": true, "hook": null }
+      },
+      "output": {
+        "text": { "native": true, "hook": null },
+        "speech": { "native": false, "hook": "tts" },
+        "image": { "native": false, "hook": "image_gen" },
+        "audio": { "native": false, "hook": "audio_gen" }
+      }
+    }
+  },
+  "triad": {
+    "enabled": true,
+    "router": "xrlf_router_qwen0.5b_q4_k_m.gguf",
+    "summarizer": "xrlf_summarizer_qwen0.6b_merged.Q4_K_M.gguf",
+    "helper_gpu_layers": 0,
+    "router_ctx": 1024,
+    "summarizer_ctx": 2048
+  },
+  "api": {
+    "host": "0.0.0.0",
+    "port": 8402,
+    "ws_port": 8403,
+    "endpoints": {
+      "chat": "/v1/chat/completions",
+      "health": "/health",
+      "memory": "/v1/memory",
+      "capabilities": "/v1/capabilities"
+    }
+  },
+  "session": {
+    "id": "default",
+    "persistent_memory": true,
+    "compress_every": 8,
+    "keep_verbatim": 4
+  },
+  "tts": {
+    "enabled": true,
+    "engine": "auto",
+    "provider": "http",
+    "endpoint": "http://127.0.0.1:8406/tts",
+    "voice": "af_bella",
+    "fallback": ["http", "piper", "espeak", "stub"]
+  },
+  "stt": {
+    "enabled": true,
+    "port": 8409,
+    "model": "tiny",
+    "device": "cpu",
+    "compute_type": "int8"
+  },
+  "memory": {
+    "db_source": ".xrlf/memory/default/memory.db",
+    "proxy_url": "http://127.0.0.1:8400"
+  },
+  "gguf_source": ""
+}

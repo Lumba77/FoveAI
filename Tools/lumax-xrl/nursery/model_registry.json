@@ -1,0 +1,121 @@
+{
+  "base_model": "gemma-4-12b",
+  "base_path": "C:/Users/danie/.cache/huggingface/hub/w-ahmad/Gemma-4-12B-it-qat-GGUF-MoQ/MoQ-3.0.gguf",
+  "models_dir": "C:/Users/danie/.cache/huggingface/hub",
+  "output_dir": "C:/Users/danie/.cache/huggingface/hub/lumax-forge",
+  "variants": {
+    "companion": {
+      "id": "gemma-4-12b-companion-uncensored",
+      "name": "Uncensored Companion",
+      "description": "Abliterated, emotionally aware, intimate companion variant",
+      "base_gguf": "MoQ-3.0.gguf",
+      "mtp_model": null,
+      "context_size": 8192,
+      "quantization": "MoQ-3.0",
+      "datasets": [
+        {
+          "id": "AI-companionship/INTIMA",
+          "local_path": "datasets--AI-companionship--INTIMA",
+          "type": "intimacy",
+          "format": "chat",
+          "description": "Intimate AI companionship conversations"
+        },
+        {
+          "id": "pulseaisystems/better-intimacy-knowledge",
+          "local_path": "datasets--pulseaisystems--better-intimacy-knowledge",
+          "type": "intimacy",
+          "format": "knowledge",
+          "description": "Intimacy knowledge and relationship guidance"
+        },
+        {
+          "id": "JesusAura999/SELFAWAREEMOTIONALINTELLIGENCE_DATASET_QWEN_FORMAT",
+          "local_path": "datasets--JesusAura999--SELFAWAREEMOTIONALINTELLIGENCE_DATASET_QWEN_FORMAT",
+          "type": "emotional",
+          "format": "qwen-chat",
+          "description": "Self-aware emotional intelligence training"
+        },
+        {
+          "id": "IntimateUser6969/llmtwin-dpo",
+          "local_path": "datasets--IntimateUser6969--llmtwin-dpo",
+          "type": "dpo",
+          "format": "dpo",
+          "description": "DPO training for intimate interaction preferences"
+        },
+        {
+          "id": "sdsr/erp-and-erotica",
+          "local_path": "datasets--sdsr--erp-and-erotica",
+          "type": "erotica",
+          "format": "text",
+          "description": "ERP and erotica content for uncensored training"
+        },
+        {
+          "id": "npc-engine/light-batch-summarize-dialogue",
+          "local_path": "datasets--npc-engine--light-batch-summarize-dialogue",
+          "type": "dialogue",
+          "format": "chat",
+          "description": "Dialogue summarization for conversational flow"
+        }
+      ],
+      "training_config": {
+        "lora_r": 16,
+        "lora_alpha": 32,
+        "lora_dropout": 0.05,
+        "learning_rate": 2e-4,
+        "epochs": 3,
+        "batch_size": 2,
+        "gradient_accumulation": 4,
+        "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+        "use_4bit": true,
+        "bnb_4bit_compute_dtype": "float16",
+        "max_seq_length": 2048
+      }
+    },
+    "coding": {
+      "id": "gemma-4-12b-coding-specialist",
+      "name": "Coding Specialist",
+      "description": "Sharp coding and agentic task specialist with MTP support",
+      "base_gguf": "MoQ-3.5.gguf",
+      "mtp_model": "mtp-gemma-4-12B-it.gguf",
+      "context_size": 8192,
+      "quantization": "MoQ-3.5",
+      "datasets": [
+        {
+          "id": "garage-bAInd/Open-Platypus",
+          "local_path": "datasets--garage-bAInd--Open-Platypus",
+          "type": "reasoning",
+          "format": "alpaca",
+          "description": "Open-Platypus reasoning and problem-solving"
+        },
+        {
+          "id": "Magpie-Align/Magpie-Air-300K-Filtered",
+          "local_path": "datasets--Magpie-Align--Magpie-Air-300K-Filtered",
+          "type": "general",
+          "format": "chat",
+          "description": "Large filtered instruction-tuning dataset"
+        },
+        {
+          "id": "xinbenlv/gemma-finetune-webgpu",
+          "local_path": "datasets--xinbenlv--gemma-finetune-webgpu",
+          "type": "gemma",
+          "format": "chat",
+          "description": "Gemma-specific fine-tuning examples"
+        }
+      ],
+      "training_config": {
+        "lora_r": 16,
+        "lora_alpha": 32,
+        "lora_dropout": 0.05,
+        "learning_rate": 2e-4,
+        "epochs": 3,
+        "batch_size": 2,
+        "gradient_accumulation": 4,
+        "target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+        "use_4bit": true,
+        "bnb_4bit_compute_dtype": "float16",
+        "max_seq_length": 2048
+      }
+    }
+  },
+  "default_variant": "companion",
+  "forge_jobs_dir": "Tools/lumax-xrl/nursery/datasets/jobs"
+}

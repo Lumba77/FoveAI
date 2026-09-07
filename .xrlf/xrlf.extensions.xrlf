@@ -1,0 +1,17 @@
+XRLF.3.EXTENSIONS.START
+
+DESCRIPTION:
+  XRLF extensions registry for the Spatial_Machine_Workspace.
+  Extensions must not override core contract rules.
+  Extensions must declare their scope explicitly.
+
+REGISTERED.EXTENSIONS:
+  none
+
+EXTENSION.RULES:
+  - Extensions must be placed inside /.xrlf/extensions/
+  - Extensions must not override core contract rules
+  - Extensions must declare their scope explicitly
+  - Extensions must pass deterministic review before activation
+
+XRLF.3.EXTENSIONS.END

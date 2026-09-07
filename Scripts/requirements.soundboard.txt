@@ -1,0 +1,37 @@
+# LUMAX Soundboard Server — Stable Audio Tools integration
+# Install: pip install -r Scripts/requirements.soundboard.txt
+#
+# NOTE: stable-audio-tools requires PyTorch and is too heavy for the unified venv.
+# To enable AI sound generation, install PyTorch first, then stable-audio-tools:
+#   pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121
+#   pip install stable-audio-tools
+# The server gracefully falls back to synthesis when stable-audio-tools is absent.
+
+# GPU-accelerated audio synthesis for soundboard fallback
+#
+# IMPORTANT: pip install -r this file installs CPU-only torch from PyPI.
+# To enable CUDA acceleration, reinstall ONLY torch from the CUDA index
+# (torchaudio stays at its current version — do NOT reinstall it):
+#
+#   nvidia-smi shows CUDA 12.6:
+#     pip install torch --index-url https://download.pytorch.org/whl/cu126
+#
+#   nvidia-smi shows CUDA 12.1:
+#     pip install torch --index-url https://download.pytorch.org/whl/cu121
+#
+# Verify: python check_torch.py  →  should show "torch 2.12.0+cu126" and "CUDA available: True"
+#
+torch>=2.0
+torchaudio>=2.0
+
+# Build dependency (fixes pkg_resources / pandas build errors)
+setuptools
+
+# Server
+fastapi
+uvicorn[standard]
+pydantic>=2.0
+python-dotenv
+
+# Audio I/O
+soundfile

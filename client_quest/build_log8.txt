@@ -1,0 +1,22 @@
+[Licensing::Module] Trying to connect to existing licensing client channel...
+Built from '6000.4/staging' branch; Version is '6000.4.9f1 (f7258d6eebbe) revision 16197005'; Using compiler version '194234433'; Build Type 'Release'
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-danie" at "2026-08-29T15:28:50.2067411Z"
+OS: 'Windows 11  (10.0.26200) Professional' Language: 'en' Physical Memory: 16179 MB
+BatchMode: 1, IsHumanControllingUs: 0, StartBugReporterOnCrash: 0, Is64bit: 1
+System  architecture: x64
+Process architecture: x64
+Date: 2026-08-29T15:28:50Z
+
+COMMAND LINE ARGUMENTS:
+C:\Program Files\Unity\Hub\Editor\6000.4.9f1\Editor\Unity.exe
+-batchmode
+-projectPath
+c:\Users\danie\program\LUMAX\Spatial_Machine_Workspace\client_quest
+-executeMethod
+AndroidAutoBuilder.ConfigureAndBuild
+-logFile
+c:\Users\danie\program\LUMAX\Spatial_Machine_Workspace\client_quest\build_log8.txt
+-quit
+Successfully changed project path to: c:\Users\danie\program\LUMAX\Spatial_Machine_Workspace\client_quest
+C:/Users/danie/program/LUMAX/Spatial_Machine_Workspace/client_quest
+Exiting without the bug reporter. Application will terminate with return code 1

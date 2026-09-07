@@ -1,0 +1,49 @@
+XRLF.3.GEOMETRY.CONFIG.START
+
+DESCRIPTION:
+  Cognitive geometry — defines ring topology, memory layout, and spatial reasoning structure
+
+SESSION_WINDOW:
+  compress_every := 8
+  keep_verbatim := 4
+  max_turns_before_rollup := 32
+  checkpoint_dir := .xrlf/checkpoints/
+
+MEMORY_RINGS:
+  ring_0_fovea:
+    label := Immediate Context
+    turns := 4
+    token_budget := 4096
+    persistence := volatile
+  ring_1_near:
+    label := Recent Turns
+    turns := 8
+    token_budget := 2048
+    persistence := session
+  ring_2_mid:
+    label := Working Memory
+    turns := 16
+    token_budget := 1024
+    persistence := session
+  ring_3_far:
+    label := Context History
+    turns := 32
+    token_budget := 512
+    persistence := checkpoint
+  ring_4_archive:
+    label := Compressed Archive
+    turns := 64
+    token_budget := 256
+    persistence := checkpoint
+  ring_5_long:
+    label := Long-Term TF-IDF
+    turns := 0
+    token_budget := 2048
+    persistence := persistent
+
+SPATIAL_SCHEMA:
+  embedding_dim := 768
+  proximity_threshold := 0.75
+  max_concepts_per_turn := 5
+
+XRLF.3.GEOMETRY.CONFIG.END

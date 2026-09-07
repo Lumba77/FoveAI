@@ -1,0 +1,57 @@
+{
+  "version": "1.0",
+  "description": "Registry of unstable features to guide sentry planning and tests.",
+  "features": [
+    {
+      "name": "vrm_mixamo_startup_animation",
+      "symptoms": [
+        "T-pose on startup",
+        "crash near animation playback"
+      ],
+      "desired_checks": [
+        "animation player resolves",
+        "idle fallback playable",
+        "no startup crash"
+      ],
+      "preferred_actions": [
+        "extended_test_probe",
+        "request_architecture_plan"
+      ]
+    },
+    {
+      "name": "xr_keyboard_ui_interaction",
+      "symptoms": [
+        "touch/click mismatch",
+        "keyboard signal regressions"
+      ],
+      "desired_checks": [
+        "UI click path alive",
+        "keyboard signals connected",
+        "chat input buffer updates"
+      ],
+      "preferred_actions": [
+        "inspect_containers",
+        "capture_service_logs",
+        "extended_test_probe"
+      ]
+    },
+    {
+      "name": "bridge_connectivity_quest_pc",
+      "symptoms": [
+        "AI bridge unreachable",
+        "adb reverse drift"
+      ],
+      "desired_checks": [
+        "adb device visible",
+        "reverse ports mapped",
+        "soul health reachable"
+      ],
+      "preferred_actions": [
+        "bridge_reverse",
+        "recheck_services",
+        "request_architecture_plan"
+      ]
+    }
+  ]
+}
+

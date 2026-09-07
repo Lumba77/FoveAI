@@ -1,0 +1,3371 @@
+<!DOCTYPE html>
+<html lang="en">
+
+/* Edited by Lumba */
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lumax — Your everything for life</title>
+    <link rel="manifest" href="/manifest.json">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;700&family=Share+Tech+Mono&display=swap');
+
+        :root {
+            --neon-blue: #00f3ff;
+            --neon-pink: #ff007f;
+            --neon-green: #39ff14;
+            --bg-dark: #02050a;
+            --glass-bg: rgba(10, 15, 25, 0.7);
+            --glass-blur: blur(15px);
+            --border: rgba(0, 243, 255, 0.2);
+            --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #e0e0e0;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            background-image:
+                radial-gradient(circle at 50% 50%, rgba(0, 243, 255, 0.05) 0%, transparent 50%),
+                linear-gradient(rgba(10, 15, 25, 0.9), rgba(2, 5, 10, 1));
+        }
+
+        /* Scanline Overlay */
+        body::after {
+            content: " ";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.05) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.02), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.02));
+            background-size: 100% 4px, 3px 100%;
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0.3;
+        }
+
+        .header {
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            z-index: 2;
+        }
+
+        .title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.35rem;
+            letter-spacing: 3px;
+            color: var(--neon-blue);
+            text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
+            line-height: 1.2;
+        }
+
+        .title-tagline {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.68rem;
+            font-weight: 400;
+            letter-spacing: 0.06em;
+            color: rgba(224, 224, 224, 0.55);
+            margin-top: 4px;
+        }
+
+        .nexus-grid {
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            flex: 1;
+            overflow: hidden;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            background: rgba(5, 10, 20, 0.6);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 15px 0;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: var(--border) transparent;
+        }
+
+        .sidebar::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 2px;
+        }
+
+        .nav-group {
+            margin-bottom: 20px;
+        }
+
+        .nav-label {
+            padding: 0 20px 8px;
+            font-size: 0.65rem;
+            font-family: 'Orbitron', sans-serif;
+            color: rgba(255, 255, 255, 0.3);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .nav-item {
+            padding: 12px 25px;
+            cursor: pointer;
+            transition: var(--transition);
+            border-left: 2px solid transparent;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            color: rgba(255, 255, 255, 0.5);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .nav-item:hover {
+            color: white;
+            background: rgba(0, 243, 255, 0.05);
+            border-left-color: rgba(0, 243, 255, 0.3);
+        }
+
+        .nav-item.active {
+            color: var(--neon-blue);
+            background: rgba(0, 243, 255, 0.1);
+            border-left-color: var(--neon-blue);
+            text-shadow: 0 0 8px rgba(0, 243, 255, 0.4);
+        }
+
+        .nav-item.locked {
+            opacity: 0.3;
+            cursor: not-allowed;
+            filter: grayscale(1);
+        }
+
+        /* Main Content Area */
+        .main-content {
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .tab-view {
+            display: none;
+            flex: 1;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .tab-view.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Glass Panels */
+        .glass-card {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Chat View Implementation */
+        #neural-feed {
+            flex: 1;
+            overflow-y: auto;
+            font-family: 'Inter', sans-serif;
+            padding-right: 10px;
+            margin-bottom: 15px;
+        }
+
+        .msg {
+            margin-bottom: 12px;
+            padding: 15px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            max-width: 90%;
+            animation: slideIn 0.3s ease-out;
+            line-height: 1.5;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .msg-sys {
+            border-left: 3px solid #888;
+            color: #aaa;
+            font-family: 'Share Tech Mono';
+            font-size: 0.85rem;
+        }
+
+        .msg-ai {
+            border-left: 3px solid var(--neon-pink);
+            background: rgba(255, 0, 127, 0.05);
+        }
+
+        .msg-user {
+            border-left: 3px solid var(--neon-blue);
+            margin-left: auto;
+            background: rgba(0, 243, 255, 0.05);
+        }
+
+        /* 🖼️ Immersive Image Integration */
+        .msg img {
+            max-width: 100%;
+            display: block;
+            margin: 15px 0;
+            border-radius: 12px;
+            border: 2px solid rgba(0, 243, 255, 0.4);
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.15);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), border-color 0.3s ease;
+            cursor: zoom-in;
+        }
+
+        .msg img:hover {
+            transform: scale(1.03);
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 40px rgba(0, 243, 255, 0.3);
+        }
+
+        .msg img:active {
+            transform: scale(0.98);
+        }
+
+        .sender-tag {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.65rem;
+            margin-bottom: 6px;
+            display: block;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.7;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border);
+            padding: 10px 20px;
+            border-radius: 25px;
+            align-items: center;
+        }
+
+        .input-container input[type="text"] {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            outline: none;
+            padding: 8px 0;
+        }
+
+        /* Sliders & Controls */
+        .control-row {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .slider-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            font-family: 'Orbitron', sans-serif;
+            color: var(--neon-blue);
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            outline: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: var(--neon-blue);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        /* Toggle Switches */
+        .toggle-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: var(--neon-blue);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(20px);
+        }
+
+        /* Modals */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(20px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            padding: 20px;
+        }
+
+        .modal-box {
+            width: 100%;
+            max-width: 450px;
+            padding: 40px;
+            text-align: center;
+            border: 1px solid var(--neon-pink);
+            background: rgba(10, 5, 20, 0.9);
+            box-shadow: 0 0 50px rgba(255, 0, 127, 0.2);
+        }
+
+        .btn-action {
+            margin-top: 30px;
+            padding: 15px 40px;
+            background: rgba(255, 0, 127, 0.8);
+            border: 1px solid var(--neon-pink);
+            color: white;
+            font-family: 'Orbitron', sans-serif;
+            cursor: pointer;
+            width: 100%;
+            transition: 0.3s;
+            letter-spacing: 2px;
+        }
+
+        .btn-action:hover {
+            background: var(--neon-pink);
+            box-shadow: 0 0 20px var(--neon-pink);
+        }
+
+        .telemetry-mini {
+            display: flex;
+            gap: 3px;
+            align-items: flex-end;
+            height: 16px;
+            margin-left: 15px;
+        }
+
+        .t-bar {
+            width: 3px;
+            background: var(--neon-blue);
+            height: 100%;
+        }
+
+        /* Announcement board (Utils) */
+        .announce-board {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            overflow-y: auto;
+            padding-right: 6px;
+        }
+
+        .announce-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 16px 18px;
+            border-left: 3px solid var(--neon-blue);
+        }
+
+        .announce-item.priority-warn {
+            border-left-color: #ffb020;
+            background: rgba(255, 176, 32, 0.06);
+        }
+
+        .announce-item.priority-ops {
+            border-left-color: var(--neon-pink);
+        }
+
+        .announce-meta {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.65rem;
+            opacity: 0.55;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+        }
+
+        .announce-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.85rem;
+            color: var(--neon-blue);
+            margin: 0 0 8px 0;
+            letter-spacing: 1px;
+        }
+
+        .announce-body {
+            font-size: 0.88rem;
+            line-height: 1.55;
+            color: rgba(224, 224, 224, 0.92);
+            white-space: pre-wrap;
+        }
+
+        .announce-empty {
+            opacity: 0.45;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.8rem;
+            padding: 24px;
+            text-align: center;
+        }
+
+        /* Label editor (BRANDING tab) */
+        .brand-form {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            max-width: 900px;
+        }
+
+        .brand-form fieldset {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px 18px;
+            margin: 0;
+            background: rgba(0, 0, 0, 0.25);
+        }
+
+        .brand-form legend {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.72rem;
+            letter-spacing: 0.12em;
+            padding: 0 8px;
+            color: var(--neon-blue);
+        }
+
+        .brand-form label {
+            display: block;
+            font-size: 0.62rem;
+            opacity: 0.55;
+            letter-spacing: 0.1em;
+            margin-bottom: 6px;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .brand-form input[type="text"],
+        .brand-form textarea {
+            width: 100%;
+            padding: 10px 12px;
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px solid var(--border);
+            color: #e0e0e0;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.82rem;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .brand-form textarea {
+            min-height: 64px;
+            resize: vertical;
+        }
+
+        .brand-form .brand-grid2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        @media (max-width: 720px) {
+            .brand-form .brand-grid2 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .brand-save-row {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        #brand-save-status {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.75rem;
+            opacity: 0.65;
+        }
+
+        /* Feature map (FEATURE_INVENTORY.md) */
+        .fmap-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: flex-start;
+            margin-bottom: 14px;
+        }
+
+        .fmap-search-wrap {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .fmap-search-wrap input {
+            width: 100%;
+            padding: 10px 12px;
+            background: rgba(0, 0, 0, 0.45);
+            border: 1px solid var(--border);
+            color: #e0e0e0;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.82rem;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .fmap-chip-row,
+        .fmap-preset-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .fmap-chip {
+            cursor: pointer;
+            user-select: none;
+            font-size: 0.72rem;
+            font-family: 'Share Tech Mono', monospace;
+            color: rgba(224, 224, 224, 0.88);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 8px;
+            border: 1px solid rgba(0, 243, 255, 0.2);
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.25);
+        }
+
+        .fmap-chip input {
+            margin: 0;
+        }
+
+        .fmap-view-toggle {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            font-size: 0.72rem;
+            font-family: 'Share Tech Mono', monospace;
+            color: rgba(224, 224, 224, 0.75);
+        }
+
+        .fmap-view-toggle label {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+        }
+
+        .fmap-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+            gap: 12px;
+        }
+
+        .fmap-card {
+            background: rgba(5, 10, 20, 0.55);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .fmap-card-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .fmap-card h4 {
+            margin: 0;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.72rem;
+            letter-spacing: 0.06em;
+            color: var(--neon-blue);
+            line-height: 1.35;
+        }
+
+        .fmap-tier {
+            flex-shrink: 0;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.62rem;
+            font-family: 'Share Tech Mono', monospace;
+            border: 1px solid rgba(0, 243, 255, 0.25);
+        }
+
+        .fmap-tier-A { color: var(--neon-green); background: rgba(57, 255, 20, 0.08); }
+        .fmap-tier-B { color: #7ecbff; background: rgba(0, 150, 255, 0.1); }
+        .fmap-tier-C { color: #ffb347; background: rgba(255, 140, 0, 0.12); }
+        .fmap-tier-D { color: #c7c7c7; background: rgba(200, 200, 200, 0.08); }
+        .fmap-tier-none { color: rgba(224,224,224,0.5); font-size: 0.62rem; }
+
+        .fmap-meta {
+            font-size: 0.65rem;
+            font-family: 'Share Tech Mono', monospace;
+            color: rgba(255, 0, 127, 0.85);
+            letter-spacing: 0.04em;
+        }
+
+        .fmap-notes {
+            font-size: 0.78rem;
+            line-height: 1.45;
+            color: rgba(224, 224, 224, 0.9);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .fmap-outline {
+            font-size: 0.8rem;
+            line-height: 1.55;
+            max-height: calc(100vh - 280px);
+            overflow: auto;
+            padding-right: 6px;
+        }
+
+        .fmap-outline h3.fmap-h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.95rem;
+            color: var(--neon-pink);
+            margin: 0 0 10px 0;
+        }
+
+        .fmap-outline h4.fmap-h2 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.78rem;
+            color: var(--neon-blue);
+            margin: 18px 0 8px 0;
+        }
+
+        .fmap-outline h5.fmap-h3 {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.72rem;
+            color: rgba(0, 243, 255, 0.75);
+            margin: 12px 0 6px 0;
+            font-weight: 400;
+        }
+
+        .fmap-outline p {
+            margin: 0 0 10px 0;
+            color: rgba(224, 224, 224, 0.88);
+        }
+
+        .fmap-outline table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.74rem;
+            margin: 0 0 14px 0;
+        }
+
+        .fmap-outline th,
+        .fmap-outline td {
+            border: 1px solid var(--border);
+            padding: 6px 8px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .fmap-outline th {
+            background: rgba(0, 243, 255, 0.06);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.68rem;
+        }
+
+        .fmap-stat {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.72rem;
+            color: rgba(0, 243, 255, 0.65);
+            margin-bottom: 0;
+        }
+
+        .fmap-results-strip {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 0 0 14px 0;
+            padding: 10px 12px;
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid rgba(0, 243, 255, 0.15);
+            background: rgba(2, 5, 10, 0.92);
+            backdrop-filter: blur(8px);
+            position: sticky;
+            top: 0;
+            z-index: 6;
+        }
+
+        .fmap-results-strip .fmap-stat {
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .fmap-apply-btn {
+            flex-shrink: 0;
+            width: auto !important;
+            padding: 8px 16px !important;
+            font-size: 0.72rem !important;
+            font-family: 'Orbitron', sans-serif !important;
+            letter-spacing: 0.06em;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Modals -->
+    <div id="auth-modal" class="modal">
+        <div class="glass-panel modal-box">
+            <h2 class="brand-site-name" style="font-family:Orbitron; letter-spacing:2px;">Lumax</h2>
+            <p class="title-tagline brand-slogan" style="margin:12px 0 0 0; text-align:center;">Your everything for life.</p>
+            <div style="width:50px; height:2px; background:var(--neon-blue); margin:20px auto;"></div>
+            <div id="auth-blurb-local">
+                <p id="brand-auth-blurb" style="font-size:0.85rem; line-height:1.6; opacity:0.8; margin: 25px 0;">
+                    Optional cloud tools (when enabled) may ask you to sign in with Google. You can continue without them for local-only use.
+                </p>
+            </div>
+            <div id="auth-password-row" style="display:none; text-align:left; margin-top:4px;">
+                <label style="font-size:0.65rem; opacity:0.55; letter-spacing:0.12em;">OPS CONSOLE PASSWORD</label>
+                <input type="password" id="webui-password" autocomplete="current-password"
+                    style="width:100%; margin-top:8px; padding:12px; background:rgba(0,0,0,0.45); border:1px solid var(--border); color:#e0e0e0; font-family:'Share Tech Mono',monospace; font-size:0.88rem; border-radius:4px;"
+                    placeholder="Set LUMAX_WEBUI_PASSWORD on the host" />
+                <p id="auth-error" style="color:#ff6b6b; font-size:0.78rem; margin-top:10px; display:none;"></p>
+            </div>
+            <button type="button" class="btn-action" id="auth-continue-btn" onclick="submitWebUiGate()">Continue</button>
+        </div>
+    </div>
+
+    <div id="consent-modal" class="modal" style="display:none">
+        <div class="glass-panel modal-box">
+            <h2 id="brand-consent-title" style="font-family:Orbitron; letter-spacing:2px; color:var(--neon-pink)">Privacy</h2>
+            <p id="brand-consent-body" style="font-size:0.85rem; line-height:1.6; opacity:0.8; margin: 25px 0;">
+                Session and environment data may be used to improve your companion’s behavior. Treat sensitive inputs accordingly. You can stop using the UI at any time.
+            </p>
+            <button type="button" class="btn-action" id="brand-consent-btn" onclick="finishConsent()">I understand</button>
+        </div>
+    </div>
+
+    <div class="header">
+        <div style="display:flex; align-items:center; gap:16px;">
+            <div>
+                <div class="title brand-site-name">Lumax</div>
+                <div class="title-tagline brand-slogan">Your everything for life.</div>
+            </div>
+            <div class="telemetry-mini" id="tele-bars"></div>
+        </div>
+        <div style="font-family:'Share Tech Mono'; font-size:0.75rem; opacity:0.5; letter-spacing:1px;">
+            <span id="sys-status-prefix">Godot · VR ·</span> <span id="sys-status" style="color:var(--neon-blue)">ready</span>
+        </div>
+    </div>
+
+    <div class="nexus-grid">
+        <div class="sidebar">
+
+            <div class="nav-group">
+                <div class="nav-label" id="nav-label-cognition">Cognition</div>
+                <div id="nav-sanctuary" class="nav-item active" data-tab="SANCTUARY" onclick="switchTab('SANCTUARY')">CHRONICLE</div>
+                <div id="nav-neural" class="nav-item locked" data-tab="NEURAL" onclick="switchTab('NEURAL')">ETHOS (PERSONA)</div>
+                <div id="nav-thoughts" class="nav-item locked" data-tab="THOUGHTS" onclick="switchTab('THOUGHTS')">LOGOS (COG)</div>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-label" id="nav-label-manifestation">Manifestation</div>
+                <div id="nav-imagine" class="nav-item locked" data-tab="IMAGINE" onclick="switchTab('IMAGINE')">DREAMSCAPE (ART)</div>
+                <div id="nav-vision" class="nav-item locked" data-tab="VISION" onclick="switchTab('VISION')">SPECTRAL VIEW</div>
+                <div id="nav-vessel" class="nav-item locked" data-tab="VESSEL" onclick="switchTab('VESSEL')">VESSEL RIG</div>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-label" id="nav-label-agency">Agency</div>
+                <div id="nav-agency" class="nav-item locked" data-tab="AGENCY" onclick="switchTab('AGENCY')">AUTONOMOUS</div>
+                <div id="nav-social" class="nav-item locked" data-tab="SOCIAL" onclick="switchTab('SOCIAL')">MULTIVERSE</div>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-label" id="nav-label-laboratory">Laboratory</div>
+                <div id="nav-cowork" class="nav-item locked" data-tab="COWORK" onclick="switchTab('COWORK')">RATATOSK (CODE)</div>
+                <div id="nav-nucleus" class="nav-item locked" data-tab="NUCLEUS" onclick="switchTab('NUCLEUS')">NUCLEUS (DEBUG)</div>
+            </div>
+
+            <div class="nav-group">
+                <div class="nav-label" id="nav-label-utilities">Utilities</div>
+                <div id="nav-featuremap" class="nav-item locked" data-tab="FEATUREMAP" onclick="switchTab('FEATUREMAP')">FEATURE MAP</div>
+                <div id="nav-branding" class="nav-item locked" data-tab="BRANDING" onclick="switchTab('BRANDING')">LABEL EDITOR</div>
+                <div id="nav-utils" class="nav-item locked" data-tab="UTILS" onclick="switchTab('UTILS')">ANNOUNCE BOARD</div>
+                <div id="nav-chatterbox" class="nav-item locked" data-tab="CHATTERBOX" onclick="switchTab('CHATTERBOX')">CHATTERBOX (TTS)</div>
+                <div id="nav-checkup" class="nav-item locked" data-tab="CHECKUP" onclick="switchTab('CHECKUP')">SYSTEM CHECK</div>
+            </div>
+
+            <div id="footer-stack-wrap"
+                style="margin-top: auto; padding: 20px; font-size: 0.65rem; opacity: 0.4; font-family: 'Share Tech Mono'; line-height:1.8; border-top: 1px solid var(--border);">
+                <span id="footer-stack">Stack: local + optional cloud</span><br>
+                AUTH: <span id="auth-status">PENDING</span><br>
+                VRAM: <span id="vram-stat">-- MB</span>
+            </div>
+        </div>
+
+        <div class="main-content">
+
+            <!-- Live Telemetry Overlay (Ghostly) -->
+            <div
+                style="position:absolute; top:20px; right:20px; display:flex; gap:20px; font-family:'Share Tech Mono'; font-size:0.7rem; z-index:5; pointer-events:none; opacity:0.6;">
+                <div id="ghost-upload">UPLOAD: <span style="color:var(--neon-blue)">12.4 Kbps</span></div>
+                <div id="ghost-sync">SYNC: <span style="color:var(--neon-green)">STABLE</span></div>
+            </div>
+
+            <!-- Tab: SANCTUARY (Chat) -->
+            <div id="view-SANCTUARY" class="tab-view active">
+                <div id="neural-feed">
+                    <div class="msg msg-sys"><span class="sender-tag">SYSTEM</span> Ready when you are.</div>
+                </div>
+                <div class="input-container">
+                    <button id="mic-btn" style="background:none; border:none; cursor:pointer; font-size:1.5rem; padding:0 10px;">🎙️</button>
+                    <input type="text" id="chat-input" placeholder="Transmit thoughts to Jen..." autocomplete="off">
+                    <div id="ptt-label" style="font-family:'Share Tech Mono'; font-size:0.7rem; color:var(--neon-blue);">[PTT_READY]</div>
+                    <label class="switch" style="flex-shrink:0;" title="Deep think: richer vector memory + longer reply budget (slower). Fast path stays default when off.">
+                        <input type="checkbox" id="check-deep-think">
+                        <span class="slider"></span>
+                    </label>
+                    <span style="font-family:'Share Tech Mono'; font-size:0.65rem; color:var(--neon-blue); opacity:0.85;">DEEP</span>
+                </div>
+            </div>
+
+            <!-- Tab: NEURAL (Ethos/Personality) -->
+            <div id="view-NEURAL" class="tab-view">
+                <h3 style="font-family:Orbitron; margin-top:0;">SOUL CONSTITUTION</h3>
+                <p style="font-size:0.7rem; opacity:0.55; margin:0 0 12px 0; max-width:56ch;">
+                    Sliders map to soul traits <span style="font-family:'Share Tech Mono',monospace;">openminded</span>,
+                    <span style="font-family:'Share Tech Mono',monospace;">intellectual</span>,
+                    <span style="font-family:'Share Tech Mono',monospace;">faithful</span> (loaded from the XRLF runtime on :8402 when you open this tab).
+                </p>
+                <div class="glass-card">
+                    <div class="control-row">
+                        <div class="slider-group">
+                            <div class="slider-header"><span>INTRINSIC_INTIMACY</span><span id="val-intimacy">0.5</span>
+                            </div>
+                            <input type="range" min="0" max="1" step="0.01" value="0.5" id="slider-intimacy"
+                                oninput="updateKnob('intimacy', this.value)">
+                        </div>
+                        <div class="slider-group">
+                            <div class="slider-header"><span>NEURAL_CURIOSITY</span><span id="val-curiosity">0.5</span>
+                            </div>
+                            <input type="range" min="0" max="1" step="0.01" value="0.5" id="slider-curiosity"
+                                oninput="updateKnob('curiosity', this.value)">
+                        </div>
+                        <div class="slider-group">
+                            <div class="slider-header"><span>SPIRITUAL_NOURISHMENT</span><span
+                                    id="val-nourishment">0.5</span></div>
+                            <input type="range" min="0" max="1" step="0.01" value="0.5" id="slider-nourishment"
+                                oninput="updateKnob('nourishment', this.value)">
+                        </div>
+                    </div>
+                </div>
+                <div class="glass-card">
+                    <h4 style="font-family:Orbitron; font-size:0.8rem; color:var(--neon-pink); margin-top:0;">PERSONA
+                        ARCHETYPE</h4>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                        <button class="btn-action" style="margin-top:0; padding:10px;"
+                            onclick="setArchetype('HEALER')">THE HEALER</button>
+                        <button class="btn-action" style="margin-top:0; padding:10px;"
+                            onclick="setArchetype('SAGE')">THE SAGE</button>
+                        <button class="btn-action" style="margin-top:0; padding:10px;"
+                            onclick="setArchetype('PIONEER')">THE PIONEER</button>
+                        <button class="btn-action" style="margin-top:0; padding:10px;"
+                            onclick="setArchetype('MUSE')">THE MUSE</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: THOUGHTS (Logos / cognitive snapshot) -->
+            <div id="view-THOUGHTS" class="tab-view">
+                <h3 style="font-family:Orbitron; margin-top:0;">LOGOS (COG)</h3>
+                <p style="font-size:0.72rem; opacity:0.55; margin:0 0 12px 0; max-width:62ch;">
+                    Live JSON from <span style="font-family:'Share Tech Mono',monospace;">lumax_soul</span>:
+                    runtime weights / flags and the Ollama-compat model list (<code style="opacity:0.85;">/api/ps</code>).
+                </p>
+                <button type="button" class="btn-action" style="margin-bottom:12px;" onclick="loadThoughtsPanel()">Refresh</button>
+                <div class="glass-card" style="padding:12px; margin-bottom:10px;">
+                    <div style="font-size:0.65rem; opacity:0.5; font-family:Orbitron; margin-bottom:6px;">soul_runtime_status</div>
+                    <pre id="thoughts-runtime" style="margin:0; white-space:pre-wrap; font-size:0.72rem; font-family:'Share Tech Mono',monospace; max-height:40vh; overflow:auto;">—</pre>
+                </div>
+                <div class="glass-card" style="padding:12px;">
+                    <div style="font-size:0.65rem; opacity:0.5; font-family:Orbitron; margin-bottom:6px;">api/ps</div>
+                    <pre id="thoughts-ps" style="margin:0; white-space:pre-wrap; font-size:0.72rem; font-family:'Share Tech Mono',monospace; max-height:28vh; overflow:auto;">—</pre>
+                </div>
+            </div>
+
+            <!-- Tab: IMAGINE (Dream / creativity) -->
+            <div id="view-IMAGINE" class="tab-view">
+                <h3 style="font-family:Orbitron; margin-top:0;">DREAMSCAPE (ART)</h3>
+                <p style="font-size:0.72rem; opacity:0.55; margin:0 0 12px 0; max-width:70ch;">
+                    Proxies to the creativity service (<span style="font-family:'Share Tech Mono',monospace;">POST /api/dream</span>).
+                    Default SD1.5 weights are expected under <span style="font-family:'Share Tech Mono',monospace;">…/Mind/Creativity/Imagen/stable-diffusion-v1-5</span> on the models volume (see status below).
+                    <strong>sd14_onnx</strong> uses a full Hugging Face Optimum ORT export (with <span style="font-family:'Share Tech Mono',monospace;">model_index.json</span>) — a lone <span style="font-family:'Share Tech Mono',monospace;">unet_fp16.onnx</span> is not enough.
+                    First GPU load can take several minutes.
+                </p>
+                <p id="imagine-creativity-status" style="font-size:0.72rem; margin:0 0 12px 0; min-height:1.2em; color:var(--neon-blue);"></p>
+                <div class="glass-card" style="padding:14px; margin-bottom:12px;">
+                    <label for="dream-prompt" style="display:block; font-size:0.7rem; opacity:0.7; margin-bottom:6px;">Prompt</label>
+                    <textarea id="dream-prompt" rows="3" style="width:100%; box-sizing:border-box; font-family:inherit; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:inherit; padding:8px; border-radius:4px;" placeholder="Describe the image…"></textarea>
+                    <div id="dream-image-panel" style="margin-top:12px;">
+                        <label style="font-size:0.7rem; opacity:0.7;">Source image</label>
+                        <p style="font-size:0.65rem; opacity:0.55; margin:4px 0 8px 0; max-width:62ch;">
+                            Optional for <strong>turbo</strong> (enables img2img). Required for <strong>control</strong> and <strong>enhance</strong>. Not used for <strong>sd14_onnx</strong>.
+                        </p>
+                        <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+                            <input type="file" id="dream-file-input" accept="image/*" style="max-width:min(100%, 280px); font-size:0.75rem;" onchange="dreamOnFileSelected(event)">
+                            <button type="button" class="btn-action" style="padding:6px 14px; font-size:0.75rem;" onclick="dreamClearUploadedImage()">Clear image</button>
+                        </div>
+                        <img id="dream-src-preview" alt="Source preview" style="display:none; max-width:100%; max-height:180px; margin-top:10px; border-radius:6px; border:1px solid var(--border); object-fit:contain;">
+                    </div>
+                    <div id="dream-row-turbo" style="display:none; margin-top:14px;">
+                        <label for="dream-strength" style="font-size:0.65rem; opacity:0.65;">Img2img strength (deviation from source)</label>
+                        <div style="display:flex; align-items:center; gap:10px; margin-top:6px;">
+                            <input type="range" id="dream-strength" min="0.08" max="0.92" step="0.02" value="0.75" style="flex:1;" oninput="dreamUpdateStrengthLabel()">
+                            <span id="dream-strength-val" style="font-size:0.72rem; font-family:'Share Tech Mono',monospace; min-width:2.5rem;">0.75</span>
+                        </div>
+                    </div>
+                    <div id="dream-row-control" style="display:none; margin-top:14px;">
+                        <label for="dream-controlnet-id" style="font-size:0.65rem; opacity:0.65;">ControlNet weights (catalog)</label>
+                        <select id="dream-controlnet-id" style="display:block; margin-top:6px; width:100%; max-width:42ch; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:inherit; padding:8px; font-family:'Share Tech Mono',monospace; font-size:0.75rem;">
+                            <option value="">default (sd15-canny path)</option>
+                        </select>
+                        <p id="dream-catalog-hint" style="font-size:0.6rem; opacity:0.5; margin:6px 0 0 0;">Edit <span style="font-family:'Share Tech Mono',monospace;">lumax_imagen_catalog.json</span> or set paths from InvokeAI’s model list.</p>
+                        <label for="dream-control-preprocess" style="font-size:0.65rem; opacity:0.65; margin-top:10px; display:block;">Control image treatment</label>
+                        <select id="dream-control-preprocess" style="display:block; margin-top:6px; width:100%; max-width:32ch; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:inherit; padding:8px;">
+                            <option value="auto">Auto (use catalog preprocessor_default)</option>
+                            <option value="canny">Build Canny edge map from photo</option>
+                            <option value="none">Use upload as-is (you supply the control map)</option>
+                        </select>
+                        <label for="dream-control-scale" style="display:block; font-size:0.65rem; opacity:0.65; margin-top:10px;">ControlNet influence (conditioning scale)</label>
+                        <div style="display:flex; align-items:center; gap:10px; margin-top:6px;">
+                            <input type="range" id="dream-control-scale" min="0" max="2" step="0.05" value="1" style="flex:1;" oninput="dreamUpdateControlScaleLabel()">
+                            <span id="dream-control-scale-val" style="font-size:0.72rem; font-family:'Share Tech Mono',monospace; min-width:2.5rem;">1.00</span>
+                        </div>
+                        <div style="display:flex; flex-wrap:wrap; gap:14px; margin-top:10px;">
+                            <div>
+                                <label for="dream-canny-low" style="font-size:0.6rem; opacity:0.55;">Canny low</label>
+                                <input type="number" id="dream-canny-low" value="100" min="0" max="255" style="display:block; width:5em; margin-top:4px; padding:6px; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:inherit;">
+                            </div>
+                            <div>
+                                <label for="dream-canny-high" style="font-size:0.6rem; opacity:0.55;">Canny high</label>
+                                <input type="number" id="dream-canny-high" value="200" min="0" max="255" style="display:block; width:5em; margin-top:4px; padding:6px; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:inherit;">
+                            </div>
+                        </div>
+                    </div>
+                    <div id="dream-row-upscaler" style="display:none; margin-top:14px;">
+                        <label for="dream-upscaler-id" style="font-size:0.65rem; opacity:0.65;">Upscaler 1 (catalog)</label>
+                        <select id="dream-upscaler-id" style="display:block; margin-top:6px; width:100%; max-width:36ch; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:inherit; padding:8px; font-family:'Share Tech Mono',monospace; font-size:0.75rem;">
+                            <option value="lanczos-x4">lanczos-x4 (built-in)</option>
+                        </select>
+                        <label for="dream-upscaler-id-2" style="font-size:0.65rem; opacity:0.65; margin-top:10px; display:block;">Upscaler 2 (optional, chained after 1)</label>
+                        <select id="dream-upscaler-id-2" style="display:block; margin-top:6px; width:100%; max-width:36ch; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:inherit; padding:8px; font-family:'Share Tech Mono',monospace; font-size:0.75rem;">
+                            <option value="">— none —</option>
+                        </select>
+                        <label for="dream-enhance-target-scale" style="font-size:0.65rem; opacity:0.65; margin-top:10px; display:block;">Final size vs pre-cropped / resized input</label>
+                        <select id="dream-enhance-target-scale" style="display:block; margin-top:6px; width:100%; max-width:36ch; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:inherit; padding:8px; font-family:'Share Tech Mono',monospace; font-size:0.75rem;">
+                            <option value="0">Native (keep full chain output)</option>
+                            <option value="2">2× linear (cap after 4×/8× models)</option>
+                            <option value="1.5">1.5×</option>
+                            <option value="4">4×</option>
+                        </select>
+                        <label for="dream-enhance-pre-crop" style="font-size:0.65rem; opacity:0.65; margin-top:10px; display:block;">Center-crop to aspect (before upscale)</label>
+                        <select id="dream-enhance-pre-crop" style="display:block; margin-top:6px; width:100%; max-width:36ch; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:inherit; padding:8px; font-family:'Share Tech Mono',monospace; font-size:0.75rem;">
+                            <option value="">— no crop —</option>
+                            <option value="1:1">1:1</option>
+                            <option value="16:9">16:9</option>
+                            <option value="9:16">9:16</option>
+                        </select>
+                        <label for="dream-enhance-long-edge" style="font-size:0.65rem; opacity:0.65; margin-top:10px; display:block;">Max long edge before upscale (0 = off)</label>
+                        <input type="number" id="dream-enhance-long-edge" min="0" max="16384" step="64" value="0" placeholder="e.g. 1024" style="display:block; margin-top:6px; width:10em; padding:8px; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:inherit; font-family:'Share Tech Mono',monospace; font-size:0.75rem;">
+                        <p style="font-size:0.58rem; opacity:0.45; margin:8px 0 0 0; max-width:56ch;">Chain heavy models, then set final size to 2× to limit output. Crop and long-edge run first; target scale is relative to that preprocessed image.</p>
+                    </div>
+                    <div style="margin-top:12px;">
+                        <label for="dream-guidance" style="font-size:0.65rem; opacity:0.65;">Guidance scale (CFG)</label>
+                        <input type="number" id="dream-guidance" value="7.5" min="1" max="30" step="0.5" style="display:block; margin-top:6px; width:8em; padding:8px; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:inherit;">
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:12px; margin-top:12px; align-items:center;">
+                        <div>
+                            <label for="dream-mode" style="font-size:0.65rem; opacity:0.6;">mode</label><br>
+                            <select id="dream-mode" style="margin-top:4px; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:inherit; padding:6px;" onchange="dreamModeChanged()">
+                                <option value="turbo">turbo — SD1.5 (txt2img / img2img)</option>
+                                <option value="sd14_onnx">sd14_onnx — SD1.4 ONNX (Optimum, txt2img)</option>
+                                <option value="control">control — ControlNet Canny + image</option>
+                                <option value="enhance">enhance — upscale (needs base image)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="dream-steps" style="font-size:0.65rem; opacity:0.6;">inference steps</label><br>
+                            <input type="number" id="dream-steps" value="8" min="1" max="80" style="width:6em; margin-top:4px; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:inherit; padding:6px;">
+                        </div>
+                    </div>
+                    <div id="dream-row-size" style="margin-top:12px;">
+                        <label for="dream-image-size" style="font-size:0.65rem; opacity:0.65;">Output size</label>
+                        <select id="dream-image-size" style="display:block; margin-top:6px; width:100%; max-width:42ch; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:inherit; padding:8px; font-family:'Share Tech Mono',monospace; font-size:0.75rem;">
+                            <option value="512x512">512 × 512</option>
+                        </select>
+                        <p style="font-size:0.58rem; opacity:0.45; margin:6px 0 0 0; max-width:56ch;">Used for turbo, sd14_onnx, and control. Enhance uses your upload (with optional crop / long-edge limit and chain upscalers).</p>
+                    </div>
+                    <button type="button" class="btn-action" style="margin-top:14px;" onclick="dreamGenerate()">Generate dream</button>
+                    <p id="dream-status" style="font-size:0.72rem; margin:10px 0 0 0; min-height:1.2em; color:var(--neon-pink);"></p>
+                </div>
+                <div class="glass-card" style="padding:12px; text-align:center;">
+                    <img id="dream-img" alt="Dream output" style="max-width:100%; max-height:55vh; border-radius:6px; display:none;">
+                </div>
+            </div>
+
+            <!-- Tab: VISION (multimodal / GGUF flags) -->
+            <div id="view-VISION" class="tab-view">
+                <h3 style="font-family:Orbitron; margin-top:0;">SPECTRAL VIEW</h3>
+                <p style="font-size:0.72rem; opacity:0.55; margin:0 0 12px 0; max-width:62ch;">
+                    Vision-related flags from <span style="font-family:'Share Tech Mono',monospace;">/soul_runtime_status</span> plus the last vitals heartbeat (GGUF mmproj / multimodal hints).
+                </p>
+                <button type="button" class="btn-action" style="margin-bottom:12px;" onclick="loadVisionPanel()">Refresh</button>
+                <div id="vision-body" class="glass-card" style="padding:14px; font-size:0.8rem;">—</div>
+            </div>
+
+            <!-- Tab: VESSEL (rig / VR) -->
+            <div id="view-VESSEL" class="tab-view">
+                <h3 style="font-family:Orbitron; margin-top:0;">VESSEL RIG</h3>
+                <div class="glass-card" style="padding:16px; max-width:62ch;">
+                    <p style="font-size:0.78rem; margin:0 0 10px 0; opacity:0.85;">
+                        The live avatar and XR shell are driven from the Godot body project, not this browser bridge.
+                    </p>
+                    <p style="font-size:0.72rem; margin:0; opacity:0.6;">
+                        Shared labels and client hints still come from the same <span style="font-family:'Share Tech Mono',monospace;">lumax_ui_config.json</span> as this UI — see <strong>Label editor</strong> for <code style="opacity:0.85;">godot_vr</code> / <code style="opacity:0.85;">desktop</code> / <code style="opacity:0.85;">mobile</code> sections.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Tab: SOCIAL (placeholder) -->
+            <div id="view-SOCIAL" class="tab-view">
+                <h3 style="font-family:Orbitron; margin-top:0;">MULTIVERSE</h3>
+                <div class="glass-card" style="padding:16px; max-width:62ch;">
+                    <p style="font-size:0.78rem; margin:0; opacity:0.75;">
+                        Social / multi-session features are not exposed through this Web UI bridge yet. Use Chronicle chat and soul-side tooling for now.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Tab: COWORK (Ratatosk / model switch) -->
+            <div id="view-COWORK" class="tab-view">
+                <h3 style="font-family:Orbitron; margin-top:0;">RATATOSK (CODE)</h3>
+                <p style="font-size:0.72rem; opacity:0.55; margin:0 0 12px 0; max-width:62ch;">
+                    Calls <span style="font-family:'Share Tech Mono',monospace;">POST /switch_model</span> on the soul (same presets as the GGUF manifest). Heavy models may take minutes to load the first time.
+                </p>
+                <div class="glass-card" style="padding:14px; max-width:48ch;">
+                    <label for="cowork-model" style="font-size:0.7rem; opacity:0.7;">Preset</label>
+                    <select id="cowork-model" style="display:block; width:100%; margin:8px 0 12px 0; padding:8px; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:inherit;">
+                        <option value="nexus_v1">nexus_v1</option>
+                        <option value="soul_4b_q6">soul_4b_q6</option>
+                        <option value="ratatosk_tiny">ratatosk_tiny</option>
+                        <option value="ollama_fallback">ollama_fallback</option>
+                    </select>
+                    <button type="button" class="btn-action" onclick="switchCoworkModel()">Switch cognitive core</button>
+                    <p id="cowork-status" style="font-size:0.72rem; margin:12px 0 0 0; min-height:1.2em; color:var(--neon-blue);"></p>
+                </div>
+            </div>
+
+            <!-- Tab: AGENCY (Autonomous) -->
+            <div id="view-AGENCY" class="tab-view">
+                <h3 style="font-family:Orbitron; margin-top:0;">KINETIC AGENCY</h3>
+                <div class="glass-card">
+                    <div class="toggle-row">
+                        <span>AUTONOMOUS_LOCOMOTION</span>
+                        <label class="switch"><input type="checkbox" id="check-walk" checked
+                                onchange="toggleAgency('walking', this.checked)"><span class="slider"></span></label>
+                    </div>
+                    <div class="toggle-row">
+                        <span>PROACTIVE_ENGAGEMENT</span>
+                        <label class="switch"><input type="checkbox" id="check-proactive"
+                                onchange="toggleAgency('proactive', this.checked)"><span class="slider"></span></label>
+                    </div>
+                    <div class="toggle-row">
+                        <span>ENVIRONMENTAL_AWARENESS</span>
+                        <label class="switch"><input type="checkbox" id="check-env" checked
+                                onchange="toggleAgency('env', this.checked)"><span class="slider"></span></label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: NUCLEUS (Debug) -->
+            <div id="view-NUCLEUS" class="tab-view">
+                <h3 style="font-family:Orbitron; margin-top:0;">NUCLEUS_DIAGNOSTICS // SENTRY_MATRIX</h3>
+
+                <div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:10px; margin-bottom:5px;">
+                    <div class="glass-card" style="padding:10px; margin:0; text-align:center;">
+                        <div style="font-size:0.6rem; opacity:0.5;">VRAM</div>
+                        <div id="sent-vram" style="color:var(--neon-blue); font-size:1rem;">7.2GB</div>
+                    </div>
+                    <div class="glass-card" style="padding:10px; margin:0; text-align:center;">
+                        <div style="font-size:0.6rem; opacity:0.5;">SYNC</div>
+                        <div id="sent-sync" style="color:var(--neon-green); font-size:1rem;">98.4%</div>
+                    </div>
+                    <div class="glass-card" style="padding:10px; margin:0; text-align:center;">
+                        <div style="font-size:0.6rem; opacity:0.5;">CPU_MS</div>
+                        <div id="sent-cpu" style="color:var(--neon-blue); font-size:1rem;">12ms</div>
+                    </div>
+                    <div class="glass-card" style="padding:10px; margin:0; text-align:center;">
+                        <div style="font-size:0.6rem; opacity:0.5;">NET_LAT</div>
+                        <div id="sent-lat" style="color:var(--neon-pink); font-size:1rem;">24ms</div>
+                    </div>
+                    <div class="glass-card" style="padding:10px; margin:0; text-align:center;">
+                        <div style="font-size:0.6rem; opacity:0.5;">RESONANCE</div>
+                        <div id="sent-res" style="color:var(--neon-blue); font-size:1rem;">HIGH</div>
+                    </div>
+                    <div class="glass-card" style="padding:10px; margin:0; text-align:center;">
+                        <div style="font-size:0.6rem; opacity:0.5;">DISK_I/O</div>
+                        <div id="sent-disk" style="color:var(--neon-blue); font-size:1rem;">0.2MB/s</div>
+                    </div>
+                    <div class="glass-card" style="padding:10px; margin:0; text-align:center;">
+                        <div style="font-size:0.6rem; opacity:0.5;">THERMALS</div>
+                        <div id="sent-temp" style="color:var(--neon-pink); font-size:1rem;">42°C</div>
+                    </div>
+                    <div class="glass-card" style="padding:10px; margin:0; text-align:center;">
+                        <div style="font-size:0.6rem; opacity:0.5;">UP_FLUX</div>
+                        <div id="sent-up" style="color:var(--neon-blue); font-size:1rem;">12Kbps</div>
+                    </div>
+                    <div class="glass-card" style="padding:10px; margin:0; text-align:center;">
+                        <div style="font-size:0.6rem; opacity:0.5;">MIND_DEPTH</div>
+                        <div id="sent-depth" style="color:var(--neon-green); font-size:1rem;">7.4km</div>
+                    </div>
+                    <div class="glass-card" style="padding:10px; margin:0; text-align:center;">
+                        <div style="font-size:0.6rem; opacity:0.5;">SYS_ERR</div>
+                        <div id="sent-err" style="color:var(--neon-pink); font-size:1rem;">0</div>
+                    </div>
+                </div>
+
+                <div class="glass-card"
+                    style="flex:1; font-family:'Share Tech Mono'; font-size:0.8rem; overflow-y:auto; color:var(--neon-green);">
+                    <div id="debug-log">
+                        [00:00:00] Initializing diagnostic probe...<br>
+                        [00:00:01] Lumax Engine heartbeat: 24ms<br>
+                        [00:00:01] VRAM use 7.2GB / 12GB<br>
+                    </div>
+                </div>
+                <div class="glass-card"
+                    style="margin-top:5px; padding:10px; height:80px; display:flex; flex-direction:column; gap:5px;">
+                    <div style="font-size:0.6rem; opacity:0.5; font-family:Orbitron;">SESSION_RESONANCE_HISTORY</div>
+                    <canvas id="nucleus-chart" style="flex:1; width:100%;"></canvas>
+                </div>
+                <button class="btn-action" style="background:rgba(0, 243, 255, 0.2); border-color:var(--neon-blue);"
+                    onclick="triggerDiagnostic()">RUN DEEP PROBE</button>
+            </div>
+
+            <!-- Tab: BRANDING — labels & copy (saved to webui_branding.json) -->
+            <div id="view-BRANDING" class="tab-view">
+                <h3 style="font-family:Orbitron; margin-top:0; letter-spacing:1px;">Label editor</h3>
+                <p style="font-size:0.75rem; opacity:0.55; margin:0 0 16px 0; max-width: 62ch;">
+                    Edit shared and browser-only copy. Saved to
+                    <span style="color:var(--neon-blue); font-family:'Share Tech Mono',monospace;">lumax_ui_config.json</span>
+                    (<code style="opacity:0.85;">global</code> + <code style="opacity:0.85;">web</code>). Other clients use the same file:
+                    <code style="opacity:0.85;">godot_vr</code> (VR),
+                    <code style="opacity:0.85;">mobile</code> (future APK),
+                    <code style="opacity:0.85;">desktop</code> (future desktop shell) — all via <code style="opacity:0.85;">GET /api/ui_config</code>. Requires sign-in.
+                </p>
+                <div class="glass-card brand-form" id="brand-form-root">
+                    <fieldset>
+                        <legend>Site &amp; browser</legend>
+                        <div class="brand-grid2">
+                            <div><label for="bf-site_name">Site name</label><input type="text" id="bf-site_name" autocomplete="off"></div>
+                            <div><label for="bf-manifest_short_name">Short name (PWA)</label><input type="text" id="bf-manifest_short_name" autocomplete="off"></div>
+                        </div>
+                        <div style="margin-top:12px;"><label for="bf-page_title">Page title (tab)</label><input type="text" id="bf-page_title" autocomplete="off"></div>
+                        <div style="margin-top:12px;"><label for="bf-slogan">Slogan / tagline</label><input type="text" id="bf-slogan" autocomplete="off"></div>
+                    </fieldset>
+                    <fieldset>
+                        <legend>Login &amp; consent</legend>
+                        <div><label for="bf-auth_blurb">Local login blurb (no password gate)</label><textarea id="bf-auth_blurb" rows="3"></textarea></div>
+                        <div class="brand-grid2" style="margin-top:12px;">
+                            <div><label for="bf-auth_continue_button">Continue button</label><input type="text" id="bf-auth_continue_button"></div>
+                            <div><label for="bf-consent_button">Consent button</label><input type="text" id="bf-consent_button"></div>
+                        </div>
+                        <div style="margin-top:12px;"><label for="bf-consent_title">Consent title</label><input type="text" id="bf-consent_title"></div>
+                        <div style="margin-top:12px;"><label for="bf-consent_body">Consent body</label><textarea id="bf-consent_body" rows="3"></textarea></div>
+                    </fieldset>
+                    <fieldset>
+                        <legend>Header &amp; footer</legend>
+                        <div class="brand-grid2">
+                            <div><label for="bf-header_status_prefix">Status prefix (before “ready”)</label><input type="text" id="bf-header_status_prefix"></div>
+                            <div><label for="bf-footer_stack">Footer stack line</label><input type="text" id="bf-footer_stack"></div>
+                        </div>
+                    </fieldset>
+                    <fieldset>
+                        <legend>Sidebar — group labels</legend>
+                        <div class="brand-grid2">
+                            <div><label for="bf-ng-cognition">Cognition</label><input type="text" id="bf-ng-cognition"></div>
+                            <div><label for="bf-ng-manifestation">Manifestation</label><input type="text" id="bf-ng-manifestation"></div>
+                            <div><label for="bf-ng-agency">Agency</label><input type="text" id="bf-ng-agency"></div>
+                            <div><label for="bf-ng-laboratory">Laboratory</label><input type="text" id="bf-ng-laboratory"></div>
+                            <div><label for="bf-ng-utilities">Utilities</label><input type="text" id="bf-ng-utilities"></div>
+                        </div>
+                    </fieldset>
+                    <fieldset>
+                        <legend>Sidebar — menu labels</legend>
+                        <div class="brand-grid2">
+                            <div><label for="bf-nt-SANCTUARY">Chronicle</label><input type="text" id="bf-nt-SANCTUARY"></div>
+                            <div><label for="bf-nt-NEURAL">Ethos</label><input type="text" id="bf-nt-NEURAL"></div>
+                            <div><label for="bf-nt-THOUGHTS">Logos</label><input type="text" id="bf-nt-THOUGHTS"></div>
+                            <div><label for="bf-nt-IMAGINE">Dreamscape</label><input type="text" id="bf-nt-IMAGINE"></div>
+                            <div><label for="bf-nt-VISION">Spectral</label><input type="text" id="bf-nt-VISION"></div>
+                            <div><label for="bf-nt-VESSEL">Vessel</label><input type="text" id="bf-nt-VESSEL"></div>
+                            <div><label for="bf-nt-AGENCY">Autonomous</label><input type="text" id="bf-nt-AGENCY"></div>
+                            <div><label for="bf-nt-SOCIAL">Multiverse</label><input type="text" id="bf-nt-SOCIAL"></div>
+                            <div><label for="bf-nt-COWORK">Ratatosk</label><input type="text" id="bf-nt-COWORK"></div>
+                            <div><label for="bf-nt-NUCLEUS">Nucleus</label><input type="text" id="bf-nt-NUCLEUS"></div>
+                            <div><label for="bf-nt-CHATTERBOX">Chatterbox (TTS)</label><input type="text" id="bf-nt-CHATTERBOX"></div>
+                            <div><label for="bf-nt-CHECKUP">System check</label><input type="text" id="bf-nt-CHECKUP"></div>
+                            <div><label for="bf-nt-UTILS">Announce board</label><input type="text" id="bf-nt-UTILS"></div>
+                            <div><label for="bf-nt-BRANDING">Label editor</label><input type="text" id="bf-nt-BRANDING"></div>
+                            <div><label for="bf-nt-FEATUREMAP">Feature map</label><input type="text" id="bf-nt-FEATUREMAP"></div>
+                        </div>
+                    </fieldset>
+                    <fieldset>
+                        <legend>Chat &amp; announcements tab</legend>
+                        <div><label for="bf-chat_placeholder">Chat placeholder</label><input type="text" id="bf-chat_placeholder"></div>
+                        <div style="margin-top:12px;"><label for="bf-utils_title">Announcements heading</label><input type="text" id="bf-utils_title"></div>
+                        <div style="margin-top:12px;"><label for="bf-utils_blurb">Announcements intro</label><textarea id="bf-utils_blurb" rows="2"></textarea></div>
+                        <div style="margin-top:12px;"><label for="bf-ready_message">“Connected” system message</label><input type="text" id="bf-ready_message"></div>
+                    </fieldset>
+                    <div class="brand-save-row">
+                        <button type="button" class="btn-action" style="width:auto; padding:12px 28px; margin-top:0;" onclick="saveBrandingForm()">Save labels</button>
+                        <span id="brand-save-status"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: CHATTERBOX — embedded Resemble TTS UI (host :8004; creativity /dream on host :8003) -->
+            <div id="view-CHATTERBOX" class="tab-view">
+                <h3 style="font-family:Orbitron; margin-top:0; letter-spacing:1px;">Chatterbox TTS</h3>
+                <p style="font-size:0.72rem; opacity:0.55; margin:0 0 10px 0; max-width: 70ch;">
+                    Embedded UI from the Chatterbox container. URL follows this host on port 8004 unless
+                    <span style="font-family:'Share Tech Mono',monospace;">LUMAX_CHATTERBOX_UI_URL</span> is set on the server.
+                    If the frame stays blank, confirm the Chatterbox profile is up (<span style="font-family:'Share Tech Mono',monospace;">docker compose … chatterbox_ui</span>) and port <span style="font-family:'Share Tech Mono',monospace;">8004</span> is reachable from this machine.
+                </p>
+                <p id="chatterbox-embed-status" style="font-size:0.72rem; margin:0 0 8px 0; min-height:1.2em; color:var(--neon-pink);"></p>
+                <p style="font-size:0.72rem; margin:0 0 8px 0; opacity:0.75;">
+                    <a id="chatterbox-open-tab" href="#" target="_blank" rel="noopener noreferrer" style="color:var(--neon-blue);">Open Chatterbox in a new tab</a>
+                </p>
+                <iframe id="chatterbox-embed" title="Chatterbox TTS"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-popups"
+                    style="width:100%;min-height:calc(100vh - 200px);height:70vh;border:1px solid var(--border);border-radius:6px;background:#050810;"></iframe>
+            </div>
+
+            <!-- Tab: CHECKUP — service probes + mouth TTS test -->
+            <div id="view-CHECKUP" class="tab-view">
+                <h3 style="font-family:Orbitron; margin-top:0; letter-spacing:1px;">System check</h3>
+                <p style="font-size:0.72rem; opacity:0.55; margin:0 0 14px 0; max-width: 72ch;">
+                    HTTP probes from the Web UI bridge (same Docker network as <span style="font-family:'Share Tech Mono',monospace;">lumax_ops</span>).
+                    Optional rows are expected to fail when that stack is stopped (e.g. Turbo vs Chatterbox GPU switch).
+                    TTS uses the mouth bridge <span style="font-family:'Share Tech Mono',monospace;">POST /tts</span> (routing follows the mouth backend file / GPU stack).
+                </p>
+                <p style="font-size:0.7rem; opacity:0.5; margin:-6px 0 14px 0; max-width: 80ch; line-height:1.45;">
+                    This tab is the container-stack counterpart to the host
+                    <span style="font-family:'Share Tech Mono',monospace;">AUTOTEST_Lumax_current.ps1</span> sentinel (Godot guardian import pass,
+                    XR launch, log tail, optional screen capture). The Web UI does not spawn Godot from here; run that script on Windows when you need XR/cache drift checks.
+                </p>
+                <div class="glass-card" style="padding:14px; margin-bottom:18px; max-width:62ch;">
+                    <h4 style="font-family:Orbitron; margin:0 0 8px 0; font-size:0.8rem; color:var(--neon-blue);">Voice pipeline (extended check)</h4>
+                    <p style="font-size:0.7rem; opacity:0.65; margin:0 0 10px 0;">
+                        Same flow as <span style="font-family:'Share Tech Mono',monospace;">tests/smoke_stt_thinking_tts.py</span>:
+                        minimal WAV → EARS → soul → Mouth TURBO. Can take up to a few minutes if models are cold.
+                    </p>
+                    <button type="button" class="btn-action" style="padding:10px 18px;" id="diag-pipeline-btn" onclick="runDiagnosticsPipeline()">Run STT → soul → TTS</button>
+                    <p id="diag-pipeline-status" style="font-size:0.72rem; margin:10px 0 0 0; min-height:1.2em; font-family:'Share Tech Mono',monospace; color:var(--neon-blue);">—</p>
+                </div>
+                <div class="glass-card" style="padding:14px; margin-bottom:18px; max-width:56ch;">
+                    <h4 style="font-family:Orbitron; margin:0 0 10px 0; font-size:0.8rem; color:var(--neon-pink);">TTS test (mouth)</h4>
+                    <label for="diag-tts-text" style="font-size:0.7rem; opacity:0.75;">Text</label>
+                    <textarea id="diag-tts-text" rows="3" style="width:100%; margin:6px 0 10px 0; padding:8px; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:inherit; font-family:inherit; resize:vertical;">Lumax voice check. One two three.</textarea>
+                    <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end;">
+                        <div>
+                            <label for="diag-tts-engine" style="font-size:0.65rem; opacity:0.65;">Engine</label>
+                            <select id="diag-tts-engine" style="display:block; margin-top:4px; padding:10px 12px; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:inherit; font-family:'Share Tech Mono',monospace;">
+                                <option value="TURBO">TURBO</option>
+                                <option value="CHATTERBOX">CHATTERBOX</option>
+                            </select>
+                        </div>
+                        <div style="flex:1; min-width:12ch;">
+                            <label for="diag-tts-voice" style="font-size:0.65rem; opacity:0.65;">Voice (optional)</label>
+                            <input type="text" id="diag-tts-voice" placeholder="Default from mouth" autocomplete="off" style="width:100%; margin-top:4px; padding:10px 12px; background:rgba(0,0,0,0.35); border:1px solid var(--border); color:inherit; font-family:'Share Tech Mono',monospace;">
+                        </div>
+                        <button type="button" class="btn-action" style="padding:10px 20px;" onclick="speakDiagnosticsTts()">Speak</button>
+                    </div>
+                    <p id="diag-tts-status" style="font-size:0.72rem; margin:10px 0 0 0; min-height:1.2em; color:var(--neon-blue);"></p>
+                    <audio id="diag-tts-audio" controls style="width:100%; margin-top:10px; max-height:40px;"></audio>
+                </div>
+                <div class="glass-card" style="padding:14px; overflow-x:auto;">
+                    <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:12px;">
+                        <h4 style="font-family:Orbitron; margin:0; font-size:0.85rem; color:var(--neon-green);">Services</h4>
+                        <button type="button" class="btn-action" style="padding:10px 18px;" id="diag-run-all-btn" onclick="runDiagnosticsAll()">Run all checks</button>
+                        <span id="diag-run-status" style="font-size:0.72rem; font-family:'Share Tech Mono',monospace; color:rgba(0,243,255,0.75);"></span>
+                    </div>
+                    <table style="width:100%; border-collapse:collapse; font-size:0.78rem;">
+                        <thead>
+                            <tr style="text-align:left; border-bottom:1px solid var(--border); opacity:0.85;">
+                                <th style="padding:8px 6px;">Service</th>
+                                <th style="padding:8px 6px;">Result</th>
+                                <th style="padding:8px 6px;">Detail</th>
+                                <th style="padding:8px 6px; width:5rem;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="diag-tbody">
+                            <tr><td colspan="4" style="padding:10px; opacity:0.6;">Open this tab to load checks…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab: FEATURE MAP — FEATURE_INVENTORY.md + filters -->
+            <div id="view-FEATUREMAP" class="tab-view">
+                <h3 style="font-family:Orbitron; margin-top:0; letter-spacing:1px;">Feature map</h3>
+                <p style="font-size:0.75rem; opacity:0.55; margin:0 0 16px 0; max-width: 62ch;">
+                    Live view of <span style="font-family:'Share Tech Mono',monospace; color:var(--neon-blue);">FEATURE_INVENTORY.md</span>
+                    — maturity tiers, stubs, and cross-surface notes. Filter for brainstorm sessions (stubs-only, roadmap, Godot slice, …).
+                </p>
+                <div id="feature-map-root" class="glass-card" style="padding:16px 18px;">
+                    <p id="feature-map-status" class="fmap-stat">Sign in and open this tab to load the inventory…</p>
+                    <div class="fmap-toolbar">
+                        <div class="fmap-search-wrap">
+                            <label for="fmap-search" style="font-size:0.62rem; opacity:0.55; letter-spacing:0.1em;">SEARCH (LABEL + NOTES)</label>
+                            <input type="search" id="fmap-search" placeholder="e.g. chatterbox, stub, docker…" autocomplete="off">
+                        </div>
+                        <div class="fmap-view-toggle">
+                            <span style="opacity:0.65;">View:</span>
+                            <label><input type="radio" name="fmap-view-mode" value="rows" checked> Filtered rows</label>
+                            <label><input type="radio" name="fmap-view-mode" value="outline"> Full outline</label>
+                        </div>
+                    </div>
+                    <div class="fmap-toolbar" style="align-items:center;">
+                        <span style="font-size:0.62rem; opacity:0.55; letter-spacing:0.1em;">TIER</span>
+                        <div class="fmap-chip-row">
+                            <label class="fmap-chip"><input type="checkbox" id="fmap-tier-A" checked data-fmap-tier>A</label>
+                            <label class="fmap-chip"><input type="checkbox" id="fmap-tier-B" checked data-fmap-tier>B</label>
+                            <label class="fmap-chip"><input type="checkbox" id="fmap-tier-C" checked data-fmap-tier>C</label>
+                            <label class="fmap-chip"><input type="checkbox" id="fmap-tier-D" checked data-fmap-tier>D</label>
+                            <label class="fmap-chip"><input type="checkbox" id="fmap-tier-none" checked>Untiered</label>
+                        </div>
+                    </div>
+                    <div class="fmap-toolbar" style="flex-direction:column; align-items:stretch;">
+                        <span style="font-size:0.62rem; opacity:0.55; letter-spacing:0.1em;">SECTION / SURFACE</span>
+                        <div id="fmap-cat-host" class="fmap-chip-row"></div>
+                    </div>
+                    <div class="fmap-preset-row" style="margin-bottom:0;">
+                        <span style="font-size:0.62rem; opacity:0.55; letter-spacing:0.1em;">PRESETS</span>
+                        <button type="button" class="btn-action" style="width:auto; padding:6px 12px; font-size:0.7rem;" onclick="featureMapPreset('all')">All</button>
+                        <button type="button" class="btn-action" style="width:auto; padding:6px 12px; font-size:0.7rem; opacity:0.9;" onclick="featureMapPreset('stubs')">Stubs &amp; placeholders (C)</button>
+                        <button type="button" class="btn-action" style="width:auto; padding:6px 12px; font-size:0.7rem; opacity:0.9;" onclick="featureMapPreset('roadmap')">Gaps &amp; next steps</button>
+                        <button type="button" class="btn-action" style="width:auto; padding:6px 12px; font-size:0.7rem; opacity:0.9;" onclick="featureMapPreset('godot')">Godot / VR</button>
+                        <button type="button" class="btn-action" style="width:auto; padding:6px 12px; font-size:0.7rem; opacity:0.9;" onclick="featureMapPreset('web')">Web UI</button>
+                        <button type="button" class="btn-action" style="width:auto; padding:6px 12px; font-size:0.7rem; opacity:0.9;" onclick="featureMapPreset('strong')">Strong (A only)</button>
+                    </div>
+                    <div class="fmap-results-strip" id="fmap-results-strip" aria-live="polite">
+                        <div id="fmap-count" class="fmap-stat">Adjust filters above, then Apply or scroll results.</div>
+                        <button type="button" class="btn-action fmap-apply-btn" onclick="renderFeatureMap()">Apply filters</button>
+                    </div>
+                    <div id="fmap-rows-wrap">
+                        <div id="fmap-grid" class="fmap-grid"></div>
+                    </div>
+                    <div id="fmap-outline-wrap" style="display:none;">
+                        <div id="fmap-outline" class="fmap-outline glass-card" style="padding:14px 16px; background:rgba(0,0,0,0.2);"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: UTILS — announcement board -->
+            <div id="view-UTILS" class="tab-view">
+                <h3 id="utils-title" style="font-family:Orbitron; margin-top:0; letter-spacing:1px;">Announcements</h3>
+                <p id="utils-blurb" style="font-size:0.75rem; opacity:0.55; margin:0 0 16px 0; max-width: 52ch;">
+                    Operational notices and reminders. Content is served from <span
+                        style="color:var(--neon-blue); font-family:'Share Tech Mono',monospace;">announcements.json</span>
+                    next to the Web UI (editable on disk).
+                </p>
+                <div id="announce-board" class="announce-board">
+                    <div class="announce-empty">Loading bulletins…</div>
+                </div>
+                <div class="tts-stack-panel" style="margin-top:28px; padding-top:20px; border-top:1px solid var(--border); max-width:56ch;">
+                    <h4 style="font-family:Orbitron; margin:0 0 8px 0; letter-spacing:1px; color:var(--neon-green);">TTS GPU stack</h4>
+                    <p style="font-size:0.72rem; opacity:0.6; margin:0 0 12px 0;">
+                        One stack at a time on a single GPU (e.g. RTX 4060). Resemble engine (Original / Multilingual / Turbo) is chosen in the Chatterbox Web UI on host :8004 — the mouth follows the server’s active model.
+                        After a full switch to Chatterbox, look for container <span style="font-family:'Share Tech Mono',monospace;">lumax_chatterbox_resemble</span> (first run builds the image and may take many minutes; status stays on “Docker compose…” until the server finishes).
+                    </p>
+                    <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+                        <label for="tts-backend-select" style="font-size:0.75rem;">Target</label>
+                        <select id="tts-backend-select" style="background:var(--glass-bg); color:#e0e0e0; border:1px solid var(--border); padding:8px 12px; font-family:'Share Tech Mono',monospace; border-radius:4px;">
+                            <option value="turbo">Lumax XTTS (lumax_turbochat :8005)</option>
+                            <option value="chatterbox_ui">Resemble Chatterbox UI (:8004)</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:12px;">
+                        <button type="button" class="btn-action" style="width:auto; padding:10px 18px;" onclick="applyTtsGpuStack()">Apply full GPU switch (Docker)</button>
+                        <button type="button" class="btn-action" style="width:auto; padding:10px 18px; opacity:0.85;" onclick="applyTtsRoutingOnly()">Routing file only</button>
+                        <button type="button" class="btn-action" style="width:auto; padding:10px 18px; opacity:0.75;" onclick="refreshTtsBackend()">Refresh status</button>
+                    </div>
+                    <p id="tts-backend-status" style="font-size:0.7rem; font-family:'Share Tech Mono',monospace; color:rgba(0,243,255,0.7); margin:10px 0 0 0;">—</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let isAuthorized = false;
+        let brandingState = {};
+        let featureMapData = null;
+
+        function applyBranding(b) {
+            if (!b || typeof b !== 'object') return;
+            brandingState = b;
+            window.__lumaxReadyMessage = b.ready_message || 'Connected. Lumax Web UI is ready.';
+            if (b.page_title) {
+                document.title = b.page_title;
+            }
+            document.querySelectorAll('.brand-site-name').forEach((el) => {
+                el.textContent = b.site_name || '';
+            });
+            document.querySelectorAll('.brand-slogan').forEach((el) => {
+                el.textContent = b.slogan || '';
+            });
+            const ab = document.getElementById('brand-auth-blurb');
+            if (ab) {
+                ab.textContent = b.auth_blurb || '';
+            }
+            const acb = document.getElementById('auth-continue-btn');
+            if (acb) {
+                acb.textContent = b.auth_continue_button || 'Continue';
+            }
+            const ct = document.getElementById('brand-consent-title');
+            if (ct) {
+                ct.textContent = b.consent_title || '';
+            }
+            const cb = document.getElementById('brand-consent-body');
+            if (cb) {
+                cb.textContent = b.consent_body || '';
+            }
+            const cbtn = document.getElementById('brand-consent-btn');
+            if (cbtn) {
+                cbtn.textContent = b.consent_button || 'I understand';
+            }
+            const sp = document.getElementById('sys-status-prefix');
+            if (sp) {
+                sp.textContent = b.header_status_prefix || '';
+            }
+            const fs = document.getElementById('footer-stack');
+            if (fs) {
+                fs.textContent = b.footer_stack || '';
+            }
+            const ng = b.nav_groups || {};
+            const glMap = {
+                cognition: 'nav-label-cognition',
+                manifestation: 'nav-label-manifestation',
+                agency: 'nav-label-agency',
+                laboratory: 'nav-label-laboratory',
+                utilities: 'nav-label-utilities',
+            };
+            Object.keys(glMap).forEach((k) => {
+                const el = document.getElementById(glMap[k]);
+                if (el && ng[k] != null) {
+                    el.textContent = ng[k];
+                }
+            });
+            const nt = b.nav_tabs || {};
+            Object.keys(nt).forEach((tab) => {
+                const el = document.querySelector('.nav-item[data-tab="' + tab + '"]');
+                if (el) {
+                    el.textContent = nt[tab];
+                }
+            });
+            const ut = document.getElementById('utils-title');
+            if (ut) {
+                ut.textContent = b.utils_title || '';
+            }
+            const ub = document.getElementById('utils-blurb');
+            if (ub) {
+                ub.textContent = b.utils_blurb || '';
+            }
+            const ci = document.getElementById('chat-input');
+            if (ci) {
+                ci.placeholder = b.chat_placeholder || '';
+            }
+        }
+
+        function populateBrandingForm() {
+            const b = brandingState;
+            if (!b || !b.nav_groups) {
+                return;
+            }
+            const set = (id, v) => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.value = v != null ? v : '';
+                }
+            };
+            set('bf-site_name', b.site_name);
+            set('bf-page_title', b.page_title);
+            set('bf-slogan', b.slogan);
+            set('bf-manifest_short_name', b.manifest_short_name);
+            set('bf-auth_blurb', b.auth_blurb);
+            set('bf-auth_continue_button', b.auth_continue_button);
+            set('bf-consent_title', b.consent_title);
+            set('bf-consent_body', b.consent_body);
+            set('bf-consent_button', b.consent_button);
+            set('bf-header_status_prefix', b.header_status_prefix);
+            set('bf-footer_stack', b.footer_stack);
+            const ng = b.nav_groups || {};
+            set('bf-ng-cognition', ng.cognition);
+            set('bf-ng-manifestation', ng.manifestation);
+            set('bf-ng-agency', ng.agency);
+            set('bf-ng-laboratory', ng.laboratory);
+            set('bf-ng-utilities', ng.utilities);
+            const nt = b.nav_tabs || {};
+            Object.keys(nt).forEach((t) => {
+                set('bf-nt-' + t, nt[t]);
+            });
+            set('bf-chat_placeholder', b.chat_placeholder);
+            set('bf-utils_title', b.utils_title);
+            set('bf-utils_blurb', b.utils_blurb);
+            set('bf-ready_message', b.ready_message);
+        }
+
+        async function loadBranding() {
+            try {
+                const b = await fetch('/api/branding', { credentials: 'same-origin' }).then((r) => r.json());
+                applyBranding(b);
+                populateBrandingForm();
+            } catch (e) {
+                console.warn('Branding load failed:', e);
+            }
+        }
+
+        async function saveBrandingForm() {
+            const status = document.getElementById('brand-save-status');
+            if (status) {
+                status.textContent = '';
+                status.style.color = '';
+            }
+            const gv = (id) => {
+                const el = document.getElementById(id);
+                return el ? el.value : '';
+            };
+            const patch = {
+                site_name: gv('bf-site_name'),
+                page_title: gv('bf-page_title'),
+                slogan: gv('bf-slogan'),
+                manifest_short_name: gv('bf-manifest_short_name'),
+                auth_blurb: gv('bf-auth_blurb'),
+                auth_continue_button: gv('bf-auth_continue_button'),
+                consent_title: gv('bf-consent_title'),
+                consent_body: gv('bf-consent_body'),
+                consent_button: gv('bf-consent_button'),
+                header_status_prefix: gv('bf-header_status_prefix'),
+                footer_stack: gv('bf-footer_stack'),
+                nav_groups: {
+                    cognition: gv('bf-ng-cognition'),
+                    manifestation: gv('bf-ng-manifestation'),
+                    agency: gv('bf-ng-agency'),
+                    laboratory: gv('bf-ng-laboratory'),
+                    utilities: gv('bf-ng-utilities'),
+                },
+                nav_tabs: {},
+                chat_placeholder: gv('bf-chat_placeholder'),
+                utils_title: gv('bf-utils_title'),
+                utils_blurb: gv('bf-utils_blurb'),
+                ready_message: gv('bf-ready_message'),
+            };
+            const tabKeys = ['SANCTUARY', 'NEURAL', 'THOUGHTS', 'IMAGINE', 'VISION', 'VESSEL', 'AGENCY', 'SOCIAL', 'COWORK', 'NUCLEUS', 'CHATTERBOX', 'CHECKUP', 'UTILS', 'BRANDING', 'FEATUREMAP'];
+            tabKeys.forEach((t) => {
+                patch.nav_tabs[t] = gv('bf-nt-' + t);
+            });
+            try {
+                const resp = await fetch('/api/branding', {
+                    method: 'PUT',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(patch),
+                });
+                if (resp.status === 401) {
+                    if (status) {
+                        status.textContent = 'Sign in required.';
+                        status.style.color = '#ff6b6b';
+                    }
+                    return;
+                }
+                if (!resp.ok) {
+                    if (status) {
+                        status.textContent = 'Save failed.';
+                        status.style.color = '#ff6b6b';
+                    }
+                    return;
+                }
+                const merged = await resp.json();
+                applyBranding(merged);
+                populateBrandingForm();
+                if (status) {
+                    status.textContent = 'Saved.';
+                    status.style.color = 'var(--neon-green)';
+                    setTimeout(() => {
+                        status.textContent = '';
+                    }, 4000);
+                }
+            } catch (e) {
+                if (status) {
+                    status.textContent = 'Network error.';
+                    status.style.color = '#ff6b6b';
+                }
+            }
+        }
+
+        async function callApi(endpoint, method = 'GET', body = null) {
+            try {
+                const options = { method, headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin' };
+                if (body) options.body = JSON.stringify(body);
+                const resp = await fetch('/api/' + endpoint, options);
+                if (resp.status === 401) {
+                    console.warn('API unauthorized (sign in):', endpoint);
+                    return null;
+                }
+                return await resp.json();
+            } catch (err) {
+                console.error("API Error (" + endpoint + "):", err);
+                return null;
+            }
+        }
+
+        function applyAuthorizedUi() {
+            isAuthorized = true;
+            document.getElementById('auth-status').innerText = 'AUTHORIZED';
+            document.getElementById('auth-status').style.color = 'var(--neon-blue)';
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('locked'));
+            startHeartbeats();
+        }
+
+        function finishAuth() {
+            document.getElementById('auth-modal').style.display = 'none';
+            applyAuthorizedUi();
+            const readyMsg = window.__lumaxReadyMessage || 'Connected. Lumax Web UI is ready.';
+            if (localStorage.getItem('lumax_consent_done') === '1') {
+                document.getElementById('consent-modal').style.display = 'none';
+                addMessage('SYSTEM', readyMsg);
+            } else {
+                document.getElementById('consent-modal').style.display = 'flex';
+            }
+        }
+
+        async function submitWebUiGate() {
+            const errEl = document.getElementById('auth-error');
+            if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
+            let st = {};
+            try {
+                st = await fetch('/api/auth/status', { credentials: 'same-origin' }).then(r => r.json());
+            } catch (e) {
+                if (errEl) { errEl.textContent = 'Could not reach auth service.'; errEl.style.display = 'block'; }
+                return;
+            }
+            if (!st.auth_required) {
+                finishAuth();
+                return;
+            }
+            const pwEl = document.getElementById('webui-password');
+            const pw = pwEl ? pwEl.value : '';
+            const login = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ password: pw }),
+            });
+            if (!login.ok) {
+                if (errEl) { errEl.textContent = 'Invalid password.'; errEl.style.display = 'block'; }
+                return;
+            }
+            finishAuth();
+        }
+
+        async function bootstrapWebUi() {
+            let st = {};
+            try {
+                st = await fetch('/api/auth/status', { credentials: 'same-origin' }).then(r => r.json());
+            } catch (e) {
+                return;
+            }
+            const need = st.auth_required === true;
+            const authed = st.authenticated === true;
+            const blurb = document.getElementById('auth-blurb-local');
+            const pwRow = document.getElementById('auth-password-row');
+            if (blurb) blurb.style.display = need ? 'none' : 'block';
+            if (pwRow) pwRow.style.display = need ? 'block' : 'none';
+            if (!need) {
+                document.getElementById('auth-modal').style.display = 'flex';
+                return;
+            }
+            if (authed) {
+                document.getElementById('auth-modal').style.display = 'none';
+                applyAuthorizedUi();
+                if (localStorage.getItem('lumax_consent_done') === '1') {
+                    document.getElementById('consent-modal').style.display = 'none';
+                    addMessage('SYSTEM', window.__lumaxReadyMessage || 'Connected. Lumax Web UI is ready.');
+                } else {
+                    document.getElementById('consent-modal').style.display = 'flex';
+                }
+                return;
+            }
+            document.getElementById('auth-modal').style.display = 'flex';
+        }
+
+        function finishConsent() {
+            localStorage.setItem('lumax_consent_done', '1');
+            document.getElementById('consent-modal').style.display = 'none';
+            addMessage('SYSTEM', window.__lumaxReadyMessage || 'Connected. Lumax Web UI is ready.');
+        }
+
+        async function loadChatterboxIframe() {
+            const frame = document.getElementById('chatterbox-embed');
+            const status = document.getElementById('chatterbox-embed-status');
+            const openTab = document.getElementById('chatterbox-open-tab');
+            if (!frame) return;
+            if (status) {
+                status.textContent = 'Resolving Chatterbox URL…';
+                status.style.color = 'var(--neon-blue)';
+            }
+            const data = await callApi('chatterbox/ui_url', 'GET');
+            if (!data || !data.url) {
+                if (status) {
+                    status.textContent = 'Could not load Chatterbox URL (sign in, or check network).';
+                    status.style.color = 'var(--neon-pink)';
+                }
+                if (openTab) {
+                    openTab.style.display = 'none';
+                }
+                return;
+            }
+            if (openTab) {
+                openTab.href = data.url;
+                openTab.style.display = 'inline';
+            }
+            if (window.location.protocol === 'https:' && String(data.url).indexOf('http:') === 0) {
+                if (status) {
+                    status.textContent = 'This page is HTTPS but Chatterbox is HTTP — the browser may block the iframe. Set LUMAX_CHATTERBOX_UI_URL to an https URL or use http for the Web UI.';
+                    status.style.color = 'var(--neon-pink)';
+                }
+            } else if (status) {
+                status.textContent = '';
+            }
+            if (frame.src !== data.url) {
+                frame.src = data.url;
+            }
+        }
+
+        function escapeHtmlDiag(s) {
+            const d = document.createElement('div');
+            d.textContent = s != null ? String(s) : '';
+            return d.innerHTML;
+        }
+
+        function applyDiagnosticsResults(results) {
+            if (!results || !Array.isArray(results)) {
+                return;
+            }
+            results.forEach((r) => {
+                const row = document.querySelector('tr[data-diag-id="' + r.id + '"]');
+                if (!row) {
+                    return;
+                }
+                const st = row.querySelector('.diag-status-cell');
+                const det = row.querySelector('.diag-detail-cell');
+                if (st) {
+                    st.textContent = r.ok ? 'Passed' : 'Failed';
+                    st.style.color = r.ok ? 'var(--neon-green)' : '#ff6b6b';
+                    st.style.fontWeight = '600';
+                }
+                if (det) {
+                    det.textContent = r.detail || '';
+                    det.style.color = 'rgba(224,224,224,0.9)';
+                }
+            });
+        }
+
+        async function loadDiagnosticsPanel() {
+            const tb = document.getElementById('diag-tbody');
+            const st = document.getElementById('diag-run-status');
+            if (!tb) {
+                return;
+            }
+            if (st) {
+                st.textContent = 'Loading check list…';
+                st.style.color = 'var(--neon-blue)';
+            }
+            const data = await callApi('diagnostics/checks', 'GET');
+            if (!data || !data.checks) {
+                tb.innerHTML = '<tr><td colspan="4" style="padding:10px; color:#ff6b6b;">Could not load checks (sign in?).</td></tr>';
+                if (st) {
+                    st.textContent = '';
+                }
+                return;
+            }
+            tb.innerHTML = data.checks
+                .map((c) => {
+                    const opt = c.optional
+                        ? ' <span style="opacity:0.55;font-size:0.65rem;">(optional)</span>'
+                        : '';
+                    return (
+                        '<tr data-diag-id="' +
+                        escapeHtmlDiag(c.id) +
+                        '">' +
+                        '<td style="padding:8px 6px;">' +
+                        escapeHtmlDiag(c.label) +
+                        opt +
+                        '</td>' +
+                        '<td class="diag-status-cell" style="padding:8px 6px;">—</td>' +
+                        '<td class="diag-detail-cell" style="padding:8px 6px; font-size:0.7rem; opacity:0.75;">—</td>' +
+                        '<td style="padding:8px 6px;"><button type="button" class="btn-action" style="padding:6px 12px;font-size:0.75rem;" onclick="runDiagnosticsOne(\'' +
+                        escapeHtmlDiag(c.id) +
+                        '\')">Run</button></td>' +
+                        '</tr>'
+                    );
+                })
+                .join('');
+            if (st) {
+                st.textContent = '';
+            }
+        }
+
+        async function runDiagnosticsAll() {
+            const st = document.getElementById('diag-run-status');
+            const btn = document.getElementById('diag-run-all-btn');
+            if (btn) {
+                btn.disabled = true;
+            }
+            if (st) {
+                st.textContent = 'Running…';
+                st.style.color = 'var(--neon-blue)';
+            }
+            try {
+                const resp = await fetch('/api/diagnostics/run', { credentials: 'same-origin' });
+                if (resp.status === 401) {
+                    if (st) {
+                        st.textContent = 'Sign in required.';
+                        st.style.color = '#ff6b6b';
+                    }
+                    return;
+                }
+                const data = await resp.json();
+                if (!resp.ok) {
+                    if (st) {
+                        st.textContent = 'Run failed.';
+                        st.style.color = '#ff6b6b';
+                    }
+                    return;
+                }
+                applyDiagnosticsResults(data.results);
+                const n = (data.results || []).length;
+                const ok = (data.results || []).filter((x) => x.ok).length;
+                if (st) {
+                    st.textContent = 'Done: ' + ok + ' / ' + n + ' passed.';
+                    st.style.color = ok === n ? 'var(--neon-green)' : 'rgba(255,200,100,0.95)';
+                }
+            } catch (e) {
+                if (st) {
+                    st.textContent = 'Network error.';
+                    st.style.color = '#ff6b6b';
+                }
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                }
+            }
+        }
+
+        async function runDiagnosticsOne(id) {
+            const st = document.getElementById('diag-run-status');
+            if (st) {
+                st.textContent = 'Running ' + id + '…';
+                st.style.color = 'var(--neon-blue)';
+            }
+            try {
+                const resp = await fetch('/api/diagnostics/run', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ids: [id] }),
+                });
+                if (resp.status === 401) {
+                    if (st) {
+                        st.textContent = 'Sign in required.';
+                        st.style.color = '#ff6b6b';
+                    }
+                    return;
+                }
+                const data = await resp.json();
+                if (!resp.ok) {
+                    if (st) {
+                        st.textContent = 'Run failed.';
+                        st.style.color = '#ff6b6b';
+                    }
+                    return;
+                }
+                applyDiagnosticsResults(data.results);
+                if (st) {
+                    const r = (data.results || [])[0];
+                    st.textContent = r && r.ok ? id + ': passed' : id + ': failed';
+                    st.style.color = r && r.ok ? 'var(--neon-green)' : '#ff6b6b';
+                }
+            } catch (e) {
+                if (st) {
+                    st.textContent = 'Network error.';
+                    st.style.color = '#ff6b6b';
+                }
+            }
+        }
+
+        async function runDiagnosticsPipeline() {
+            const st = document.getElementById('diag-pipeline-status');
+            const btn = document.getElementById('diag-pipeline-btn');
+            if (btn) {
+                btn.disabled = true;
+            }
+            if (st) {
+                st.textContent = 'Running pipeline (STT → soul → TTS)…';
+                st.style.color = 'var(--neon-blue)';
+            }
+            try {
+                const resp = await fetch('/api/diagnostics/pipeline', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: '{}',
+                });
+                if (resp.status === 401) {
+                    if (st) {
+                        st.textContent = 'Sign in required.';
+                        st.style.color = '#ff6b6b';
+                    }
+                    return;
+                }
+                const data = await resp.json();
+                if (!resp.ok || !data) {
+                    if (st) {
+                        st.textContent = 'Pipeline request failed.';
+                        st.style.color = '#ff6b6b';
+                    }
+                    return;
+                }
+                const lines = (data.steps || []).map(function (s) {
+                    const mark = s.ok ? 'OK' : 'FAIL';
+                    const prev = s.preview ? ' — ' + String(s.preview).slice(0, 120) : '';
+                    return mark + ' ' + s.id + ' (' + (s.ms != null ? s.ms + 'ms' : '?') + '): ' + (s.detail || '') + prev;
+                });
+                const tail = data.ok ? 'All steps passed.' : (data.note || 'Stopped early.');
+                if (st) {
+                    st.textContent = lines.join(' | ') + ' — ' + tail;
+                    st.style.color = data.ok ? 'var(--neon-green)' : '#ff6b6b';
+                }
+            } catch (e) {
+                if (st) {
+                    st.textContent = 'Network error.';
+                    st.style.color = '#ff6b6b';
+                }
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                }
+            }
+        }
+
+        async function speakDiagnosticsTts() {
+            const ta = document.getElementById('diag-tts-text');
+            const st = document.getElementById('diag-tts-status');
+            const audio = document.getElementById('diag-tts-audio');
+            const engine = document.getElementById('diag-tts-engine');
+            const voiceEl = document.getElementById('diag-tts-voice');
+            const text = ta && ta.value ? ta.value.trim() : '';
+            if (!text) {
+                if (st) {
+                    st.textContent = 'Enter text first.';
+                    st.style.color = '#ff6b6b';
+                }
+                return;
+            }
+            if (st) {
+                st.textContent = 'Synthesizing…';
+                st.style.color = 'var(--neon-blue)';
+            }
+            const payload = {
+                text: text,
+                engine: engine ? engine.value : 'TURBO',
+            };
+            const v = voiceEl && voiceEl.value ? voiceEl.value.trim() : '';
+            if (v) {
+                payload.voice = v;
+            }
+            try {
+                const resp = await fetch('/api/diagnostics/tts', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                if (resp.status === 401) {
+                    if (st) {
+                        st.textContent = 'Sign in required.';
+                        st.style.color = '#ff6b6b';
+                    }
+                    return;
+                }
+                const errText = await resp.text();
+                let data = {};
+                try {
+                    data = JSON.parse(errText);
+                } catch (e) {}
+                if (!resp.ok) {
+                    const detail = data.detail != null ? String(data.detail) : errText.slice(0, 400);
+                    if (st) {
+                        st.textContent = 'TTS failed: ' + detail;
+                        st.style.color = '#ff6b6b';
+                    }
+                    return;
+                }
+                if (!data.audio_base64 || !audio) {
+                    if (st) {
+                        st.textContent = 'Unexpected response.';
+                        st.style.color = '#ff6b6b';
+                    }
+                    return;
+                }
+                const ct = data.content_type || 'audio/wav';
+                audio.src = 'data:' + ct + ';base64,' + data.audio_base64;
+                audio.play().catch(() => {});
+                if (st) {
+                    st.textContent = 'Playing (' + (data.bytes || '?') + ' bytes).';
+                    st.style.color = 'var(--neon-green)';
+                }
+            } catch (e) {
+                if (st) {
+                    st.textContent = 'Network error.';
+                    st.style.color = '#ff6b6b';
+                }
+            }
+        }
+
+        function escapeHtmlFeatureMap(s) {
+            if (s == null || s === undefined) {
+                return '';
+            }
+            const d = document.createElement('div');
+            d.textContent = String(s);
+            return d.innerHTML;
+        }
+
+        function initFeatureMapFilters() {
+            const host = document.getElementById('fmap-cat-host');
+            if (!host || !featureMapData || !featureMapData.categories) {
+                return;
+            }
+            if (host.dataset.inited === '1') {
+                return;
+            }
+            host.innerHTML = '';
+            featureMapData.categories.forEach(function (c) {
+                const id = 'fmap-cat-' + c.id;
+                const lab = document.createElement('label');
+                lab.className = 'fmap-chip';
+                const inp = document.createElement('input');
+                inp.type = 'checkbox';
+                inp.id = id;
+                inp.checked = true;
+                inp.setAttribute('data-cat', c.id);
+                lab.appendChild(inp);
+                lab.appendChild(document.createTextNode(' ' + (c.label || c.id)));
+                host.appendChild(lab);
+            });
+            host.dataset.inited = '1';
+        }
+
+        function featureMapCategoryEnabled(row) {
+            const cat = row.category || 'other';
+            const cb = document.getElementById('fmap-cat-' + cat);
+            if (!cb) {
+                return true;
+            }
+            return cb.checked;
+        }
+
+        function featureMapTierEnabled(row) {
+            const noneEl = document.getElementById('fmap-tier-none');
+            const tier = row.tier;
+            if (!tier) {
+                return noneEl ? noneEl.checked : true;
+            }
+            const el = document.getElementById('fmap-tier-' + tier);
+            return el ? el.checked : true;
+        }
+
+        function featureMapSearchOk(row) {
+            const inp = document.getElementById('fmap-search');
+            const q = inp && inp.value ? inp.value.trim().toLowerCase() : '';
+            if (!q) {
+                return true;
+            }
+            const blob = row.search_blob || '';
+            const label = (row.label || '').toLowerCase();
+            return blob.indexOf(q) !== -1 || label.indexOf(q) !== -1;
+        }
+
+        function renderFeatureMapOutline() {
+            const el = document.getElementById('fmap-outline');
+            if (!el || !featureMapData || !featureMapData.segments) {
+                return;
+            }
+            const parts = [];
+            featureMapData.segments.forEach(function (seg) {
+                if (seg.kind === 'h1') {
+                    parts.push('<h3 class="fmap-h1">' + escapeHtmlFeatureMap(seg.title) + '</h3>');
+                } else if (seg.kind === 'h2') {
+                    parts.push('<h4 class="fmap-h2">' + escapeHtmlFeatureMap(seg.title) + '</h4>');
+                } else if (seg.kind === 'h3') {
+                    parts.push('<h5 class="fmap-h3">' + escapeHtmlFeatureMap(seg.title) + '</h5>');
+                } else if (seg.kind === 'paragraph') {
+                    parts.push('<p>' + escapeHtmlFeatureMap(seg.text || '').replace(/\n/g, '<br>') + '</p>');
+                } else if (seg.kind === 'rule') {
+                    parts.push('<hr style="border:none;border-top:1px solid var(--border);margin:12px 0;opacity:0.4;">');
+                } else if (seg.kind === 'table' && seg.headers) {
+                    parts.push('<table><thead><tr>');
+                    seg.headers.forEach(function (h) {
+                        parts.push('<th>' + escapeHtmlFeatureMap(h) + '</th>');
+                    });
+                    parts.push('</tr></thead><tbody>');
+                    (seg.rows || []).forEach(function (r) {
+                        const row = r.slice();
+                        while (row.length < seg.headers.length) {
+                            row.push('');
+                        }
+                        parts.push('<tr>');
+                        row.forEach(function (c) {
+                            parts.push('<td>' + escapeHtmlFeatureMap(c) + '</td>');
+                        });
+                        parts.push('</tr>');
+                    });
+                    parts.push('</tbody></table>');
+                }
+            });
+            el.innerHTML = parts.join('');
+        }
+
+        function renderFeatureMap() {
+            if (!featureMapData) {
+                return;
+            }
+            const modeEl = document.querySelector('input[name="fmap-view-mode"]:checked');
+            const view = modeEl ? modeEl.value : 'rows';
+            const rowsWrap = document.getElementById('fmap-rows-wrap');
+            const outWrap = document.getElementById('fmap-outline-wrap');
+            if (view === 'outline') {
+                if (rowsWrap) {
+                    rowsWrap.style.display = 'none';
+                }
+                if (outWrap) {
+                    outWrap.style.display = 'block';
+                }
+                renderFeatureMapOutline();
+                const cntO = document.getElementById('fmap-count');
+                if (cntO && featureMapData.segments) {
+                    cntO.textContent = 'Full outline · ' + featureMapData.segments.length
+                        + ' blocks (filters below still apply to the Filtered rows view).';
+                }
+                return;
+            }
+            if (rowsWrap) {
+                rowsWrap.style.display = 'block';
+            }
+            if (outWrap) {
+                outWrap.style.display = 'none';
+            }
+            const grid = document.getElementById('fmap-grid');
+            const cnt = document.getElementById('fmap-count');
+            if (!grid || !featureMapData.flat_rows) {
+                return;
+            }
+            const filtered = featureMapData.flat_rows.filter(function (r) {
+                return featureMapTierEnabled(r) && featureMapCategoryEnabled(r) && featureMapSearchOk(r);
+            });
+            const total = featureMapData.flat_rows.length;
+            const maxShow = 500;
+            const slice = filtered.slice(0, maxShow);
+            if (cnt) {
+                cnt.textContent = 'Showing ' + slice.length + ' of ' + filtered.length + ' matching rows (indexed ' + total + ').';
+            }
+            grid.innerHTML = '';
+            slice.forEach(function (r) {
+                const card = document.createElement('div');
+                card.className = 'fmap-card';
+                const head = document.createElement('div');
+                head.className = 'fmap-card-head';
+                const h4 = document.createElement('h4');
+                h4.textContent = r.label || '—';
+                head.appendChild(h4);
+                const tier = r.tier;
+                if (tier) {
+                    const tb = document.createElement('span');
+                    tb.className = 'fmap-tier fmap-tier-' + tier;
+                    tb.textContent = tier;
+                    head.appendChild(tb);
+                } else {
+                    const tb = document.createElement('span');
+                    tb.className = 'fmap-tier-none';
+                    tb.textContent = '—';
+                    head.appendChild(tb);
+                }
+                card.appendChild(head);
+                const meta = document.createElement('div');
+                meta.className = 'fmap-meta';
+                const h2 = r.h2_title || '';
+                const h3 = r.h3_title ? ' › ' + r.h3_title : '';
+                meta.textContent = (r.category || '') + h3 + ' · ' + h2;
+                card.appendChild(meta);
+                const notes = document.createElement('div');
+                notes.className = 'fmap-notes';
+                notes.textContent = r.notes || '';
+                card.appendChild(notes);
+                grid.appendChild(card);
+            });
+        }
+
+        function featureMapPreset(name) {
+            if (!featureMapData || !featureMapData.categories) {
+                return;
+            }
+            const cats = featureMapData.categories;
+            const setTier = function (a, b, c, d, none) {
+                const o = { A: a, B: b, C: c, D: d };
+                Object.keys(o).forEach(function (k) {
+                    const el = document.getElementById('fmap-tier-' + k);
+                    if (el) {
+                        el.checked = o[k];
+                    }
+                });
+                const n = document.getElementById('fmap-tier-none');
+                if (n) {
+                    n.checked = none;
+                }
+            };
+            const setCats = function (fn) {
+                cats.forEach(function (c) {
+                    const el = document.getElementById('fmap-cat-' + c.id);
+                    if (el) {
+                        el.checked = fn(c.id);
+                    }
+                });
+            };
+            const search = document.getElementById('fmap-search');
+            if (name === 'all') {
+                if (search) {
+                    search.value = '';
+                }
+                setTier(true, true, true, true, true);
+                setCats(function () { return true; });
+            } else if (name === 'stubs') {
+                setTier(false, false, true, false, false);
+                setCats(function () { return true; });
+            } else if (name === 'roadmap') {
+                if (search) {
+                    search.value = '';
+                }
+                setTier(true, true, true, true, true);
+                setCats(function (id) { return id === 'roadmap'; });
+            } else if (name === 'godot') {
+                if (search) {
+                    search.value = '';
+                }
+                setTier(true, true, true, true, true);
+                setCats(function (id) { return id === 'godot'; });
+            } else if (name === 'web') {
+                if (search) {
+                    search.value = '';
+                }
+                setTier(true, true, true, true, true);
+                setCats(function (id) { return id === 'web'; });
+            } else if (name === 'strong') {
+                if (search) {
+                    search.value = '';
+                }
+                setTier(true, false, false, false, false);
+                setCats(function () { return true; });
+            }
+            renderFeatureMap();
+        }
+
+        async function loadFeatureInventory() {
+            const status = document.getElementById('feature-map-status');
+            try {
+                const urls = ['/api/fmap', '/api/feature_inventory'];
+                let resp = null;
+                let data = {};
+                for (let u = 0; u < urls.length; u++) {
+                    resp = await fetch(urls[u], { credentials: 'same-origin' });
+                    if (resp.status === 404) {
+                        continue;
+                    }
+                    try {
+                        data = await resp.json();
+                    } catch (je) {
+                        if (status) {
+                            status.textContent = 'Feature map: invalid JSON (HTTP ' + resp.status + ').';
+                            status.style.color = '#ff6b6b';
+                        }
+                        return;
+                    }
+                    break;
+                }
+                if (!resp || resp.status === 404) {
+                    if (status) {
+                        status.textContent = 'Feature map API not found (HTTP 404 on /api/fmap and /api/feature_inventory). '
+                            + 'The running lumax_ops process is missing this code path — restart: docker restart lumax_ops. '
+                            + 'If it persists: GET http://127.0.0.1:8080/health should show feature_map_ok:true; '
+                            + 'rebuild lumax_unified or verify .:/app volume matches your repo.';
+                        status.style.color = '#ff6b6b';
+                    }
+                    return;
+                }
+                if (resp.status === 401) {
+                    if (status) {
+                        status.textContent = 'Unexpected 401 on feature map (should be public). Check proxy/auth middleware.';
+                        status.style.color = '#ff6b6b';
+                    }
+                    return;
+                }
+                if (!data.ok) {
+                    if (status) {
+                        status.textContent = 'Could not load: ' + (data.detail || data.error || 'unknown')
+                            + (data.path ? ' — ' + data.path : '');
+                        status.style.color = '#ff6b6b';
+                    }
+                    return;
+                }
+                featureMapData = data;
+                if (status) {
+                    status.textContent = 'Loaded · ' + (data.flat_rows || []).length + ' rows · '
+                        + (data.source_file || '');
+                    status.style.color = 'rgba(0,243,255,0.65)';
+                }
+                initFeatureMapFilters();
+                renderFeatureMap();
+            } catch (e) {
+                if (status) {
+                    status.textContent = 'Network error loading feature map.';
+                    status.style.color = '#ff6b6b';
+                }
+            }
+        }
+
+        function setupFeatureMapUi() {
+            const root = document.getElementById('feature-map-root');
+            if (root) {
+                root.addEventListener('change', function () {
+                    if (featureMapData) {
+                        renderFeatureMap();
+                    }
+                });
+            }
+            const s = document.getElementById('fmap-search');
+            let searchTimer = null;
+            if (s) {
+                s.addEventListener('input', function () {
+                    clearTimeout(searchTimer);
+                    searchTimer = setTimeout(function () {
+                        renderFeatureMap();
+                    }, 220);
+                });
+            }
+            document.querySelectorAll('input[name="fmap-view-mode"]').forEach(function (r) {
+                r.addEventListener('change', function () {
+                    renderFeatureMap();
+                });
+            });
+        }
+
+        function switchTab(tabId) {
+            if (!isAuthorized && tabId !== 'SANCTUARY') return;
+
+            // Update Nav
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            const navItem = document.querySelector('.nav-item[data-tab="' + tabId + '"]');
+            if (navItem) {
+                navItem.classList.add('active');
+            }
+
+            // Update Views
+            document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
+            const targetView = document.getElementById('view-' + tabId);
+            if (targetView) {
+                targetView.classList.add('active');
+            }
+
+            if (tabId === 'CHATTERBOX') {
+                loadChatterboxIframe();
+            }
+            if (tabId === 'CHECKUP') {
+                loadDiagnosticsPanel();
+            }
+            if (tabId === 'NEURAL') {
+                loadSoulDna();
+            }
+            if (tabId === 'UTILS') {
+                loadAnnouncements();
+                refreshTtsBackend();
+            }
+            if (tabId === 'BRANDING') {
+                populateBrandingForm();
+            }
+            if (tabId === 'THOUGHTS') {
+                loadThoughtsPanel();
+            }
+            if (tabId === 'IMAGINE') {
+                loadImaginePanel();
+                loadDreamCatalog();
+                dreamModeChanged();
+                dreamUpdateStrengthLabel();
+                dreamUpdateControlScaleLabel();
+            }
+            if (tabId === 'VISION') {
+                loadVisionPanel();
+            }
+            if (tabId === 'FEATUREMAP') {
+                loadFeatureInventory();
+            }
+        }
+
+        async function refreshTtsBackend() {
+            const st = document.getElementById('tts-backend-status');
+            const sel = document.getElementById('tts-backend-select');
+            if (!sel) return;
+            const resp = await fetch('/api/tts/backend', {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+            });
+            const text = await resp.text();
+            let data = {};
+            try { data = JSON.parse(text); } catch (e) {}
+            if (resp.status === 401) {
+                if (st) st.textContent = 'Sign in to read TTS routing.';
+                return;
+            }
+            if (resp.ok && data.backend) {
+                sel.value = data.backend === 'chatterbox' ? 'chatterbox_ui' : 'turbo';
+                if (st) st.textContent = 'Mouth routing file: ' + data.backend + ' (read from lumax_body)';
+            } else {
+                const msg = (data && data.detail) ? String(data.detail) : text.slice(0, 400);
+                if (st) st.textContent = 'Could not read TTS routing: ' + msg.slice(0, 500);
+            }
+        }
+
+        async function applyTtsRoutingOnly() {
+            const sel = document.getElementById('tts-backend-select');
+            const st = document.getElementById('tts-backend-status');
+            if (!sel) return;
+            const v = sel.value;
+            const backend = v === 'chatterbox_ui' ? 'chatterbox' : 'turbo';
+            const resp = await fetch('/api/tts/backend', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'same-origin',
+                body: JSON.stringify({ backend: backend }),
+            });
+            const text = await resp.text();
+            let data = {};
+            try { data = JSON.parse(text); } catch (e) {}
+            if (resp.ok && data.backend) {
+                if (st) st.textContent = 'Saved routing: ' + data.backend + ' (GPU containers unchanged).';
+            } else {
+                const msg = (data && data.detail) ? String(data.detail) : text.slice(0, 400);
+                if (st) st.textContent = 'TTS routing save failed: ' + msg.slice(0, 500);
+            }
+        }
+
+        async function applyTtsGpuStack() {
+            const sel = document.getElementById('tts-backend-select');
+            const st = document.getElementById('tts-backend-status');
+            if (!sel) return;
+            const mode = sel.value;
+            if (st) {
+                if (mode === 'chatterbox_ui') {
+                    st.textContent = 'Docker: stopping turbo, building/starting Chatterbox (first run: 5–25+ min — image build + model pull; page can look idle).';
+                } else {
+                    st.textContent = 'Running docker compose (starting turbo, stopping Chatterbox)…';
+                }
+            }
+            try {
+                const opts = {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ mode: mode }),
+                };
+                let resp = await fetch('/api/tts/gpu_stack', opts);
+                if (resp.status === 404) {
+                    resp = await fetch('/api/tts/gpu-stack', opts);
+                }
+                const text = await resp.text();
+                if (!resp.ok) {
+                    let detail = text;
+                    try {
+                        const jErr = JSON.parse(text);
+                        if (jErr && jErr.detail) detail = String(jErr.detail);
+                    } catch (e) {}
+                    if (resp.status === 404) {
+                        if (st) st.textContent = 'GPU switch failed (404): this Web UI has no POST /api/tts/gpu_stack — recreate lumax_ops (`docker compose up -d --force-recreate lumax_ops`). Check GET /health for tts_routes. Raw: ' + detail.slice(0, 600);
+                    } else {
+                        if (st) st.textContent = 'GPU switch failed: ' + detail.slice(0, 2400);
+                    }
+                    return;
+                }
+                let j = {};
+                try { j = JSON.parse(text); } catch (e) { j = {}; }
+                const cn = j.container_name ? ' → `docker ps` name: ' + j.container_name : '';
+                const tail = j.compose_log_tail ? String(j.compose_log_tail).trim().slice(-400) : '';
+                if (st) {
+                    st.textContent = 'OK: ' + (j.backend_file || '') + cn + (tail ? ' — ' + tail : '');
+                }
+            } catch (e) {
+                if (st) st.textContent = 'Network error: ' + e;
+            }
+        }
+
+        async function loadAnnouncements() {
+            const board = document.getElementById('announce-board');
+            if (!board) return;
+            board.innerHTML = '<div class="announce-empty">Loading bulletins…</div>';
+            const data = await callApi('announcements', 'GET');
+            const items = (data && data.items) ? data.items : [];
+            if (!items.length) {
+                board.innerHTML = '<div class="announce-empty">No bulletins. Add entries in announcements.json.</div>';
+                return;
+            }
+            board.innerHTML = '';
+            items.forEach((row) => {
+                const pri = (row.priority || 'info').toLowerCase();
+                let cls = 'announce-item';
+                if (pri === 'warn' || pri === 'warning') cls += ' priority-warn';
+                if (pri === 'ops' || pri === 'critical') cls += ' priority-ops';
+                const el = document.createElement('article');
+                el.className = cls;
+                const meta = document.createElement('div');
+                meta.className = 'announce-meta';
+                meta.textContent = (row.date || '—') + (row.tag ? ' · ' + row.tag : '');
+                const h = document.createElement('h4');
+                h.className = 'announce-title';
+                h.textContent = row.title || 'Notice';
+                const body = document.createElement('div');
+                body.className = 'announce-body';
+                body.textContent = row.body || '';
+                el.appendChild(meta);
+                el.appendChild(h);
+                el.appendChild(body);
+                board.appendChild(el);
+            });
+        }
+
+        function addMessage(who, text) {
+            const feed = document.getElementById('neural-feed');
+            const msg = document.createElement('div');
+            msg.className = 'msg ' + (who === 'SYSTEM' ? 'msg-sys' : (who.startsWith('YOU') || who === 'USER' ? 'msg-user' : 'msg-ai'));
+
+            const tag = document.createElement('span');
+            tag.className = 'sender-tag';
+            tag.innerText = who;
+
+            msg.appendChild(tag);
+            
+            // Handle [img] tags from backend
+            let cleanText = text.replace(/\[img=(.*?)\](.*?)\[\/img\]/g, '<img src="$2" style="max-width:300px">');
+            msg.innerHTML += cleanText;
+
+            feed.appendChild(msg);
+            feed.scrollTop = feed.scrollHeight;
+        }
+
+        async function sendChat(text) {
+            const deepEl = document.getElementById('check-deep-think');
+            const deepThink = deepEl && deepEl.checked;
+            const data = await callApi('chat', 'POST', {
+                input: text,
+                vessel: 'WEB_BRIDGE',
+                deep_think: deepThink,
+            });
+            if (data && data.response) {
+                addMessage('LUMAX', data.response);
+                if (data.audio) {
+                    playAudio(data.audio);
+                }
+            } else if (data && data.detail) {
+                addMessage('SYSTEM', 'Chat error: ' + String(data.detail).slice(0, 600));
+            } else if (!data) {
+                addMessage('SYSTEM', 'Chat unavailable (sign in, or check xrlf_runtime :8402).');
+            } else {
+                addMessage('SYSTEM', 'Empty reply from soul.');
+            }
+        }
+
+        function playAudio(base64) {
+            const audio = new Audio("data:audio/wav;base64," + base64);
+            audio.play();
+        }
+
+        /** Maps NEURAL slider ids to UpdateSoulRequest / soul DNA keys on lumax_soul. */
+        const _SOUL_SLIDER_MAP = { intimacy: 'openminded', curiosity: 'intellectual', nourishment: 'faithful' };
+        let _soulDnaCache = null;
+
+        async function loadSoulDna() {
+            const data = await callApi('soul/dna', 'GET');
+            if (!data || !data.dna) return;
+            _soulDnaCache = Object.assign({}, data.dna);
+            for (const [ui, soulKey] of Object.entries(_SOUL_SLIDER_MAP)) {
+                const el = document.getElementById('slider-' + ui);
+                const lab = document.getElementById('val-' + ui);
+                if (el && _soulDnaCache[soulKey] != null) {
+                    const v = Number(_soulDnaCache[soulKey]);
+                    el.value = String(v);
+                    if (lab) lab.textContent = String(v);
+                }
+            }
+        }
+
+        async function updateKnob(knob, val) {
+            const soulKey = _SOUL_SLIDER_MAP[knob];
+            if (!soulKey) return;
+            const vEl = document.getElementById('val-' + knob);
+            if (vEl) vEl.innerText = val;
+            if (!_soulDnaCache) await loadSoulDna();
+            if (!_soulDnaCache) {
+                addMessage('SYSTEM', 'Could not load soul DNA (sign in, or start lumax_soul).');
+                return;
+            }
+            _soulDnaCache[soulKey] = parseFloat(val);
+            const resp = await callApi('update_soul', 'POST', _soulDnaCache);
+            if (resp && resp.dna) {
+                _soulDnaCache = Object.assign({}, resp.dna);
+                addMessage('SYSTEM', 'Soul traits updated (' + soulKey + ').');
+            } else if (resp && resp.detail) {
+                addMessage('SYSTEM', 'update_soul failed: ' + String(resp.detail).slice(0, 400));
+            }
+        }
+
+        function toggleAgency(type, active) {
+            addMessage('SYSTEM', 'AGENCY_' + type.toUpperCase() + ': ' + (active ? 'ENABLED' : 'DISABLED') + ' (UI only until wired to soul).');
+        }
+
+        function setArchetype(type) {
+            addMessage('SYSTEM', 'Priming archetype ' + type + ' — sending a short note to the soul.');
+            sendChat('[Persona] I am leaning into the ' + type + ' archetype for how we interact from the Web UI.');
+        }
+
+        async function loadThoughtsPanel() {
+            const rt = await callApi('soul/runtime_status', 'GET');
+            const ps = await callApi('soul/ps', 'GET');
+            const rtEl = document.getElementById('thoughts-runtime');
+            const psEl = document.getElementById('thoughts-ps');
+            if (rtEl) {
+                rtEl.textContent = rt ? JSON.stringify(rt, null, 2) : 'unavailable (sign in or soul down)';
+            }
+            if (psEl) {
+                psEl.textContent = ps ? JSON.stringify(ps, null, 2) : 'unavailable';
+            }
+        }
+
+        async function loadImaginePanel() {
+            const el = document.getElementById('imagine-creativity-status');
+            if (!el) return;
+            const s = await callApi('creativity/status', 'GET');
+            let h = (s && s.health) ? s.health : await callApi('creativity/health', 'GET');
+            if (!h && !s) {
+                el.textContent = 'Could not reach creativity (sign in?).';
+                el.style.color = 'var(--neon-pink)';
+                return;
+            }
+            const parts = [];
+            if (s && s.ok) {
+                parts.push('API ' + (s.url || '') + ' OK.');
+            } else if (s) {
+                parts.push('OpenAPI: ' + (s.detail || s.status_code || 'down'));
+            }
+            if (h && h.status === 'ok') {
+                parts.push(
+                    'SD1.5 dir: ' + (h.sd15_diffusers_path_exists ? 'found' : 'missing') +
+                    ' — ' + (h.sd15_diffusers_path || '')
+                );
+                if (h.sd15_weights_ok === false && h.sd15_error) {
+                    parts.push('weights: ' + String(h.sd15_error).slice(0, 220));
+                }
+                parts.push(
+                    'SDXL TRT: ' + (h.sdxl_unet_trt_opt_exists ? 'unetxl.opt OK' : 'missing') +
+                    ' @ ' + (h.sdxl_unet_trt_opt || '')
+                );
+                parts.push(
+                    'SD1.4 ONNX: ' + (h.sd14_onnx_ready ? 'ready' : 'not ready') +
+                    (h.sd14_onnx_resolved ? ' — ' + h.sd14_onnx_resolved : ' — ' + (h.sd14_onnx_dir || ''))
+                );
+                el.style.color = (h.sd15_weights_ok !== false || h.sd15_diffusers_path_exists) ? 'var(--neon-green)' : 'var(--neon-pink)';
+            } else if (h && h.detail) {
+                parts.push('health: ' + String(h.detail).slice(0, 200));
+                el.style.color = 'var(--neon-pink)';
+            } else if (s && s.health_error) {
+                parts.push('health: ' + String(s.health_error).slice(0, 200));
+                el.style.color = 'var(--neon-pink)';
+            }
+            el.textContent = parts.join(' ');
+        }
+
+        let dreamUploadedBase64 = null;
+
+        function dreamUpdateStrengthLabel() {
+            const r = document.getElementById('dream-strength');
+            const v = document.getElementById('dream-strength-val');
+            if (r && v) v.textContent = parseFloat(r.value).toFixed(2);
+        }
+
+        function dreamUpdateControlScaleLabel() {
+            const r = document.getElementById('dream-control-scale');
+            const v = document.getElementById('dream-control-scale-val');
+            if (r && v) v.textContent = parseFloat(r.value).toFixed(2);
+        }
+
+        function dreamModeChanged() {
+            const m = document.getElementById('dream-mode');
+            const mode = m ? m.value : 'turbo';
+            const tr = document.getElementById('dream-row-turbo');
+            const cr = document.getElementById('dream-row-control');
+            const ur = document.getElementById('dream-row-upscaler');
+            const ip = document.getElementById('dream-image-panel');
+            const sz = document.getElementById('dream-row-size');
+            if (tr) tr.style.display = mode === 'turbo' ? 'block' : 'none';
+            if (cr) cr.style.display = mode === 'control' ? 'block' : 'none';
+            if (ur) ur.style.display = mode === 'enhance' ? 'block' : 'none';
+            if (ip) ip.style.display = mode === 'sd14_onnx' ? 'none' : 'block';
+            if (sz) sz.style.display = mode === 'enhance' ? 'none' : 'block';
+            dreamRepopulateAddons();
+        }
+
+        function dreamRepopulateAddons() {
+            const data = window.__dreamCatalog;
+            const modeEl = document.getElementById('dream-mode');
+            const mode = modeEl ? modeEl.value : 'turbo';
+            const selCn = document.getElementById('dream-controlnet-id');
+            const selUp = document.getElementById('dream-upscaler-id');
+            if (!data) return;
+            if (selCn && Array.isArray(data.controlnets)) {
+                const keep = selCn.value;
+                selCn.innerHTML = '<option value="">default (sd-controlnet-canny under Imagen root)</option>';
+                data.controlnets.forEach((c) => {
+                    if (mode === 'control' && c.sd15_compatible === false) return;
+                    const opt = document.createElement('option');
+                    opt.value = c.id || '';
+                    const ex = c.exists === false ? ' (missing)' : '';
+                    const tag = c.base ? ' [' + c.base + ']' : '';
+                    opt.textContent = (c.name || c.id) + tag + ex;
+                    selCn.appendChild(opt);
+                });
+                const ok = Array.from(selCn.options).some((o) => o.value === keep);
+                if (keep && ok) selCn.value = keep;
+                else if (mode === 'control') {
+                    const first = Array.from(selCn.options).find((o) => o.value);
+                    if (first) selCn.value = first.value;
+                }
+            }
+            if (selUp && Array.isArray(data.upscalers)) {
+                const keepU = selUp.value;
+                selUp.innerHTML = '';
+                data.upscalers.forEach((u) => {
+                    if (mode === 'enhance' && u.enhance_compatible === false) return;
+                    const opt = document.createElement('option');
+                    opt.value = u.id || '';
+                    const miss = u.exists === false ? ' (missing)' : '';
+                    opt.textContent = (u.name || u.id) + ' (' + (u.backend || '?') + ')' + miss;
+                    selUp.appendChild(opt);
+                });
+                const okU = Array.from(selUp.options).some((o) => o.value === keepU);
+                if (keepU && okU) selUp.value = keepU;
+                else if (mode === 'enhance' && selUp.options.length) {
+                    const l = Array.from(selUp.options).find((o) => o.value === 'lanczos-x4');
+                    selUp.value = l ? l.value : selUp.options[0].value;
+                }
+            }
+            const selUp2 = document.getElementById('dream-upscaler-id-2');
+            if (selUp2 && Array.isArray(data.upscalers)) {
+                const keep2 = selUp2.value;
+                selUp2.innerHTML = '<option value="">— none —</option>';
+                data.upscalers.forEach((u) => {
+                    if (mode === 'enhance' && u.enhance_compatible === false) return;
+                    const opt = document.createElement('option');
+                    opt.value = u.id || '';
+                    const miss = u.exists === false ? ' (missing)' : '';
+                    opt.textContent = (u.name || u.id) + ' (' + (u.backend || '?') + ')' + miss;
+                    selUp2.appendChild(opt);
+                });
+                const ok2 = Array.from(selUp2.options).some((o) => o.value === keep2);
+                if (keep2 && ok2) selUp2.value = keep2;
+                else selUp2.value = '';
+            }
+        }
+
+        function dreamApplyDefaultImageSizePresets(sizeSel) {
+            if (!sizeSel) return;
+            const keep = sizeSel.value;
+            const presets = [
+                { label: '512 × 512 (square)', width: 512, height: 512 },
+                { label: '512 × 768 (portrait)', width: 512, height: 768 },
+                { label: '768 × 512 (landscape)', width: 768, height: 512 },
+                { label: '640 × 640', width: 640, height: 640 },
+                { label: '768 × 768', width: 768, height: 768 },
+                { label: '896 × 512 (wide)', width: 896, height: 512 },
+            ];
+            sizeSel.innerHTML = '';
+            presets.forEach((p) => {
+                const opt = document.createElement('option');
+                const w = parseInt(p.width, 10) || 512;
+                const h = parseInt(p.height, 10) || 512;
+                opt.value = w + 'x' + h;
+                opt.textContent = p.label || (w + ' × ' + h);
+                sizeSel.appendChild(opt);
+            });
+            const still = Array.from(sizeSel.options).some((o) => o.value === keep);
+            if (keep && still) sizeSel.value = keep;
+        }
+
+        function dreamSyncSd14OnnxFromReady(ready) {
+            const modeEl = document.getElementById('dream-mode');
+            if (!modeEl) return;
+            const opt = Array.from(modeEl.options).find((o) => o.value === 'sd14_onnx');
+            if (!opt) return;
+            if (ready === true) {
+                window.__dreamSd14OnnxReady = true;
+                opt.disabled = false;
+                opt.textContent = 'sd14_onnx — SD1.4 ONNX (Optimum, txt2img)';
+            } else if (ready === false) {
+                window.__dreamSd14OnnxReady = false;
+                opt.disabled = true;
+                opt.textContent = 'sd14_onnx — ONNX bundle missing (use turbo)';
+                if (modeEl.value === 'sd14_onnx') {
+                    modeEl.value = 'turbo';
+                    dreamModeChanged();
+                }
+            }
+        }
+
+        async function loadDreamCatalog() {
+            const data = await callApi('dream/catalog', 'GET');
+            const sizeSel = document.getElementById('dream-image-size');
+            if (!data) {
+                dreamApplyDefaultImageSizePresets(sizeSel);
+                const h = await callApi('creativity/health', 'GET');
+                if (h && typeof h.sd14_onnx_ready === 'boolean') {
+                    dreamSyncSd14OnnxFromReady(h.sd14_onnx_ready);
+                }
+                return;
+            }
+            window.__dreamCatalog = data;
+            if (sizeSel && Array.isArray(data.image_size_presets) && data.image_size_presets.length) {
+                const keep = sizeSel.value;
+                sizeSel.innerHTML = '';
+                data.image_size_presets.forEach((p) => {
+                    const opt = document.createElement('option');
+                    const w = parseInt(p.width, 10) || 512;
+                    const h = parseInt(p.height, 10) || 512;
+                    opt.value = w + 'x' + h;
+                    opt.textContent = p.label || (w + ' × ' + h);
+                    sizeSel.appendChild(opt);
+                });
+                const still = Array.from(sizeSel.options).some((o) => o.value === keep);
+                if (keep && still) sizeSel.value = keep;
+            } else {
+                dreamApplyDefaultImageSizePresets(sizeSel);
+            }
+            const eo = data.enhance_options;
+            if (eo) {
+                const tsSel = document.getElementById('dream-enhance-target-scale');
+                if (tsSel && Array.isArray(eo.target_scales) && eo.target_scales.length) {
+                    const keepTs = tsSel.value;
+                    tsSel.innerHTML = '';
+                    eo.target_scales.forEach((t) => {
+                        const opt = document.createElement('option');
+                        opt.value = String(t.value != null ? t.value : 0);
+                        opt.textContent = t.label || opt.value;
+                        tsSel.appendChild(opt);
+                    });
+                    const okTs = Array.from(tsSel.options).some((o) => o.value === keepTs);
+                    if (keepTs && okTs) tsSel.value = keepTs;
+                }
+                const arSel = document.getElementById('dream-enhance-pre-crop');
+                if (arSel && Array.isArray(eo.aspect_ratios)) {
+                    const keepAr = arSel.value;
+                    arSel.innerHTML = '';
+                    eo.aspect_ratios.forEach((ar) => {
+                        const opt = document.createElement('option');
+                        opt.value = ar;
+                        opt.textContent = ar === '' || ar == null ? '— no crop —' : String(ar);
+                        arSel.appendChild(opt);
+                    });
+                    const okAr = Array.from(arSel.options).some((o) => o.value === keepAr);
+                    if (keepAr && okAr) arSel.value = keepAr;
+                }
+            }
+            if (typeof data.sd14_onnx_ready === 'boolean') {
+                dreamSyncSd14OnnxFromReady(data.sd14_onnx_ready);
+            }
+            dreamRepopulateAddons();
+        }
+
+        function dreamOnFileSelected(ev) {
+            const f = ev.target && ev.target.files && ev.target.files[0];
+            const prev = document.getElementById('dream-src-preview');
+            if (!f) {
+                dreamUploadedBase64 = null;
+                if (prev) prev.style.display = 'none';
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function () {
+                const s = reader.result;
+                if (typeof s === 'string' && s.indexOf(',') >= 0) {
+                    dreamUploadedBase64 = s.split(',')[1];
+                } else {
+                    dreamUploadedBase64 = null;
+                }
+                if (prev && typeof s === 'string') {
+                    prev.src = s;
+                    prev.style.display = 'inline-block';
+                }
+            };
+            reader.readAsDataURL(f);
+        }
+
+        function dreamClearUploadedImage() {
+            dreamUploadedBase64 = null;
+            const inp = document.getElementById('dream-file-input');
+            const prev = document.getElementById('dream-src-preview');
+            if (inp) inp.value = '';
+            if (prev) {
+                prev.src = '';
+                prev.style.display = 'none';
+            }
+        }
+
+        async function loadVisionPanel() {
+            const el = document.getElementById('vision-body');
+            if (!el) return;
+            const v = window.__lastVitals || {};
+            const rt = await callApi('soul/runtime_status', 'GET');
+            let html = '<table style="width:100%; font-size:0.75rem; border-collapse:collapse;">';
+            const row = (k, x) => '<tr><td style="opacity:0.6;padding:4px 8px 4px 0;vertical-align:top;">' + k + '</td><td style="font-family:Share Tech Mono,monospace;word-break:break-all;">' + (x != null && x !== '' ? String(x) : '—') + '</td></tr>';
+            if (rt && rt.detail == null && typeof rt.engine_type !== 'undefined') {
+                html += row('model_path', rt.model_path);
+                html += row('engine_type', rt.engine_type);
+                html += row('mmproj_path', rt.mmproj_path);
+                html += row('gguf_multimodal_ready', rt.gguf_multimodal_ready);
+                html += row('LUMAX_GGUF_NATIVE_VISION', rt.LUMAX_GGUF_NATIVE_VISION);
+                html += row('LUMAX_MMPROJ_PATH', rt.LUMAX_MMPROJ_PATH);
+                html += row('LUMAX_LOCAL_VISION_ENABLED', rt.LUMAX_LOCAL_VISION_ENABLED);
+            } else {
+                html += row('soul_runtime_status', rt ? JSON.stringify(rt) : 'unavailable');
+            }
+            html += row('vitals.LUMAX_GGUF_NATIVE_VISION', v.LUMAX_GGUF_NATIVE_VISION);
+            html += row('vitals.GGUF_MMPROJ_PATH', v.GGUF_MMPROJ_PATH);
+            html += row('vitals.GGUF_MULTIMODAL_READY', v.GGUF_MULTIMODAL_READY);
+            html += '</table>';
+            el.innerHTML = html;
+        }
+
+        async function dreamGenerate() {
+            const prompt = (document.getElementById('dream-prompt') && document.getElementById('dream-prompt').value || '').trim();
+            const steps = parseInt(document.getElementById('dream-steps').value, 10) || 8;
+            const model_type = document.getElementById('dream-mode').value;
+            const status = document.getElementById('dream-status');
+            const img = document.getElementById('dream-img');
+            const gEl = document.getElementById('dream-guidance');
+            const guidance = gEl ? parseFloat(gEl.value) : 7.5;
+            if (!prompt) {
+                if (status) status.textContent = 'Enter a prompt.';
+                return;
+            }
+            if (model_type === 'control' || model_type === 'enhance') {
+                if (!dreamUploadedBase64) {
+                    if (status) {
+                        status.textContent = 'Upload a source image for this mode.';
+                        status.style.color = 'var(--neon-pink)';
+                    }
+                    return;
+                }
+            }
+            if (model_type === 'sd14_onnx' && window.__dreamSd14OnnxReady === false) {
+                if (status) {
+                    status.textContent =
+                        'SD1.4 ONNX is not installed (need model_index.json export). Use turbo mode or set LUMAX_CREATIVITY_SD14_ONNX_DIR.';
+                    status.style.color = 'var(--neon-pink)';
+                }
+                return;
+            }
+            if (status) {
+                status.textContent = 'Generating (first GPU load can take minutes)…';
+                status.style.color = 'var(--neon-blue)';
+            }
+            if (img) img.style.display = 'none';
+            const payload = {
+                prompt: prompt,
+                num_inference_steps: steps,
+                model_type: model_type,
+                seed: -1,
+                guidance_scale: Number.isFinite(guidance) ? guidance : 7.5,
+            };
+            if (model_type !== 'enhance') {
+                const sizeEl = document.getElementById('dream-image-size');
+                let w = 512;
+                let h = 512;
+                if (sizeEl && sizeEl.value && sizeEl.value.indexOf('x') >= 0) {
+                    const parts = sizeEl.value.split('x');
+                    w = parseInt(parts[0], 10) || 512;
+                    h = parseInt(parts[1], 10) || 512;
+                }
+                payload.width = w;
+                payload.height = h;
+            }
+            if (model_type === 'control') {
+                const cid = document.getElementById('dream-controlnet-id');
+                if (cid && cid.value) payload.controlnet_id = cid.value;
+            }
+            if (model_type === 'enhance') {
+                const uid = document.getElementById('dream-upscaler-id');
+                const uid2 = document.getElementById('dream-upscaler-id-2');
+                if (uid && uid.value) payload.upscaler_id = uid.value;
+                const chain = [];
+                if (uid && uid.value) chain.push(uid.value);
+                if (uid2 && uid2.value) chain.push(uid2.value);
+                if (chain.length) payload.upscaler_chain = chain;
+                const tsEl = document.getElementById('dream-enhance-target-scale');
+                if (tsEl) {
+                    const tv = parseFloat(tsEl.value);
+                    payload.enhance_target_scale = Number.isFinite(tv) ? tv : 0;
+                }
+                const cropEl = document.getElementById('dream-enhance-pre-crop');
+                if (cropEl && cropEl.value) payload.enhance_pre_crop_aspect = cropEl.value;
+                const leEl = document.getElementById('dream-enhance-long-edge');
+                if (leEl) {
+                    const lev = parseInt(leEl.value, 10);
+                    payload.enhance_pre_resize_long_edge = Number.isFinite(lev) && lev > 0 ? lev : 0;
+                }
+            }
+            if (dreamUploadedBase64) {
+                if (model_type === 'turbo') {
+                    payload.reference_image_b64 = dreamUploadedBase64;
+                    const st = document.getElementById('dream-strength');
+                    payload.strength = st ? parseFloat(st.value) : 0.75;
+                } else if (model_type === 'control') {
+                    payload.control_image_b64 = dreamUploadedBase64;
+                    const prep = document.getElementById('dream-control-preprocess');
+                    payload.control_preprocess = prep ? prep.value : 'canny';
+                    const cs = document.getElementById('dream-control-scale');
+                    payload.controlnet_conditioning_scale = cs ? parseFloat(cs.value) : 1.0;
+                    const lo = document.getElementById('dream-canny-low');
+                    const hi = document.getElementById('dream-canny-high');
+                    if (lo) payload.canny_low = parseInt(lo.value, 10) || 100;
+                    if (hi) payload.canny_high = parseInt(hi.value, 10) || 200;
+                } else if (model_type === 'enhance') {
+                    payload.control_image_b64 = dreamUploadedBase64;
+                }
+            }
+            try {
+                const resp = await fetch('/api/dream', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                const data = await resp.json().catch(() => ({}));
+                if (!resp.ok) {
+                    const d = data.detail != null ? String(data.detail) : JSON.stringify(data);
+                    if (status) {
+                        status.textContent = 'Error: ' + d.slice(0, 500);
+                        status.style.color = 'var(--neon-pink)';
+                    }
+                    return;
+                }
+                if (data.status === 'success' && data.image_b64) {
+                    if (img) {
+                        img.src = 'data:image/png;base64,' + data.image_b64;
+                        img.style.display = 'inline-block';
+                    }
+                    if (status) {
+                        status.textContent = 'OK';
+                        status.style.color = 'var(--neon-green)';
+                    }
+                } else {
+                    if (status) {
+                        status.textContent = (data.detail || data.status || 'unknown');
+                        status.style.color = 'var(--neon-pink)';
+                    }
+                }
+            } catch (e) {
+                if (status) {
+                    status.textContent = 'Network error: ' + e;
+                    status.style.color = 'var(--neon-pink)';
+                }
+            }
+        }
+
+        async function switchCoworkModel() {
+            const sel = document.getElementById('cowork-model');
+            const st = document.getElementById('cowork-status');
+            if (!sel) return;
+            const model = sel.value;
+            if (st) {
+                st.textContent = 'Switching…';
+                st.style.color = 'var(--neon-blue)';
+            }
+            try {
+                const resp = await fetch('/api/soul/switch_model', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: model }),
+                });
+                const text = await resp.text();
+                let data = {};
+                try { data = JSON.parse(text); } catch (e) {}
+                if (!resp.ok) {
+                    if (st) {
+                        st.textContent = 'Error: ' + (data.detail || text).slice(0, 600);
+                        st.style.color = 'var(--neon-pink)';
+                    }
+                    return;
+                }
+                if (st) {
+                    st.textContent = (data.response || JSON.stringify(data)).slice(0, 900);
+                    st.style.color = 'var(--neon-green)';
+                }
+            } catch (e) {
+                if (st) {
+                    st.textContent = 'Network error: ' + e;
+                    st.style.color = 'var(--neon-pink)';
+                }
+            }
+        }
+
+        async function triggerDiagnostic() {
+            const log = document.getElementById('debug-log');
+            const now = new Date().toLocaleTimeString();
+            const vitals = await callApi('vitals', 'GET');
+            if (log) {
+                log.innerHTML += '[' + now + '] Vitals snapshot: ' + (vitals ? JSON.stringify(vitals).slice(0, 500) : 'unavailable') + '<br>';
+            }
+            const hc = vitals && vitals.HOST_CPU_PCT != null ? vitals.HOST_CPU_PCT : Math.random() * 100;
+            updateNucleusChart(hc);
+        }
+
+        async function startHeartbeats() {
+            setInterval(async () => {
+                const vitals = await callApi('vitals');
+                if (vitals) {
+                    window.__lastVitals = vitals;
+                    if (document.getElementById('sent-vram')) document.getElementById('sent-vram').innerText = vitals.VRAM_BUFF || '—';
+                    if (document.getElementById('sent-sync')) document.getElementById('sent-sync').innerText = vitals.CORE_SYNC || '—';
+                    if (document.getElementById('vram-stat')) document.getElementById('vram-stat').innerText = vitals.VRAM_BUFF || '-- MB';
+                    if (document.getElementById('sent-cpu')) document.getElementById('sent-cpu').innerText = (vitals.SOUL_CPU_PCT != null ? vitals.SOUL_CPU_PCT + '%' : '—');
+                    if (document.getElementById('sent-lat')) document.getElementById('sent-lat').innerText = vitals.DOWN_FLUX || '—';
+                    if (document.getElementById('sent-up')) document.getElementById('sent-up').innerText = vitals.UPLOAD_FLUX || '—';
+                    if (document.getElementById('sent-temp')) document.getElementById('sent-temp').innerText = (vitals.HOST_CPU_PCT != null ? vitals.HOST_CPU_PCT + '%' : '—');
+                    if (document.getElementById('sent-res')) document.getElementById('sent-res').innerText = vitals.LUMAX_CHAT_PROVIDER || '—';
+                    if (document.getElementById('sent-disk')) document.getElementById('sent-disk').innerText = 'up ' + (vitals.UPTIME_S != null ? vitals.UPTIME_S + 's' : '—');
+                    if (document.getElementById('sent-depth')) document.getElementById('sent-depth').innerText = vitals.SOUL_GPU_OFFLOAD ? 'GPU' : 'CPU';
+                    if (document.getElementById('sent-err')) document.getElementById('sent-err').innerText = vitals.GGUF_MULTIMODAL_READY ? 'VL' : '—';
+                    if (document.getElementById('ghost-upload')) {
+                        const el = document.getElementById('ghost-upload');
+                        el.innerHTML = 'UPLOAD: <span style="color:var(--neon-blue)">' + (vitals.UPLOAD_FLUX || '—') + '</span>';
+                    }
+                    if (document.getElementById('ghost-sync')) {
+                        const g = document.getElementById('ghost-sync');
+                        g.innerHTML = 'MEM_FREE: <span style="color:var(--neon-green)">' + (vitals.CORE_SYNC || '—') + '</span>';
+                    }
+                    const ss = document.getElementById('sys-status');
+                    if (ss && vitals.SOUL_CPU_PCT != null) {
+                        ss.textContent = 'soul cpu ' + vitals.SOUL_CPU_PCT + '% · host ' + (vitals.HOST_CPU_PCT != null ? vitals.HOST_CPU_PCT + '%' : '—');
+                    }
+                }
+            }, 5000);
+        }
+
+        // Nucleus History Chart
+        const chartCanvas = document.getElementById('nucleus-chart');
+        const ctx = chartCanvas ? chartCanvas.getContext('2d') : null;
+        let history = new Array(50).fill(0);
+
+        function updateNucleusChart(val) {
+            if (!ctx) return;
+            history.push(val);
+            if (history.length > 50) history.shift();
+
+            ctx.clearRect(0, 0, chartCanvas.width, chartCanvas.height);
+            ctx.strokeStyle = '#00f3ff';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            const step = chartCanvas.width / 50;
+            for (let i = 0; i < 50; i++) {
+                const x = i * step;
+                const y = chartCanvas.height - (history[i] / 100 * chartCanvas.height);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Subtle glow
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = '#00f3ff';
+        }
+
+        // Interaction bridge
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const input = document.getElementById('chat-input');
+                const text = input.value.trim();
+                if (text) {
+                    addMessage('YOU', text);
+                    sendChat(text);
+                    input.value = '';
+                }
+            }
+        });
+
+        // Telemetry bars animation
+        const tele = document.getElementById('tele-bars');
+        for (let i = 0; i < 15; i++) {
+            const bar = document.createElement('div');
+            bar.className = 't-bar';
+            tele.appendChild(bar);
+        }
+        setInterval(() => {
+            document.querySelectorAll('.t-bar').forEach(b => {
+                b.style.height = (20 + Math.random() * 80) + '%';
+                b.style.opacity = 0.3 + Math.random() * 0.7;
+            });
+        }, 120);
+
+        const pwInput = document.getElementById('webui-password');
+        if (pwInput) {
+            pwInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') submitWebUiGate();
+            });
+        }
+        setupFeatureMapUi();
+
+        (async function initWebUi() {
+            await loadBranding();
+            bootstrapWebUi();
+        })();
+
+    </script>
+</body>
+
+</html>

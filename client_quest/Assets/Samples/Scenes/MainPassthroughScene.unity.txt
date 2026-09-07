@@ -1,0 +1,318 @@
+================================================================================
+  MainPassthroughScene — Unity Scene Setup Guide
+  FoveAI Quest 3 Client — Passthrough Avatar Integration
+================================================================================
+
+  Target Platform : Meta Quest 3 (Android, IL2CPP, ARM64)
+  Unity Version   : 2022.3 LTS or newer
+  Render Pipeline : URP (Universal Render Pipeline)
+  Dependencies    : Meta XR SDK (OVR Integration) — for passthrough only
+                   All FoveAI scripts use ONLY UnityEngine + System (no external packages)
+
+================================================================================
+  PREREQUISITES
+================================================================================
+
+  1. Meta XR SDK installed via Package Manager:
+     - com.meta.xr.sdk.core
+     - com.meta.xr.sdk.interaction
+     - com.meta.xr.sdk.platform
+
+  2. FoveAI C# scripts present in the project:
+     - Assets/Scripts/IPC/FoveAIWebSocketClient.cs
+     - Assets/Scripts/Avatar/AvatarBlendshapeDriver.cs
+     - Assets/Scripts/UI/SpatialUIManager.cs
+
+  3. Didimo or CharacterCreator 4 (CC4) avatar prefab imported:
+     - Must contain a SkinnedMeshRenderer with facial blendshapes
+     - Blendshape names should match the EmotionBlendshapeMap defaults:
+       "Mouth Smile", "Mouth Frown", "Brow Down", "Mouth Open",
+       "Eye Wide", "Nose Sneer", "Neutral"
+
+  4. FoveAI PC Backend running and reachable on the local network:
+     - WebSocket endpoint: ws://<PC_IP>:8000/ws
+     - Default: ws://192.168.1.100:8000/ws
+
+================================================================================
+  STEP 1 — Create the Scene
+================================================================================
+
+  1.1  File > New Scene > Basic (URP)
+  1.2  Save as: Assets/Scenes/MainPassthroughScene.unity
+  1.3  Delete the default "Main Camera" GameObject (OVR Camera Rig replaces it)
+
+================================================================================
+  STEP 2 — Add OVR Camera Rig (Passthrough)
+================================================================================
+
+  2.1  Right-click Hierarchy > XR > OVRCameraRig
+       (If not visible: Meta XR > OVR Camera Rig)
+  2.2  Select OVRCameraRig in Hierarchy
+  2.3  In Inspector, under OVRManager component:
+       - Quest Features > Passthrough Capability: Enabled
+       - Quest Features > Passthrough Mode:     "Color" or "Black White"
+  2.4  Ensure OVRManager.TelemetryConsentShown is checked at runtime
+  2.5  Position OVRCameraRig at (0, 0, 0)
+
+  NOTE: The OVRCameraRig provides the passthrough background and head tracking.
+        All avatar and UI elements will be composited on top of this.
+
+================================================================================
+  STEP 3 — Instantiate the Avatar GameObject
+================================================================================
+
+  3.1  Drag your Didimo/CC4 avatar prefab into the Hierarchy
+  3.2  Name it: "FoveAI_Avatar"
+  3.3  Position: (0, -1.0, 1.5)  — 1.5m in front of the user, eye-level
+  3.4  Rotation: (0, 180, 0)     — facing the user
+  3.5  Scale:    Match real-world proportions (typically 1.0 for CC4)
+
+  3.6  Expand the avatar hierarchy and locate the child GameObject containing
+       the SkinnedMeshRenderer for the face mesh.
+       Common names:
+         - Didimo:  "Body" or "Face"
+         - CC4:    "CC_Game_Body" > "Head" > mesh with blendshapes
+
+  3.7  Verify blendshapes exist:
+       - Select the SkinnedMeshRenderer GameObject
+       - Inspector > Skinned Mesh Renderer > Blendshapes
+       - Confirm "Mouth Smile", "Mouth Frown", etc. are listed
+
+================================================================================
+  STEP 4 — Add AvatarBlendshapeDriver Component
+================================================================================
+
+  4.1  Select the "FoveAI_Avatar" root GameObject in Hierarchy
+  4.2  Inspector > Add Component > type "AvatarBlendshapeDriver"
+       (Script namespace: FoveAI.Avatar)
+  4.3  Configure in Inspector:
+
+       ┌─────────────────────────────────────────────────────────┐
+       │  Avatar Blendshape Driver                                │
+       │                                                         │
+       │  Face Mesh                                              │
+       │    Face Mesh  →  [Drag the SkinnedMeshRenderer here]    │
+       │                                                         │
+       │  Emotion Mapping                                        │
+       │    Joy      = "Mouth Smile"                             │
+       │    Sadness  = "Mouth Frown"                             │
+       │    Anger    = "Brow Down"                               │
+       │    Surprise = "Mouth Open"                              │
+       │    Fear     = "Eye Wide"                                │
+       │    Disgust  = "Nose Sneer"                              │
+       │    Neutral  = "Neutral"                                 │
+       │                                                         │
+       │  Smoothing                                              │
+       │    Lerp Speed        = 8                                │
+       │    Emotion Decay Time = 5                               │
+       └─────────────────────────────────────────────────────────┘
+
+  4.4  Drag the face SkinnedMeshRenderer GameObject into the "Face Mesh" slot
+  4.5  Adjust blendshape names if your avatar uses different naming conventions
+
+================================================================================
+  STEP 5 — Add FoveAIWebSocketClient Component
+================================================================================
+
+  5.1  Select the "FoveAI_Avatar" root GameObject (same as Step 4)
+  5.2  Inspector > Add Component > type "FoveAIWebSocketClient"
+       (Script namespace: FoveAI.IPC)
+  5.3  Configure in Inspector:
+
+       ┌─────────────────────────────────────────────────────────┐
+       │  Fove AI Web Socket Client                               │
+       │                                                         │
+       │  Connection                                             │
+       │    Server Url            = ws://192.168.1.100:8000/ws  │
+       │    Reconnect Delay       = 2                            │
+       │    Max Reconnect Delay    = 30                           │
+       │    Max Reconnect Attempts = 0  (0 = infinite)            │
+       │                                                         │
+       │  Avatar                                                 │
+       │    Blendshape Driver  →  [Drag AvatarBlendshapeDriver]  │
+       │                                                         │
+       │  (Events are subscribed in code, not Inspector)          │
+       └─────────────────────────────────────────────────────────┘
+
+  5.4  Set Server Url to your PC Backend's local IP address
+  5.5  Drag the AvatarBlendshapeDriver component reference into the
+       "Blendshape Driver" slot (auto-detects if on same GameObject)
+
+  NOTE: FoveAIWebSocketClient exposes two C# events:
+        - OnChatTextReceived  (Action<string>)      — chat text payload
+        - OnEmotionReceived   (Action<string,float>) — emotion + intensity
+        The emotion event is wired to AvatarBlendshapeDriver.ApplyEmotion()
+        internally. The text event is consumed by SpatialUIManager (Step 6).
+
+================================================================================
+  STEP 6 — Add SpatialUIManager Component
+================================================================================
+
+  6.1  Create a World Space Canvas:
+       - Hierarchy > Right-click > UI > Canvas
+       - Name it: "ChatPanel"
+       - Render Mode: World Space
+       - Position: (0, 0.3, 1.0) relative to OVRCameraRig CenterEyeAnchor
+       - Scale: (0.001, 0.001, 0.001)
+       - Width: 600, Height: 400
+
+  6.2  Add a Text component (or TextMeshPro) as child:
+       - Name: "ChatText"
+       - Anchor: Stretch (all corners)
+       - Font Size: 24
+       - Alignment: Top-Left
+       - Content: "Waiting for FoveAI..."
+
+  6.3  Select the "ChatPanel" Canvas GameObject
+  6.4  Inspector > Add Component > type "SpatialUIManager"
+       (Script namespace: FoveAI.UI)
+  6.5  Configure in Inspector:
+
+       ┌─────────────────────────────────────────────────────────┐
+       │  Spatial UI Manager                                     │
+       │                                                         │
+       │  References                                             │
+       │    Web Socket Client  →  [Drag FoveAIWebSocketClient]   │
+       │    Chat Text         →  [Drag ChatText UI.Text]        │
+       │                                                         │
+       │  Display                                                │
+       │    Max Lines         = 12                               │
+       │    Fade Duration     = 0.3                              │
+       │    Auto Scroll       = ✓ (checked)                      │
+       └─────────────────────────────────────────────────────────┘
+
+  6.6  Drag the FoveAIWebSocketClient reference into "Web Socket Client"
+  6.7  Drag the ChatText label into "Chat Text"
+  6.8  SpatialUIManager subscribes to OnChatTextReceived automatically in Awake()
+
+================================================================================
+  STEP 7 — Configure Build Settings
+================================================================================
+
+  7.1  File > Build Settings
+  7.2  Platform: Android
+  7.3  Switch Platform
+  7.4  Player Settings:
+       - Minimum API Level: 29 (Android 10)
+       - Target Architectures: ARM64 only
+       - Scripting Backend: IL2CPP
+       - Internet Access: Require
+       - Write Permission: External (SD Card)
+
+  7.5  XR Plug-in Management:
+       - Install Oculus XR Plugin (if not present)
+       - Initialize XR on Startup: ✓
+       - Oculus: ✓
+
+  7.6  Add MainPassthroughScene to Build Scenes list (index 0)
+
+================================================================================
+  STEP 8 — Verify Component Wiring
+================================================================================
+
+  8.1  Select "FoveAI_Avatar" GameObject
+  8.2  Confirm both components are present:
+       - FoveAIWebSocketClient (with Server Url + Blendshape Driver assigned)
+       - AvatarBlendshapeDriver (with Face Mesh assigned)
+  8.3  Select "ChatPanel" GameObject
+  8.4  Confirm SpatialUIManager is present with both references assigned
+  8.5  Run a final check:
+
+       FoveAI_Avatar
+       ├── AvatarBlendshapeDriver
+       │     └── Face Mesh: [SkinnedMeshRenderer] ✓
+       │     └── Emotion Map: [7 emotions mapped] ✓
+       └── FoveAIWebSocketClient
+             └── Server Url: ws://192.168.1.100:8000/ws ✓
+             └── Blendshape Driver: [AvatarBlendshapeDriver] ✓
+
+       ChatPanel (World Space Canvas)
+       └── SpatialUIManager
+             └── WebSocket Client: [FoveAIWebSocketClient] ✓
+             └── Chat Text: [Text/TextMeshPro] ✓
+             └── ChatText (child)
+                   └── Text: "Waiting for FoveAI..."
+
+================================================================================
+  STEP 9 — Test in Editor (Simulated)
+================================================================================
+
+  9.1  Start the FoveAI PC Backend on the host machine:
+       python Backend/app/main.py
+       (WebSocket server listens on ws://0.0.0.0:8000/ws)
+
+  9.2  In Unity, change Server Url to: ws://localhost:8000/ws
+  9.3  Press Play
+  9.4  Console should show:
+       [FoveAI] Connecting to PC Backend at ws://localhost:8000/ws...
+       [FoveAI] WebSocket connected.
+  9.5  Send a test message from the backend:
+       The avatar's blendshapes should animate and ChatPanel should update.
+
+  9.6  Stop Play. Restore Server Url to the PC's LAN IP for Quest deployment.
+
+================================================================================
+  STEP 10 — Deploy to Quest 3
+================================================================================
+
+  10.1 Connect Quest 3 via USB-C, enable Developer Mode
+  10.2 Build and Run (Ctrl+B)
+  10.3 Put on headset — passthrough should activate automatically
+  10.4 Avatar should appear 1.5m in front, facing you
+  10.5 Chat text should appear on the floating panel
+  10.6 Avatar facial expressions should respond to emotion payloads
+
+================================================================================
+  TROUBLESHOOTING
+================================================================================
+
+  Problem: "No face mesh assigned" warning
+  Cause:   SkinnedMeshRenderer not dragged into AvatarBlendshapeDriver.FaceMesh
+  Fix:     Re-do Step 4.4
+
+  Problem: "Cannot send event — socket not open"
+  Cause:   PC Backend not running or wrong IP
+  Fix:     Verify backend is running, check Server Url matches PC LAN IP
+
+  Problem: Avatar doesn't animate emotions
+  Cause:   Blendshape names don't match EmotionBlendshapeMap
+  Fix:     Open SkinnedMeshRenderer > Blendshapes, copy exact names into
+           AvatarBlendshapeDriver > Emotion Mapping fields
+
+  Problem: Chat panel not updating
+  Cause:   SpatialUIManager.WebSocketClient or ChatText not assigned
+  Fix:     Re-do Step 6.6 and 6.7
+
+  Problem: Build fails with "Namespace 'FoveAI' not found"
+  Cause:   Scripts not in Assets/ folder or compile errors
+  Fix:     Ensure all .cs files are under Assets/Scripts/ and compile cleanly
+
+================================================================================
+  FILE REFERENCE
+================================================================================
+
+  Scripts:
+    Assets/Scripts/IPC/FoveAIWebSocketClient.cs
+      - public class FoveAIWebSocketClient : MonoBehaviour
+      - public event Action<string> OnChatTextReceived
+      - public event Action<string, float> OnEmotionReceived
+      - [SerializeField] string serverUrl
+      - [SerializeField] AvatarBlendshapeDriver blendshapeDriver
+
+    Assets/Scripts/Avatar/AvatarBlendshapeDriver.cs
+      - public class AvatarBlendshapeDriver : MonoBehaviour
+      - public void ApplyEmotion(string emotion, float intensity)
+      - [SerializeField] SkinnedMeshRenderer faceMesh
+      - [SerializeField] EmotionBlendshapeMap emotionMap
+
+    Assets/Scripts/UI/SpatialUIManager.cs
+      - public class SpatialUIManager : MonoBehaviour
+      - Subscribes to FoveAIWebSocketClient.OnChatTextReceived
+      - Updates UI.Text or TMPro.TMP_Text with incoming chat messages
+
+  Scene:
+    Assets/Scenes/MainPassthroughScene.unity
+
+================================================================================
+  END OF GUIDE
+================================================================================

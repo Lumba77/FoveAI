@@ -1,0 +1,249 @@
+Here is what was completed so the diagnostic strip can reserve a bottom band the way Windows expects (via SHAppBarMessage), not just float on top.
+
+C:\Users\lumba\Program\Lumax_current\tools\lumax_stress_meter\stress_meter.py
+
+
+Behavior
+--appbar (Windows): After the window is shown, the meter registers as a bottom AppBar, queries the Shell for the band, applies that geometry, and resizes the canvas / rebuilds segments if the Shell’s size differs from the initial 220×40.
+--merge-taskbar is ignored when AppBar mode is on (merge is disabled if appbar is true).
+Config (stress_meter_config.json): "appbar": true/false is saved and restored on the next run (CLI --appbar also turns it on).
+Exit: On destroy, cleanup_appbar runs so ABM_REMOVE is sent and the work area is restored.
+Failure: If AppBar setup fails, cleanup_appbar runs in the except path (avoids leaving a stray registration), then normal saved geometry / placement is used.
+Files
+tools/lumax_stress_meter/appbar_win32.py — ctypes wrapper for SHAppBarMessage.
+tools/lumax_stress_meter/stress_meter.py — --appbar, _setup_appbar, persist, destroy cleanup, docstring update.
+Usage: python stress_meter.py --appbar (Windows). First run with AppBar on will persist "appbar": true so shortcuts can omit the flag if you want.
+
+Here is what changed:
+
+Safety behavior
+--appbar only on the CLI — A stored "appbar": true in stress_meter_config.json does not turn AppBar on anymore. You have to pass --appbar each time you want that mode (e.g. in a shortcut or script).
+
+--no-appbar — Explicitly keeps a normal floating window. If both --appbar and --no-appbar are passed, --no-appbar wins (use_appbar is false), so wrappers can always append --no-appbar to disable AppBar.
+
+The config file can still record "appbar" on exit for your own reference; it is not used to decide startup behavior.
+
+
+Here is what was added:
+
+Module docstring
+A short distribution note: freeware, donationware in spirit (optional support), and explicitly no nag screens or locked features.
+
+Right-click menu
+An About… item (with a separator above Exit) that opens a small dialog: quietly useful, freeware, optional support, no nagging.
+
+CLI
+argparse’s description line now says the tool is freeware and that a donation is appreciated only if people find it useful.
+
+You can later drop a donation link into the About text or the docstring when you have one; nothing points to a URL yet so nothing is broken if you ship without it.
+
+Updates are in place in three spots:
+
+Module docstring — States that the tool is not for sale to commercial parties that want to buy on-screen or taskbar space for ads, sponsorship, or paid placement, and that this stance is fixed (your word “immutable,” in plain language: it stays a small user utility).
+
+About… dialog — Adds that this isn’t offered for sale for screen or taskbar placement, and that the space is for the user, not a billboard.
+
+--help description — Ends with: “Not for sale as commercial screen/taskbar placement.”
+
+That’s policy and messaging only; it isn’t a substitute for a lawyer-drafted license if you ever need something enforceable. If you want that captured in a LICENSE file later, say the word.
+
+Here is what changed:
+
+Module docstring
+The policy block is now labeled for users’ safety and trust, and it says that not selling that space keeps your attention and desktop from being treated as a product, while staying a small utility.
+
+About dialog
+It now opens with “For your safety and peace of mind” and explains that the strip isn’t for sale for ads or sponsored clutter — the space stays yours.
+
+--help
+The one-line description ends with “(user safety and trust)” so the same idea shows up in the CLI.
+
+So the “no commercial placement” rule is framed as protecting users, not only as a project stance.
+
+Here is what was added, kept quiet and optional:
+
+Right-click menu
+If it helps… — sits between About… and Exit, with an ellipsis so it reads as a soft aside, not a pitch.
+If it helps… dialog
+Short copy: if the meter is useful, they’re welcome to show appreciation toward Lumax; no expectation; nothing is paywalled; thanks for using it.
+About…
+Focused on what it is, freeware, and the safety/placement policy.
+Last line only: if they find it useful, they may show appreciation — entirely optional — via “If it helps…” in the same menu, so people who read About still get a pointer without a second nag.
+Docs / CLI
+Module docstring lists the menu items including “If it helps…”.
+--help says optional appreciation if useful (see menu in app) instead of pushing “donation.”
+No popups on startup, no URLs until you add one somewhere later if you want.
+
+Updates applied:
+
+Menu: Give thanx… (ellipsis kept so it still reads like a light, optional action).
+Dialog title: Give thanx.
+About: Points to Give thanx in the menu.
+Module docstring & --help: Use the same wording (Give thanx).
+
+Here’s what was wrong before and what we changed:
+
+Before: A locked meter skipped the whole menu (only unlocked on right‑click), so everything was tied to “movable.”
+
+Now: Right‑click always opens the menu. Only “Give thanx…” is omitted while locked; Unlock position, Snap, About…, and Exit still show when locked.
+
+When unlocked (movable), the menu includes Give thanx… between About… and Exit.
+
+The module docstring is updated so it describes this: full menu always; Give thanx only when unlocked.
+
+Here’s what was added:
+
+Meter look (quick presets + full list)
+Right‑click → Meter look with six presets (Neon strip, Signal flow, Vent / system, Machined plate, Scope wells, Thermal columns) — each maps to one of the existing shells.
+All styles… submenu lists every STYLES option for full control.
+_layout_metrics() centralizes sizing; _apply_style() switches look, resizes the canvas, keeps the window position, and saves style in stress_meter_config.json.
+CLI / config
+--style is optional (default=None). If you omit it, the app uses style from config, otherwise rhomb. Passing --style … still overrides.
+Give thanx (melts in, explicit but soft)
+Replaces the plain message box with a small Toplevel: slightly transparent (alpha 0.94), transient(self), centered on the meter.
+Subtitle explains optional thanks and Match meter.
+Presentation dropdown: Match meter (background/text taken from the current meter surface), Whisper, Ink, Paper — each with its own palette.
+Another voice cycles through five different thank‑you texts (THANKS_BODIES).
+Theme updates when you change presentation (colors follow the skin).
+
+Docstring
+Describes Meter look, Give thanx behavior, and that the same five channels (CPU, RAM, disk I/O, net, writes) power every style.
+If you want, we can add a donation URL later (e.g. a single constant opened from Give thanx or About).
+
+Here is what was added:
+
+BRAND_BYLINE = "By Lumax AI"
+Single constant next to CONFIG_PATH, reused everywhere below.
+
+Surfaces
+Module docstring — first line ends with “By Lumax AI”.
+Window title — Lumax stress meter — By Lumax AI.
+About… — dialog title uses the same string; body unchanged so it isn’t repeated.
+Give thanx — window title Give thanx — By Lumax AI, plus a muted By Lumax AI line under the heading (updates with the theme).
+--help — description starts with Lumax stress meter — By Lumax AI.
+CPU check-in dialog — title bar and main heading use Lumax AI (no extra “By” line under it, to avoid duplication).
+If you want that constant exported for shortcuts or installers, it’s BRAND_BYLINE in stress_meter.py.
+
+C:\Users\lumba\Program\Lumax_current\tools\lumax_stress_meter\stress_meter.py
+
+Here is what was implemented:
+
+Idle (overview)
+With Meter focus → Overview (blend all) (default), all five segments use the same fill: the average of the five normalized loads (CPU, memory, disk I/O, network, writes). That is the single “overall” reading.
+Fixed single metric
+Right‑click → Meter focus → CPU, Memory, Disk I/O, Network, or Writes locks the strip to that channel: all five segments show one level (that metric). A small muted line at the bottom left shows Name value (e.g. Memory 68%).
+Hover (full-strip readout)
+Moving the pointer over any segment sets that channel as the active metric: all segments use that metric’s level (same as “whole widget = one meter”).
+Muted text on the right (ghost label #4a5868, value #8a9cac): metric name on one line, number on the next (or one combined line if the window is < 200px wide).
+Hover replaces the old per-segment tooltip; leaving the canvas clears hover (<Leave> on the canvas).
+Data
+Metrics.sample() now returns shorts: compact strings (42%, 3.1 MB/s, …) for the overlay.
+Persistence
+focus_metric is saved in stress_meter_config.json (null = overview).
+Docs
+Module docstring updated for overview / focus / hover.
+
+Note: In the small gaps between shapes, the pointer might not be over a segment item; hover can briefly stay on the last metric until you move over another segment or leave the canvas. If that feels wrong in use, we can add an invisible hit layer under the segments next.
+
+Here’s what was added for that rear-light / LED glow look:
+
+Look
+GLOW_SCALES (1.14 → 1.04): slightly larger copies of each shape, stacked under the real segment so the bright fill reads like it’s sitting in a soft halo.
+GLOW_COLORS: #1c0a0c → #0e121c → #0a1a28 — dark red on the outside, moving in toward cyan‑teal so it feels like a modern taillight / back‑light wash, not a flat border.
+Where it applies
+Rhomb & arrows: _glow_poly_stack() — three scaled polygons behind each diamond/arrow.
+Square, stripe: _glow_rect_stack_inner() — three expanding rects in the recess, under the lit face.
+Circle: same idea with _glow_oval_stack_inner().
+Grille: one column glow block behind each stack of slats (three pads: 5 / 3 / 1 px).
+Glow is static (decorative); only the main segment IDs still update each tick, so the neon pulse behavior is unchanged.
+
+You can tune GLOW_COLORS / GLOW_SCALES / GLOW_RECT_PADS at the top of stress_meter.py if you want it stronger, redder, or wider.
+
+Here’s what was added:
+
+Behaviour (Windows)
+sample_taskbar_center_pixel_rgb() reads the RGB of the pixel at the horizontal center of the bottom taskbar (middle of the band, using the work area vs screen size).
+rgb_hex_darkened(..., 0.9) multiplies each channel by 0.9 (~10% darker).
+After the usual layout branch sets _plate_bg, if the meter is in a plate style, --merge-taskbar, or --appbar, it replaces _plate_bg with that darkened colour when sampling succeeds.
+Integration
+_plate_backdrop() now uses self._plate_bg so the machined plate matches.
+_meter_surface_bg() (Give thanx “Match meter”) uses self._plate_bg instead of the fixed PLATE_BG constant when the UI is plate-like.
+Fallback
+If the taskbar is too thin (< 8 px), GetPixel fails, or anything errors, the code keeps the previous #1c1c1c-style default.
+Note: Sampling targets a bottom taskbar. Top/side bars aren’t handled yet; we can add that later if you want. Auto-hide taskbars may return None and fall back.
+
+Your intuition lines up with how the stack is wired. Here is the concrete picture.
+
+1. Client timeout (most likely “mystery”)
+The Quest / Godot client does not wait forever for the soul. HTTPRequest for compagent is capped at 45 seconds:
+
+	_soul_request = HTTPRequest.new()
+	_soul_request.name = "SoulRequest"
+	# 300s left compagent hung for hours when :8000 was down; STT on :8001 still worked but Soul channel stayed "busy".
+	_soul_request.timeout = 45.0
+So even if lumax_soul is still happily grinding on a big multimodal forward pass or a long decode, the UI layer can already have given up at 45s. That feels like “timeout under load” because heavy prompts take longer wall time.
+
+2. Context size (VRAM + speed)
+The local GGUF path sets a large context budget by default via LUMAX_LOCAL_N_CTX (default 32768, clamped between 4096 and 65536):
+
+        # GGUF context window (supports long-context models if VRAM permits).
+        try:
+            ctx_raw = int(os.getenv("LUMAX_LOCAL_N_CTX", "32768") or "32768")
+        except Exception:
+            ctx_raw = 32768
+        self.gguf_n_ctx = max(4096, min(ctx_raw, 65536))
+A 3.4 GB weights file does not cap context: you can still ask the runtime for a huge n_ctx. That increases KV cache and work per token. File size alone is a poor guide; declared context + multimodal is what hurts.
+
+3. Multimodal
+With native GGUF vision, the model runs image + text in one path (create_chat_completion with image + your big system prompt). Vision adds effective sequence length and compute; it is not “the same cost as text-only 3.4 GB.”
+
+4. Other timeouts (when Ollama is in the loop)
+Vision fallback uses Ollama with 60s httpx timeouts (compagent.py). If Ollama is busy or contended, those can fail with read timeout while the main GGUF job is unrelated.
+
+Practical knobs (no code change required unless you want them in repo):
+
+Goal	Knob
+Stop Godot cutting off long runs
+Raise _soul_request.timeout (or make it configurable), accepting longer “stuck” feel if :8000 is dead
+Slimmer, faster local passes
+Lower LUMAX_LOCAL_N_CTX (e.g. 8192 or 4096) if you do not need huge prompts
+Less vision cost
+Rely on caption path vs native VL, or fewer / smaller frames
+Ollama helper contention
+Separate GPU/process, or longer timeouts only on those calls
+So: the mystery is often 45s client wall clock vs unbounded-ish server inference, amplified by large n_ctx and multimodal work—not necessarily a broken model. If you want, we can add a single exported setting in Synapse.gd (e.g. read from lumax_network_config.json or an env) so you can tune timeout without editing code each time.
+
+
+That pattern is normal for how desktops behave, and it is easy to miss until you look.
+
+Why there were no “system warnings”
+
+High CPU alone usually does not trigger Windows notifications. The OS assumes “user or app is working hard” unless something hits thermal limits, power policy, disk errors, or a service you’ve explicitly monitored.
+A Docker / Python / llama workload can sit at 1200% CPU (many threads on many cores) for hours and still be “within spec”: fans spin, power draw is high, but nothing pops a toast unless you set that up.
+You noticed it late because nothing was pushing an alert to you — only passive signals (Task Manager, a tray meter you opened later, power noise, heat in the room).
+What that implies for Lumax
+
+Slow burn and idle gating are the right class of fix: they cap how often and how hard background work runs so you never depend on “I’ll notice the meter.”
+If you want explicit protection next time: Task Scheduler / WMI alerts, Docker --cpus, Windows power plan caps, or a small watchdog that logs or kills a process above X% for Y minutes — that is policy, not something the ML stack does by default.
+So: working on CPU for 14 hours with no OS warning is expected; the meter you saw later was the first “sensor” you actually consulted, not a failure of the machine to “know” something was wrong.
+
+
+Yes — and you already have a pattern in the project for in-world visibility: SkeletonKey.gd puts a Label3D on the arm panel for STT state (STT: IDLE, etc.). The same kind of surface can carry host load or “soul busy / inference” so you do not have to open Task Manager after the fact.
+
+What “more visible” usually means in practice
+
+Layer	What it shows	Tradeoff
+VR HUD (next to STT)
+Rolling CPU %, or a simple traffic light (green < 50%, amber < 90%, red sustained)
+Needs a tiny HTTP source the headset can poll (PC IP + port).
+Soul / ops HTTP
+e.g. GET /host_metrics or extend lumax_ops with psutil CPU + optional Docker stats
+Accurate for the PC running Docker; cheap to poll every 2–5s.
+Explicit “inference active”
+Flag when VRAM_LOCK is held or engine.generate starts/ends
+Tells you Lumax is the hog, not Chrome — even if CPU is not maxed.
+Why combine CPU + “busy”
+
+CPU alone does not always spike (GPU-bound inference).
+A “soul working” or lock held signal catches the case where the machine looks calm in Task Manager but one service is stuck or queued.
+So the “place” you are pointing at is real: a persistent, glanceable strip (VR label, tray widget, or a always-on corner of the desktop) fed by one small metrics endpoint plus optionally application-level busy flags. If you want this in-repo next, the natural first step is lumax_ops (or soul) exposes JSON {cpu_percent, soul_busy} and Godot mirrors STT with HOST: 73% or a colored dot. Say if you want that wired end-to-end and I will implement the minimal path.

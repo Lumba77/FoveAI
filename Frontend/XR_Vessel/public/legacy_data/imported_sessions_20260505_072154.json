@@ -1,0 +1,120 @@
+{
+  "import_timestamp": "2026-05-05T07:21:54.525042",
+  "total_sessions": 4,
+  "godot_related": 2,
+  "sessions": [
+    {
+      "source": "cursor",
+      "session_id": "fix_lumax_engine_indentationerror_5e6ffdd3",
+      "timestamp": 1776468649.4617996,
+      "duration_minutes": 0,
+      "message_count": 3,
+      "topics": [
+        "coding:function",
+        "coding:class",
+        "coding:method",
+        "coding:error",
+        "coding:fix",
+        "coding:implement",
+        "coding:docker",
+        "coding:python"
+      ],
+      "summary": "name: Fix lumax_engine IndentationError\noverview: \"Resolve `IndentationError: expected an indented block after function definition on line 681` by fixing or restoring the function body at that line in...",
+      "files_mentioned": [
+        "/different",
+        "/good",
+        "/backend/...",
+        "/restart",
+        "/Cognition/lumax_engine.py",
+        "/space",
+        "/app/Backend/backend/Cognition/lumax_engine.py"
+      ],
+      "godot_related": false,
+      "content_preview": "name: Fix lumax_engine IndentationError\noverview: \"Resolve `IndentationError: expected an indented block after function definition on line 681` by fixing or restoring the function body at that line in the copy of `lumax_engine.py` that the Soul container actually imports (often under `Backend/backend/...` in Docker), then rebuild or restart so Python loads the corrected file.\"\ntodos:\n  - id: inspect-681\n    content: Open lumax_engine.py at ~681 in the Docker-backed path; locate bare `def` or tab/sp...",
+      "full_content_path": "/mnt/c/Users/Lumba/.cursor/plans/fix_lumax_engine_indentationerror_5e6ffdd3.plan.md"
+    },
+    {
+      "source": "cursor",
+      "session_id": "mind_body_path_sweep_b3d15ca7",
+      "timestamp": 1776469308.7893038,
+      "duration_minutes": 0,
+      "message_count": 6,
+      "topics": [
+        "godot:xr",
+        "coding:variable",
+        "coding:debug",
+        "coding:fix",
+        "coding:test",
+        "coding:docker",
+        "coding:python",
+        "coding:ollama",
+        "coding:model"
+      ],
+      "summary": "name: Mind Body path sweep\noverview: Replace stale **Backend/** and **Frontend/frontend/** path strings in source, scripts, Dockerfiles, and comments with **backend/** and **frontend/** so docs, defaults, and to...",
+      "files_mentioned": [
+        "/XR_Vessel/Lumax_lite/backend/WebUI.gd",
+        "/backend/...",
+        "/app",
+        "/Immune/playbooks/TRANSPLANT_PROGRESS.md",
+        "/preflight/outbox/container_watchdog_report_latest.json",
+        "json",
+        "/...",
+        "/preflight/f5tts_ref/PLACE_REFERENCE_FILES.txt",
+        "ps1",
+        "/XR_Vessel/Physical_Interface/body_interface.py",
+        "/preflight/checks.py.",
+        "/app/Backend/...",
+        "/preflight/README.md",
+        "/Physical_Interface/body_interface.py",
+        "/preflight/...",
+        "/Immune",
+        "/preflight/agentic_solver.py",
+        "/preflight/outbox/cognitive_capabilities_audit_latest.json",
+        "/XR_Vessel/backend/WebUI.gd",
+        "/Mobile_Vessel/README.md"
+      ],
+      "godot_related": true,
+      "content_preview": "name: Mind Body path sweep\noverview: Replace stale **Backend/** and **Frontend/frontend/** path strings in source, scripts, Dockerfiles, and comments with **backend/** and **frontend/** so docs, defaults, and tooling match the renamed tree. Treat `backend/preflight/outbox/*` as generated or historical snapshots—update only if committed as reference, or regenerate after deploy.\ntodos:\n  - id: tier1-defaults\n    content: Update `/app/Backend/preflight/...` defaults in body_interface (×2) and backend/preflight/chec...",
+      "full_content_path": "/mnt/c/Users/Lumba/.cursor/plans/mind_body_path_sweep_b3d15ca7.plan.md"
+    },
+    {
+      "source": "cursor",
+      "session_id": "oculus_audio_rdp_constraints_84c69ff7",
+      "timestamp": 1776466847.9530709,
+      "duration_minutes": 0,
+      "message_count": 1,
+      "topics": [
+        "godot:vr",
+        "godot:meta",
+        "godot:steam",
+        "coding:endpoint",
+        "coding:class",
+        "coding:fix",
+        "coding:implement"
+      ],
+      "summary": "name: Oculus audio RDP constraints\noverview: Oculus/Meta runtime audio often fails over Remote Desktop and in shared (non-exclusive) Windows audio mode because the HMD/USB audio endpoint and exclusive...",
+      "files_mentioned": [
+        "/USB",
+        "/session",
+        "/Meta",
+        "c:\\Users\\lumba\\Program\\LUMAX-lite)"
+      ],
+      "godot_related": true,
+      "content_preview": "name: Oculus audio RDP constraints\noverview: Oculus/Meta runtime audio often fails over Remote Desktop and in shared (non-exclusive) Windows audio mode because the HMD/USB audio endpoint and exclusive routing do not map cleanly into an RDP session’s virtual audio graph. Windows Mixed Reality exposes a separate endpoint (“Mixed Reality Audio”) that typically remains usable in those scenarios.\ntodos:\n  - id: optional-repo\n    content: \"If LUMAX-lite workspace is reattached: decide whether to add d...",
+      "full_content_path": "/mnt/c/Users/Lumba/.cursor/plans/oculus_audio_rdp_constraints_84c69ff7.plan.md"
+    },
+    {
+      "source": "cursor",
+      "session_id": "ide_state",
+      "timestamp": "unknown",
+      "duration_minutes": 0,
+      "message_count": 0,
+      "topics": [],
+      "summary": "",
+      "files_mentioned": [],
+      "godot_related": false,
+      "content_preview": "",
+      "full_content_path": "/mnt/c/Users/Lumba/.cursor/ide_state.json"
+    }
+  ]
+}

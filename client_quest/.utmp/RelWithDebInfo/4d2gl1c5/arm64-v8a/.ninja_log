@@ -1,0 +1,23 @@
+# ninja log v5
+1	1215	8096779591364186	FramePacing/CMakeFiles/swappywrapper.dir/UnitySwappyWrapper.cpp.o	f768e4eb127be715
+32	4404	8096779623326403	GameActivity/CMakeFiles/game.dir/UGAApplication.cpp.o	c8c2a8ebe4afc193
+1218	2621	8096779605007569	C:/Users/danie/program/LUMAX/Spatial_Machine_Workspace/client_quest/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/RelWithDebInfo/4d2gl1c5/obj/arm64-v8a/libswappywrapper.so	4340ede91cc8c460
+72	3691	8096779615840461	GameActivity/CMakeFiles/game.dir/UGAInputKeyEvent.cpp.o	e3e77b8a597b8d01
+46	3749	8096779616515235	GameActivity/CMakeFiles/game.dir/UGAEntry.cpp.o	9b68de7378a7724f
+11	3774	8096779616922683	GameActivity/CMakeFiles/game.dir/UGAConfiguration.cpp.o	7037c7fb30a18e1e
+20	4020	8096779619399715	GameActivity/CMakeFiles/game.dir/UGADebug.cpp.o	942fffc2e98437d9
+105	3843	8096779617360451	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	13cb7422593e2957
+58	4260	8096779621912793	GameActivity/CMakeFiles/game.dir/UGAInput.cpp.o	a7533edb366bf6d
+89	4490	8096779624201990	GameActivity/CMakeFiles/game.dir/UGASoftKeyboard.cpp.o	6ee2c28c40716e8e
+4491	4752	8096779626833049	C:/Users/danie/program/LUMAX/Spatial_Machine_Workspace/client_quest/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/RelWithDebInfo/4d2gl1c5/obj/arm64-v8a/libgame.so	dd767e67f5808434
+303	3080	8097217700093426	FramePacing/CMakeFiles/swappywrapper.dir/UnitySwappyWrapper.cpp.o	f768e4eb127be715
+3084	5302	8097217722099704	C:/Users/danie/program/LUMAX/Spatial_Machine_Workspace/client_quest/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/RelWithDebInfo/4d2gl1c5/obj/arm64-v8a/libswappywrapper.so	4340ede91cc8c460
+215	5632	8097217724863036	GameActivity/CMakeFiles/game.dir/UGAEntry.cpp.o	9b68de7378a7724f
+226	5635	8097217725114086	GameActivity/CMakeFiles/game.dir/UGAConfiguration.cpp.o	7037c7fb30a18e1e
+274	5864	8097217724530661	GameActivity/CMakeFiles/game.dir/UGAInputKeyEvent.cpp.o	e3e77b8a597b8d01
+113	5885	8097217725953834	GameActivity/CMakeFiles/game.dir/UGADebug.cpp.o	942fffc2e98437d9
+262	5889	8097217725184386	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	13cb7422593e2957
+236	7350	8097217742921301	GameActivity/CMakeFiles/game.dir/UGAInput.cpp.o	a7533edb366bf6d
+49	7464	8097217744051203	GameActivity/CMakeFiles/game.dir/UGAApplication.cpp.o	c8c2a8ebe4afc193
+287	7649	8097217745887424	GameActivity/CMakeFiles/game.dir/UGASoftKeyboard.cpp.o	6ee2c28c40716e8e
+7649	8146	8097217750916724	C:/Users/danie/program/LUMAX/Spatial_Machine_Workspace/client_quest/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/RelWithDebInfo/4d2gl1c5/obj/arm64-v8a/libgame.so	dd767e67f5808434

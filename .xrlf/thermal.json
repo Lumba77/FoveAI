@@ -1,0 +1,36 @@
+{
+  "xrlf_version": "1.0",
+  "description": "Thermal regulation — token budget thresholds, rate limiting, and load shedding configuration",
+  "token_budget": {
+    "max_context": 8192,
+    "ring_0_fovea": 4096,
+    "ring_1_near": 2048,
+    "ring_2_mid": 1024,
+    "ring_3_far": 512,
+    "ring_4_archive": 256,
+    "ring_5_long": 2048,
+    "reserve_for_generation": 1024
+  },
+  "rate_limiting": {
+    "max_requests_per_minute": 60,
+    "max_concurrent_sessions": 5,
+    "queuing_strategy": "fifo"
+  },
+  "load_shedding": {
+    "enabled": true,
+    "cpu_threshold_percent": 90,
+    "memory_threshold_mb": 2048,
+    "cooldown_seconds": 30
+  },
+  "checkpoint": {
+    "compression_interval_turns": 8,
+    "max_checkpoints": 100,
+    "storage_limit_mb": 500
+  },
+  "fallback": {
+    "local_model": "qwen3.5-4b",
+    "extractive_summary": true,
+    "retry_attempts": 3,
+    "retry_delay_ms": 1000
+  }
+}

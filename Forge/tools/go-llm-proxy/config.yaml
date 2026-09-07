@@ -1,0 +1,16 @@
+listen: ":8104"
+
+models:
+  - name: unsloth
+    backend: http://127.0.0.1:8888/v1
+
+  - name: openrouter
+    backend: https://openrouter.ai/api/v1
+    api_key: ${OPENROUTER_API_KEY}
+
+  # gemini-web-bridge disabled: requires Chrome cookie scraping, crashes go-llm-proxy on health check failure
+  # Re-enable by adding: { name: gemini, backend: "http://127.0.0.1:5000/v1", api_key: *** }
+
+keys:
+  - key: ${LUMAX_PROXY_API_KEY}
+    name: lumax

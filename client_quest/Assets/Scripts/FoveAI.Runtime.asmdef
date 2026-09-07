@@ -1,0 +1,28 @@
+{
+    "name": "FoveAI.Runtime",
+    "rootNamespace": "FoveAI",
+    "references": [
+        "UnityEngine.UI",
+        "Unity.InputSystem",
+        "VRM10",
+        "UniGLTF",
+        "UniGLTF.Utils",
+        "Oculus.Platform",
+        "Oculus.AvatarSDK2",
+        "Oculus.VR",
+        "Unity.Animation.Rigging",
+        "VRM",
+        "Unity.XR.ARFoundation",
+        "Unity.TextMeshPro",
+        "Unity.XR.Interaction.Toolkit"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+} 

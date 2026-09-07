@@ -1,0 +1,18 @@
+# Memory Service - Vector/Graph Storage
+fastapi
+uvicorn
+pydantic
+python-multipart
+
+# Vector database
+chromadb>=0.5.0
+
+# Graph database
+kuzu>=0.5.0
+
+# Graph extraction (LLM-powered)
+cognee
+
+# Utilities
+python-dotenv
+aiohttp

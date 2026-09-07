@@ -1,0 +1,10 @@
+[
+  {
+    "depth": 2,
+    "depthName": "medium",
+    "results": 1,
+    "avgTextReduction": "65%",
+    "avgTotalReduction": "0%",
+    "avgPromptSavings": "64%"
+  }
+]

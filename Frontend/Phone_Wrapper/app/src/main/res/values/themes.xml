@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.LumaxPhone" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:statusBarColor">#02050a</item>
+        <item name="android:navigationBarColor">#02050a</item>
+        <item name="android:windowBackground">#02050a</item>
+    </style>
+</resources>

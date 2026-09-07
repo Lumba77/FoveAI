@@ -1,0 +1,302 @@
+<div style="display: flex; flex-direction: column; height: 100%; font-family: monospace;">
+    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
+        Manage 3D environment assets — lighting, skybox, fog, floor texture, and scene objects.
+        <span style="color: var(--status-ok);" id="env-conn-status">● Active</span>
+    </p>
+
+    <!-- Skybox / Background -->
+    <div style="margin-bottom: 1rem;">
+        <span style="font-size: 0.6rem; color: #ff007f; letter-spacing: 0.1em; display: block; margin-bottom: 6px;">SKYBOX / BACKGROUND</span>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+            <button class="env-bg-btn" data-bg="dark" style="padding: 8px; background: rgba(0,243,255,0.15); border: 1px solid #00f3ff; color: #00f3ff; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 0.65rem;">🌑 DARK VOID</button>
+            <button class="env-bg-btn" data-bg="studio" style="padding: 8px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: #ccc; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 0.65rem;">🎬 STUDIO</button>
+            <button class="env-bg-btn" data-bg="sunset" style="padding: 8px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: #ccc; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 0.65rem;">🌅 SUNSET</button>
+            <button class="env-bg-btn" data-bg="cyberpunk" style="padding: 8px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: #ccc; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 0.65rem;">🌃 CYBERPUNK</button>
+        </div>
+    </div>
+
+    <!-- Lighting -->
+    <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 10px; margin-bottom: 1rem;">
+        <div style="font-size: 0.6rem; color: #888; letter-spacing: 0.1em; margin-bottom: 8px;">LIGHTING</div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.7rem; margin-bottom: 4px;">
+                    <span>Ambient Intensity</span><span id="env-ambient-val" style="color: #00f3ff;">0.5</span>
+                </div>
+                <input type="range" id="env-ambient-slider" min="0" max="2" step="0.1" value="0.5" style="width: 100%; accent-color: #00f3ff;">
+            </div>
+            <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.7rem; margin-bottom: 4px;">
+                    <span>Directional Light</span><span id="env-dir-val" style="color: #00f3ff;">1.0</span>
+                </div>
+                <input type="range" id="env-dir-slider" min="0" max="3" step="0.1" value="1.0" style="width: 100%; accent-color: #00f3ff;">
+            </div>
+            <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.7rem; margin-bottom: 4px;">
+                    <span>Shadow Softness</span><span id="env-shadow-val" style="color: #00f3ff;">0.5</span>
+                </div>
+                <input type="range" id="env-shadow-slider" min="0" max="1" step="0.05" value="0.5" style="width: 100%; accent-color: #00f3ff;">
+            </div>
+        </div>
+    </div>
+
+    <!-- Fog -->
+    <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 10px; margin-bottom: 1rem;">
+        <div style="font-size: 0.6rem; color: #888; letter-spacing: 0.1em; margin-bottom: 8px;">FOG</div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.75rem; color: #ccc;">
+                <input type="checkbox" id="env-fog-toggle" style="accent-color: #00f3ff;">
+                Enable Fog
+            </label>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.7rem; margin-bottom: 4px;">
+                    <span>Fog Density</span><span id="env-fog-density-val" style="color: #00f3ff;">0.02</span>
+                </div>
+                <input type="range" id="env-fog-density-slider" min="0" max="0.1" step="0.001" value="0.02" style="width: 100%; accent-color: #00f3ff;">
+            </div>
+            <div>
+                <label style="font-size: 0.65rem; color: #888; display: block; margin-bottom: 2px;">Fog Color</label>
+                <input type="color" id="env-fog-color" value="#0a0a1a" style="width: 100%; height: 30px; background: #02050a; border: 1px solid rgba(0,243,255,0.2); border-radius: 3px; cursor: pointer;">
+            </div>
+        </div>
+    </div>
+
+    <!-- Floor -->
+    <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 10px; margin-bottom: 1rem;">
+        <div style="font-size: 0.6rem; color: #888; letter-spacing: 0.1em; margin-bottom: 8px;">FLOOR</div>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div>
+                <label style="font-size: 0.65rem; color: #888; display: block; margin-bottom: 2px;">Floor Color</label>
+                <input type="color" id="env-floor-color" value="#1a1a2e" style="width: 100%; height: 30px; background: #02050a; border: 1px solid rgba(0,243,255,0.2); border-radius: 3px; cursor: pointer;">
+            </div>
+            <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.7rem; margin-bottom: 4px;">
+                    <span>Floor Opacity</span><span id="env-floor-opacity-val" style="color: #00f3ff;">0.8</span>
+                </div>
+                <input type="range" id="env-floor-opacity-slider" min="0" max="1" step="0.05" value="0.8" style="width: 100%; accent-color: #00f3ff;">
+            </div>
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.75rem; color: #ccc;">
+                <input type="checkbox" id="env-floor-grid" checked style="accent-color: #00f3ff;">
+                Show Grid
+            </label>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div style="display: flex; gap: 8px; margin-top: auto;">
+        <button class="primary-btn" style="flex: 1; background: rgba(0,243,255,0.1); border-color: #00f3ff; color: #00f3ff;" id="env-apply-btn">APPLY</button>
+        <button class="primary-btn" style="flex: 1; background: rgba(57,255,20,0.1); border-color: #39ff14; color: #39ff14;" id="env-reset-btn">RESET DEFAULTS</button>
+    </div>
+</div>
+
+<script>
+(function() {
+    const BG_PRESETS = {
+        dark: { color: 0x000000 },
+        studio: { color: 0x1a1a2e },
+        sunset: { color: 0x2d1b3d },
+        cyberpunk: { color: 0x0a0a1a }
+    };
+
+    // Background buttons
+    document.querySelectorAll('.env-bg-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const bgKey = btn.dataset.bg;
+            const preset = BG_PRESETS[bgKey];
+            if (!preset) return;
+
+            // Update button styles
+            document.querySelectorAll('.env-bg-btn').forEach(b => {
+                b.style.background = 'rgba(0,0,0,0.3)';
+                b.style.borderColor = 'rgba(255,255,255,0.1)';
+                b.style.color = '#ccc';
+            });
+            btn.style.background = 'rgba(0,243,255,0.15)';
+            btn.style.borderColor = '#00f3ff';
+            btn.style.color = '#00f3ff';
+
+            // Apply to scene
+            const viewer = window.NEXUS_VIEWER;
+            if (viewer && viewer.scene) {
+                viewer.scene.background = new window.THREE.Color(preset.color);
+            }
+        });
+    });
+
+    // Ambient light slider (mapped to Hemisphere light in ViewerEngine)
+    document.getElementById('env-ambient-slider')?.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        document.getElementById('env-ambient-val').textContent = val.toFixed(1);
+        const viewer = window.NEXUS_VIEWER;
+        if (viewer && viewer._hemiLight) {
+            viewer._hemiLight.intensity = val;
+        }
+    });
+
+    // Directional light slider
+    document.getElementById('env-dir-slider')?.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        document.getElementById('env-dir-val').textContent = val.toFixed(1);
+        const viewer = window.NEXUS_VIEWER;
+        if (viewer && viewer.directionalLight) {
+            viewer.directionalLight.intensity = val;
+        }
+    });
+
+    // Shadow softness
+    document.getElementById('env-shadow-slider')?.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        document.getElementById('env-shadow-val').textContent = val.toFixed(2);
+        const viewer = window.NEXUS_VIEWER;
+        if (viewer && viewer.directionalLight && viewer.directionalLight.shadow) {
+            viewer.directionalLight.shadow.radius = val;
+        }
+    });
+
+    // Fog toggle
+    document.getElementById('env-fog-toggle')?.addEventListener('change', (e) => {
+        const viewer = window.NEXUS_VIEWER;
+        if (viewer && viewer.scene) {
+            if (e.target.checked) {
+                const density = parseFloat(document.getElementById('env-fog-density-slider').value);
+                const color = document.getElementById('env-fog-color').value;
+                viewer.scene.fog = new window.THREE.FogExp2(new window.THREE.Color(color), density);
+            } else {
+                viewer.scene.fog = null;
+            }
+        }
+    });
+
+    // Fog density
+    document.getElementById('env-fog-density-slider')?.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        document.getElementById('env-fog-density-val').textContent = val.toFixed(3);
+        const viewer = window.NEXUS_VIEWER;
+        if (viewer && viewer.scene && viewer.scene.fog) {
+            viewer.scene.fog.density = val;
+        }
+    });
+
+    // Fog color
+    document.getElementById('env-fog-color')?.addEventListener('input', (e) => {
+        const viewer = window.NEXUS_VIEWER;
+        if (viewer && viewer.scene && viewer.scene.fog) {
+            viewer.scene.fog.color.set(e.target.value);
+        }
+    });
+
+    // Floor color
+    document.getElementById('env-floor-color')?.addEventListener('input', (e) => {
+        const viewer = window.NEXUS_VIEWER;
+        if (viewer && viewer.floorMesh) {
+            viewer.floorMesh.material.color.set(e.target.value);
+        }
+    });
+
+    // Floor opacity
+    document.getElementById('env-floor-opacity-slider')?.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        document.getElementById('env-floor-opacity-val').textContent = val.toFixed(2);
+        const viewer = window.NEXUS_VIEWER;
+        if (viewer && viewer.floorMesh) {
+            viewer.floorMesh.material.opacity = val;
+            viewer.floorMesh.material.transparent = val < 1;
+        }
+    });
+
+    // Floor grid toggle
+    document.getElementById('env-floor-grid')?.addEventListener('change', (e) => {
+        const viewer = window.NEXUS_VIEWER;
+        if (viewer && viewer.gridHelper) {
+            viewer.gridHelper.visible = e.target.checked;
+        }
+    });
+
+    // Apply button
+    document.getElementById('env-apply-btn')?.addEventListener('click', async () => {
+        const payload = {
+            ambientIntensity: parseFloat(document.getElementById('env-ambient-slider').value),
+            directionalIntensity: parseFloat(document.getElementById('env-dir-slider').value),
+            shadowSoftness: parseFloat(document.getElementById('env-shadow-slider').value),
+            fogEnabled: document.getElementById('env-fog-toggle').checked,
+            fogDensity: parseFloat(document.getElementById('env-fog-density-slider').value),
+            fogColor: document.getElementById('env-fog-color').value,
+            floorColor: document.getElementById('env-floor-color').value,
+            floorOpacity: parseFloat(document.getElementById('env-floor-opacity-slider').value),
+            showGrid: document.getElementById('env-floor-grid').checked
+        };
+        
+        // Find active bg preset
+        let activeBg = 'dark';
+        document.querySelectorAll('.env-bg-btn').forEach(b => {
+            if (b.style.borderColor === 'rgb(0, 243, 255)' || b.style.borderColor === '#00f3ff') {
+                activeBg = b.dataset.bg;
+            }
+        });
+        payload.bgColor = activeBg;
+
+        try {
+            const r = await fetch('/api/environment/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (r.ok) {
+                if (window.showMessage) window.showMessage('Environment settings applied & saved to .env', 'success');
+            } else {
+                throw new Error('HTTP ' + r.status);
+            }
+        } catch (e) {
+            if (window.showMessage) window.showMessage('Failed to save environment settings.', 'error');
+        }
+    });
+
+    // Reset defaults
+    document.getElementById('env-reset-btn')?.addEventListener('click', () => {
+        document.getElementById('env-ambient-slider').value = '0.5';
+        document.getElementById('env-ambient-val').textContent = '0.5';
+        document.getElementById('env-dir-slider').value = '1.0';
+        document.getElementById('env-dir-val').textContent = '1.0';
+        document.getElementById('env-shadow-slider').value = '0.5';
+        document.getElementById('env-shadow-val').textContent = '0.50';
+        document.getElementById('env-fog-toggle').checked = false;
+        document.getElementById('env-fog-density-slider').value = '0.02';
+        document.getElementById('env-fog-density-val').textContent = '0.020';
+        document.getElementById('env-fog-color').value = '#0a0a1a';
+        document.getElementById('env-floor-color').value = '#1a1a2e';
+        document.getElementById('env-floor-opacity-slider').value = '0.8';
+        document.getElementById('env-fog-color').value = '#000000';
+        document.getElementById('env-fog-density-val').textContent = '0.02';
+        
+        const viewer = window.NEXUS_VIEWER;
+        if (viewer) {
+            if (viewer.scene) {
+                viewer.scene.background = new window.THREE.Color(0x000000);
+                viewer.scene.fog = null;
+            }
+            if (viewer._hemiLight) viewer._hemiLight.intensity = 0.9;
+            if (viewer.directionalLight) {
+                viewer.directionalLight.intensity = 1.2;
+                if (viewer.directionalLight.shadow) viewer.directionalLight.shadow.radius = 3.0;
+            }
+            if (viewer.floorMesh) {
+                viewer.floorMesh.material.color.set('#1a1a2e');
+                viewer.floorMesh.material.opacity = 0.8;
+                viewer.floorMesh.material.transparent = true;
+            }
+            if (viewer.gridHelper) viewer.gridHelper.visible = true;
+        }
+
+        // Reset background button styles
+        document.querySelectorAll('.env-bg-btn').forEach(b => {
+            b.style.background = 'rgba(0,0,0,0.3)';
+            b.style.borderColor = 'rgba(255,255,255,0.1)';
+            b.style.color = '#ccc';
+        });
+
+        if (window.showMessage) window.showMessage('Environment reset to defaults.', 'success');
+    });
+})();
+</script>

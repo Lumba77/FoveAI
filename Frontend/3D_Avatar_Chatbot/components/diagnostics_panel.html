@@ -1,0 +1,145 @@
+<div style="display: flex; flex-direction: column; height: 100%; font-family: monospace;">
+    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
+        Deep diagnostics — probes all inference paths, services, and configurations.
+        <span style="color: var(--status-ok);" id="diag-conn-status">● Checking...</span>
+    </p>
+
+    <!-- Quick Actions -->
+    <div style="display: flex; gap: 8px; margin-bottom: 1rem; flex-wrap: wrap;">
+        <button class="primary-btn" style="flex: 1; min-width: 100px; background: rgba(0,243,255,0.1); border-color: #00f3ff; color: #00f3ff;" id="diag-run-all">🔬 RUN ALL</button>
+        <button class="primary-btn" style="flex: 1; min-width: 100px; background: rgba(57,255,20,0.1); border-color: #39ff14; color: #39ff14;" id="diag-run-brain">🧠 BRAIN DIAG</button>
+        <button class="primary-btn" style="flex: 1; min-width: 100px; background: rgba(255,0,127,0.1); border-color: #ff007f; color: #ff007f;" id="diag-clear">✕ CLEAR</button>
+    </div>
+
+    <!-- Service Probe Grid -->
+    <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 8px; margin-bottom: 1rem;">
+        <div style="font-size: 0.6rem; color: #888; letter-spacing: 0.1em; margin-bottom: 6px;">SERVICE PROBES</div>
+        <div id="diag-service-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 0.7rem;">
+            <!-- Filled dynamically -->
+        </div>
+    </div>
+
+    <!-- Results Area -->
+    <div id="diag-results" style="
+        flex: 1;
+        background: #02050a;
+        border: 1px solid rgba(0, 243, 255, 0.2);
+        border-radius: 4px;
+        padding: 1rem;
+        overflow-y: auto;
+        font-family: 'Consolas', 'Courier New', monospace;
+        font-size: 0.75rem;
+        color: #00f3ff;
+        box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8);
+    ">
+        <div style="color: #888;">Ready. Click RUN ALL to probe all services.</div>
+    </div>
+</div>
+
+<script>
+(function() {
+    const BASE = '';
+    const results = document.getElementById('diag-results');
+    const serviceGrid = document.getElementById('diag-service-grid');
+    const connStatus = document.getElementById('diag-conn-status');
+
+    const SERVICES = [
+        { id: 'soul', label: 'XRLF Runtime', port: 8402 },
+        { id: 'proxy', label: 'Proxy', port: 8400 },
+        { id: 'dashboard', label: 'Dashboard', port: 8401 },
+        { id: 'ears', label: 'Ears (STT)', port: 8001 },
+        { id: 'memory', label: 'Memory', port: 8002 },
+        { id: 'creative', label: 'Creativity', port: 8003 },
+        { id: 'mouth', label: 'Mouth (TTS)', port: 8004 },
+        { id: 'soundboard', label: 'Soundboard', port: 8006 },
+        { id: 'tokenslayer', label: 'TokenSlayer', port: 8103 },
+        { id: 'motor', label: 'Motor Cortex', port: 8110 },
+        { id: 'webui', label: 'WebUI', port: 8080 }
+    ];
+
+    function log(text, type = 'INFO') {
+        const line = document.createElement('div');
+        line.style.marginBottom = '3px';
+        let color = '#00f3ff';
+        if (type === 'ERROR') color = '#f44336';
+        if (type === 'SUCCESS') color = '#39ff14';
+        if (type === 'WARN') color = '#ff9800';
+        if (type === 'DATA') color = '#ffd700';
+        line.innerHTML = `<span style="color: ${color};">[${type}]</span> ${text}`;
+        results.appendChild(line);
+        results.scrollTop = results.scrollHeight;
+    }
+
+    async function probeService(id, label, port) {
+        const el = document.getElementById(`diag-svc-${id}`);
+        if (el) {
+            el.innerHTML = `<span style="color: #ff9800;">⟳</span> ${label}`;
+        }
+        try {
+            const r = await fetch(`/api/health-proxy/${port}`, { signal: AbortSignal.timeout(2000) });
+            const data = await r.json();
+            const ok = data.ok;
+            if (el) {
+                el.innerHTML = `<span style="color: ${ok ? '#2ecc71' : '#ff4444'};">${ok ? '●' : '■'}</span> ${label}`;
+            }
+            log(`${label} (:${port}): ${ok ? 'OK' : 'HTTP ' + (data.status || 0)}`, ok ? 'SUCCESS' : 'WARN');
+            return ok;
+        } catch (e) {
+            if (el) {
+                el.innerHTML = `<span style="color: #ff4444;">■</span> ${label}`;
+            }
+            log(`${label} (:${port}): ${e.message}`, 'ERROR');
+            return false;
+        }
+    }
+
+    function renderServiceGrid() {
+        serviceGrid.innerHTML = '';
+        SERVICES.forEach(svc => {
+            const div = document.createElement('div');
+            div.id = `diag-svc-${svc.id}`;
+            div.style.cssText = 'padding: 4px; color: #888;';
+            div.innerHTML = `<span style="color: #888;">○</span> ${svc.label}`;
+            serviceGrid.appendChild(div);
+        });
+    }
+
+    async function runAll() {
+        log('=== DIAGNOSTIC RUN ===', 'INFO');
+        log(`Probing ${SERVICES.length} services...`, 'INFO');
+        for (const svc of SERVICES) {
+            await probeService(svc.id, svc.label, svc.port);
+        }
+        log('=== DIAGNOSTIC COMPLETE ===', 'SUCCESS');
+    }
+
+    async function runBrainDiagnostic() {
+        log('=== BRAIN DIAGNOSTIC ===', 'INFO');
+        try {
+            const r = await fetch(`${BASE}/api/brain/diagnostic`, { signal: AbortSignal.timeout(10000) });
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            const data = await r.json();
+            log('Brain diagnostic response:', 'SUCCESS');
+            Object.entries(data).forEach(([key, val]) => {
+                const v = typeof val === 'object' ? JSON.stringify(val).substring(0, 200) : String(val);
+                log(`  ${key}: ${v}`, 'DATA');
+            });
+        } catch (e) {
+            log(`Brain diagnostic failed: ${e.message}`, 'ERROR');
+        }
+    }
+
+    document.getElementById('diag-run-all')?.addEventListener('click', runAll);
+    document.getElementById('diag-run-brain')?.addEventListener('click', runBrainDiagnostic);
+    document.getElementById('diag-clear')?.addEventListener('click', () => {
+        results.innerHTML = '<div style="color: #888;">Cleared.</div>';
+    });
+
+    // Initial probe
+    renderServiceGrid();
+    probeService('soul', 'XRLF Runtime', 8402).then(ok => {
+        connStatus.textContent = ok ? '● Connected' : '■ Offline';
+        connStatus.style.color = ok ? '#2ecc71' : '#ff4444';
+    });
+})();
+</script>

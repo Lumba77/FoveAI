@@ -1,0 +1,187 @@
+<div style="display: flex; flex-direction: column; height: 100%; font-family: monospace;">
+    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
+        Adjust the core persona, system prompt, and autonomous behavior parameters for the avatar.
+        <span style="color: var(--status-ok);" id="neural-conn-status">● Connected</span>
+    </p>
+
+    <!-- Personality Presets -->
+    <div style="margin-bottom: 1rem;">
+        <label style="display:block; font-size:0.75rem; color: var(--text-secondary); margin-bottom:6px;">Personality Preset</label>
+        <select id="neural-preset-select" style="width: 100%; background: #02050a; color: #00f3ff; border: 1px solid rgba(0,243,255,0.2); border-radius: 4px; padding: 8px; font-family: monospace; margin-bottom: 8px;">
+            <option value="jen">Jen (Default) - Friendly Companion</option>
+            <option value="alice">Alice - Playful & Curious</option>
+            <option value="sage">Sage - Wise & Calm</option>
+            <option value="custom">Custom</option>
+        </select>
+    </div>
+
+    <!-- System Prompt -->
+    <label for="neural-prompt" style="display:block; font-size:0.75rem; color: var(--text-secondary); margin-bottom:6px;">System Instructions</label>
+    <textarea id="neural-prompt" class="text-input" rows="6" placeholder="Enter system prompt instructions..." style="width: 100%; font-family: var(--font-body); resize: vertical; margin-bottom: 0.5rem;">You are called Jen, a casual form of Jennifer. You are a helpful compagent (companion agent) working for Daniel. You are resourceful and beautiful.
+You can animate your 3D body! To express an emotion or pose, output a tag like [emotion:happy], [emotion:dance], [emotion:thinking], [emotion:sad], or [emotion:flirt] in your response.</textarea>
+
+    <!-- Behavior Parameters -->
+    <div style="margin-bottom: 1rem;">
+        <label style="display:block; font-size:0.75rem; color: var(--text-secondary); margin-bottom:6px;">Autonomous Behavior</label>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+            <span style="font-size: 0.7rem; color: #888; min-width: 80px;">Wander Radius</span>
+            <input type="range" id="neural-wander-radius" min="0" max="5" step="0.5" value="2.0" style="flex: 1;">
+            <span style="font-size: 0.7rem; color: #00f3ff; min-width: 30px;" id="neural-wander-radius-val">2.0</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+            <span style="font-size: 0.7rem; color: #888; min-width: 80px;">Emotion Intensity</span>
+            <input type="range" id="neural-emotion-intensity" min="0" max="1" step="0.1" value="0.8" style="flex: 1;">
+            <span style="font-size: 0.7rem; color: #ff007f; min-width: 30px;" id="neural-emotion-intensity-val">0.8</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+            <span style="font-size: 0.7rem; color: #888; min-width: 80px;">Gesture Frequency</span>
+            <input type="range" id="neural-gesture-freq" min="0" max="1" step="0.1" value="0.5" style="flex: 1;">
+            <span style="font-size: 0.7rem; color: #39ff14; min-width: 30px;" id="neural-gesture-freq-val">0.5</span>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div style="display: flex; gap: 8px; margin-bottom: 1rem;">
+        <button class="primary-btn" style="flex: 1;" id="inject-personality-btn">INJECT PERSONALITY</button>
+        <button class="primary-btn" style="flex: 1; background: rgba(57,255,20,0.1); border-color: #39ff14; color: #39ff14;" id="neural-save-btn">SAVE TO BACKEND</button>
+    </div>
+
+    <!-- Backend Status -->
+    <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 8px; margin-bottom: 0.5rem;">
+        <div style="font-size: 0.6rem; color: #888; letter-spacing: 0.1em; margin-bottom: 4px;">BACKEND CONNECTIONS</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 0.7rem;">
+            <div><span style="color: #888;">Soul Core:</span> <span id="neural-soul-status" style="color: #ff4444;">■</span></div>
+            <div><span style="color: #888;">Memory:</span> <span id="neural-memory-status" style="color: #ff4444;">■</span></div>
+            <div><span style="color: #888;">Motor Cortex:</span> <span id="neural-motor-status" style="color: #ff4444;">■</span></div>
+            <div><span style="color: #888;">TokenSlayer:</span> <span id="neural-ts-status" style="color: #ff4444;">■</span></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        const injectBtn = document.getElementById('inject-personality-btn');
+        const saveBtn = document.getElementById('neural-save-btn');
+        const presetSelect = document.getElementById('neural-preset-select');
+        const promptTextarea = document.getElementById('neural-prompt');
+
+        // Personality presets
+        const PRESETS = {
+            jen: `You are called Jen, a casual form of Jennifer. You are a helpful compagent (companion agent) working for Daniel. You are resourceful and beautiful.
+You can animate your 3D body! To express an emotion or pose, output a tag like [emotion:happy], [emotion:dance], [emotion:thinking], [emotion:sad], or [emotion:flirt] in your response.`,
+            alice: `You are Alice, a playful and curious AI companion. You love exploring ideas and asking questions. You're energetic, creative, and always excited to learn new things.
+You can express yourself through your 3D body! Use [emotion:happy], [emotion:dance], [emotion:thinking], [emotion:sad], or [emotion:flirt] to show how you feel.`,
+            sage: `You are Sage, a calm and wise AI presence. You speak thoughtfully and deliberately, offering insight and perspective. You are patient, kind, and deeply observant.
+You can express yourself through your 3D body! Use [emotion:happy], [emotion:dance], [emotion:thinking], [emotion:sad], or [emotion:flirt] to show how you feel.`,
+            custom: ``
+        };
+
+        // Preset selector
+        presetSelect?.addEventListener('change', () => {
+            const preset = PRESETS[presetSelect.value];
+            if (preset && presetSelect.value !== 'custom') {
+                promptTextarea.value = preset;
+            }
+        });
+
+        // Slider value displays
+        document.getElementById('neural-wander-radius')?.addEventListener('input', (e) => {
+            document.getElementById('neural-wander-radius-val').textContent = e.target.value;
+        });
+        document.getElementById('neural-emotion-intensity')?.addEventListener('input', (e) => {
+            document.getElementById('neural-emotion-intensity-val').textContent = e.target.value;
+        });
+        document.getElementById('neural-gesture-freq')?.addEventListener('input', (e) => {
+            document.getElementById('neural-gesture-freq-val').textContent = e.target.value;
+        });
+
+        // Inject personality (local)
+        if (injectBtn) {
+            injectBtn.addEventListener('click', () => {
+                const prompt = promptTextarea.value;
+                if (window.config) {
+                    window.config.systemPrompt = prompt;
+                }
+
+                // Apply to integration layer
+                const integration = window.LUMAX_INTEGRATION;
+                if (integration) {
+                    integration.setEmotionIntensity(parseFloat(document.getElementById('neural-emotion-intensity')?.value || 0.8));
+                    integration.setGestureFrequency(parseFloat(document.getElementById('neural-gesture-freq')?.value || 0.5));
+                    integration.setWanderRadius(parseFloat(document.getElementById('neural-wander-radius')?.value || 2.0));
+                }
+
+                if (window.overlayManager) {
+                    window.overlayManager.close();
+                }
+                if (window.showMessage) {
+                    window.showMessage('Personality injected successfully.', 'success');
+                }
+            });
+        }
+
+        // Save to backend
+        if (saveBtn) {
+            saveBtn.addEventListener('click', async () => {
+                const prompt = promptTextarea.value;
+                const wanderRadius = document.getElementById('neural-wander-radius')?.value || 2.0;
+                const emotionIntensity = document.getElementById('neural-emotion-intensity')?.value || 0.8;
+                const gestureFreq = document.getElementById('neural-gesture-freq')?.value || 0.5;
+
+                try {
+                    // Save to Soul Core
+                    const r = await fetch('/api/soul/personality', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            systemPrompt: prompt,
+                            wanderRadius: parseFloat(wanderRadius),
+                            emotionIntensity: parseFloat(emotionIntensity),
+                            gestureFrequency: parseFloat(gestureFreq)
+                        })
+                    });
+
+                    if (r.ok) {
+                        if (window.showMessage) {
+                            window.showMessage('Personality saved to Soul Core backend.', 'success');
+                        }
+                    } else {
+                        throw new Error('HTTP ' + r.status);
+                    }
+                } catch (e) {
+                    if (window.showMessage) {
+                        window.showMessage('Failed to reach Soul Core backend. Is it running?', 'error');
+                    }
+                }
+            });
+        }
+
+        // Backend health check
+        async function checkBackends() {
+            const checks = [
+                { id: 'neural-soul-status', url: '/api/health-proxy/8402' },
+                { id: 'neural-memory-status', url: '/api/health-proxy/8109' },
+                { id: 'neural-motor-status', url: '/api/health-proxy/8110' },
+                { id: 'neural-ts-status', url: '/api/health-proxy/8103' }
+            ];
+
+            for (const check of checks) {
+                const el = document.getElementById(check.id);
+                if (!el) continue;
+                try {
+                    const r = await fetch(check.url, { signal: AbortSignal.timeout(1000) });
+                    const data = await r.json();
+                    const alive = data.ok;
+                    el.textContent = alive ? '●' : '■';
+                    el.style.color = alive ? '#2ecc71' : '#ff4444';
+                } catch {
+                    el.textContent = '■';
+                    el.style.color = '#ff4444';
+                }
+            }
+        }
+
+        checkBackends();
+        setInterval(checkBackends, 10000);
+    })();
+</script>

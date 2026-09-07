@@ -1,0 +1,23 @@
+# ninja log v5
+184	1066	8099970042918243	FramePacing/CMakeFiles/swappywrapper.dir/UnitySwappyWrapper.cpp.o	898d5182f8e0ea1d
+18	6588	8099970098184326	GameActivity/CMakeFiles/game.dir/UGAApplication.cpp.o	afdf20444fed71e7
+1067	4950	8099970081678645	C:/Users/danie/program/LUMAX/FoveAI/client_quest/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/Debug/4i51662b/obj/arm64-v8a/libswappywrapper.so	6f17819239eadbe0
+73	6336	8099970095689651	GameActivity/CMakeFiles/game.dir/UGAEntry.cpp.o	faeac16174eecfeb
+44	6333	8099970095658806	GameActivity/CMakeFiles/game.dir/UGAConfiguration.cpp.o	66fc7b957794d1c6
+140	6314	8099970095467301	GameActivity/CMakeFiles/game.dir/UGAInputKeyEvent.cpp.o	731a4e59b6134fb3
+93	6343	8099970095774606	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	3d58babc15dcb273
+35	6378	8099970096124871	GameActivity/CMakeFiles/game.dir/UGADebug.cpp.o	59859903ba6e0ad1
+158	6543	8099970097726138	GameActivity/CMakeFiles/game.dir/UGAInput.cpp.o	90248a93818c617a
+172	7105	8099970103424758	GameActivity/CMakeFiles/game.dir/UGASoftKeyboard.cpp.o	55836a8ed2a37162
+7106	7280	8099970105146857	C:/Users/danie/program/LUMAX/FoveAI/client_quest/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/Debug/4i51662b/obj/arm64-v8a/libgame.so	b4e810194da554f8
+182	2208	8102554584816654	FramePacing/CMakeFiles/swappywrapper.dir/UnitySwappyWrapper.cpp.o	898d5182f8e0ea1d
+2209	3970	8102554602332677	C:/Users/danie/program/LUMAX/FoveAI/client_quest/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/Debug/4i51662b/obj/arm64-v8a/libswappywrapper.so	6f17819239eadbe0
+86	5433	8102554617034792	GameActivity/CMakeFiles/game.dir/UGAConfiguration.cpp.o	66fc7b957794d1c6
+126	5448	8102554617235501	GameActivity/CMakeFiles/game.dir/UGAInputMotionEvent.cpp.o	3d58babc15dcb273
+112	5471	8102554617472966	GameActivity/CMakeFiles/game.dir/UGAInputKeyEvent.cpp.o	731a4e59b6134fb3
+39	5531	8102554617889155	GameActivity/CMakeFiles/game.dir/UGAEntry.cpp.o	faeac16174eecfeb
+54	5534	8102554618125959	GameActivity/CMakeFiles/game.dir/UGADebug.cpp.o	59859903ba6e0ad1
+153	5714	8102554619688678	GameActivity/CMakeFiles/game.dir/UGAApplication.cpp.o	afdf20444fed71e7
+100	5720	8102554619909656	GameActivity/CMakeFiles/game.dir/UGAInput.cpp.o	90248a93818c617a
+139	6244	8102554625187195	GameActivity/CMakeFiles/game.dir/UGASoftKeyboard.cpp.o	55836a8ed2a37162
+6244	6573	8102554628478772	C:/Users/danie/program/LUMAX/FoveAI/client_quest/Library/Bee/Android/Prj/IL2CPP/Gradle/unityLibrary/build/intermediates/cxx/Debug/4i51662b/obj/arm64-v8a/libgame.so	b4e810194da554f8

@@ -1,0 +1,25 @@
+{
+    "name": "FoveAI.Editor",
+    "rootNamespace": "FoveAI.Editor",
+    "references": [
+        "FoveAI.Runtime",
+        "UnityEngine.UI",
+        "Unity.InputSystem",
+        "Unity.XR.Core.Utils",
+        "Unity.XR.Management",
+        "Oculus.VR",
+        "Unity.XR.ARFoundation",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

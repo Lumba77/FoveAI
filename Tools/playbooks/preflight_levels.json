@@ -1,0 +1,48 @@
+{
+  "version": "1.0",
+  "description": "Lumax preflight escalation levels for safe automation.",
+  "levels": {
+    "light": {
+      "checks": [
+        "project_paths",
+        "godot_binary",
+        "meta_runtime_json",
+        "meta_simulator_process"
+      ],
+      "heals": [
+        "start_meta_simulator"
+      ]
+    },
+    "standard": {
+      "checks": [
+        "project_paths",
+        "godot_binary",
+        "meta_runtime_json",
+        "meta_simulator_process",
+        "docker_compose_available",
+        "docker_services_running"
+      ],
+      "heals": [
+        "start_meta_simulator",
+        "docker_compose_up"
+      ]
+    },
+    "deep": {
+      "checks": [
+        "project_paths",
+        "godot_binary",
+        "meta_runtime_json",
+        "meta_simulator_process",
+        "docker_compose_available",
+        "docker_services_running",
+        "soul_bridge_health"
+      ],
+      "heals": [
+        "start_meta_simulator",
+        "docker_compose_up",
+        "bridge_health_retry"
+      ]
+    }
+  }
+}
+

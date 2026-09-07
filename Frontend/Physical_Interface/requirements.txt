@@ -1,0 +1,18 @@
+# Ears Service - Speech-to-Text
+fastapi
+uvicorn
+pydantic
+python-multipart
+numpy
+soundfile
+
+# Whisper STT
+faster-whisper>=1.0.0
+
+# Audio processing
+librosa
+scipy
+
+# Optional: CUDA acceleration
+# torch>=2.0.0
+# torchaudio

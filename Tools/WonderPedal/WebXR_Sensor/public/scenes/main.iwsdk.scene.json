@@ -1,0 +1,135 @@
+{
+  "components": {
+    "com.iwsdk.components.CameraSource": {
+      "deviceId": "test",
+      "facing": "front",
+      "frameRate": 30,
+      "height": 1080,
+      "state": "inactive",
+      "stream": {},
+      "texture": {},
+      "videoElement": {},
+      "width": 1920
+    }
+  },
+  "nodes": [
+    {
+      "components": {
+        "DistanceGrabbable": {
+          "movementMode": "MoveFromTarget"
+        },
+        "RayInteractable": {}
+      },
+      "content": {
+        "asset": "plant-sansevieria",
+        "type": "asset"
+      },
+      "id": "plant-sansevieria",
+      "metadata": {
+        "iwsdk.validation": {
+          "allowFloating": true
+        }
+      },
+      "name": "Plant Sansevieria",
+      "transform": {
+        "position": [
+          1.2,
+          0.2,
+          -1.8
+        ],
+        "scale": 2
+      }
+    },
+    {
+      "components": {
+        "AudioSource": {
+          "maxInstances": 3,
+          "playbackMode": "fade-restart",
+          "src": "./audio/chime.mp3"
+        },
+        "RayInteractable": {},
+        "Robot": {}
+      },
+      "content": {
+        "asset": "robot",
+        "type": "asset"
+      },
+      "id": "robot",
+      "metadata": {
+        "iwsdk.validation": {
+          "allowFloating": true
+        }
+      },
+      "name": "Robot",
+      "transform": {
+        "position": [
+          -1.2,
+          0.4,
+          -1.8
+        ]
+      }
+    },
+    {
+      "components": {
+        "RayInteractable": {},
+        "ScreenSpace": {
+          "height": "40%",
+          "left": "20px",
+          "top": "20px",
+          "width": "25vw"
+        }
+      },
+      "content": {
+        "asset": "welcome-panel",
+        "type": "asset"
+      },
+      "id": "welcome-panel",
+      "name": "Welcome Panel",
+      "transform": {
+        "position": [
+          0,
+          1.6,
+          -2
+        ],
+        "scale": 0.4
+      }
+    },
+    {
+      "components": {},
+      "content": {
+        "asset": "webxr-banner",
+        "type": "asset"
+      },
+      "id": "webxr-banner",
+      "metadata": {
+        "iwsdk.validation": {
+          "allowFloating": true
+        }
+      },
+      "name": "WebXR Banner",
+      "transform": {
+        "position": [
+          0,
+          1,
+          1.8
+        ],
+        "rotationDeg": [
+          0,
+          180,
+          0
+        ],
+        "scale": [
+          1,
+          -1,
+          1
+        ]
+      }
+    },
+    {
+      "id": "entity-1"
+    }
+  ],
+  "resources": {},
+  "units": "meters",
+  "version": "iwsdk.scene.v1"
+}

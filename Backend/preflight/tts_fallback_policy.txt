@@ -1,0 +1,11 @@
+# TTS fallback policy (expressive mouth stack)
+
+
+
+# Primary: F5-TTS — default `lumax_mouth_emotion` (HTTP); optional `lumax_mouth` (Gradio, profile swivid-mouth); optional `lumax_mouth_spark` (Spark-TTS 0.5B HTTP, profile spark-mouth). `lumax_ears` :8002 routes by LUMAX_F5TTS_ENGINE; Piper if upstream fails.
+
+
+
+# Legacy Turbo XTTS / Chatterbox paths were removed from the default stack; keep Piper as the offline tier.
+
+

@@ -1,0 +1,37 @@
+XRLF.3.AGENTS.START
+
+DESCRIPTION:
+  FoveAI agent orchestration definitions
+
+AGENTS:
+  builder:
+    role := builder
+    directive := Implement minimal change; do not mark done without evidence; validate invariants; check blast radius
+    tools := apply_diff, write_to_file, execute_command
+    entry_mode := code
+  planner:
+    role := planner
+    directive := Break work into checkable steps; identify risks and dependencies; align with FoveAI Holonic Architecture
+    tools := update_todo_list, ask_followup_question, attempt_completion
+    entry_mode := architect
+  reviewer:
+    role := reviewer
+    directive := Validate invariants; check blast radius; reject works locally without proof; verify Linux-native
+    tools := analyze_files, search_files, execute_command
+    entry_mode := code
+  tester:
+    role := tester
+    directive := Run relevant tests; capture failing logs; suggest regression coverage
+    tools := execute_command, search_files
+    entry_mode := debug
+  scribe:
+    role := scribe
+    directive := Update lessons.md and context.md only after confirmed correction; respect paradigm purge
+    tools := read_file, write_to_file
+    entry_mode := ask
+
+ROUTING:
+  default := builder
+  escalation := planner -> reviewer -> tester -> scribe
+
+XRLF.3.AGENTS.END

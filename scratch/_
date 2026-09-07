@@ -1,0 +1,103 @@
+"""Write ScreenWatch.ts, CodeAgency.ts, and AcousticComposite.ts to disk."""
+import os
+base = r"c:\Users\lumba\Program\LUMAX\Body\XR_Vessel\src\senses"
+
+# ── ScreenWatch.ts ──
+screenwatch = '''/**
+ * SCREEN WATCH - Avatar co-watches user's screen
+ * Captures display, downloads subtitles, extracts text
+ */
+export interface ScreenFrame {
+    base64: string; timestamp: number;
+    contentType: 'movie'|'website'|'image'|'game'|'code'|'document'|'unknown';
+    text: string; subtitle: string|null; mediaTitle: string|null;
+}
+export interface ScreenWatchConfig {
+    captureIntervalMs: number; jpegQuality: number;
+    enableOcr: boolean; autoDownloadSubtitles: boolean; subtitleLang: string;
+}
+const DEF: ScreenWatchConfig = { captureIntervalMs:5000,jpegQuality:0.7,enableOcr:true,autoDownloadSubtitles:true,subtitleLang:'en' };
+const OS_API = 'https://api.opensubtitles.com/api/v1';
+
+export class ScreenWatch {
+    private c: ScreenWatchConfig; private v: HTMLVideoElement|null=null;
+    private cnv: HTMLCanvasElement|null=null; private ctx: CanvasRenderingContext2D|null=null;
+    private t: number|null=null; private active=false; private last: ScreenFrame|null=null;
+    private subs: string[]=[]; private subIdx=0; private title: string|null=null;
+    private log:(m:string,c:string)=>void;
+
+    constructor(cfg?:Partial<ScreenWatchConfig>,lf?:(m:string,c:string)=>void){
+        this.c={...DEF,...cfg}; this.log=lf||((m,c)=>console.log('[SW]',m));
+    }
+
+    async start():Promise<boolean>{
+        try{
+            const s=await navigator.mediaDevices.getDisplayMedia({video:{width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:5}},audio:true});
+            this.v=document.createElement('video'); this.v.autoplay=true; this.v.muted=true; this.v.playsInline=true; this.v.srcObject=s;
+            await this.v.play();
+            this.cnv=document.createElement('canvas'); this.cnv.width=1280; this.cnv.height=720; this.ctx=this.cnv.getContext('2d');
+            this.active=true; this.t=window.setInterval(()=>this.cap(),this.c.captureIntervalMs); this.cap();
+            this.log('Screen Watch active','#0f0'); return true;
+        }catch(e:any){this.log('Denied: '+e.message,'#f80'); return false;}
+    }
+    stop():void{this.active=false;if(this.t){clearInterval(this.t);this.t=null;}if(this.v?.srcObject){(this.v.srcObject as MediaStream).getTracks().forEach(t=>t.stop());}this.v=null;this.cnv=null;this.ctx=null;this.log('Stopped','#f80');}
+    getLast():ScreenFrame|null{return this.last;}
+
+    private async cap():Promise<void>{
+        if(!this.active||!this.v||!this.ctx||!this.cnv)return;
+        try{
+            this.ctx.drawImage(this.v,0,0,this.cnv.width,this.cnv.height);
+            const b64=this.cnv.toDataURL('image/jpeg',this.c.jpegQuality).split(',')[1]||'';
+            const ct=this.detect();
+            let txt=''; let sub:string|null=null;
+            if(ct==='movie'&&this.subs.length>0)sub=this.matchSub();
+            this.last={base64:b64,timestamp:Date.now(),contentType:ct,text:txt,subtitle:sub,mediaTitle:this.title};
+        }catch(e:any){this.log('Cap err: '+e.message,'#f00');}
+    }
+
+    private detect():ScreenFrame['contentType']{
+        const t=document.title.toLowerCase();
+        if(/youtube|netflix|prime.?video|plex|hbo|disney/i.test(t))return'movie';
+        if(/github|vscode|stackoverflow|gitlab/i.test(t))return'code';
+        if(/docs|notion|sheets/i.test(t))return'document';
+        if(/photos|imgur|pinterest|behance/i.test(t))return'image';
+        return'unknown';
+    }
+
+    async downloadSubs(mediaTitle:string,season?:number,episode?:number):Promise<boolean>{
+        if(!this.c.autoDownloadSubtitles)return false;
+        try{
+            this.title=mediaTitle; this.log('Detected: '+mediaTitle,'#0af');
+            const p=new URLSearchParams({query:mediaTitle,languages:this.c.subtitleLang,order_by:'download_count'});
+            if(season!==undefined)p.set('season_number',String(season));
+            if(episode!==undefined)p.set('episode_number',String(episode));
+            const r=await fetch(OS_API+'/subtitles?'+p,{headers:{'Content-Type':'application/json'}});
+            if(r.ok){const d=await r.json();if(d.data?.length){
+                const dr=await fetch(OS_API+'/subtitles/'+d.data[0].id+'/download',{headers:{'Content-Type':'application/json'}});
+                if(dr.ok){const sd=await dr.json();this.subs=this.parseSrt(sd.content||'');this.subIdx=0;
+                this.log('Subtitles: '+this.subs.length+' lines','#0f0');return true;}
+            }}
+            this.log('No subs for '+mediaTitle,'#fa0');return false;
+        }catch(e:any){this.log('Sub err: '+e.message,'#f00');return false;}
+    }
+    private parseSrt(srt:string):string[]{const a:string[]=[];const b=srt.split(/\\n\\n+/);for(const bl of b){const t=bl.split('\\n').slice(2).join(' ').replace(/<[^>]+>/g,'').trim();if(t)a.push(t);}return a;}
+    private matchSub():string|null{if(!this.subs.length)return null;const i=Math.floor(((this.last?.timestamp||Date.now())/1000)/3)%this.subs.length;return this.subs[i]||null;}
+
+    getContext():string{
+        if(!this.last)return'[SCREEN WATCH] Offline.';
+        let l=`[SCREEN WATCH] ${this.last.contentType.toUpperCase()}`;
+        if(this.last.mediaTitle)l+=` "${this.last.mediaTitle}"`;
+        if(this.last.subtitle)l+=` sub:"${this.last.subtitle.substring(0,80)}"`;
+        if(this.last.text)l+=` txt:"${this.last.text.substring(0,120)}"`;
+        const age=Math.round((Date.now()-this.last.timestamp)/1000);
+        l+=` (${age}s ago)`;
+        if(this.last.contentType==='movie')l+=' You are co-watching. Comment on scenes, explain plot.';
+        return l;
+    }
+    getCompact():string{return this.getContext().split('\\n')[0]||'[SCREEN] Offline.';}
+    isRunning():boolean{return this.active;}
+    dispose():void{this.stop();}
+}
+'''
+with open(os.path.join(base,'ScreenWatch.ts'),'w',encoding='utf-8') as f: f.write(screenwatch)
+print('ScreenWatch.ts written', len(screenwatch), 'bytes')

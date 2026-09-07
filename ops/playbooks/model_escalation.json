@@ -1,0 +1,34 @@
+{
+  "version": "1.0",
+  "description": "Model escalation chain for guarded automation.",
+  "chain": [
+    {
+      "name": "local_ollama_coder",
+      "enabled": true,
+      "command": "ollama",
+      "model": "qwen2.5-coder:latest",
+      "mode": "first_try"
+    },
+    {
+      "name": "local_runner",
+      "enabled": true,
+      "command": "runner",
+      "model": "onnx_or_tensorrt_local",
+      "mode": "optional_parallel_or_fallback"
+    },
+    {
+      "name": "gemini_cli",
+      "enabled": true,
+      "command": "gemini",
+      "instructions_file": "gemini.md",
+      "mode": "escalate_when_local_low_confidence"
+    }
+  ],
+  "escalation_triggers": [
+    "empty_or_unusable_output",
+    "explicit_uncertainty",
+    "guardrail_violation_risk",
+    "repeated_failed_selfheal"
+  ]
+}
+

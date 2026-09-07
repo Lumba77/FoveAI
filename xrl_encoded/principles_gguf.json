@@ -1,0 +1,38 @@
+[
+  {
+    "prompt": "Explain semantic compression.",
+    "text_preview": "Explain semantic compression. What is the difference between semantic compression and the other types of compression? Wh",
+    "principle_strength": null,
+    "volatility": null,
+    "trend": null,
+    "role": "text_only_thread",
+    "note": "no confidence path available"
+  },
+  {
+    "prompt": "Write a Python function that adds two numbers.",
+    "text_preview": "Write a Python function that adds two numbers. If both numbers are integers, the result must be printed as an integer. I",
+    "principle_strength": null,
+    "volatility": null,
+    "trend": null,
+    "role": "text_only_thread",
+    "note": "no confidence path available"
+  },
+  {
+    "prompt": "Describe pruning vs quantization.",
+    "text_preview": "Describe pruning vs quantization.\n\n<think>\n\n</think>\n\n**Pruning** and **Quantization** are the two most common technique",
+    "principle_strength": null,
+    "volatility": null,
+    "trend": null,
+    "role": "text_only_thread",
+    "note": "no confidence path available"
+  },
+  {
+    "prompt": "Summarize the concept of attention in transformers.",
+    "text_preview": "Summarize the concept of attention in transformers.\n\n<think>\n\n</think>\n\nIn the Transformer architecture, **attention** (",
+    "principle_strength": null,
+    "volatility": null,
+    "trend": null,
+    "role": "text_only_thread",
+    "note": "no confidence path available"
+  }
+]

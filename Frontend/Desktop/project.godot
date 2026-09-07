@@ -1,0 +1,27 @@
+; Engine configuration file for Jen Desktop Companion
+; Created by Antigravity
+
+config_version=5
+
+[application]
+
+config/name="Jen Desktop Companion"
+run/main_scene="res://scenes/desktop_main.tscn"
+config/features=PackedStringArray("4.2", "4.2.2", "Forward Plus")
+config/icon="res://icon.png"
+
+[display]
+
+window/size/viewport_width=400
+window/size/viewport_height=600
+window/size/resizable=true
+window/size/borderless=true
+window/size/always_on_top=true
+window/size/transparent=true
+window/subwindows/embed_subwindows=false
+window/per_pixel_transparency/allowed=true
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
+viewport/transparent_background=true

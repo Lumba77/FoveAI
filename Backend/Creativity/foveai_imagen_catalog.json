@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "description": "Lumax creativity model registry (metadata pattern inspired by InvokeAI BaseModelType + ModelType). Add rows that point at local Diffusers folders or HF repo ids.",
+  "sd15_note": "You do not need to edit this file for basic Dream/turbo: if stable-diffusion-v1-5 is missing under LUMAX_CREATIVITY_IMAGEN_ROOT, the service can pull runwayml/stable-diffusion-v1-5 from Hugging Face automatically (unless LUMAX_CREATIVITY_DISABLE_SD15_HUB_FALLBACK=1). ControlNet/upscaler ids are matched case-insensitively.",
+  "local_scan_note": "Optional auto-discovery (unless LUMAX_CREATIVITY_DISABLE_LOCAL_SCAN=1): Diffusers ControlNet folders as direct children of IMAGEN_ROOT or under backend/Creativity/controlnets/; Spandrel weights as backend/Creativity/Imagen/upscalers/*.safetensors|.pth|.ckpt. The service does not crawl all of D:\\Lumax\\models (Ollama/GGUF/etc.) to avoid slow scans and false positives.",
+  "invokeai_models_dir": "",
+  "notes_invokeai": "Model files: mount InvokeAI models (docker-compose) or set LUMAX_INVOKEAI_MODELS_ROOT. After importing models in InvokeAI, run tools/export_invokeai_inventory_from_db.py to refresh tools/invokeai_models_inventory.csv so Lumax merges paths with your install. Optional LUMAX_INVOKEAI_MODELS_CSV; Spandrel + SD1 ControlNet rows merge into GET /api/dream/catalog.",
+  "controlnets": [
+    {
+      "id": "sd15-canny",
+      "name": "SD1.5 ControlNet Canny",
+      "base": "sd-1",
+      "type": "controlnet",
+      "path": "sd-controlnet-canny",
+      "path_is_relative_to_imagen_root": true,
+      "preprocessor_default": "canny",
+      "description": "Same as legacy CONTROLNET_CANNY_PATH under LUMAX_CREATIVITY_IMAGEN_ROOT."
+    }
+  ],
+  "upscalers": [
+    {
+      "id": "lanczos-x4",
+      "name": "Lanczos x4 (built-in)",
+      "backend": "lanczos",
+      "scale": 4,
+      "description": "Fast PIL upscale; no extra weights."
+    }
+  ]
+}

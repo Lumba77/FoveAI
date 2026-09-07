@@ -1,0 +1,94 @@
+
+01
+Prepare the Sandbox Repo
+Start Here
+You need a clean, isolated workspace so the refactor agent can operate without risk.
+
+Duplicate your main Lumax repo
+
+Name the copy lumax_refactor_sandbox
+
+Open the sandbox in Anti‑Gravity
+
+Place your XRLF_P2_v1.0.pdf in the repo root
+
+02
+Create the Refactor Agent
+Gemini needs a dedicated agent context with full repo access.
+
+Open Gemini Agent Panel in Anti‑Gravity
+
+Create agent: LUMAX_Refactor_Engine
+
+Enable: Architectural Mode, Full File Access, Memory, Rewrite Tools
+
+Confirm the agent can read and modify all folders
+
+03
+Load the XRLF-P2 Directive
+Critical
+This step injects the steering substrate into the agent’s cognitive space.
+
+In the agent chat, type:
+“Load and internalize the steering document XRLF_P2_v1.0.pdf. Treat it as the master directive for all transformations.”
+
+Wait for Gemini to confirm ingestion
+
+04
+Run Mode B (Holonic Rewrite)
+This is the safe, reversible transformation that proves the system works.
+
+Command Gemini:
+“Apply XRLF-P2 Mode B transformations to this repo. Begin with holon extraction, resonance bus introduction, adapter gateway unification, routing modernization, and diagnostics alignment.”
+
+Allow Gemini to restructure the repo
+
+05
+Inspect the Refactor Output
+You verify that the holonic rewrite is coherent and stable.
+
+Check /core/holons, /core/resonance, /core/adapter, /core/routing
+
+Inspect XR session logic and diagnostics
+
+If anything is off, tell Gemini:
+“Reconcile inconsistencies with XRLF-P2 v1.0 and regenerate affected modules.”
+
+06
+Prepare Mode C Directive
+Mode C requires a second steering document for the Spatial Machine transformation.
+
+Request XRLF-P2 v2.0 (Mode C) from Copilot
+
+Save it as XRLF_P2_v2.0.pdf in repo root
+
+Tell Gemini to load it:
+“Load XRLF_P2_v2.0.pdf as the Spatial Machine directive.”
+
+07
+Run Mode C (Spatial Machine Transformation)
+Metamorphosis
+This is the full cognitive metamorphosis of your repo.
+
+Command Gemini:
+“Apply XRLF-P2 Mode C. Transform the repo into a spatial cognitive organism with full resonance propagation, multimodal adapter unification, foveated UI across surfaces, and holonic memory persistence.”
+
+Allow Gemini to rewrite the entire architecture
+
+08
+Finalize and Validate
+You confirm the repo is now a holonic Spatial Machine.
+
+Run diagnostics
+
+Test Multigate ↔ XR_Vessel coupling
+
+Test resonance propagation
+
+Test adapter gateway events
+
+Test routing holons
+
+Test memory holons
+
+Confirm build stability

@@ -1,0 +1,10 @@
+{
+  "status": "ready",
+  "model": "TQL-Coder-Qwen3.5-9B-thinking.IQ4_XS.gguf",
+  "paused": false,
+  "vr_test_mode": false,
+  "last_check": null,
+  "model_history": [],
+  "initialized_at": null,
+  "pause_enabled": true
+}

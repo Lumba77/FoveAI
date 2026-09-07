@@ -1,0 +1,8 @@
+DRY_RUN_START
+Boot elapsed: 0.532s
+Health status: 200
+Health body: {"xrlf_version": "3.0", "runtime": "XRLF-3.0 Unified Cognitive Engine", "status": "online", "timestamp": "2026-08-14T04:58:40.776717+00:00", "uptime_seconds": 187910.875}
+xrlf_version: 3.0
+HEALTH_CHECK: PASS (xrlf_version=3.0)
+BOOT_TIME: PASS (0.532s < 2.0s)
+DRY_RUN_END

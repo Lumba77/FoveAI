@@ -1,0 +1,90 @@
+XRLF.3.HOLONS.START
+
+DESCRIPTION:
+  FoveAI Holonic Architecture — top-level holons for the FoveAI runtime
+
+HOLONS:
+  soul:
+    name := Soul Service (XRLF Runtime)
+    port := 8402
+    responsibility := Core cognition, identity, intent, inference
+    model := qwen3.5-4b-mtp-multimodal-v1.0.xrlf
+    capabilities := vision, audio, video, tts, xrl, foveated_memory
+    dependencies := memory, triad
+
+  triad:
+    name := Triad Pipeline (CPU helpers)
+    responsibility := Router classifies intent, summarizer compresses history
+    router := xrlf_router_qwen0.5b_q4_k_m.gguf
+    summarizer := xrlf_summarizer_qwen0.6b_merged.Q4_K_M.gguf
+    gpu_layers := 0
+    dependencies := soul
+
+  memory:
+    name := Memory Service
+    port := 8400
+    responsibility := Foveated memory, recall, context compression, media proxy
+    dependencies := fovea_local
+
+  ws_ipc:
+    name := WebSocket IPC
+    port := 8403
+    responsibility := Real-time chat, TTS, STT, motor, animation, subconscious
+    dependencies := soul
+
+  tts:
+    name := TTS Service
+    port := 8406
+    responsibility := Text-to-speech synthesis, lip sync
+    dependencies := soul
+
+  stt:
+    name := STT Service
+    port := 8409
+    responsibility := Speech-to-text transcription
+    dependencies := soul
+
+  memory_store:
+    name := Foveated Memory Store
+    port := 8407
+    responsibility := Persistent memory, recall, identity
+    dependencies := memory
+
+  creative:
+    name := Creative Service
+    port := 8408
+    responsibility := Generation, imagination, output synthesis
+    dependencies := soul, memory
+
+  autonomous:
+    name := Autonomous/Motor Service
+    port := 8410
+    responsibility := Motor actions, locomotion, puppet driver
+    dependencies := soul
+
+  subconscious:
+    name := Subconscious Service
+    port := 8411
+    responsibility := Background processing, dreaming, idle thoughts
+    dependencies := soul, memory
+
+  web_ui:
+    name := Web UI
+    port := 8080
+    responsibility := Frontend interface, user interaction
+    dependencies := soul, creative
+
+  legacy_ws:
+    name := Legacy WebSocket Proxy
+    port := 8400
+    responsibility := Compatibility for old APKs that hardcode :8400
+    dependencies := soul
+
+CONCORDIA:
+  loop := soul -> memory -> creative -> soul
+  governance := XRLF.CONTRACT.XRLF
+  memory_proxy := http://127.0.0.1:8400
+  soul_api := http://127.0.0.1:8402
+  ws_ipc := ws://127.0.0.1:8403/ws
+
+XRLF.3.HOLONS.END

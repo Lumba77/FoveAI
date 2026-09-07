@@ -1,0 +1,57 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!162 &1
+EditorUserSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 4
+  m_ConfigSettings:
+    GraphicsSettingsInspector_UserSettings:
+      value: 18134705175a055722080a3115371d4a0d55006876786860616b0471b8b1676ab2a966b9b769696a6b53bf6557695422be481902e60e06021f0bdb1b1df3240a01c036c417cd5d46893b09c7c1099ccadb94c9
+      flags: 0
+    QuickInstaller_com.unity.purchasing_installRecorded:
+      value: 2550581500
+      flags: 0
+    QuickInstaller_com.unity.services.levelplay_installRecorded:
+      value: 2550581500
+      flags: 0
+    RecentlyUsedSceneGuid-0:
+      value: 5b5702025d530d595c0c5b7213775a444315402f7a7a243529284a64bab46369
+      flags: 0
+    RecentlyUsedSceneGuid-1:
+      value: 0109045e50010f5d090c0d2345250e44144e48787c707e32282f4d30e6e36d6b
+      flags: 0
+    RecentlyUsedSceneGuid-2:
+      value: 5a54005355020a585b5c0a26447508444f4e1d79747a74662f7b4f37b1b46d60
+      flags: 0
+    RecentlyUsedSceneGuid-3:
+      value: 0700065503515f5f5958597149275a444216497d757b27612e7e4f65b5e46439
+      flags: 0
+    RecentlyUsedSceneGuid-4:
+      value: 5b060202075151080f5d097047200f441215192f7c7870312f7e4532b7b76369
+      flags: 0
+    RecentlyUsedSceneGuid-5:
+      value: 0009555750020b5a5d5c0e7443270844434e4e2c2a7c70687b7f4b66bab9666b
+      flags: 0
+    RecentlyUsedSceneGuid-6:
+      value: 0101070254515f0b5d5b542446265b44424e4b292a7f20667e2d1932b0e63139
+      flags: 0
+    vcSharedLogLevel:
+      value: 0d5e400f0650
+      flags: 0
+  m_VCAutomaticAdd: 1
+  m_VCDebugCom: 0
+  m_VCDebugCmd: 0
+  m_VCDebugOut: 0
+  m_SemanticMergeMode: 2
+  m_DesiredImportWorkerCount: 3
+  m_StandbyImportWorkerCount: 2
+  m_IdleImportWorkerShutdownDelay: 60000
+  m_VCShowFailedCheckout: 1
+  m_VCOverwriteFailedCheckoutAssets: 1
+  m_VCProjectOverlayIcons: 1
+  m_VCHierarchyOverlayIcons: 1
+  m_VCOtherOverlayIcons: 1
+  m_VCAllowAsyncUpdate: 1
+  m_VCScanLocalPackagesOnConnect: 1
+  m_ArtifactGarbageCollection: 1
+  m_CompressAssetsOnImport: 1

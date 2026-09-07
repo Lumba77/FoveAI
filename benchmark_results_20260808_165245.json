@@ -1,0 +1,192 @@
+{
+  "model_name": "API-Server",
+  "xrlf_path": "C:\\Users\\danie\\program\\LUMAX\\Tools\\xrlf-model\\gemma-4-12b-xrl.xrlf",
+  "timestamp": "2026-08-08T14:52:38Z",
+  "stub_mode": false,
+  "total_elapsed_s": 6.536163900003885,
+  "tracks": [
+    {
+      "name": "GSM8K-lite (Math)",
+      "total": 5,
+      "correct": 4,
+      "accuracy": 0.8,
+      "elapsed_s": 1.78,
+      "stub": false,
+      "questions": [
+        {
+          "q": "A store has 24 apples. They sell 7 in the morning and 5 in the afternoon. How ma",
+          "expected": "12",
+          "predicted": "12",
+          "correct": true,
+          "elapsed_ms": 644.6
+        },
+        {
+          "q": "Maria has 3 bags with 8 marbles each. She gives away 10 marbles. How many does s",
+          "expected": "14",
+          "predicted": "32",
+          "correct": false,
+          "elapsed_ms": 249.8
+        },
+        {
+          "q": "A train travels 60 km/h. How far does it go in 2.5 hours?",
+          "expected": "150",
+          "predicted": "150",
+          "correct": true,
+          "elapsed_ms": 328.8
+        },
+        {
+          "q": "A rectangle is 12 m long and 7 m wide. What is its area?",
+          "expected": "84",
+          "predicted": "84",
+          "correct": true,
+          "elapsed_ms": 330.0
+        },
+        {
+          "q": "Tom saves $15 every week. How much will he save in 8 weeks?",
+          "expected": "120",
+          "predicted": "120",
+          "correct": true,
+          "elapsed_ms": 230.9
+        }
+      ]
+    },
+    {
+      "name": "ARC-Easy (Science)",
+      "total": 5,
+      "correct": 4,
+      "accuracy": 0.8,
+      "elapsed_s": 1.14,
+      "stub": false,
+      "questions": [
+        {
+          "q": "Which of these is a conductor of electricity? (A) rubber (B) wood (C) copper (D)",
+          "expected": "C",
+          "predicted": "C",
+          "correct": true,
+          "elapsed_ms": 222.2
+        },
+        {
+          "q": "What is the largest planet in our solar system? (A) Earth (B) Saturn (C) Jupiter",
+          "expected": "C",
+          "predicted": "C",
+          "correct": true,
+          "elapsed_ms": 229.4
+        },
+        {
+          "q": "Which process do plants use to make food? (A) respiration (B) digestion (C) phot",
+          "expected": "C",
+          "predicted": "C",
+          "correct": true,
+          "elapsed_ms": 225.0
+        },
+        {
+          "q": "What is the chemical symbol for water? (A) WA (B) H2O (C) CO2 (D) O2",
+          "expected": "B",
+          "predicted": "B",
+          "correct": true,
+          "elapsed_ms": 246.2
+        },
+        {
+          "q": "Which layer of Earth is made of molten rock? (A) crust (B) mantle (C) inner core",
+          "expected": "D",
+          "predicted": "B",
+          "correct": false,
+          "elapsed_ms": 216.7
+        }
+      ]
+    },
+    {
+      "name": "MMLU-lite (General)",
+      "total": 5,
+      "correct": 5,
+      "accuracy": 1.0,
+      "elapsed_s": 1.24,
+      "stub": false,
+      "questions": [
+        {
+          "q": "Who wrote 'Pride and Prejudice'? (A) Charlotte Bront\u00eb (B) Jane Austen (C) George",
+          "expected": "B",
+          "predicted": "B",
+          "correct": true,
+          "elapsed_ms": 241.4
+        },
+        {
+          "q": "In which year did World War II end? (A) 1942 (B) 1944 (C) 1945 (D) 1947",
+          "expected": "C",
+          "predicted": "C",
+          "correct": true,
+          "elapsed_ms": 250.2
+        },
+        {
+          "q": "What is the currency of Japan? (A) Yuan (B) Won (C) Ringgit (D) Yen",
+          "expected": "D",
+          "predicted": "D",
+          "correct": true,
+          "elapsed_ms": 224.7
+        },
+        {
+          "q": "The Pythagorean theorem applies to: (A) any triangle (B) right triangles (C) equ",
+          "expected": "B",
+          "predicted": "B",
+          "correct": true,
+          "elapsed_ms": 257.4
+        },
+        {
+          "q": "What programming language was created by Guido van Rossum? (A) Java (B) Ruby (C)",
+          "expected": "C",
+          "predicted": "C",
+          "correct": true,
+          "elapsed_ms": 263.2
+        }
+      ]
+    },
+    {
+      "name": "Coherence (multi-turn)",
+      "total": 1,
+      "correct": 1,
+      "accuracy": 1.0,
+      "elapsed_s": 1.01,
+      "stub": false,
+      "questions": [
+        {
+          "q": "Multi-turn recall: name + profession + research topic",
+          "expected": "alex, marine biologist, coral bleaching, temperature",
+          "predicted": "[score 4/4] name_alex=\u2705, marine_bio=\u2705, coral=\u2705, bleach_temp=\u2705",
+          "correct": true,
+          "elapsed_ms": 1006.3
+        }
+      ]
+    },
+    {
+      "name": "Multimodal (hook fire)",
+      "total": 3,
+      "correct": 2,
+      "accuracy": 0.6667,
+      "elapsed_s": 1.37,
+      "stub": false,
+      "questions": [
+        {
+          "q": "vision: Describe what you see in the following test image in detail.",
+          "expected": "non-empty response",
+          "predicted": "[error: HTTP Error 500: Internal Server Error]",
+          "correct": false,
+          "elapsed_ms": 7.4
+        },
+        {
+          "q": "tts: Say: 'XRLF multimodal test complete.'",
+          "expected": "non-empty response",
+          "predicted": "XRLF multimodal test complete.",
+          "correct": true,
+          "elapsed_ms": 135.0
+        },
+        {
+          "q": "audio_in: I am sending you a 440 Hz sine wave. What does it sound like",
+          "expected": "non-empty response",
+          "predicted": "I'm sorry, but I donThink I can generate or play sounds directly. My capabilitie",
+          "correct": true,
+          "elapsed_ms": 1226.3
+        }
+      ]
+    }
+  ]
+}

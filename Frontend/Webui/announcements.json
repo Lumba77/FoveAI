@@ -1,0 +1,25 @@
+{
+  "items": [
+    {
+      "date": "2026-04-07",
+      "tag": "NAME",
+      "title": "Why Lumax?",
+      "body": "Lumax is Lumen Maximum—light turned all the way up. Your everything for life: “your” anchors it in one person; “everything” refuses a thin category—we mean companion and agent together, the full arc. The line is also meant to breathe: a little poetic, life-giving in the sense of support that sustains and enlivens, not only performs. The sound sits next to my nickname, Lumba—same opening, grown into a name built to outlast a single person.",
+      "priority": "info"
+    },
+    {
+      "date": "2026-04-07",
+      "tag": "NETWORK",
+      "title": "Tailscale + Cloudflare",
+      "body": "Subnet router on the always-on box; public entry via Cloudflare Tunnel when needed. See ops notes.",
+      "priority": "info"
+    },
+    {
+      "date": "2026-04-07",
+      "tag": "UI",
+      "title": "Announce board",
+      "body": "Edit this file (announcements.json next to the Web UI) to post vessel-wide bulletins. Restart not required — refresh the tab.",
+      "priority": "ops"
+    }
+  ]
+}

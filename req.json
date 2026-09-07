@@ -1,0 +1,2 @@
+{"method":"tools/call","params":{"arguments":{"format":"json","maxTokens":8192,"directoryPath":"c:\\Users\\danie\\program\\LUMAX"},"name":"analyze_workspace"},"id":1,"jsonrpc":"2.0"}
+

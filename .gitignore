@@ -1,0 +1,326 @@
+# =====================================================================
+#                      LUMAX-LITE GIT IGNORE STRATEGY
+# =====================================================================
+
+# Operating System Artifacts
+.DS_Store
+Thumbs.db
+
+# Executables & System Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+*.pyd
+*.whl
+*.zip
+*.7z
+*.rar
+*.tar
+*.gz
+*.iso
+*.img
+*.dmg
+
+# Engine Artifacts (Godot/Unity Exclusions)
+.godot/
+.import/
+**/Godot/
+**/Unity/
+!Body/Unity_Vessel/
+**/Build/
+!Body/Unity_Vessel/Assets/**/Build/
+**/trash/
+Body/XR_godot/
+
+# Node.js & Frontend Build Outputs
+node_modules/
+dist/
+build/
+Body/XR_Vessel/webvm_source/node_modules/
+
+# Runtime Data, App Storage, & Local Logs
+Data/
+**/storage/
+swarm_state.json
+keys.json
+*.log
+*.tmp
+*.cache
+.cache/
+AutoAnalysis_*.log
+cognee.out
+cognee_test.log
+
+# Python Environments & Runtime Bytecode
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.venv/unified/
+.aider-venv/
+venv/
+venv_mouth/
+lib/
+bin/
+include/
+share/
+lib64/
+pyvenv.cfg
+
+# System Configurations & Secrets (NEVER COMMIT)
+.env
+.env.local
+.env.*.local
+!.env.example
+.snapshots/
+.vscode/
+.idea/
+.vs/
+*.swp
+*.swo
+*~
+
+# Lockfiles (use package.json as canonical source)
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+# Keep lockfiles for projects with pinned toolchains (prevents version drift)
+!Forge/ui/package-lock.json
+
+# Data, Assets, and Large Weights
+models/
+user_data/
+hf_cache/
+huggingface/
+f5tts_hf_cache_hub/
+**/Library/
+**/obj/
+**/bin/
+*.vhdx
+*.csv
+
+# Media, Textures, and Audio Artifacts
+*.wav
+*.mp3
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.pdf
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+*.ogg
+*.opus
+
+# Cognitive Model Weights & Architectures
+**/*.safetensors
+**/*.ckpt
+**/*.pth
+**/*.gguf
+**/*.mmproj
+**/*.onnx
+**/sdxl-turbo-tensorrt/
+**/tts-piper-amy/
+
+# Project Backups & Archives
+archive/
+/archive/
+.logs/
+imported_sessions/
+imported_git_history/
+snapshots/
+snapshot-*.json
+snapshot-*.json.dump.txt
+Archive/Quarantine/
+
+# Mobile Target Artifacts
+*.apk
+*.aab
+*.dex
+
+# 3D Assets & VRM Packages (Whitelisted Asset Tracks)
+*.glb
+*.gltf
+*.vrm
+*.obj
+*.fbx
+*.blend
+*.ma
+*.mb
+!Body/XR_Vessel/public/VRMA_pack/*
+!Body/XR_Vessel/public/Animations/*
+!Body/Unity_Vessel/Assets/**/*.png
+!Body/Unity_Vessel/Assets/**/*.jpg
+!Body/Unity_Vessel/Assets/**/*.jpeg
+!Body/Unity_Vessel/Assets/**/*.svg
+!Body/Unity_Vessel/Assets/**/*.wav
+!Body/Unity_Vessel/Assets/**/*.mp3
+!Body/Unity_Vessel/Assets/**/*.ogg
+!Body/Unity_Vessel/Assets/**/*.fbx
+!Body/Unity_Vessel/Assets/**/*.obj
+!Body/Unity_Vessel/Assets/**/*.glb
+!Body/Unity_Vessel/Assets/**/*.gltf
+!Body/Unity_Vessel/Assets/**/*.vrm
+!Body/Unity_Vessel/Assets/**/*.csv
+!Body/Unity_Vessel/Assets/**/*.blend
+!Body/Unity_Vessel/Assets/**/*.mat
+!Body/Unity_Vessel/Assets/**/*.prefab
+!Body/Unity_Vessel/Assets/**/*.unity
+!Body/Unity_Vessel/Assets/**/*.asset
+!Body/Unity_Vessel/Assets/**/*.controller
+!Body/Unity_Vessel/Assets/**/*.anim
+!Body/Unity_Vessel/Assets/**/*.overrideController
+!Body/Unity_Vessel/Assets/**/*.flare
+!Body/Unity_Vessel/Assets/**/*.physicsMaterial
+!Body/Unity_Vessel/Assets/**/*.physicMaterial
+!Body/Unity_Vessel/Assets/**/*.lighting
+!Body/Unity_Vessel/Assets/**/*.cubemap
+!Body/Unity_Vessel/Assets/**/*.renderTexture
+!Body/Unity_Vessel/ProjectSettings/**
+!Body/Unity_Vessel/Packages/**
+!Body/Unity_Vessel/Assets/StreamingAssets/**
+
+# Android / Gradle build folders and local properties
+.gradle/
+local.properties
+**/local.properties
+**/.gradle/
+
+# Local scratch logs and scripts
+unity_errors.txt
+**/unity_errors.txt
+nul
+Forge/nul
+backups/
+Forge/scratch/TokenSlayer/
+.env_special.txt
+.env_old_backup.txt
+Backend/preflight/outbox/merged_compose_debug.yaml
+hermesconfig.yml
+scratch/test_proxy.py
+.jetro/daemon/credentials.json
+.jetro/cache.duckdb
+.feeder/tasks.db
+Frontend/XR_Vessel/webvm_source/
+cert.pem
+Frontend/XR_Vessel/cert.pem
+Frontend/XR_Vessel/server.key
+Frontend/XR_Vessel/src/cert.pem
+
+# NexySync agent key
+.nexysync/
+
+# Foveated memory runtime data
+Tools/foveated-memory/memory_data/
+memory_data/
+
+# Safe-save backup directories
+.SafeSave/
+.SafeSaves/
+
+# Runtime logs / test outputs
+*.log.err
+sleipnir_out*.txt
+sleipnir_output.txt
+llama_test*.txt
+llama_test_output.txt
+temp_*.xr
+temp_*.json
+temp_stats.json
+_test_output.txt
+
+# Large training datasets
+Training/phoenix_teacher_dataset.jsonl
+Training/phoenix_teacher_report.md
+Training/models--Qwen--Qwen3.5-4B-Base_/
+Training/xrl_encoded/
+
+# Embedded git repositories (use submodules if needed)
+Tools/xrlf-model/
+
+# Extension packages
+*.vsix
+
+# Local SQLite databases
+*.db
+db/*.db
+db/library_vector_db/
+.lean_ai/*.db
+
+# Project context / memory files (Scribe-managed)
+context.md
+lessons.md
+
+# Literal temp dirs / safe-save spill
+%TEMP%/
+.env_safesave.txt
+.env_safesave*.txt
+.aider*
+
+# Fine-tuning Outputs, Model Checkpoints & Datasets
+outputs/
+qwen-4b-*/
+qwen-4b-*
+*.jsonl
+
+# Scratch, Copies, Backups, and Benchmark Artifacts
+* - Copy.*
+* - Copy
+*.bak
+*.bak_*
+.env.bak_*
+.env_check.txt
+bench_out*.txt
+profile_check*.txt
+_xrlf_*.txt
+files_with_lumax.txt
+smoke_test_proxy.cjs
+inspect_env.ps1
+test_ping.py
+.agents/
+Tools/XRLF 1.0 dev/
+Tools/XRLF-1.0-source/
+
+# XRLF model weights — large binaries, not source code (small text .xrlf in .xrlf/ and scrolls/ are kept)
+/foveai-omni-router*.xrlf
+/foveai-pfoveai-omni-router*.xrlf*
+/foveai-summarizer-draft.gguf
+/xrl_encoded/*.xrlf
+/xrl_encoded/*.xrlf.cache/
+*.xrlf.cache/
+*.xrlf.tmp
+
+# Large binary artifacts not covered above
+*.bmp
+*.mhtml
+*.bin
+*.data
+
+# Unity profiler captures and IL2CPP backup folders
+**/ProfilerCaptures/
+**/*_BackUpThisFolder_ButDontShipItWithYourGame/
+
+# NeuroSync — auto-generated / private (do not commit)
+# To share a file with your team: remove its line from this block in .gitignore
+#
+# ── Always private (never commit) ─────────────────────────────────────────
+.neurosync/.context-key
+.neurosync/store.json
+.neurosync/rules/
+.neurosync/agent-rules.md
+.agent-mem/
+#
+# ── Shareable with team (remove line to commit) ────────────────────────────
+# ip_rules.md — your architecture constraints for all AI agents
+.neurosync/ip_rules.md
+#
+# ── Auto-generated AI context (remove line to share with team) ─────────────
+# These regenerate on every sync — commit to share AI context across teammates
+CLAUDE.md
+AGENT.md
+.cursorrules
+.windsurfrules

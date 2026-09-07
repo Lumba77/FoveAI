@@ -1,0 +1,75 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# FoveAI — Core Runtime Requirements (pinned, closed-repo circuit)
+# Generated 2026-09-06 from actual import audit of the codebase.
+# Install:  uv venv .venv --python 3.12 && uv pip install -r requirements.txt
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ── HTTP API & Validation ──────────────────────────────────────────────────
+fastapi==0.141.1
+uvicorn[standard]==0.52.4
+pydantic==2.13.5
+python-multipart==0.0.20
+starlette==1.6.0
+
+# ── Async / HTTP Client ────────────────────────────────────────────────────
+httpx==0.28.1
+aiohttp==3.14.3
+requests==2.34.2
+websockets==17.1
+
+# ── Configuration & Templating ─────────────────────────────────────────────
+PyYAML==6.0.3
+Jinja2==3.1.6
+python-dotenv==1.1.0
+
+# ── Numerical ──────────────────────────────────────────────────────────────
+numpy==2.5.2
+scipy==1.18.1
+
+# ── Local Inference (llama.cpp binding) ────────────────────────────────────
+llama-cpp-python==0.3.35
+
+# ── Model / Tokenizer Support ──────────────────────────────────────────────
+transformers==5.16.1
+safetensors==0.8.0
+tokenizers==0.23.2
+
+# ── PyTorch (CPU build — audio helpers intentionally CPU) ──────────────────
+# To switch to CUDA: uv pip install torch --index-url https://download.pytorch.org/whl/cu128
+torch==2.14.0
+
+# ── Speech Recognition (STT) ───────────────────────────────────────────────
+faster-whisper==1.2.1
+ctranslate2==4.8.2
+
+# ── Speech Synthesis (TTS) ─────────────────────────────────────────────────
+kokoro==0.9.4
+misaki>=0.7.4
+phonemizer>=3.4.0
+py-espeak-ng>=0.1.8
+soundfile>=0.13.1
+
+# ── System Monitoring ──────────────────────────────────────────────────────
+psutil==7.0.0
+
+# ── Image Handling ─────────────────────────────────────────────────────────
+Pillow==12.3.0
+
+# ── ONNX Runtime (audio/model helpers) ─────────────────────────────────────
+onnxruntime==1.29.0
+
+# ── File Watching (softlayer server) ───────────────────────────────────────
+watchdog==6.0.0
+
+# ── System Tray (taskbar) ──────────────────────────────────────────────────
+pystray==0.19.5
+python-xlib==0.33
+
+# ── Audio Device I/O (tools) ───────────────────────────────────────────────
+sounddevice==0.5.6
+
+# ── Computer Vision (webcam/tools) ─────────────────────────────────────────
+opencv-python==4.10.0.84
+
+# ── NLP (used by Backend services) ─────────────────────────────────────────
+spacy==3.8.16

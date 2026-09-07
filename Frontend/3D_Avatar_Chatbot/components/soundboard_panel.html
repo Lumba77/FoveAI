@@ -1,0 +1,96 @@
+<div style="display: flex; flex-direction: column; height: 100%; font-family: monospace;">
+    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
+        Soundboard — non-verbal expression via bracket tokens. FM synthesis + Stable Audio Tools.
+        <span style="color: var(--status-ok);" id="soundboard-conn-status">● Checking...</span>
+    </p>
+
+    <!-- Sound Grid -->
+    <div id="soundboard-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 1rem;">
+        <!-- Filled dynamically -->
+    </div>
+
+    <!-- Generate Section -->
+    <div style="margin-bottom: 1rem;">
+        <label style="display:block; font-size:0.75rem; color: var(--text-secondary); margin-bottom:6px;">Generate New Sound</label>
+        <div style="display: flex; gap: 8px;">
+            <input type="text" id="soundboard-description" class="text-input" placeholder="e.g. cheerful chime, soft wind, digital glitch..." style="flex: 1; font-family: monospace;">
+            <button class="primary-btn" id="soundboard-generate-btn" style="width: 100px; background: rgba(255,0,127,0.1); border-color: #ff007f; color: #ff007f;">GENERATE</button>
+        </div>
+    </div>
+
+    <!-- Bracket Token Reference -->
+    <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 8px; margin-bottom: 0.5rem;">
+        <div style="font-size: 0.6rem; color: #888; letter-spacing: 0.1em; margin-bottom: 4px;">BRACKET TOKENS (for system prompt)</div>
+        <div style="font-size: 0.7rem; color: #aaa; line-height: 1.6;">
+            Use <span style="color: #ff007f;"><audio:tag></span> or <span style="color: #00f3ff;"><flavour:tag></span> in responses to express non-verbally.
+            <br>Available tags appear below after loading.
+        </div>
+    </div>
+
+    <!-- Status -->
+    <div id="soundboard-status" style="font-size: 0.75rem; color: var(--primary); text-align: center; margin-top: 8px;"></div>
+</div>
+
+<script>
+(function() {
+    const BASE = '';
+    const grid = document.getElementById('soundboard-grid');
+    const status = document.getElementById('soundboard-status');
+    const connStatus = document.getElementById('soundboard-conn-status');
+
+    async function loadSounds() {
+        try {
+            const r = await fetch(`${BASE}/api/soundboard/list`, { signal: AbortSignal.timeout(3000) });
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            const data = await r.json();
+            connStatus.textContent = '● Connected';
+            connStatus.style.color = '#2ecc71';
+
+            grid.innerHTML = '';
+            (data.sounds || []).forEach(sound => {
+                const btn = document.createElement('button');
+                btn.className = 'primary-btn';
+                btn.style.cssText = 'padding: 8px; font-size: 0.7rem; background: rgba(255,0,127,0.05); border-color: rgba(255,0,127,0.3); color: #ff007f;';
+                btn.textContent = sound.tag;
+                btn.title = `Play: ${sound.tag}`;
+                btn.addEventListener('click', () => {
+                    const audio = new Audio(sound.url.startsWith('http') ? sound.url : `${BASE}${sound.url}`);
+                    audio.volume = 0.5;
+                    audio.play().catch(e => status.textContent = `Playback error: ${e.message}`);
+                });
+                grid.appendChild(btn);
+            });
+            status.textContent = `${data.sounds?.length || 0} sounds loaded`;
+        } catch (e) {
+            connStatus.textContent = '■ Offline';
+            connStatus.style.color = '#ff4444';
+            status.textContent = `Cannot load soundboard: ${e.message}`;
+        }
+    }
+
+    document.getElementById('soundboard-generate-btn')?.addEventListener('click', async () => {
+        const desc = document.getElementById('soundboard-description').value.trim();
+        if (!desc) {
+            status.textContent = 'Enter a description first';
+            return;
+        }
+        status.textContent = 'Generating sound...';
+        try {
+            const r = await fetch(`${BASE}/api/soundboard/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ description: desc }),
+                signal: AbortSignal.timeout(30000)
+            });
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            const data = await r.json();
+            status.textContent = `Generated: ${data.tag} (${data.generated_by})`;
+            loadSounds(); // Refresh grid
+        } catch (e) {
+            status.textContent = `Generation failed: ${e.message}`;
+        }
+    });
+
+    loadSounds();
+})();
+</script>

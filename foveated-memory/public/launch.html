@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FoveAI — Launch Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@300;400;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0b1324;
+      color: #e0e6f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 2rem;
+      margin-bottom: 8px;
+      background: linear-gradient(90deg, #00f3ff, #a855f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle { color: #6b7a99; margin-bottom: 32px; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+      max-width: 1000px;
+      width: 100%;
+    }
+    .card {
+      background: rgba(17, 24, 48, 0.8);
+      border: 1px solid rgba(0, 243, 255, 0.15);
+      border-radius: 12px;
+      padding: 24px;
+      transition: border-color 0.3s;
+    }
+    .card:hover { border-color: rgba(0, 243, 255, 0.4); }
+    .card h2 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.1rem;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .status-dot.online { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+    .status-dot.offline { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
+    .status-dot.checking { background: #f59e0b; animation: pulse 1s infinite; }
+    @keyframes pulse { 50% { opacity: 0.3; } }
+    .card p { color: #8899aa; font-size: 0.9rem; margin-bottom: 16px; line-height: 1.5; }
+    .card .url {
+      font-family: 'Courier New', monospace;
+      font-size: 0.85rem;
+      color: #00f3ff;
+      background: rgba(0, 243, 255, 0.08);
+      padding: 8px 12px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      word-break: break-all;
+      cursor: pointer;
+    }
+    .card .url:hover { background: rgba(0, 243, 255, 0.15); }
+    .btn {
+      display: inline-block;
+      padding: 10px 24px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-primary {
+      background: linear-gradient(90deg, #00f3ff, #a855f7);
+      color: #0b1324;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 243, 255, 0.3); }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: #e0e6f0;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.12); }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      font-size: 0.85rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-label { color: #6b7a99; }
+    .info-value { color: #e0e6f0; font-family: 'Courier New', monospace; }
+    .footer { margin-top: 32px; color: #4a5568; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <h1>✦ FoveAI Launch Center</h1>
+  <p class="subtitle">Gemma 4 12B · CUDA · Kokoro TTS · Native STT · Vision</p>
+
+  <div class="grid">
+    <!-- Companion -->
+    <div class="card">
+      <h2><span class="status-dot" id="dot-companion"></span> Web Companion</h2>
+      <p>Talk to her in your browser. Voice in (Web Speech API), voice out (Kokoro neural TTS). Works on Chrome, Edge, Safari.</p>
+      <div class="url" onclick="window.open('/companion.html','_blank')">http://127.0.0.1:8401/companion.html</div>
+      <a href="/companion.html" class="btn btn-primary">Open Companion →</a>
+    </div>
+
+    <!-- Settings -->
+    <div class="card">
+      <h2><span class="status-dot" id="dot-settings"></span> Settings & Model Profiles</h2>
+      <p>Switch between local/cloud models, configure memory, adjust voice parameters.</p>
+      <div class="url" onclick="window.open('/settings.html','_blank')">http://127.0.0.1:8401/settings.html</div>
+      <a href="/settings.html" class="btn btn-secondary">Open Settings →</a>
+    </div>
+
+    <!-- Quest / VR -->
+    <div class="card">
+      <h2><span class="status-dot" id="dot-ipc"></span> Quest / VR Headset</h2>
+      <p>Connect your Meta Quest 3 or other XR device via WebSocket. The APK runs natively on the headset — no browser needed.</p>
+      <div class="info-row"><span class="info-label">WebSocket URL</span><span class="info-value" id="ws-url">ws://&lt;your-pc-ip&gt;:8403/ws</span></div>
+      <div class="info-row"><span class="info-label">Protocol</span><span class="info-value">FoveAI IPC v1</span></div>
+      <div class="info-row"><span class="info-label">Events</span><span class="info-value">chat, audio, tts.request</span></div>
+      <p style="margin-top:12px;">Install the FoveAI APK on your Quest via SideQuest or ADB. Configure the server IP in <code>AppConfig.json</code>.</p>
+    </div>
+
+    <!-- API -->
+    <div class="card">
+      <h2><span class="status-dot" id="dot-runtime"></span> XRLF Runtime (API)</h2>
+      <p>OpenAI-compatible API with native multimodal: chat, image understanding, STT, and TTS.</p>
+      <div class="info-row"><span class="info-label">Chat</span><span class="info-value">POST /v1/chat/completions</span></div>
+      <div class="info-row"><span class="info-label">TTS</span><span class="info-value">POST /v1/audio/speech</span></div>
+      <div class="info-row"><span class="info-label">Capabilities</span><span class="info-value">GET /v1/capabilities</span></div>
+      <div class="info-row"><span class="info-label">Health</span><span class="info-value" id="runtime-health">checking...</span></div>
+    </div>
+
+    <!-- Proxy -->
+    <div class="card">
+      <h2><span class="status-dot" id="dot-proxy"></span> Foveated Memory Proxy</h2>
+      <p>Routes requests to the runtime, manages persistent memory, provides fallback TTS/STT.</p>
+      <div class="info-row"><span class="info-label">Proxy API</span><span class="info-value">http://127.0.0.1:8400</span></div>
+      <div class="info-row"><span class="info-label">Memory</span><span class="info-value" id="proxy-memory">checking...</span></div>
+      <div class="info-row"><span class="info-label">Upstream</span><span class="info-value" id="proxy-upstream">checking...</span></div>
+    </div>
+
+    <!-- Capabilities -->
+    <div class="card">
+      <h2><span class="status-dot" id="dot-caps"></span> Model Capabilities</h2>
+      <p>What Gemma 4 12B can do right now.</p>
+      <div class="info-row"><span class="info-label">Vision</span><span class="info-value" id="cap-vision">checking...</span></div>
+      <div class="info-row"><span class="info-label">Audio STT</span><span class="info-value" id="cap-stt">checking...</span></div>
+      <div class="info-row"><span class="info-label">Audio TTS</span><span class="info-value" id="cap-tts">checking...</span></div>
+      <div class="info-row"><span class="info-label">GPU</span><span class="info-value" id="cap-gpu">checking...</span></div>
+    </div>
+  </div>
+
+  <p class="footer">Start everything with <code>.\start_foveai.ps1</code> · Stop with <code>.\start_foveai.ps1 -Stop</code></p>
+
+  <script>
+    const RUNTIME = 'http://127.0.0.1:8402';
+    const PROXY = 'http://127.0.0.1:8400';
+
+    async function check(url, dotId, label) {
+      const dot = document.getElementById(dotId);
+      if (!dot) return null;
+      dot.className = 'status-dot checking';
+      try {
+        const r = await fetch(url, { signal: AbortSignal.timeout(3000) });
+        if (r.ok) {
+          dot.className = 'status-dot online';
+          return await r.json().catch(() => true);
+        }
+        dot.className = 'status-dot offline';
+        return null;
+      } catch {
+        dot.className = 'status-dot offline';
+        return null;
+      }
+    }
+
+    async function init() {
+      // Check runtime
+      const rtHealth = await check(`${RUNTIME}/health`, 'dot-runtime');
+      document.getElementById('runtime-health').textContent = rtHealth ? 'online' : 'offline';
+
+      // Check proxy
+      const proxyHealth = await check(`${PROXY}/health`, 'dot-proxy');
+      if (proxyHealth) {
+        document.getElementById('proxy-memory').textContent = `${proxyHealth.stored_messages || 0} msgs`;
+        document.getElementById('proxy-upstream').textContent = proxyHealth.upstream || '—';
+      }
+
+      // Check companion (same as dashboard, just check if page loads)
+      const dotComp = document.getElementById('dot-companion');
+      dotComp.className = 'status-dot online';
+
+      // Check settings
+      const dotSettings = document.getElementById('dot-settings');
+      dotSettings.className = 'status-dot online';
+
+      // Check IPC WebSocket (can't easily check from HTTP, just mark as checking)
+      const dotIpc = document.getElementById('dot-ipc');
+      try {
+        // Try to connect briefly
+        const ws = new WebSocket(`ws://${location.hostname}:8403/ws`);
+        ws.onopen = () => { dotIpc.className = 'status-dot online'; ws.close(); };
+        ws.onerror = () => { dotIpc.className = 'status-dot offline'; };
+        setTimeout(() => { if (ws.readyState !== WebSocket.CLOSED) ws.close(); }, 3000);
+      } catch { dotIpc.className = 'status-dot offline'; }
+
+      // Check capabilities
+      const caps = await check(`${RUNTIME}/v1/capabilities`, 'dot-caps');
+      if (caps) {
+        document.getElementById('cap-vision').textContent = caps.vision ? '✅ enabled' : '❌ disabled';
+        document.getElementById('cap-stt').textContent = caps.audio_stt ? '✅ enabled' : '❌ disabled';
+        document.getElementById('cap-tts').textContent = caps.tts ? '✅ enabled' : '❌ disabled';
+        document.getElementById('cap-gpu').textContent = (caps.gpu_layers !== 0) ? `✅ ${caps.gpu_layers === -1 ? 'all' : caps.gpu_layers} layers on GPU` : 'CPU only';
+      }
+
+      // Show local IP for Quest connection
+      // (We can't get the real IP from browser, but we can show a hint)
+      const wsUrl = document.getElementById('ws-url');
+      wsUrl.textContent = `ws://${location.hostname}:8403/ws`;
+    }
+
+    init();
+  </script>
+</body>
+</html>

@@ -1,0 +1,119 @@
+{
+  "Greetings": [
+    { "name": "Relax", "url": "/Animations/VRMA_MotionPack/VRMA_01.vrma" },
+    { "name": "Wave", "url": "/Animations/FBX/Arnold_Idle_Dance_02.fbx" },
+    { "name": "Nod", "url": "/Animations/FBX/acknowledging.fbx" },
+    { "name": "Hello", "url": "/Animations/FBX/Asking Question.fbx" },
+    { "name": "Goodbye", "url": "/Animations/VRMA_MotionPack/VRMA_06.vrma" }
+  ],
+  "Idle": [
+    { "name": "StandingIdle", "url": "/Animations/FBX/Standing Idle 03.fbx" },
+    { "name": "Relax", "url": "/Animations/VRMA_MotionPack/VRMA_01.vrma" },
+    { "name": "LookAround", "url": "/Animations/VRMA_MotionPack/VRMA_02.vrma" },
+    { "name": "Thinking", "url": "/Animations/VRMA_MotionPack/VRMA_03.vrma" },
+    { "name": "Sleepy", "url": "/Animations/VRMA_MotionPack/VRMA_04.vrma" },
+    { "name": "Calm", "url": "/Animations/VRMA_MotionPack/VRMA_06.vrma" },
+    { "name": "WeightShift", "url": "/Animations/FBX/weight shift.fbx" },
+    { "name": "LookAroundFBX", "url": "/Animations/FBX/Look Around.fbx" },
+    { "name": "SubtleShift", "url": "/Animations/VRMA_MotionPack/VRMA_02.vrma" }
+  ],
+  "Happy": [
+    { "name": "Clapping", "url": "/Animations/VRMA_MotionPack/VRMA_05.vrma" },
+    { "name": "Cheer", "url": "/Animations/FBX/Cheering.fbx" },
+    { "name": "Dance1", "url": "/Animations/FBX/Dance01_HUMANIK_769.fbx" },
+    { "name": "Dance2", "url": "/Animations/FBX/Dancing02_HUMANIK_769.fbx" },
+    { "name": "Victory", "url": "/Animations/FBX/Arnold_Victory.fbx" },
+    { "name": "Jump", "url": "/Animations/VRMA_MotionPack/VRMA_05.vrma" }
+  ],
+  "Sad": [
+    { "name": "Sad", "url": "/Animations/VRMA_MotionPack/VRMA_07.vrma" },
+    { "name": "Defeat", "url": "/Animations/FBX/Defeat Idle.fbx" },
+    { "name": "Grief", "url": "/Animations/FBX/Dizzy Idle.fbx" }
+  ],
+  "Surprised": [
+    { "name": "Surprised", "url": "/Animations/VRMA_MotionPack/VRMA_03.vrma" },
+    { "name": "Shock", "url": "/Animations/FBX/Falling_HUMANIK_769.fbx" }
+  ],
+  "Angry": [
+    { "name": "Angry", "url": "/Animations/VRMA_MotionPack/VRMA_07.vrma" },
+    { "name": "Gesture", "url": "/Animations/FBX/angry gesture.fbx" },
+    { "name": "Frustrated", "url": "/Animations/FBX/Arnold_Idle_Dance_04.fbx" }
+  ],
+  "Dance": [
+    { "name": "Dance1", "url": "/Animations/FBX/Dance01_HUMANIK_769.fbx" },
+    { "name": "Dance2", "url": "/Animations/FBX/Dancing02_HUMANIK_769.fbx" },
+    { "name": "Flappy", "url": "/Animations/FBX/Dance02_FlappyDance_HUMANIK_769.fbx" },
+    { "name": "Macarena", "url": "/Animations/FBX/MacarenaDance_HUMANIK_769.fbx" }
+  ],
+  "Walk": [
+    { "name": "Walk1", "url": "/Animations/FBX/10-WalkCycle_01_MIXAMO_769.fbx" },
+    { "name": "Walk2", "url": "/Animations/FBX/02-walkforward.fbx" },
+    { "name": "CoolWalk", "url": "/Animations/FBX/11-WalkCycle_Cool_MIXAMO_WHS_segment.fbx" },
+    { "name": "Pacing", "url": "/Animations/FBX/12-WalkCycle_Pacing_MIXAMO_769.fbx" },
+    { "name": "SlowWalk", "url": "/Animations/FBX/09-SlowWalkForward_MIXAMO_769.fbx" },
+    { "name": "WindWalk", "url": "/Animations/FBX/13-WalkingIntoWind01_MIXAMO_769.fbx" },
+    { "name": "WalkNormal_BVH", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-1/data/dataset-1_walk_normal_001.bvh" },
+    { "name": "WalkHappy_BVH", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-1/data/dataset-1_walk_happy_001.bvh" },
+    { "name": "WalkSad_BVH", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-1/data/dataset-1_walk_sad_001.bvh" },
+    { "name": "WalkFeminine_BVH", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-1/data/dataset-1_walk_feminine_001.bvh" },
+    { "name": "WalkProud_BVH", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-1/data/dataset-1_walk_proud_001.bvh" }
+  ],
+  "Run": [
+    { "name": "Run", "url": "/Animations/FBX/Arnold_Run.fbx" },
+    { "name": "Sprint", "url": "/Animations/FBX/Arnold_Sprint.fbx" },
+    { "name": "InjuredRun", "url": "/Animations/FBX/07-runninginjured.fbx" },
+    { "name": "Treadmill", "url": "/Animations/FBX/05-running-treadmill.fbx" }
+  ],
+  "Gestures": [
+    { "name": "Wave", "url": "/Animations/FBX/Arnold_Idle_Dance_02.fbx" },
+    { "name": "Point", "url": "/Animations/FBX/acknowledging.fbx" },
+    { "name": "BlowKiss", "url": "/Animations/FBX/Blow A Kiss.fbx" },
+    { "name": "Dismiss", "url": "/Animations/FBX/dismissing gesture.fbx" },
+    { "name": "HappyGesture", "url": "/Animations/FBX/happy hand gesture.fbx" },
+    { "name": "LookAway", "url": "/Animations/FBX/look away gesture.fbx" }
+  ],
+  "Combat": [
+    { "name": "Idle", "url": "/Animations/FBX/FightingIdle_mixamo.fbx" },
+    { "name": "Punch1", "url": "/Animations/FBX/Arnold_Punch 01.fbx" },
+    { "name": "Punch2", "url": "/Animations/FBX/Arnold_Punch 02.fbx" },
+    { "name": "HeavyPunch", "url": "/Animations/FBX/Arnold_Heavy Punch.fbx" },
+    { "name": "Block", "url": "/Animations/FBX/Arnold_Lean Right.fbx" },
+    { "name": "VictoryPose", "url": "/Animations/FBX/Arnold_Victory.fbx" }
+  ],
+  "Expressive": [
+    { "name": "Blush", "url": "/Animations/VRMA_MotionPack/VRMA_03.vrma" },
+    { "name": "Thinking", "url": "/Animations/VRMA_MotionPack/VRMA_03.vrma" }
+  ],
+  "Thinking": [
+    { "name": "Thinking", "url": "/Animations/VRMA_MotionPack/VRMA_03.vrma" },
+    { "name": "Contemplate", "url": "/Animations/FBX/Arnold_Idle_Alternative_01.fbx" }
+  ],
+  "Social": [
+    { "name": "Relax", "url": "/Animations/VRMA_MotionPack/VRMA_01.vrma" },
+    { "name": "Nod", "url": "/Animations/FBX/acknowledging.fbx" },
+    { "name": "Goodbye", "url": "/Animations/VRMA_MotionPack/VRMA_06.vrma" },
+    { "name": "Wave_BVH", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-2/data/dataset-2_wave-right-hand_normal_001.bvh" },
+    { "name": "WaveHappy_BVH", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-2/data/dataset-2_wave-right-hand_youthful_001.bvh" },
+    { "name": "Bow_BVH", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-1/data/dataset-1_bow_normal_001.bvh" },
+    { "name": "BowHappy_BVH", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-1/data/dataset-1_bow_happy_001.bvh" }
+  ],
+  "GreetingBVH": [
+    { "name": "Wave1", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-2/data/dataset-2_wave-right-hand_normal_001.bvh" },
+    { "name": "Wave2", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-2/data/dataset-2_wave-right-hand_youthful_001.bvh" },
+    { "name": "Wave3", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-2/data/dataset-2_wave-right-hand_feminine_001.bvh" },
+    { "name": "Bye1", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-1/data/dataset-1_bye_normal_001.bvh" },
+    { "name": "ByeHappy", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-1/data/dataset-1_bye_happy_001.bvh" },
+    { "name": "Bow1", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-1/data/dataset-1_bow_normal_001.bvh" },
+    { "name": "BowHappy", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-1/data/dataset-1_bow_happy_001.bvh" }
+  ],
+  "DanceBVH": [
+    { "name": "DanceShort", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-1/data/dataset-1_dance-short_normal_001.bvh" },
+    { "name": "DanceLong", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-1/data/dataset-1_dance-long_normal_001.bvh" }
+  ],
+  "GestureBVH": [
+    { "name": "Guide1", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-1/data/dataset-1_guide_normal_001.bvh" },
+    { "name": "Call1", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-1/data/dataset-1_call_normal_001.bvh" },
+    { "name": "Respond1", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-1/data/dataset-1_respond_normal_001.bvh" },
+    { "name": "RaiseHands1", "url": "/Animations/BVH/Bandai-Namco-Research-Motiondataset-master/Bandai-Namco-Research-Motiondataset-master/dataset/Bandai-Namco-Research-Motiondataset-2/data/dataset-2_raise-up-both-hands_normal_001.bvh" }
+  ]
+}
