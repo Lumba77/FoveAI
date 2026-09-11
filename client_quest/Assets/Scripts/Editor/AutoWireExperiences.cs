@@ -79,11 +79,22 @@ namespace FoveAI.Editor
             root.transform.localRotation = Quaternion.identity;
 
             // ── Guarantee XR_CameraRig and AvatarContainer are at scene root, NEVER scaled by parents ──
-            if (cameraRig != null && cameraRig.transform.parent != null)
+            if (cameraRig != null)
             {
-                cameraRig.transform.SetParent(null, true);
+                if (cameraRig.transform.parent != null)
+                {
+                    cameraRig.transform.SetParent(null, true);
+                    Debug.Log("[AutoWire] XR_CameraRig unparented to scene root");
+                }
                 cameraRig.transform.localScale = Vector3.one;
-                Debug.Log("[AutoWire] XR_CameraRig unparented to scene root");
+
+                // ── Add thumbstick locomotion (left stick = move, right stick = snap turn) ──
+                var locomotion = cameraRig.GetComponent<FoveAI.XR.XRThumbstickLocomotion>();
+                if (locomotion == null)
+                {
+                    locomotion = cameraRig.AddComponent<FoveAI.XR.XRThumbstickLocomotion>();
+                    Debug.Log("[AutoWire] Added XRThumbstickLocomotion to XR_CameraRig (left=move, right=snap turn)");
+                }
             }
             if (avatarContainer != null)
             {

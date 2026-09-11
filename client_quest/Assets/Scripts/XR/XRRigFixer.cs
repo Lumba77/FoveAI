@@ -12,6 +12,12 @@ namespace FoveAI.XR
     /// </summary>
     public class XRRigFixer : MonoBehaviour
     {
+        private void Awake()
+        {
+            // Fix ALL cameras immediately at Awake — before first render — so passthrough shows
+            FixAllCamerasForPassthrough();
+        }
+
         private void Start()
         {
             QuestDebugOverlay.Log("[XRRigFixer] Starting (OpenXR mode)...");
@@ -19,6 +25,26 @@ namespace FoveAI.XR
             FixPassthrough();
             FixControllers();
             FindChatPanel();
+        }
+
+        /// <summary>
+        /// Fix all cameras in the scene for passthrough — set clear flags to SolidColor
+        /// with transparent black so the ARCameraBackground can render the passthrough feed.
+        /// Done in Awake() before any rendering occurs.
+        /// </summary>
+        private void FixAllCamerasForPassthrough()
+        {
+            var cameras = FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            foreach (var cam in cameras)
+            {
+                // Skip cameras that are depth-only or don't-clear (overlay cameras)
+                if (cam.clearFlags == CameraClearFlags.Depth || cam.clearFlags == CameraClearFlags.Nothing)
+                    continue;
+
+                cam.clearFlags = CameraClearFlags.SolidColor;
+                cam.backgroundColor = new Color(0, 0, 0, 0);
+                QuestDebugOverlay.Log($"[XRRigFixer] Fixed camera '{cam.name}' clearFlags=SolidColor, bg=transparent");
+            }
         }
 
         private void LogXRStatus()

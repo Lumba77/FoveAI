@@ -78,3 +78,13 @@ To ignite the Lumax fleet, ensure your local Python `.venv` is configured, and e
 ```
 
 For philosophical and technical insights into how the system interprets the user's intent, read [introduction.md](introduction.md), [XRLF Manual and Implementation.md](XRLF%20Manual%20and%20Implementation.md), and [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Development Log
+
+See [Context.md](Context.md) for the latest session developments, environment changes, and build notes.
+
+### Recent highlights (2026-09-11)
+- **XR Thumbstick Locomotion**: Left stick moves, right stick snap-turns (new Input System, OpenXR bindings)
+- **Sociable Alice**: Follow mode by default, stands in front of player, Clingy mood, looks at you 70% of time
+- **Passthrough fix**: Camera clear flags + Mixed Reality capability group in AndroidManifest
+- **Linux environment rebuilt** after reinstall: Python 3.12 venv, Unity 6000.4.9f1, xrdp, firewall configured

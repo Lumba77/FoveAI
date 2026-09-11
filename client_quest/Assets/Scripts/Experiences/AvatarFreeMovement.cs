@@ -52,21 +52,21 @@ namespace FoveAI.Experiences
         [SerializeField] private RoomPlastering roomPlastering;
 
         [Header("Movement Settings")]
-        public MovementMode currentMode = MovementMode.FreeRoam;
+        public MovementMode currentMode = MovementMode.Follow;
         public float walkSpeed = 1.2f;       // m/s — casual stroll
         public float fastWalkSpeed = 2.0f;   // when called
         public float turnSpeed = 120f;       // degrees/sec
-        public float followDistance = 1.5f;  // distance when following
-        public float personalSpace = 0.8f;   // won't get closer than this
-        public float decisionInterval = 8f;  // seconds between autonomous decisions
+        public float followDistance = 1.2f;  // distance when following (closer = more sociable)
+        public float personalSpace = 0.7f;   // won't get closer than this
+        public float decisionInterval = 6f;  // seconds between autonomous decisions (more frequent)
         public float roomBounds = 4f;        // max distance from center
         public float arrivalThreshold = 0.15f; // how close to be "arrived"
 
         [Header("Personality")]
-        public AliceMood currentMood = AliceMood.Curious;
+        public AliceMood currentMood = AliceMood.Clingy;
         [Range(0f, 1f)] public float restlessness = 0.3f;    // how often she moves
-        [Range(0f, 1f)] public float curiosity = 0.7f;       // how often she explores
-        [Range(0f, 1f)] public float clinginess = 0.4f;      // how often she comes to you
+        [Range(0f, 1f)] public float curiosity = 0.5f;       // how often she explores (less = stays near you)
+        [Range(0f, 1f)] public float clinginess = 0.8f;      // how often she comes to you (high = sociable)
         [Range(0f, 1f)] public float playfulness = 0.3f;     // spontaneous playful moves
 
         // ── Enums ──
@@ -220,10 +220,18 @@ namespace FoveAI.Experiences
                 GenerateDefaultPOIs();
             }
 
-            // Start in free roam unless told otherwise
-            if (currentMode == MovementMode.FreeRoam)
+            // Start in Follow mode — Alice stays near you and is sociable
+            _decisionTimer = Random.Range(2f, 5f);  // first decision soon
+
+            // Position Alice in front of the player on start, not behind
+            Vector3 userPos = GetUserPosition();
+            Vector3 userForward = Camera.main != null ? Camera.main.transform.forward : Vector3.forward;
+            userForward.y = 0f;
+            userForward.Normalize();
+            if (aliceTransform != null)
             {
-                _decisionTimer = Random.Range(2f, 5f);  // first decision soon
+                aliceTransform.position = userPos + userForward * followDistance;
+                FaceTarget(userPos);
             }
         }
 
@@ -349,14 +357,20 @@ namespace FoveAI.Experiences
                 _userMovementTimer += Time.deltaTime;
             }
 
+            // Target position: in front of the player, not behind
+            Vector3 userForward = Camera.main != null ? Camera.main.transform.forward : Vector3.forward;
+            userForward.y = 0f;
+            userForward.Normalize();
+            Vector3 targetPos = userPos + userForward * followDistance;
+
             if (distToUser > followDistance + 0.3f)
             {
-                // Walk towards user
-                CurrentDestination = userPos - (userPos - aliceTransform.position).normalized * followDistance;
+                // Walk to a position in front of the player
+                CurrentDestination = targetPos;
                 IsMoving = true;
                 MoveTowardsDestination();
             }
-            else if (distToUser < followDistance - 0.3f)
+            else if (distToUser < personalSpace)
             {
                 // Too close — back up slightly
                 CurrentDestination = aliceTransform.position + (aliceTransform.position - userPos).normalized * 0.3f;
@@ -570,9 +584,9 @@ namespace FoveAI.Experiences
             {
                 _headTurnTimer = Random.Range(2f, 6f);
 
-                // Decide what to look at
+                // Decide what to look at — look at user more often (sociable)
                 float roll = Random.value;
-                if (roll < 0.5f)
+                if (roll < 0.7f)
                 {
                     // Look at user
                     Vector3 userPos = GetUserPosition();
