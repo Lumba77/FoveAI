@@ -6,6 +6,10 @@
   <assembly fullname="UniGLTF.Utils" preserve="all" />
   <assembly fullname="FoveAI.Runtime" preserve="all" />
 
+  <!-- Preserve Jint (JavaScript engine) — IL2CPP linker fails on HybridDictionary generics -->
+  <assembly fullname="Jint" preserve="all" />
+  <assembly fullname="Jint.Native" preserve="all" />
+
   <!-- Preserve our own assembly so VRMAvatarLoader.Start() survives stripping -->
   <assembly fullname="Assembly-CSharp" preserve="all" />
 </linker>

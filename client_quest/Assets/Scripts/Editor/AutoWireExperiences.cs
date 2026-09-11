@@ -11,6 +11,7 @@ using FoveAI.Games;
 using FoveAI.Presence;
 using FoveAI.Experiences;
 using TMPro;
+using UnityEngine.UI;
 
 namespace FoveAI.Editor
 {
@@ -52,6 +53,54 @@ namespace FoveAI.Editor
             {
                 Debug.LogError("[AutoWire] FoveAIWebSocketClient component not found on FoveAIWebSocketClient GO.");
                 return;
+            }
+
+            // ── Clean any Canvas/UI components erroneously attached to SpatialMachineRoot ──
+            var badHud = root.GetComponent<UserHUD>();
+            if (badHud != null) Object.DestroyImmediate(badHud);
+            var badGsc = root.GetComponent<GameSceneController>();
+            if (badGsc != null) Object.DestroyImmediate(badGsc);
+            var badAsp = root.GetComponent<AppSettingsPanel>();
+            if (badAsp != null) Object.DestroyImmediate(badAsp);
+            var badAdv = root.GetComponent<AdvancedSpatialPanel>();
+            if (badAdv != null) Object.DestroyImmediate(badAdv);
+            var badVrb = root.GetComponent<VRBrowserPanel>();
+            if (badVrb != null) Object.DestroyImmediate(badVrb);
+            var badGrp = root.GetComponent<GrabbablePanel>();
+            if (badGrp != null) Object.DestroyImmediate(badGrp);
+            var badCnv = root.GetComponent<Canvas>();
+            if (badCnv != null) Object.DestroyImmediate(badCnv);
+            var badCng = root.GetComponent<CanvasGroup>();
+            if (badCng != null) Object.DestroyImmediate(badCng);
+            var badRay = root.GetComponent<GraphicRaycaster>();
+            if (badRay != null) Object.DestroyImmediate(badRay);
+            root.transform.localScale = Vector3.one;
+            root.transform.localPosition = Vector3.zero;
+            root.transform.localRotation = Quaternion.identity;
+
+            // ── Guarantee XR_CameraRig and AvatarContainer are at scene root, NEVER scaled by parents ──
+            if (cameraRig != null && cameraRig.transform.parent != null)
+            {
+                cameraRig.transform.SetParent(null, true);
+                cameraRig.transform.localScale = Vector3.one;
+                Debug.Log("[AutoWire] XR_CameraRig unparented to scene root");
+            }
+            if (avatarContainer != null)
+            {
+                if (avatarContainer.transform.parent != null)
+                {
+                    avatarContainer.transform.SetParent(null, true);
+                    Debug.Log("[AutoWire] AvatarContainer unparented to scene root");
+                }
+                avatarContainer.transform.localScale = Vector3.one;
+            }
+            if (chatCanvas != null)
+            {
+                chatCanvas.SetActive(true);
+                if (chatCanvas.transform.parent != null)
+                {
+                    chatCanvas.transform.SetParent(null, true);
+                }
             }
 
             // Avatar transforms
@@ -208,12 +257,19 @@ namespace FoveAI.Editor
             SetRef(coPresence, "musicPlayer", musicPlayer);
             if (blendshapes != null) SetRef(coPresence, "blendshapes", blendshapes);
 
-            // ── 12. GameSceneController (on root) ──
-            var gameSceneCtrl = root.GetComponent<GameSceneController>();
+
+            // ── 12. GameSceneController (dedicated GameObject) ──
+            var gameSceneObj = GameObject.Find("GameSceneController_Panel");
+            if (gameSceneObj == null)
+            {
+                gameSceneObj = new GameObject("GameSceneController_Panel");
+                gameSceneObj.transform.position = new Vector3(0.55f, 1.2f, 1.8f);
+            }
+            var gameSceneCtrl = gameSceneObj.GetComponent<GameSceneController>();
             if (gameSceneCtrl == null)
             {
-                gameSceneCtrl = root.AddComponent<GameSceneController>();
-                Debug.Log("[AutoWire] Added GameSceneController to SpatialMachineRoot");
+                gameSceneCtrl = gameSceneObj.AddComponent<GameSceneController>();
+                Debug.Log("[AutoWire] Added GameSceneController to dedicated GameSceneController_Panel");
             }
             SetRef(gameSceneCtrl, "gameEngine", gameEngine);
             SetRef(gameSceneCtrl, "presetManager", presetMgr);
@@ -253,54 +309,80 @@ namespace FoveAI.Editor
             SetRef(creative, "webSocketClient", wsClient);
             SetRef(creative, "musicPlayer", musicPlayer);
             SetRef(creative, "sceneManipulator", sceneManip);
-            // codeDisplay / codeCanvas left null — CreativeWorkspace creates at runtime if null
 
-            // ── 16. AppSettingsPanel (on root or ChatCanvas) ──
-            var settingsPanel = root.GetComponent<AppSettingsPanel>();
-            if (settingsPanel == null)
+            // ── 16. UserHUD (dedicated GameObject — floating peripheral HUD) ──
+            var hudObj = GameObject.Find("UserHUD_System");
+            if (hudObj == null)
             {
-                settingsPanel = root.AddComponent<AppSettingsPanel>();
-                Debug.Log("[AutoWire] Added AppSettingsPanel to SpatialMachineRoot");
+                hudObj = new GameObject("UserHUD_System");
             }
-            SetRef(settingsPanel, "wsClient", wsClient);
-            var hud = root.GetComponent<UserHUD>();
+            var hud = hudObj.GetComponent<UserHUD>();
             if (hud == null)
             {
-                hud = root.AddComponent<UserHUD>();
-                Debug.Log("[AutoWire] Added UserHUD to SpatialMachineRoot");
+                hud = hudObj.AddComponent<UserHUD>();
+                Debug.Log("[AutoWire] Added UserHUD to dedicated UserHUD_System");
             }
+            SetRef(hud, "wsClient", wsClient);
+
+            // ── 17. AppSettingsPanel (dedicated GameObject) ──
+            var settingsPanelObj = GameObject.Find("AppSettings_Panel");
+            if (settingsPanelObj == null)
+            {
+                settingsPanelObj = new GameObject("AppSettings_Panel");
+                settingsPanelObj.transform.position = new Vector3(-0.6f, 1.2f, 1.8f);
+            }
+            var settingsPanel = settingsPanelObj.GetComponent<AppSettingsPanel>();
+            if (settingsPanel == null)
+            {
+                settingsPanel = settingsPanelObj.AddComponent<AppSettingsPanel>();
+                Debug.Log("[AutoWire] Added AppSettingsPanel to dedicated AppSettings_Panel");
+            }
+            SetRef(settingsPanel, "wsClient", wsClient);
             SetRef(settingsPanel, "hud", hud);
             SetRef(settingsPanel, "musicPlayer", musicPlayer);
 
-            // ── 17. AdvancedSpatialPanel (on root) ──
-            var advPanel = root.GetComponent<AdvancedSpatialPanel>();
+            // ── 18. AdvancedSpatialPanel (dedicated GameObject) ──
+            var advPanelObj = GameObject.Find("AdvancedSpatial_Panel");
+            if (advPanelObj == null)
+            {
+                advPanelObj = new GameObject("AdvancedSpatial_Panel");
+                advPanelObj.transform.position = new Vector3(0f, 0.8f, 1.8f);
+            }
+            var advPanel = advPanelObj.GetComponent<AdvancedSpatialPanel>();
             if (advPanel == null)
             {
-                advPanel = root.AddComponent<AdvancedSpatialPanel>();
-                Debug.Log("[AutoWire] Added AdvancedSpatialPanel to SpatialMachineRoot");
+                advPanel = advPanelObj.AddComponent<AdvancedSpatialPanel>();
+                Debug.Log("[AutoWire] Added AdvancedSpatialPanel to dedicated AdvancedSpatial_Panel");
             }
             SetRef(advPanel, "webSocketClient", wsClient);
 
-            // ── 18. GrabbablePanel (on root) ──
-            var grabPanel = root.GetComponent<GrabbablePanel>();
-            if (grabPanel == null)
+            // ── 19. VRBrowserPanel (dedicated GameObject) ──
+            var browserPanelObj = GameObject.Find("VRBrowser_Panel");
+            if (browserPanelObj == null)
             {
-                grabPanel = root.AddComponent<GrabbablePanel>();
-                Debug.Log("[AutoWire] Added GrabbablePanel to SpatialMachineRoot");
+                browserPanelObj = new GameObject("VRBrowser_Panel");
+                browserPanelObj.transform.position = new Vector3(0f, 1.6f, 2.2f);
             }
-
-            // ── 19. VRBrowserPanel (on root) ──
-            var browserPanel = root.GetComponent<VRBrowserPanel>();
+            var browserPanel = browserPanelObj.GetComponent<VRBrowserPanel>();
             if (browserPanel == null)
             {
-                browserPanel = root.AddComponent<VRBrowserPanel>();
-                Debug.Log("[AutoWire] Added VRBrowserPanel to SpatialMachineRoot");
+                browserPanel = browserPanelObj.AddComponent<VRBrowserPanel>();
+                Debug.Log("[AutoWire] Added VRBrowserPanel to dedicated VRBrowser_Panel");
             }
-            // VRBrowserPanel has VideoPlayer / RawImage / AudioSource refs — it creates them at runtime if null
+
+            // ── 20. ChatRelayPanel (4-Way Group Call in Headset) ──
+            var chatRelayObj = GameObject.Find("ChatRelayPanel");
+            if (chatRelayObj == null)
+            {
+                chatRelayObj = new GameObject("ChatRelayPanel");
+                chatRelayObj.transform.position = new Vector3(0f, 1.3f, 1.8f);
+                chatRelayObj.AddComponent<ChatRelayPanel>();
+                Debug.Log("[AutoWire] Added ChatRelayPanel (4-way group call)");
+            }
 
             // ── Save ──
             EditorSceneManager.SaveScene(scene, ScenePath);
-            Debug.Log("[AutoWire] ✅ All 17+ experiences wired and scene saved to " + ScenePath);
+            Debug.Log("[AutoWire] ✅ All 17+ experiences and ChatRelayPanel wired and scene saved to " + ScenePath);
 
             // Mark dirty so batchmode build picks it up
             EditorSceneManager.MarkSceneDirty(scene);

@@ -1039,8 +1039,14 @@
       diag('⚙️ Subsystems Health Check…', '#0ff');
       const checks = [
         { name: 'Proxy :8400', url: `${API}/health`, type: 'http' },
+        { name: 'Sight :8400', url: 'http://127.0.0.1:8400/health', type: 'http' },
+        { name: 'Hearing :8401', url: 'http://127.0.0.1:8401/health', type: 'http' },
         { name: 'XRLF Runtime :8402', url: 'http://127.0.0.1:8402/health', type: 'http', engine: 'xrlf' },
         { name: 'WebSocket :8403', url: 'ws://127.0.0.1:8403', type: 'tcp', engine: 'xrlf' },
+        { name: 'Body :8404', url: 'http://127.0.0.1:8404/health', type: 'http' },
+        { name: 'Subconscious IN :8405', url: 'http://127.0.0.1:8405/health', type: 'http' },
+        { name: 'Subconscious OUT :8406', url: 'http://127.0.0.1:8406/health', type: 'http' },
+        { name: 'Chat Relay :8407', url: 'http://127.0.0.1:8407/health', type: 'http' },
         { name: 'LM Studio :1234', url: 'http://127.0.0.1:1234/v1/models', type: 'http', engine: 'lmstudio' },
         { name: 'Multigate :5177', url: 'http://127.0.0.1:5177/', type: 'http' },
       ].filter(c => !c.engine || c.engine === currentEngine);

@@ -110,8 +110,9 @@ namespace FoveAI.Avatar
 #if UNITY_ANDROID && !UNITY_EDITOR
             // Android streaming assets are inside the APK/JAR; copy to persistentDataPath first.
             string persistentPath = Path.Combine(Application.persistentDataPath, fileName);
-            if (!File.Exists(persistentPath))
+            if (!File.Exists(persistentPath) || new FileInfo(persistentPath).Length < 1000)
             {
+                if (File.Exists(persistentPath)) File.Delete(persistentPath);
                 using (UnityEngine.Networking.UnityWebRequest uwr = UnityEngine.Networking.UnityWebRequest.Get(fullPath))
                 {
                     var operation = uwr.SendWebRequest();
@@ -120,7 +121,7 @@ namespace FoveAI.Avatar
                     if (uwr.result == UnityEngine.Networking.UnityWebRequest.Result.Success)
                     {
                         File.WriteAllBytes(persistentPath, uwr.downloadHandler.data);
-                        Debug.Log($"[VRMAvatarLoader] Copied {fileName} to persistentDataPath");
+                        Debug.Log($"[VRMAvatarLoader] Copied {fileName} to persistentDataPath ({uwr.downloadHandler.data.Length} bytes)");
                     }
                     else
                     {
@@ -223,14 +224,20 @@ namespace FoveAI.Avatar
 
             // 2.0m in front of the user, facing them
             Camera mainCam = Camera.main;
+            if (mainCam == null) mainCam = FindAnyObjectByType<Camera>();
             if (mainCam != null)
             {
                 Vector3 forward = mainCam.transform.forward;
                 forward.y = 0;
+                if (forward.sqrMagnitude < 0.01f) forward = Vector3.forward;
                 forward.Normalize();
                 Avatar.transform.position = mainCam.transform.position + forward * 2.0f;
                 Avatar.transform.position = new Vector3(Avatar.transform.position.x, 0f, Avatar.transform.position.z);
-                Avatar.transform.LookAt(new Vector3(mainCam.transform.position.x, Avatar.transform.position.y, mainCam.transform.position.z));
+                Vector3 lookTarget = new Vector3(mainCam.transform.position.x, Avatar.transform.position.y, mainCam.transform.position.z);
+                if ((lookTarget - Avatar.transform.position).sqrMagnitude > 0.01f)
+                {
+                    Avatar.transform.LookAt(lookTarget);
+                }
 
                 // ── Floor correction: measure avatar bounds and lift so feet touch the floor ──
                 // VRM models have their origin at the hips, so y=0 puts legs underground.
@@ -395,10 +402,12 @@ namespace FoveAI.Avatar
             var go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             go.name = "AvatarPlaceholder";
             Camera mainCam = Camera.main;
+            if (mainCam == null) mainCam = FindAnyObjectByType<Camera>();
             if (mainCam != null)
             {
                 Vector3 forward = mainCam.transform.forward;
                 forward.y = 0;
+                if (forward.sqrMagnitude < 0.01f) forward = Vector3.forward;
                 forward.Normalize();
                 go.transform.position = mainCam.transform.position + forward * 1.5f;
                 go.transform.position = new Vector3(go.transform.position.x, 1f, go.transform.position.z);

@@ -769,17 +769,14 @@ def launch_jenna_vscode(icon, item):
     notify(icon, "Launching Jenna-VSCode (Antigravity Trojan Horse)...", "FoveAI Antigravity")
     jenna_dir = os.path.join(LUMAX_DIR, "Tools", "jenna-vscode")
     if os.path.exists(jenna_dir):
-        # Try to open with code (VS Code)
-        try:
-            subprocess.Popen(["code", jenna_dir], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            notify(icon, "Jenna-VSCode opened in VS Code", "FoveAI Antigravity")
-        except FileNotFoundError:
-            # Try codium
+        for editor_cmd in ["antigravity-ide", "code", "codium", "devin-desktop"]:
             try:
-                subprocess.Popen(["codium", jenna_dir], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                notify(icon, "Jenna-VSCode opened in VSCodium", "FoveAI Antigravity")
+                subprocess.Popen([editor_cmd, jenna_dir], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                notify(icon, f"Jenna-VSCode opened in {editor_cmd}", "FoveAI Antigravity")
+                return
             except FileNotFoundError:
-                notify(icon, "VS Code not found. Install: sudo dnf install code", "FoveAI Antigravity")
+                continue
+        notify(icon, "No supported editor found (tried antigravity-ide, code, codium, devin-desktop)", "FoveAI Antigravity")
     else:
         notify(icon, f"Jenna-VSCode directory not found: {jenna_dir}", "FoveAI Antigravity")
 
@@ -1515,6 +1512,8 @@ def build_menu() -> pystray.Menu:
         pystray.MenuItem("Backend Service (Port 8400)", pystray.Menu(*proxy_items)),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("🛰️ Antigravity / Jenna-VSCode Trojan Horse", pystray.Menu(
+            pystray.MenuItem("🪐 Launch Antigravity Desktop", lambda icon, item: subprocess.Popen(["antigravity"])),
+            pystray.MenuItem("💻 Launch Antigravity IDE", lambda icon, item: subprocess.Popen(["antigravity-ide", FOVEAI_DIR])),
             pystray.MenuItem("🚀 Launch Jenna-VSCode (Context Stripping)", launch_jenna_vscode),
             pystray.MenuItem(checked("Route Antigravity CLI through Proxy (:8400)", ag_proxy), toggle_antigravity_proxy),
         )),

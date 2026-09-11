@@ -675,6 +675,92 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1356710756}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &202472260
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 202472263}
+  - component: {fileID: 202472262}
+  - component: {fileID: 202472261}
+  m_Layer: 0
+  m_Name: VRBrowser_Panel
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &202472261
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 202472260}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7710689656a59f404869d6cea37a8094, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.UI.VRBrowserPanel
+  panelWidth: 960
+  panelHeight: 540
+  panelAlpha: 0.95
+  videoPlayer: {fileID: 0}
+  videoDisplay: {fileID: 0}
+  videoAudio: {fileID: 0}
+  musicAudio: {fileID: 0}
+  bgColor: {r: 0.03, g: 0.04, b: 0.06, a: 0.95}
+  barColor: {r: 0.05, g: 0.07, b: 0.1, a: 1}
+  buttonColor: {r: 0.15, g: 0.2, b: 0.3, a: 1}
+  buttonHoverColor: {r: 0.25, g: 0.35, b: 0.5, a: 1}
+  textColor: {r: 0.88, g: 0.92, b: 0.98, a: 1}
+  accentColor: {r: 0.3, g: 0.7, b: 1, a: 1}
+--- !u!223 &202472262
+Canvas:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 202472260}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_RenderMode: 2
+  m_Camera: {fileID: 0}
+  m_PlaneDistance: 100
+  m_PixelPerfect: 0
+  m_ReceivesEvents: 1
+  m_OverrideSorting: 0
+  m_OverridePixelPerfect: 0
+  m_SortingBucketNormalizedSize: 0
+  m_VertexColorAlwaysGammaSpace: 0
+  m_UseReflectionProbes: 0
+  m_AdditionalShaderChannelsFlag: 0
+  m_UpdateRectTransformForStandalone: 0
+  m_SortingLayerID: 0
+  m_SortingOrder: 0
+  m_TargetDisplay: 0
+--- !u!224 &202472263
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 202472260}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 2.2}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 1.6}
+  m_SizeDelta: {x: 100, y: 100}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &327455521
 GameObject:
   m_ObjectHideFlags: 0
@@ -835,6 +921,85 @@ RectTransform:
   m_AnchorMax: {x: 0.95, y: 0.95}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &423882303
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 423882306}
+  - component: {fileID: 423882305}
+  - component: {fileID: 423882304}
+  m_Layer: 0
+  m_Name: AppSettings_Panel
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &423882304
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 423882303}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 966c9e384b98dc871a79c8c9eb0923f3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.UI.AppSettingsPanel
+  wsClient: {fileID: 505988945}
+  hud: {fileID: 2072101269}
+  musicPlayer: {fileID: 1229828848}
+  panelAlpha: 0.95
+  panelWidth: 700
+  panelHeight: 800
+--- !u!223 &423882305
+Canvas:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 423882303}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_RenderMode: 2
+  m_Camera: {fileID: 0}
+  m_PlaneDistance: 100
+  m_PixelPerfect: 0
+  m_ReceivesEvents: 1
+  m_OverrideSorting: 0
+  m_OverridePixelPerfect: 0
+  m_SortingBucketNormalizedSize: 0
+  m_VertexColorAlwaysGammaSpace: 0
+  m_UseReflectionProbes: 0
+  m_AdditionalShaderChannelsFlag: 0
+  m_UpdateRectTransformForStandalone: 0
+  m_SortingLayerID: 0
+  m_SortingOrder: 0
+  m_TargetDisplay: 0
+--- !u!224 &423882306
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 423882303}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 1.8}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: -0.6, y: 1.2}
+  m_SizeDelta: {x: 100, y: 100}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &438878037
 GameObject:
@@ -1820,6 +1985,19 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1229828828}
+  - component: {fileID: 1229828848}
+  - component: {fileID: 1229828847}
+  - component: {fileID: 1229828846}
+  - component: {fileID: 1229828845}
+  - component: {fileID: 1229828844}
+  - component: {fileID: 1229828843}
+  - component: {fileID: 1229828842}
+  - component: {fileID: 1229828841}
+  - component: {fileID: 1229828840}
+  - component: {fileID: 1229828839}
+  - component: {fileID: 1229828836}
+  - component: {fileID: 1229828835}
+  - component: {fileID: 1229828834}
   m_Layer: 0
   m_Name: SpatialMachineRoot
   m_TagString: Untagged
@@ -1827,28 +2005,412 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &1229828828
-Transform:
+--- !u!224 &1229828828
+RectTransform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1229828827}
-  serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 505988947}
-  - {fileID: 1356710756}
   - {fileID: 1912174228}
-  - {fileID: 1966986934}
   - {fileID: 875738866}
   - {fileID: 442416151}
   - {fileID: 1471650112}
+  - {fileID: 1603840936}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 100, y: 100}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &1229828834
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1229828827}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a6b717f3b154e7244a073a8539511f73, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.Creative.CreativeWorkspace
+  webSocketClient: {fileID: 505988945}
+  musicPlayer: {fileID: 1229828848}
+  sceneManipulator: {fileID: 1229828835}
+  lineMaterial: {fileID: 0}
+  lineWidth: 0.01
+  drawColor: {r: 0.3, g: 0.7, b: 1, a: 1}
+  minDrawDistance: 0.02
+  codeDisplay: {fileID: 0}
+  codeCanvas: {fileID: 0}
+--- !u!114 &1229828835
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1229828827}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c229fe387d9490332893c607157ee8fc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.Creative.SceneManipulator
+  spawnableTypes: 0300000000000000020000000400000001000000
+  defaultSpawnMaterial: {fileID: 0}
+  spawnScale: 0.3
+  spawnDistance: 1.5
+  rotateSensitivity: 90
+  scaleSensitivity: 1.5
+  minScale: 0.05
+  maxScale: 10
+  grabDistance: 0.5
+  highlightMaterial: {fileID: 0}
+  spawnColor: {r: 0.3, g: 0.7, b: 1, a: 0.8}
+--- !u!114 &1229828836
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1229828827}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2e485c5e80575f13ab8c15ddda084e39, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.Experiences.DirectorEngine
+  wsClient: {fileID: 505988945}
+  musicPlayer: {fileID: 1229828848}
+  presetManager: {fileID: 1229828845}
+  seasonalTheming: {fileID: 1229828843}
+  guestSystem: {fileID: 1229828844}
+  aliceTransform: {fileID: 1966986934}
+  aliceHead: {fileID: 176781552}
+  directorEnabled: 1
+  minEventInterval: 600
+  maxEventInterval: 1800
+  eventBuildTime: 5
+  allowHorror: 1
+  allowViolence: 1
+  maxEventDuration: 600
+--- !u!114 &1229828839
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1229828827}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 63d77bb1beba84036954a2a8cd3e24ad, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.Presence.CoPresenceMode
+  wsClient: {fileID: 505988945}
+  aliceTransform: {fileID: 1966986934}
+  aliceHead: {fileID: 176781552}
+  aliceAnimator: {fileID: 0}
+  musicPlayer: {fileID: 1229828848}
+  blendshapes: {fileID: 1966986941}
+  microInteractionChance: 0.15
+  microInteractionInterval: 30
+  glanceInterval: 12
+  activitySwitchInterval: 90
+  proximityRadius: 3
+  aliceMoveSpeed: 0.3
+  verboseLogging: 0
+  whisperChance: 0.08
+  minSilenceBeforeWhisper: 120
+--- !u!114 &1229828840
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1229828827}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 31a8d1f39eb0ec8b5931898cb1abf0b3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.Experiences.WebcamWindowGazing
+  wsClient: {fileID: 505988945}
+  aliceTransform: {fileID: 1966986934}
+  aliceHead: {fileID: 176781552}
+  windowWidth: 1.6
+  windowHeight: 0.9
+  aliceGazeInterval: 12
+  aliceCommentChance: 0.5
+  textureRefreshInterval: 30
+--- !u!114 &1229828841
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1229828827}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 303f3ec5b51de62afbb051445d00df6a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.Experiences.CoOpGamingWithAlice
+  wsClient: {fileID: 505988945}
+  aliceTransform: {fileID: 1966986934}
+  aliceHead: {fileID: 176781552}
+  aliceRightHand: {fileID: 0}
+  aliceLeftHand: {fileID: 0}
+  aliceMoveSpeed: 1.2
+  aliceReactionTime: 0.3
+  aliceAccuracy: 0.75
+  aliceAggression: 0.6
+  aliceSupportiveness: 0.8
+  communicationInterval: 5
+--- !u!114 &1229828842
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1229828827}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 795cd560bca82039c894e62090c9487d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.Experiences.VirtualTouring
+  wsClient: {fileID: 505988945}
+  musicPlayer: {fileID: 1229828848}
+  aliceTransform: {fileID: 1966986934}
+  aliceHead: {fileID: 176781552}
+  aliceWalkSpeed: 0.5
+  aliceFollowDistance: 1.5
+  landmarkCheckInterval: 8
+  commentChance: 0.4
+--- !u!114 &1229828843
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1229828827}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 47cb0d1021512658b84795a52aafae28, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.Experiences.SeasonalTheming
+  wsClient: {fileID: 505988945}
+  musicPlayer: {fileID: 1229828848}
+  aliceTransform: {fileID: 1966986934}
+  autoDetectSeason: 1
+  autoDetectHoliday: 1
+  seasonalCommentInterval: 300
+  particleDensity: 1
+  birthdayMonth: 2
+  birthdayDay: 17
+  birthdayAwarenessEnabled: 1
+  birthdayCommentInterval: 3600
+  birthdayAdvanceDays: 7
+--- !u!114 &1229828844
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1229828827}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ba4fe3d606a80b2d2ab86f96831a1e4a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.Games.VirtualGuestSystem
+  wsClient: {fileID: 505988945}
+  presetManager: {fileID: 1229828845}
+  musicPlayer: {fileID: 1229828848}
+  gameEngine: {fileID: 1229828846}
+  arrivalFanfareDuration: 4
+  defaultGuestDuration: 180
+  maxConcurrentGuests: 3
+  guestSpawnRadius: 2.5
+  guestMatDramatist: {fileID: 0}
+  guestMatChaos: {fileID: 0}
+  guestMatStoryteller: {fileID: 0}
+  guestMatParty: {fileID: 0}
+  guestMatMysterious: {fileID: 0}
+  guestMatRival: {fileID: 0}
+  guestMatFriend: {fileID: 0}
+--- !u!114 &1229828845
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1229828827}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b8fe10e3e2230aeb2b67c48d915327c5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.Games.ScenePresetManager
+  musicPlayer: {fileID: 1229828848}
+  gameEngine: {fileID: 1229828846}
+  wsClient: {fileID: 505988945}
+  mainLight: {fileID: 875738867}
+  defaultLightIntensity: 1
+  candleMat: {fileID: 0}
+  lampMat: {fileID: 0}
+  screenMat: {fileID: 0}
+--- !u!114 &1229828846
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1229828827}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3a280ee359ce55866a3d125bb1c406c1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.Games.VRGameEngine
+  wsClient: {fileID: 505988945}
+  musicPlayer: {fileID: 1229828848}
+  monsterPrefab: {fileID: 0}
+  targetPrefab: {fileID: 0}
+  characterPrefab: {fileID: 0}
+  spawnRadius: 3
+  spawnHeight: 1.5
+  maxMonsters: 8
+  monsterSpeed: 1.2
+  monsterDamage: 10
+  playerHealth: 100
+  shootRange: 20
+  shootDamage: 25
+  monsterMaterial: {fileID: 0}
+  friendlyMaterial: {fileID: 0}
+  targetMaterial: {fileID: 0}
+  hitFlashColor: {r: 1, g: 0, b: 0, a: 1}
+  hitFlashDuration: 0.15
+--- !u!82 &1229828847
+AudioSource:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1229828827}
+  m_Enabled: 1
+  serializedVersion: 4
+  OutputAudioMixerGroup: {fileID: 0}
+  m_audioClip: {fileID: 0}
+  m_Resource: {fileID: 0}
+  m_PlayOnAwake: 0
+  m_Volume: 1
+  m_Pitch: 1
+  Loop: 1
+  Mute: 0
+  Spatialize: 0
+  SpatializePostEffects: 0
+  Priority: 128
+  DopplerLevel: 1
+  MinDistance: 1
+  MaxDistance: 500
+  Pan2D: 0
+  rolloffMode: 0
+  BypassEffects: 0
+  BypassListenerEffects: 0
+  BypassReverbZones: 0
+  rolloffCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  panLevelCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  spreadCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  reverbZoneMixCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+--- !u!114 &1229828848
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1229828827}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c32f02164dbec2a1a8aa797a073d6a95, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.Creative.AmbientMusicPlayer
+  musicSource: {fileID: 1229828847}
+  volume: 0.35
+  spatialAudio: 0
+  calmTracks: []
+  happyTracks: []
+  focusedTracks: []
+  energeticTracks: []
+  ambientTracks: []
+  shuffle: 1
+  loopPlaylist: 1
+  crossfadeDuration: 2
 --- !u!1 &1271803827
 GameObject:
   m_ObjectHideFlags: 0
@@ -2150,13 +2712,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1356710755}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 1.5}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 176781552}
-  m_Father: {fileID: 1229828828}
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1356710757
 MonoBehaviour:
@@ -2296,6 +2858,94 @@ MonoBehaviour:
     m_VerticalOverflow: 0
     m_LineSpacing: 1
   m_Text: 
+--- !u!1 &1603840935
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1603840936}
+  - component: {fileID: 1603840938}
+  - component: {fileID: 1603840937}
+  m_Layer: 0
+  m_Name: ChatRelayPanel
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &1603840936
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1603840935}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1229828828}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 100, y: 100}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &1603840937
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1603840935}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0f17e989f9f04251a2fe5df65151133d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.UI.ChatRelayPanel
+  reconnectDelay: 3
+  panelWidth: 800
+  panelHeight: 600
+  panelAlpha: 0.9
+  maxVisibleLines: 12
+  userColor: {r: 1, g: 1, b: 1, a: 1}
+  jenColor: {r: 0.27, g: 1, b: 0.27, a: 1}
+  devinColor: {r: 0.27, g: 0.53, b: 1, a: 1}
+  antigravityColor: {r: 1, g: 0.67, b: 0.13, a: 1}
+  unknownColor: {r: 1, g: 0.27, b: 1, a: 1}
+  bgColor: {r: 0.02, g: 0.02, b: 0.08, a: 0.9}
+  headerColor: {r: 0.05, g: 0.07, b: 0.12, a: 1}
+  inputBgColor: {r: 0.05, g: 0.07, b: 0.12, a: 1}
+  textColor: {r: 0.88, g: 0.92, b: 0.98, a: 1}
+  desktopToggleKey: 283
+--- !u!223 &1603840938
+Canvas:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1603840935}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_RenderMode: 2
+  m_Camera: {fileID: 0}
+  m_PlaneDistance: 100
+  m_PixelPerfect: 0
+  m_ReceivesEvents: 1
+  m_OverrideSorting: 0
+  m_OverridePixelPerfect: 0
+  m_SortingBucketNormalizedSize: 0
+  m_VertexColorAlwaysGammaSpace: 0
+  m_UseReflectionProbes: 0
+  m_AdditionalShaderChannelsFlag: 0
+  m_UpdateRectTransformForStandalone: 0
+  m_SortingLayerID: 0
+  m_SortingOrder: 0
+  m_TargetDisplay: 0
 --- !u!1 &1684716897
 GameObject:
   m_ObjectHideFlags: 0
@@ -2547,6 +3197,7 @@ GameObject:
   - component: {fileID: 1912174231}
   - component: {fileID: 1912174230}
   - component: {fileID: 1912174229}
+  - component: {fileID: 1912174234}
   m_Layer: 0
   m_Name: RoomManager
   m_TagString: Untagged
@@ -2661,6 +3312,27 @@ MonoBehaviour:
   VerboseLogging: 0
   MaxSceneAnchorUpdatesPerFrame: 3
   _initialAnchorParent: {fileID: 0}
+--- !u!114 &1912174234
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1912174227}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a4efca53c78800c0a599439c8e8f142, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.Experiences.RoomPlastering
+  wsClient: {fileID: 505988945}
+  avatarMovement: {fileID: 1966986943}
+  playSpaceOrigin: {fileID: 1229828828}
+  currentMode: 0
+  wallHeight: 2.5
+  roomMargin: 0.1
+  autoDetectRoom: 1
+  generateNavMesh: 1
+  identifySurfaces: 1
 --- !u!1 &1966986933
 GameObject:
   m_ObjectHideFlags: 0
@@ -2678,6 +3350,7 @@ GameObject:
   - component: {fileID: 1966986937}
   - component: {fileID: 1966986936}
   - component: {fileID: 1966986935}
+  - component: {fileID: 1966986943}
   m_Layer: 0
   m_Name: AvatarContainer
   m_TagString: Untagged
@@ -2699,7 +3372,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 156854787}
-  m_Father: {fileID: 1229828828}
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1966986935
 MonoBehaviour:
@@ -2869,6 +3542,289 @@ MonoBehaviour:
   vrmFileName: Alicechan.vrm
   spawnPosition: {x: 0, y: 0, z: 2}
   spawnRotation: {x: 0, y: 0, z: 0}
+--- !u!114 &1966986943
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1966986933}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 93359ecde9aa723cab38282f1e1050ac, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.Experiences.AvatarFreeMovement
+  wsClient: {fileID: 505988945}
+  aliceTransform: {fileID: 1966986934}
+  aliceHead: {fileID: 176781552}
+  aliceAnimator: {fileID: 0}
+  characterController: {fileID: 0}
+  roomPlastering: {fileID: 1912174234}
+  currentMode: 0
+  walkSpeed: 1.2
+  fastWalkSpeed: 2
+  turnSpeed: 120
+  followDistance: 1.5
+  personalSpace: 0.8
+  decisionInterval: 8
+  roomBounds: 4
+  arrivalThreshold: 0.15
+  currentMood: 0
+  restlessness: 0.3
+  curiosity: 0.7
+  clinginess: 0.4
+  playfulness: 0.3
+--- !u!1 &2072101268
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2072101271}
+  - component: {fileID: 2072101270}
+  - component: {fileID: 2072101269}
+  m_Layer: 0
+  m_Name: UserHUD_System
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2072101269
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2072101268}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f89ef4da0d38b934d9240f6d54f81d85, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.UI.UserHUD
+  distance: 2.2
+  smoothSpeed: 6
+  cornerSize: 0.2
+  peakAlpha: 0.75
+  idlePeakAlpha: 0.4
+  cyclePeriod: 16
+  activityFadeDuration: 3
+  barAlpha: 0.55
+  barPulseSpeed: 2
+  iconSize: 32
+  numberSize: 18
+  labelSize: 12
+  iconAlpha: 0.85
+  iconOffsetFromCorner: 50
+  wsClient: {fileID: 505988945}
+--- !u!223 &2072101270
+Canvas:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2072101268}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_RenderMode: 2
+  m_Camera: {fileID: 0}
+  m_PlaneDistance: 100
+  m_PixelPerfect: 0
+  m_ReceivesEvents: 1
+  m_OverrideSorting: 0
+  m_OverridePixelPerfect: 0
+  m_SortingBucketNormalizedSize: 0
+  m_VertexColorAlwaysGammaSpace: 0
+  m_UseReflectionProbes: 0
+  m_AdditionalShaderChannelsFlag: 0
+  m_UpdateRectTransformForStandalone: 0
+  m_SortingLayerID: 0
+  m_SortingOrder: 0
+  m_TargetDisplay: 0
+--- !u!224 &2072101271
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2072101268}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 100, y: 100}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &2090309890
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2090309893}
+  - component: {fileID: 2090309892}
+  - component: {fileID: 2090309891}
+  m_Layer: 0
+  m_Name: AdvancedSpatial_Panel
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2090309891
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2090309890}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f6b6cba70208edf08b47607d741379a1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.UI.AdvancedSpatialPanel
+  webSocketClient: {fileID: 505988945}
+  panelWidth: 800
+  panelHeight: 600
+  panelAlpha: 0.92
+  fontSize: 22
+  bgColor: {r: 0.04, g: 0.06, b: 0.1, a: 0.92}
+  tabColor: {r: 0.12, g: 0.15, b: 0.22, a: 1}
+  tabActiveColor: {r: 0.15, g: 0.35, b: 0.55, a: 1}
+  textColor: {r: 0.88, g: 0.92, b: 0.98, a: 1}
+  accentColor: {r: 0.3, g: 0.7, b: 1, a: 1}
+--- !u!223 &2090309892
+Canvas:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2090309890}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_RenderMode: 2
+  m_Camera: {fileID: 0}
+  m_PlaneDistance: 100
+  m_PixelPerfect: 0
+  m_ReceivesEvents: 1
+  m_OverrideSorting: 0
+  m_OverridePixelPerfect: 0
+  m_SortingBucketNormalizedSize: 0
+  m_VertexColorAlwaysGammaSpace: 0
+  m_UseReflectionProbes: 0
+  m_AdditionalShaderChannelsFlag: 0
+  m_UpdateRectTransformForStandalone: 0
+  m_SortingLayerID: 0
+  m_SortingOrder: 0
+  m_TargetDisplay: 0
+--- !u!224 &2090309893
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2090309890}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 1.8}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0.8}
+  m_SizeDelta: {x: 100, y: 100}
+  m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &2093833979
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2093833982}
+  - component: {fileID: 2093833981}
+  - component: {fileID: 2093833980}
+  m_Layer: 0
+  m_Name: GameSceneController_Panel
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2093833980
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2093833979}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f599ab90e9b0d786191520470c2eca3e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FoveAI.Runtime::FoveAI.Games.GameSceneController
+  gameEngine: {fileID: 1229828846}
+  presetManager: {fileID: 1229828845}
+  wsClient: {fileID: 505988945}
+  coPresence: {fileID: 1229828839}
+  panelAlpha: 0.95
+  panelWidth: 600
+  panelHeight: 700
+--- !u!223 &2093833981
+Canvas:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2093833979}
+  m_Enabled: 1
+  serializedVersion: 3
+  m_RenderMode: 2
+  m_Camera: {fileID: 0}
+  m_PlaneDistance: 100
+  m_PixelPerfect: 0
+  m_ReceivesEvents: 1
+  m_OverrideSorting: 0
+  m_OverridePixelPerfect: 0
+  m_SortingBucketNormalizedSize: 0
+  m_VertexColorAlwaysGammaSpace: 0
+  m_UseReflectionProbes: 0
+  m_AdditionalShaderChannelsFlag: 0
+  m_UpdateRectTransformForStandalone: 0
+  m_SortingLayerID: 0
+  m_SortingOrder: 0
+  m_TargetDisplay: 0
+--- !u!224 &2093833982
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2093833979}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 1.8}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0.55, y: 1.2}
+  m_SizeDelta: {x: 100, y: 100}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &2099681677
 GameObject:
   m_ObjectHideFlags: 0
@@ -3033,3 +3989,10 @@ SceneRoots:
   m_Roots:
   - {fileID: 1229828828}
   - {fileID: 1708745597}
+  - {fileID: 1356710756}
+  - {fileID: 1966986934}
+  - {fileID: 2093833982}
+  - {fileID: 2072101271}
+  - {fileID: 423882306}
+  - {fileID: 2090309893}
+  - {fileID: 202472263}

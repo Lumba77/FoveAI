@@ -128,7 +128,7 @@ namespace FoveAI.UI
             _statusText = statusObj.AddComponent<TextMesh>();
             _statusText.fontSize = 28;
             _statusText.color = new Color(0.8f, 0.9f, 0.8f);
-            _statusText.text = "SOUL: 8402 | MEMORY: 8400 | WEBSOCKET: 8403";
+            _statusText.text = "SOUL: 8402 | MEMORY: 8400 | WEBSOCKET: 8403 | CHAT: 8407";
 
             // Controls Cheatsheet Line (Bottom)
             var controlsObj = new GameObject("ControlsText");

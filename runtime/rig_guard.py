@@ -470,8 +470,17 @@ class RigGuard:
 
             try:
                 out = subprocess.check_output(["pgrep", "-f", "Unity"], text=True, timeout=3)
-                unity_pids = [int(p) for p in out.strip().splitlines() if p.strip().isdigit()
-                              and "UnityShader" not in open(f"/proc/{p}/cmdline", "r").read().replace("\x00", " ")]
+                unity_pids = []
+                for p in out.strip().splitlines():
+                    if not p.strip().isdigit():
+                        continue
+                    try:
+                        with open(f"/proc/{p}/cmdline", "r") as cmd_f:
+                            cmdline = cmd_f.read().replace("\x00", " ")
+                        if "UnityShader" not in cmdline:
+                            unity_pids.append(int(p))
+                    except (FileNotFoundError, PermissionError):
+                        continue
             except (subprocess.CalledProcessError, FileNotFoundError):
                 pass
 

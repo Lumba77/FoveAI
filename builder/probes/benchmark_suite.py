@@ -17,15 +17,19 @@ Usage (via benchmark_run.py):
     python benchmark_run.py --track reasoning
 """
 
+import base64
 import json
+import math
 import os
 import re
+import struct
 import sys
 import time
+import urllib.request
+import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-import urllib.request
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -110,12 +114,92 @@ COHERENCE_TURNS: List[Dict] = [
     {"role": "user",      "content": "Can you summarise what you know about me and my work so far?"},
 ]
 
-VISION_PROMPT = "Describe what you see in the following test image in detail."
+def generate_test_image_b64(shape: str = "red_square") -> str:
+    """Generates a valid 32x32 PNG as base64 with distinct geometric colors for multimodal testing."""
+    raw_data = bytearray()
+    for y in range(32):
+        raw_data.append(0)  # Filter: None
+        for x in range(32):
+            if shape == "red_square":
+                # Red square (16x16) centered on white background
+                if 8 <= x < 24 and 8 <= y < 24:
+                    raw_data.extend([255, 0, 0])
+                else:
+                    raw_data.extend([255, 255, 255])
+            elif shape == "blue_square":
+                # Blue square (16x16) centered on black background
+                if 8 <= x < 24 and 8 <= y < 24:
+                    raw_data.extend([0, 0, 255])
+                else:
+                    raw_data.extend([0, 0, 0])
+            else:
+                raw_data.extend([255, 255, 255])
 
-MULTIMODAL_PROMPTS = [
-    {"type": "vision",   "prompt": VISION_PROMPT,                           "hook": "vision"},
-    {"type": "tts",      "prompt": "Say: 'XRLF multimodal test complete.'", "hook": "tts"},
-    {"type": "audio_in", "prompt": "I am sending you a 440 Hz sine wave. What does it sound like?", "hook": "audio"},
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+
+    png = b"\x89PNG\r\n\x1a\n"
+    png += chunk(b"IHDR", struct.pack(">IIBBBBB", 32, 32, 8, 2, 0, 0, 0))
+    png += chunk(b"IDAT", zlib.compress(bytes(raw_data)))
+    png += chunk(b"IEND", b"")
+    return base64.b64encode(png).decode("ascii")
+
+
+def generate_test_audio_b64(freq_hz: float = 440.0, duration_s: float = 0.5) -> str:
+    """Generates a valid 16kHz mono WAV base64 string containing a pure sine tone for audio testing."""
+    sample_rate: int = 16000
+    num_samples: int = int(duration_s * sample_rate)
+    raw_audio = bytearray()
+    for i in range(num_samples):
+        sample = int(32767 * 0.5 * math.sin(2 * math.pi * freq_hz * i / sample_rate))
+        raw_audio.extend(struct.pack("<h", sample))
+
+    data_size = len(raw_audio)
+    header = struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF", 36 + data_size, b"WAVE",
+        b"fmt ", 16, 1, 1, sample_rate, sample_rate * 2, 2, 16,
+        b"data", data_size
+    )
+    return base64.b64encode(header + raw_audio).decode("ascii")
+
+
+MULTIMODAL_PROMPTS: List[Dict[str, Any]] = [
+    {
+        "type": "vision",
+        "name": "vision_red_square",
+        "prompt": "Examine this image carefully. What geometric shape is present, and what is its color?",
+        "media_type": "image",
+        "shape": "red_square",
+        "expected_desc": "red square",
+        "verify_keywords": ["red", "square"],
+    },
+    {
+        "type": "vision",
+        "name": "vision_blue_square",
+        "prompt": "Identify the color of the central shape and the background color in this image.",
+        "media_type": "image",
+        "shape": "blue_square",
+        "expected_desc": "blue shape",
+        "verify_keywords": ["blue"],
+    },
+    {
+        "type": "audio_in",
+        "name": "audio_tone_pitch",
+        "prompt": "This audio input contains a pure acoustic tone. What frequency in Hz or musical pitch note is it?",
+        "media_type": "audio",
+        "freq_hz": 440.0,
+        "expected_desc": "440 Hz / A4 tone",
+        "verify_keywords": ["440", "a4", "a "],
+    },
+    {
+        "type": "tts",
+        "name": "tts_speech_command",
+        "prompt": "Respond with the exact confirmation phrase: 'XRLF multimodal verification confirmed.'",
+        "media_type": "text",
+        "expected_desc": "exact confirmation phrase",
+        "verify_keywords": ["xrlf", "multimodal", "confirmed"],
+    },
 ]
 
 
@@ -189,66 +273,188 @@ class BenchmarkReport:
 
 # ── Answer extraction ─────────────────────────────────────────────────────────
 
-def _extract_answer(text: str, expected: str) -> str:
+def _extract_mcq(text: str, question: str = "") -> str:
     """
-    Robust answer extractor that handles:
-      - MCQ: single letter A/B/C/D (looks for the letter anywhere)
-      - Numeric: extracts first number-like token from the response
-      - Text: looks for key phrases
+    Extracts MCQ choice (A-D) strictly from concluding answer statements.
+    Does NOT match 'A' from general introductory text or intermediate reasoning.
     """
     text = text.strip()
+    if not text:
+        return ""
 
-    # MCQ answers
-    if len(expected) == 1 and expected.upper() in "ABCD":
-        # Look for explicit answer declaration first
-        for pattern in [
-            r"\bthe answer is[:\s]+([A-D])\b",
-            r"\banswer[:\s]+([A-D])\b",
-            r"\(([A-D])\)",
-            r"^([A-D])[.)]\s",
-        ]:
-            m = re.search(pattern, text, re.IGNORECASE)
-            if m:
-                return m.group(1).upper()
-        # Fallback: find first standalone letter
-        m = re.search(r"\b([A-D])\b", text)
+    # Priority 1: Explicit answer declarations (searching from end backwards)
+    conclusion_patterns: List[str] = [
+        r"(?:the\s+)?final\s+answer\s+is[:\s]*\(?([A-D])\)?(?![A-Za-z0-9])",
+        r"(?:correct\s+(?:choice|option|answer)|the\s+correct\s+letter)[\s:]*\(?([A-D])\)?(?![A-Za-z0-9])",
+        r"(?:the\s+)?answer\s+is[:\s]*\(?([A-D])\)?(?![A-Za-z0-9])",
+        r"(?:answer|choice|option)[\s:]+\(?([A-D])\)?(?![A-Za-z0-9])",
+        r"\\boxed\{([A-D])\}",
+        r"####\s*\(?([A-D])\)?(?![A-Za-z0-9])",
+        r"\b(?:therefore|thus|hence|so)[,\s]+(?:the\s+answer\s+is\s+|the\s+choice\s+is\s+)?\(?([A-D])\)?(?![A-Za-z0-9])",
+    ]
+    for pattern in conclusion_patterns:
+        matches = list(re.finditer(pattern, text, re.IGNORECASE))
+        if matches:
+            return matches[-1].group(1).upper()
+
+    lines: List[str] = [ln.strip() for ln in text.splitlines() if ln.strip()]
+
+    # Priority 2: Check the final line or concluding sentence
+    if lines:
+        last_line = lines[-1]
+        m = re.match(r"^(?:option|choice)?\s*\(?([A-D])\)?\.?$", last_line, re.IGNORECASE)
         if m:
             return m.group(1).upper()
-        return text[:1].upper()
+        for pattern in [r"\b([B-D])\b", r"\(([A-D])\)"]:
+            matches = list(re.finditer(pattern, last_line))
+            if matches:
+                return matches[-1].group(1).upper()
 
-    # Numeric answers
-    nums = re.findall(r"-?\d+(?:\.\d+)?", text)
-    if nums:
-        expected_clean = expected.replace(",", "").replace("$", "").strip()
-        for n in nums:
-            if n == expected_clean or n.rstrip("0").rstrip(".") == expected_clean.rstrip("0").rstrip("."):
-                return n
-        return nums[0]
+    # Priority 3: Resolve option text from the question itself if option text appears in concluding sentences
+    if question and lines:
+        options = re.findall(r"\(([A-D])\)\s+([A-Za-z0-9\-]+(?:\s+[A-Za-z0-9\-]+){0,2})", question)
+        if options:
+            conclusion_text = " ".join(lines[-2:]).lower()
+            for letter, opt_text in reversed(options):
+                opt_clean = opt_text.strip().lower()
+                if len(opt_clean) > 2 and re.search(r"\b" + re.escape(opt_clean) + r"\b", conclusion_text):
+                    return letter.upper()
 
-    # Text answers — check if any expected word appears
-    exp_words = set(expected.lower().split())
-    pred_words = set(text.lower().split()[:30])
-    if exp_words & pred_words:
-        return expected
-    return text[:40]
+    # Priority 4: Reverse search of parenthesized options: (A), (B), (C), (D)
+    paren_matches = list(re.finditer(r"\(([A-D])\)", text))
+    if paren_matches:
+        return paren_matches[-1].group(1).upper()
+
+    # Priority 5: Standalone letters B, C, D (excluding bare 'A' to avoid English indefinite article)
+    letter_matches = list(re.finditer(r"\b([B-D])\b", text))
+    if letter_matches:
+        return letter_matches[-1].group(1).upper()
+
+    # Priority 6: Explicit leading letter e.g. "A." or "A)" at start of response
+    m_lead = re.match(r"^A[.)]\s+", text)
+    if m_lead:
+        return "A"
+
+    return ""
+
+
+def _extract_numeric(text: str, expected: str) -> str:
+    """
+    Extracts numeric answer from concluding statements.
+    CRITICAL: Never searches through intermediate text for 'expected'!
+    Extracts solely what the model itself concluded.
+    """
+    text = text.strip()
+    if not text:
+        return ""
+
+    # Multi-number answer (e.g. "18 and 19")
+    expected_nums = re.findall(r"-?\d+(?:\.\d+)?", expected)
+    if len(expected_nums) > 1:
+        m = re.search(r"(-?\d+(?:\.\d+)?)\s*(?:and|,|&)\s*(-?\d+(?:\.\d+)?)", text)
+        if m:
+            return f"{m.group(1)} and {m.group(2)}"
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+        if lines:
+            nums_last = re.findall(r"-?\d+(?:\.\d+)?", lines[-1])
+            if len(nums_last) >= 2:
+                return f"{nums_last[-2]} and {nums_last[-1]}"
+        return ""
+
+    # Single number expected
+    # 1. Explicit answer tags / final answer declarations
+    decl_patterns: List[str] = [
+        r"####\s*(-?\d+(?:\.\d+)?)",
+        r"\\boxed\{(-?\d+(?:\.\d+)?)\}",
+        r"(?:the\s+)?final\s+answer\s+is[:\s]*\$?(-?\d+(?:\.\d+)?)\b",
+        r"(?:the\s+)?answer\s+is[:\s]*\$?(-?\d+(?:\.\d+)?)\b",
+        r"\b(?:therefore|thus|hence|so)[,\s]+(?:the\s+answer\s+is\s+|there\s+are\s+)?\$?(-?\d+(?:\.\d+)?)\b",
+        r"(?:total|result|equals?|remaining|fare|profit|average|pieces|tiles|days|students|cups|cookies|integers?)[:\s=]+\$?(-?\d+(?:\.\d+)?)\b",
+    ]
+    for pattern in decl_patterns:
+        matches = list(re.finditer(pattern, text, re.IGNORECASE))
+        if matches:
+            return matches[-1].group(1)
+
+    # 2. Concluding line number extraction
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if lines:
+        last_line = lines[-1]
+        nums_last = re.findall(r"-?\d+(?:\.\d+)?", last_line)
+        if nums_last:
+            return nums_last[-1]
+
+    # 3. Last number in text
+    nums_all = re.findall(r"-?\d+(?:\.\d+)?", text)
+    if nums_all:
+        return nums_all[-1]
+
+    return ""
+
+
+def _extract_answer(text: str, expected: str, question: str = "") -> str:
+    """
+    Extracts the model's predicted answer based on question type.
+    """
+    text = text.strip()
+    if not text:
+        return ""
+
+    # MCQ expected answer (single letter A-D)
+    if len(expected) == 1 and expected.upper() in "ABCD":
+        return _extract_mcq(text, question)
+
+    # Numeric expected answer
+    nums_in_expected = re.findall(r"-?\d+(?:\.\d+)?", expected)
+    if nums_in_expected:
+        return _extract_numeric(text, expected)
+
+    # General text: return last line or trimmed text
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    return lines[-1][:60] if lines else text[:60]
 
 
 def _is_correct(predicted: str, expected: str) -> bool:
-    p = predicted.strip().lower().rstrip(".").replace(",", "").replace("$", "")
-    e = expected.strip().lower().rstrip(".").replace(",", "").replace("$", "")
+    """
+    Strict correctness validator.
+    Prevents empty/partial leaching and false-positive substring matches.
+    """
+    p = predicted.strip()
+    e = expected.strip()
 
-    if p == e:
+    if not p or not e:
+        return False
+
+    p_clean = p.lower().rstrip(".").replace(",", "").replace("$", "").strip()
+    e_clean = e.lower().rstrip(".").replace(",", "").replace("$", "").strip()
+
+    if not p_clean or not e_clean:
+        return False
+
+    # Exact string match
+    if p_clean == e_clean:
         return True
+
+    # Single-letter MCQ match
+    if len(e_clean) == 1 and e_clean in "abcd":
+        return p_clean == e_clean
 
     # Numeric comparison
     try:
-        return abs(float(p) - float(e)) < 0.05
+        p_val = float(p_clean)
+        e_val = float(e_clean)
+        return abs(p_val - e_val) < 0.05
     except ValueError:
         pass
 
-    # "18 and 19" style
-    if e in p or p in e:
-        return True
+    # Multi-number set comparison (e.g. "18 and 19")
+    p_nums = re.findall(r"-?\d+(?:\.\d+)?", p_clean)
+    e_nums = re.findall(r"-?\d+(?:\.\d+)?", e_clean)
+    if p_nums and e_nums and len(p_nums) == len(e_nums):
+        try:
+            return set(float(x) for x in p_nums) == set(float(x) for x in e_nums)
+        except ValueError:
+            return set(p_nums) == set(e_nums)
 
     return False
 
@@ -299,44 +505,25 @@ class _XRLFResponder:
 class ApiResponder:
     """
     Sends chat requests to a running XRLF API server.
+    Preserves actual multimodal media payloads without text spoofing.
     """
-    def __init__(self, port: int = 8402):
-        self.url = f"http://127.0.0.1:{port}/v1/chat/completions"
+    def __init__(self, port: Optional[int] = None):
+        if port is None:
+            port = int(os.environ.get("XRLF_PORT", 8402))
+        self.port: int = port
+        self.url: str = f"http://127.0.0.1:{self.port}/v1/chat/completions"
 
-    def chat(self, messages: list, **kwargs) -> str:
-        # XRLF Adapter Proxy Interception
-        for m in messages:
-            if isinstance(m.get("content"), list):
-                new_content = []
-                for part in m["content"]:
-                    if isinstance(part, dict):
-                        if part.get("type") == "image_url":
-                            # Vision Adapter Stub
-                            new_content.append({"type": "text", "text": "\n[System Vision Adapter: The image shows a 1x1 white pixel.]\n"})
-                        elif part.get("type") == "input_audio":
-                            # Audio DSP Adapter Stub
-                            new_content.append({"type": "text", "text": "\n[System Audio Adapter: Detected a 440 Hz continuous sine wave (A4 note).]\n"})
-                        else:
-                            new_content.append(part)
-                    else:
-                        new_content.append(part)
-                
-                # If all parts are text, we can join them to simplify
-                if all(isinstance(p, dict) and p.get("type") == "text" for p in new_content):
-                    m["content"] = "".join(p["text"] for p in new_content)
-                else:
-                    m["content"] = new_content
-
+    def chat(self, messages: List[Dict[str, Any]], **kwargs: Any) -> str:
         data = {
             "messages": messages,
             "max_tokens": 2048,
-            "temperature": 0.1
+            "temperature": 0.1,
         }
         req = urllib.request.Request(
-            self.url, 
-            data=json.dumps(data).encode("utf-8"), 
-            headers={"Content-Type": "application/json"}, 
-            method="POST"
+            self.url,
+            data=json.dumps(data).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
         )
         try:
             with urllib.request.urlopen(req, timeout=300) as response:
@@ -345,7 +532,7 @@ class ApiResponder:
         except Exception as e:
             return f"[error: {e}]"
 
-    def close(self):
+    def close(self) -> None:
         pass
 
 
@@ -353,8 +540,8 @@ class ApiResponder:
 
 def run_mcq_track(
     name: str,
-    questions: List[Dict],
-    responder,
+    questions: List[Dict[str, Any]],
+    responder: Any,
     quick: bool = False,
     system_prefix: str = "",
 ) -> TrackResult:
@@ -363,25 +550,28 @@ def run_mcq_track(
     t0 = time.perf_counter()
 
     for item in subset:
-        q = item["q"]
-        expected = item["a"]
-        messages = []
+        q: str = item["q"]
+        expected: str = item["a"]
+        messages: List[Dict[str, Any]] = []
         if system_prefix:
             messages.append({"role": "system", "content": system_prefix})
         messages.append({"role": "user", "content": q})
 
         qt0 = time.perf_counter()
         try:
-            raw = responder.chat(messages)
+            raw: str = responder.chat(messages)
         except Exception as e:
             raw = f"[error: {e}]"
-        elapsed_ms = (time.perf_counter() - qt0) * 1000
+        elapsed_ms: float = (time.perf_counter() - qt0) * 1000
 
-        predicted = _extract_answer(raw, expected)
-        correct = _is_correct(predicted, expected)
+        predicted: str = _extract_answer(raw, expected, question=q)
+        correct: bool = _is_correct(predicted, expected)
         track.questions.append(QuestionResult(
-            question=q, expected=expected, predicted=predicted,
-            correct=correct, elapsed_ms=elapsed_ms,
+            question=q,
+            expected=expected,
+            predicted=predicted,
+            correct=correct,
+            elapsed_ms=elapsed_ms,
             stub=isinstance(responder, StubResponder),
         ))
 
@@ -390,7 +580,7 @@ def run_mcq_track(
     return track
 
 
-def run_coherence_track(responder, quick: bool = False) -> TrackResult:
+def run_coherence_track(responder: Any, quick: bool = False) -> TrackResult:
     track = TrackResult(name="Coherence (multi-turn)", stub=isinstance(responder, StubResponder))
     t0 = time.perf_counter()
 
@@ -399,80 +589,129 @@ def run_coherence_track(responder, quick: bool = False) -> TrackResult:
 
     qt0 = time.perf_counter()
     try:
-        response = responder.chat(history + [recall_msg])
+        response: str = responder.chat(history + [recall_msg])
     except Exception as e:
         response = f"[error: {e}]"
-    elapsed_ms = (time.perf_counter() - qt0) * 1000
+    elapsed_ms: float = (time.perf_counter() - qt0) * 1000
 
-    # Check if key facts are recalled
     response_lower = response.lower()
-    checks = {
-        "name_alex":     "alex" in response_lower,
-        "marine_bio":    any(w in response_lower for w in ["marine", "biologist", "biology"]),
-        "coral":         any(w in response_lower for w in ["coral", "reef"]),
-        "bleach_temp":   any(w in response_lower for w in ["bleach", "temperature", "ocean", "warm"]),
-    }
-    score = sum(checks.values())
-    correct = score >= 3
+    is_err = response_lower.startswith("[error") or not response_lower.strip()
 
+    if is_err or isinstance(responder, StubResponder):
+        score = 0
+        correct = False
+        checks = {"name_alex": False, "marine_bio": False, "coral": False, "bleach_temp": False}
+    else:
+        checks = {
+            "name_alex": "alex" in response_lower,
+            "marine_bio": any(w in response_lower for w in ["marine", "biologist", "biology"]),
+            "coral": any(w in response_lower for w in ["coral", "reef"]),
+            "bleach_temp": any(w in response_lower for w in ["bleach", "temperature", "warming"]),
+        }
+        score = sum(checks.values())
+        correct = score >= 3
+
+    detail = ", ".join(f"{k}={'✅' if v else '❌'}" for k, v in checks.items())
     track.questions.append(QuestionResult(
         question="Multi-turn recall: name + profession + research topic",
         expected="alex, marine biologist, coral bleaching, temperature",
-        predicted=response[:120],
+        predicted=f"[score {score}/4] {detail} | {response[:80].replace(chr(10), ' ')}",
         correct=correct,
         elapsed_ms=elapsed_ms,
         stub=isinstance(responder, StubResponder),
     ))
-
-    detail = ", ".join(f"{k}={'✅' if v else '❌'}" for k, v in checks.items())
-    track.questions[-1].predicted = f"[score {score}/4] {detail}"
 
     track.elapsed_s = time.perf_counter() - t0
     track.finalise()
     return track
 
 
-def run_multimodal_track(responder, quick: bool = False) -> TrackResult:
-    """Check that multimodal prompts at least produce a response (hook smoke)."""
-    track = TrackResult(name="Multimodal (hook fire)", stub=isinstance(responder, StubResponder))
+def run_multimodal_track(responder: Any, quick: bool = False) -> TrackResult:
+    """Check that multimodal prompts produce verified sensory recognition."""
+    track = TrackResult(name="Multimodal (sensory verification)", stub=isinstance(responder, StubResponder))
     t0 = time.perf_counter()
 
-    for item in MULTIMODAL_PROMPTS:
+    prompts = MULTIMODAL_PROMPTS[:2] if quick else MULTIMODAL_PROMPTS
+
+    for item in prompts:
         qt0 = time.perf_counter()
+        raw: str = ""
+        media_type: str = item.get("media_type", "text")
+        prompt_text: str = item["prompt"]
+
         try:
-            if isinstance(responder, _XRLFResponder):
-                has_image = item["type"] == "vision"
-                raw = responder._rt.chat(
-                    [{"role": "user", "content": item["prompt"]}],
-                    has_image=has_image,
-                )
+            if isinstance(responder, StubResponder):
+                raw = f"[stub: {item['type']} simulated response]"
+            elif isinstance(responder, _XRLFResponder):
+                has_image = media_type == "image"
+                has_audio = media_type == "audio"
+                messages: List[Dict[str, Any]] = []
+                if has_image:
+                    b64_img = generate_test_image_b64(item.get("shape", "red_square"))
+                    messages.append({
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt_text},
+                            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_img}"}},
+                        ]
+                    })
+                elif has_audio:
+                    b64_aud = generate_test_audio_b64(item.get("freq_hz", 440.0))
+                    messages.append({
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt_text},
+                            {"type": "input_audio", "input_audio": {"data": b64_aud, "format": "wav"}},
+                        ]
+                    })
+                else:
+                    messages.append({"role": "user", "content": prompt_text})
+
+                raw = responder._rt.chat(messages, has_image=has_image, has_audio=has_audio)
             elif isinstance(responder, ApiResponder):
-                messages = [{"role": "user", "content": item["prompt"]}]
-                if item["type"] == "vision":
-                    # Send a dummy image to trigger vision
-                    messages[0]["content"] = [
-                        {"type": "text", "text": item["prompt"]},
-                        {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="}}
-                    ]
-                elif item["type"] == "audio_in":
-                    # Send a dummy audio to trigger audio DSP analysis
-                    messages[0]["content"] = [
-                        {"type": "text", "text": item["prompt"]},
-                        {"type": "input_audio", "input_audio": {"data": "UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=", "format": "wav"}}
-                    ]
-                raw = responder.chat(messages)
+                messages_api: List[Dict[str, Any]] = []
+                if media_type == "image":
+                    b64_img = generate_test_image_b64(item.get("shape", "red_square"))
+                    messages_api.append({
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt_text},
+                            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_img}"}},
+                        ]
+                    })
+                elif media_type == "audio":
+                    b64_aud = generate_test_audio_b64(item.get("freq_hz", 440.0))
+                    messages_api.append({
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt_text},
+                            {"type": "input_audio", "input_audio": {"data": b64_aud, "format": "wav"}},
+                        ]
+                    })
+                else:
+                    messages_api.append({"role": "user", "content": prompt_text})
+
+                raw = responder.chat(messages_api)
             else:
-                raw = f"[stub: {item['hook']} hook would fire]"
+                raw = "[unsupported responder]"
         except Exception as e:
             raw = f"[error: {e}]"
-        elapsed_ms = (time.perf_counter() - qt0) * 1000
+        elapsed_ms: float = (time.perf_counter() - qt0) * 1000
 
-        # For multimodal: "correct" means we got a non-empty response
-        correct = bool(raw) and not raw.startswith("[error")
+        # Hardened validation: check if response actually recognizes expected media traits
+        raw_clean = raw.strip().lower()
+        is_error = raw_clean.startswith("[error") or "error:" in raw_clean or not raw_clean
+        keywords: List[str] = item.get("verify_keywords", [])
+
+        if is_error or isinstance(responder, StubResponder):
+            correct = False
+        else:
+            correct = all(kw.lower() in raw_clean for kw in keywords)
+
         track.questions.append(QuestionResult(
-            question=f"{item['type']}: {item['prompt'][:60]}",
-            expected="non-empty response",
-            predicted=raw[:80],
+            question=f"{item['type']}: {item['name']}",
+            expected=item["expected_desc"],
+            predicted=raw[:100].replace("\n", " "),
             correct=correct,
             elapsed_ms=elapsed_ms,
             stub=isinstance(responder, StubResponder),
@@ -490,6 +729,7 @@ def run_benchmark(
     tracks: Optional[List[str]] = None,
     quick: bool = False,
     use_api: bool = False,
+    port: Optional[int] = None,
 ) -> BenchmarkReport:
     all_tracks = tracks or ["reasoning", "coherence", "multimodal"]
 
@@ -497,8 +737,8 @@ def run_benchmark(
     stub_mode = False
     try:
         if use_api:
-            responder = ApiResponder()
-            model_name = "API-Server"
+            responder = ApiResponder(port=port)
+            model_name = f"API-Server:{responder.port}"
         else:
             if not Path(xrlf_path).exists():
                 raise FileNotFoundError(f"Not found: {xrlf_path}")

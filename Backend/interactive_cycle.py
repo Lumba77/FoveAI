@@ -1,82 +1,113 @@
 import os
 import asyncio
+from typing import Any, Dict
 from dotenv import load_dotenv
 import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 # Load the biological cycle port map from the local .env
-env_path = os.path.join(os.path.dirname(__file__), "..", ".env")
+env_path: str = os.path.join(os.path.dirname(__file__), "..", ".env")
 load_dotenv(env_path)
 
 # Extract the ports from the .env
-PORT_SIGHT = int(os.getenv("FOVEAI_BACKEND_PORT_SIGHT", 8400))
-PORT_HEARING = int(os.getenv("FOVEAI_BACKEND_PORT_HEARING", 8401))
-PORT_CONTEMPLATION = int(os.getenv("FOVEAI_BACKEND_PORT_CONTEMPLATION", 8402))
-PORT_SPEECH = int(os.getenv("FOVEAI_BACKEND_PORT_SPEECH", 8403))
-PORT_BODY = int(os.getenv("FOVEAI_BACKEND_PORT_BODY", 8404))
-PORT_SUB_IN = int(os.getenv("FOVEAI_BACKEND_PORT_SUBCONSCIOUS_IN", 8405))
-PORT_SUB_OUT = int(os.getenv("FOVEAI_BACKEND_PORT_SUBCONSCIOUS_OUT", 8406))
+PORT_SIGHT: int = int(os.getenv("FOVEAI_BACKEND_PORT_SIGHT", 8400))
+PORT_HEARING: int = int(os.getenv("FOVEAI_BACKEND_PORT_HEARING", 8401))
+PORT_CONTEMPLATION: int = int(os.getenv("FOVEAI_BACKEND_PORT_CONTEMPLATION", 8402))
+PORT_SPEECH: int = int(os.getenv("FOVEAI_BACKEND_PORT_SPEECH", 8403))
+PORT_BODY: int = int(os.getenv("FOVEAI_BACKEND_PORT_BODY", 8404))
+PORT_SUB_IN: int = int(os.getenv("FOVEAI_BACKEND_PORT_SUBCONSCIOUS_IN", 8405))
+PORT_SUB_OUT: int = int(os.getenv("FOVEAI_BACKEND_PORT_SUBCONSCIOUS_OUT", 8406))
 
 # Define the Microservice Apps
-app_sight = FastAPI(title="Sight Nerve (Vision Stream)")
-app_hearing = FastAPI(title="Hearing Nerve (STT Stream)")
-app_contemplation = FastAPI(title="Frontal Lobe (XRLF Base API)")
-app_speech = FastAPI(title="Speech Nerve (TTS Stream)")
-app_body = FastAPI(title="Body Language Nerve (Animation Stream)")
-app_sub_in = FastAPI(title="Subconscious IN (Director)")
-app_sub_out = FastAPI(title="Subconscious OUT (State)")
+app_sight: FastAPI = FastAPI(title="Sight Nerve (Vision Stream)")
+app_hearing: FastAPI = FastAPI(title="Hearing Nerve (STT Stream)")
+app_contemplation: FastAPI = FastAPI(title="Frontal Lobe (XRLF Base API)")
+app_speech: FastAPI = FastAPI(title="Speech Nerve (TTS Stream)")
+app_body: FastAPI = FastAPI(title="Body Language Nerve (Animation Stream)")
+app_sub_in: FastAPI = FastAPI(title="Subconscious IN (Director)")
+app_sub_out: FastAPI = FastAPI(title="Subconscious OUT (State)")
+
+# --- HEALTH ENDPOINTS (all services) ---
+
+@app_sight.get("/health")
+async def health_sight() -> Dict[str, Any]:
+    return {"status": "ok", "service": "sight", "port": PORT_SIGHT}
+
+@app_hearing.get("/health")
+async def health_hearing() -> Dict[str, Any]:
+    return {"status": "ok", "service": "hearing", "port": PORT_HEARING}
+
+@app_contemplation.get("/health")
+async def health_contemplation() -> Dict[str, Any]:
+    return {"status": "ok", "service": "contemplation", "port": PORT_CONTEMPLATION, "loaded": True}
+
+@app_speech.get("/health")
+async def health_speech() -> Dict[str, Any]:
+    return {"status": "ok", "service": "speech", "port": PORT_SPEECH}
+
+@app_body.get("/health")
+async def health_body() -> Dict[str, Any]:
+    return {"status": "ok", "service": "body", "port": PORT_BODY}
+
+@app_sub_in.get("/health")
+async def health_sub_in() -> Dict[str, Any]:
+    return {"status": "ok", "service": "subconscious_in", "port": PORT_SUB_IN}
+
+@app_sub_out.get("/health")
+async def health_sub_out() -> Dict[str, Any]:
+    return {"status": "ok", "service": "subconscious_out", "port": PORT_SUB_OUT}
 
 # --- BASE API (Port 8402 - Contemplation) ---
 @app_contemplation.get("/")
-async def root():
+async def root() -> Dict[str, str]:
     return {"status": "online", "identity": "XRLF_Omni_Model", "role": "Frontal Lobe"}
 
 @app_contemplation.post("/v1/chat/completions")
-async def chat_completions():
+async def chat_completions() -> Dict[str, str]:
     # This will hook directly into the .xrlf bundle logic
     return {"message": "OpenAI-compatible endpoint active. Awaiting XRLF core."}
 
 # --- SENSORY STREAMS (WebSockets) ---
 @app_sight.websocket("/ws")
-async def ws_sight(websocket: WebSocket):
+async def ws_sight(websocket: WebSocket) -> None:
     await websocket.accept()
-    print("[8400] Optical Nerve connected to Quest.")
+    print(f"[{PORT_SIGHT}] Optical Nerve connected to Quest.")
     try:
         while True:
-            data = await websocket.receive_bytes()
+            data: bytes = await websocket.receive_bytes()
             # Feed raw video frame directly to XRLF multimodal projector
     except WebSocketDisconnect:
-        print("[8400] Optical Nerve disconnected.")
+        print(f"[{PORT_SIGHT}] Optical Nerve disconnected.")
 
 @app_hearing.websocket("/ws")
-async def ws_hearing(websocket: WebSocket):
+async def ws_hearing(websocket: WebSocket) -> None:
     await websocket.accept()
-    print("[8401] Auditory Nerve connected to Quest.")
+    print(f"[{PORT_HEARING}] Auditory Nerve connected to Quest.")
     try:
         while True:
-            data = await websocket.receive_bytes()
+            data: bytes = await websocket.receive_bytes()
             # Feed raw PCM audio directly to XRLF STT engine
     except WebSocketDisconnect:
-        print("[8401] Auditory Nerve disconnected.")
+        print(f"[{PORT_HEARING}] Auditory Nerve disconnected.")
 
 @app_speech.websocket("/ws")
-async def ws_speech(websocket: WebSocket):
+async def ws_speech(websocket: WebSocket) -> None:
     await websocket.accept()
-    print("[8403] Vocal Cords connected to Quest.")
+    print(f"[{PORT_SPEECH}] Vocal Cords connected to Quest.")
     # Stream TTS audio back to Quest here
 
 @app_body.websocket("/ws")
-async def ws_body(websocket: WebSocket):
+async def ws_body(websocket: WebSocket) -> None:
     await websocket.accept()
-    print("[8404] Motor Cortex connected to Quest.")
+    print(f"[{PORT_BODY}] Motor Cortex connected to Quest.")
     # Stream Blendshapes back to Quest here
 
-async def run_server(app, port):
-    config = uvicorn.Config(app, host="0.0.0.0", port=port, log_level="warning")
-    server = uvicorn.Server(config)
+async def run_server(app: FastAPI, port: int) -> None:
+    config: uvicorn.Config = uvicorn.Config(app, host="0.0.0.0", port=port, log_level="warning")
+    server: uvicorn.Server = uvicorn.Server(config)
     await server.serve()
 
-async def ignite_interactive_cycle():
+async def ignite_interactive_cycle() -> None:
     print(f"🦋 Igniting XRLF Interactive Cycle (One Model Philosophy)...")
     print(f"👁️  SIGHT: {PORT_SIGHT}")
     print(f"👂 HEARING: {PORT_HEARING}")
@@ -85,7 +116,7 @@ async def ignite_interactive_cycle():
     print(f"💃 BODY: {PORT_BODY}")
     print(f"🔮 SUBCONSCIOUS IN: {PORT_SUB_IN}")
     print(f"📡 SUBCONSCIOUS OUT: {PORT_SUB_OUT}")
-    
+
     # Spin up all 7 biological ports concurrently
     await asyncio.gather(
         run_server(app_sight, PORT_SIGHT),

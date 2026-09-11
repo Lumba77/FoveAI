@@ -169,6 +169,10 @@ let xrSessionPending = false;
 const shouldInit3D = contextManager.shouldInit3D();
 
 const env = shouldInit3D ? new Environment() : null;
+if (env) {
+    (window as any).foveaiScene = env.scene;
+    (window as any).foveaiCamera = env.camera;
+}
 if ((contextManager.getUnit() === 'qu' || contextManager.getUnit() === 'q3') && env) {
     env.renderer.domElement.style.display = 'none';
 }

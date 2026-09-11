@@ -56,6 +56,25 @@ namespace FoveAI.Games
                 wsClient.OnRawMessageReceived += OnRawMessage;
         }
 
+        private void Start()
+        {
+            Camera cam = Camera.main;
+            if (cam != null)
+            {
+                Vector3 fwd = cam.transform.forward;
+                fwd.y = 0f;
+                if (fwd.sqrMagnitude < 0.01f) fwd = Vector3.forward;
+                fwd.Normalize();
+
+                Vector3 right = cam.transform.right;
+                right.y = 0f;
+                right.Normalize();
+
+                transform.position = cam.transform.position + fwd * 1.8f + right * 0.55f;
+                transform.rotation = Quaternion.LookRotation(transform.position - cam.transform.position);
+            }
+        }
+
         private void OnDestroy()
         {
             if (wsClient != null)

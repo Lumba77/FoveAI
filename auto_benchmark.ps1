@@ -5,7 +5,7 @@ $env:HF_HUB_DISABLE_XET="1"
 & ..\..\.venv\Scripts\python.exe train_conciseness.py
 
 Write-Host "2. Starting llama-server in the background..."
-$serverProcess = Start-Process -FilePath "C:\Users\danie\.unsloth\llama.cpp\build\bin\Release\llama-server.exe" -ArgumentList "-m C:\Users\danie\program\LUMAX\qwen-4b-concise_gguf\Qwen2.5-3B-Instruct.Q4_K_M.gguf --port 8300" -PassThru -WindowStyle Hidden
+$serverProcess = Start-Process -FilePath "C:\Users\danie\.unsloth\llama.cpp\build\bin\Release\llama-server.exe" -ArgumentList "-m C:\Users\danie\program\LUMAX\qwen-4b-concise_gguf\Qwen2.5-3B-Instruct.Q4_K_M.gguf --port 8402" -PassThru -WindowStyle Hidden
 
 Write-Host "Waiting 10 seconds for server to start..."
 Start-Sleep -Seconds 10

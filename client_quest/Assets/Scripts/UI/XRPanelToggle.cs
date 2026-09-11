@@ -48,14 +48,20 @@ namespace FoveAI.UI
                 }
             }
 
-            // Hide panel at start
-            if (chatPanel != null)
-            {
-                _panelVisible = chatPanel.activeSelf;
-            }
-            else
+            if (chatPanel == null)
             {
                 Debug.LogError("[XRPanelToggle] No chatPanel assigned!");
+            }
+        }
+
+        private void Start()
+        {
+            // Hand tracking mode without controllers: auto-show chat panel in front of user
+            if (chatPanel != null)
+            {
+                _panelVisible = true;
+                chatPanel.SetActive(true);
+                PositionPanelInFrontOfUser();
             }
         }
 
@@ -169,6 +175,7 @@ namespace FoveAI.UI
             Vector3 cameraPos = xrCamera.transform.position;
             Vector3 cameraForward = xrCamera.transform.forward;
             cameraForward.y = 0f; // keep panel at same height, ignore pitch
+            if (cameraForward.sqrMagnitude < 0.01f) cameraForward = Vector3.forward;
             cameraForward.Normalize();
 
             // Position 2m in front of the camera
@@ -177,8 +184,8 @@ namespace FoveAI.UI
 
             chatPanel.transform.position = panelPos;
 
-            // Face the panel toward the user
-            Vector3 lookDir = (cameraPos - panelPos).normalized;
+            // Face the panel toward the user (canvas +Z points away from camera, so front faces user)
+            Vector3 lookDir = panelPos - cameraPos;
             lookDir.y = 0f;
             if (lookDir.sqrMagnitude > 0.001f)
             {

@@ -21,18 +21,18 @@ namespace FoveAI.UI
     public class UserHUD : MonoBehaviour
     {
         [Header("Positioning")]
-        public float distance = 3.5f;
+        public float distance = 2.2f;
         public float smoothSpeed = 6f;
 
         [Header("Corner Glow")]
-        [Range(0.08f, 0.25f)] public float cornerSize = 0.12f;
-        [Range(0f, 0.6f)] public float peakAlpha = 0.28f;
-        [Range(0f, 0.3f)] public float idlePeakAlpha = 0.08f;
-        public float cyclePeriod = 24f;
+        [Range(0.08f, 0.35f)] public float cornerSize = 0.20f;
+        [Range(0f, 1.0f)] public float peakAlpha = 0.75f;
+        [Range(0f, 0.8f)] public float idlePeakAlpha = 0.40f;
+        public float cyclePeriod = 16f;
         public float activityFadeDuration = 3f;
 
         [Header("Metrics Bar")]
-        [Range(0f, 0.5f)] public float barAlpha = 0.35f;
+        [Range(0f, 1.0f)] public float barAlpha = 0.55f;
         public float barPulseSpeed = 2f;
 
         [Header("Icons")]

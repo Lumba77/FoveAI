@@ -1,4 +1,4 @@
-"""
+r"""
 FoveAI Wake Listener — Windows PC side
 =======================================
 Listens on UDP port 9999 for a wake broadcast from the Quest 3 APK.

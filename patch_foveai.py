@@ -3,13 +3,13 @@ import re
 with open('Start_FoveAI.ps1', 'r', encoding='utf-8') as f:
     content = f.read()
 
-search_str = '''$Global:ActiveProcs = @{}
+search_str = r'''$Global:ActiveProcs = @{}
 
 
     "MOUTH"  = @{ Path="$FoveAI_ROOT\Frontend\Mouth"; Cmd="foveai_mouth_kokoro_server.py" }'''
 
 if search_str in content:
-    replacement = '''$Global:ActiveProcs = @{}
+    replacement = r'''$Global:ActiveProcs = @{}
 
 $Global:DebugMode = $LumaxDebug
 $Global:DebugLog = $null

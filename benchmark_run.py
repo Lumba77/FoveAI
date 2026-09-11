@@ -56,8 +56,12 @@ def main():
         help="Quick mode: 5 questions per track instead of 20",
     )
     parser.add_argument(
+        "--port", type=int, default=8402,
+        help="Port for API server (default: 8402)",
+    )
+    parser.add_argument(
         "--api", action="store_true",
-        help="Use active API server on port 8300 instead of loading model locally",
+        help="Use active API server on port 8402 (or --port) instead of loading model locally",
     )
     parser.add_argument(
         "--stub", action="store_true",
@@ -90,7 +94,7 @@ def main():
     print(f"  Model  : {xrlf_path}")
     print(f"  Tracks : {tracks or 'all'}")
     print(f"  Mode   : {'quick (5q)' if args.quick else 'full (20q)'}")
-    print(f"  Target : {'API Server' if args.api else 'Local runtime'}")
+    print(f"  Target : {f'API Server (port {args.port})' if args.api else 'Local runtime'}")
     print(f"  Stub   : {args.stub}")
     print()
 
@@ -107,6 +111,7 @@ def main():
         tracks=tracks,
         quick=args.quick,
         use_api=args.api,
+        port=args.port,
     )
 
     # ── Print summary ─────────────────────────────────────────────────────────

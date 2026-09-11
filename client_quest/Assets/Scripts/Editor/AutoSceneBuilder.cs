@@ -216,13 +216,22 @@ namespace FoveAI.Editor
                 SetSerializedRef(xrToggleSer, "chatPanel", chatCanvas);
                 SetSerializedRef(xrToggleSer, "xrCamera", cam);
                 xrToggleSer.ApplyModifiedProperties();
-                chatCanvas.SetActive(false); // Start hidden
+                chatCanvas.SetActive(true); // Active at start (hand-tracking friendly)
             }
 
             // --- Debug Overlay (visible in headset, since ADB may not be available) ---
             var debugObj = new GameObject("QuestDebugOverlay");
             debugObj.transform.SetParent(root.transform, false);
             debugObj.AddComponent<FoveAI.DebugOverlay.QuestDebugOverlay>();
+
+            // --- 4-Way XR Chat Relay Panel (visible at start in front of user) ---
+            var chatRelayGo = new GameObject("ChatRelayPanel");
+            var chatRelayCanvas = chatRelayGo.AddComponent<Canvas>();
+            chatRelayGo.AddComponent<CanvasScaler>();
+            chatRelayGo.AddComponent<GraphicRaycaster>();
+            chatRelayGo.AddComponent<FoveAI.UI.ChatRelayPanel>();
+            chatRelayGo.SetActive(true); // Active at start
+            Debug.Log("[Spatial Machine] ChatRelayPanel added — visible at start (hand-tracking friendly).");
 
             // --- XR Rig Fixer (adds controllers + passthrough at runtime) ---
             var xrFixerObj = new GameObject("XRRigFixer");
@@ -546,8 +555,8 @@ namespace FoveAI.Editor
             SetSerializedRef(xrToggleSer, "xrCamera", cam);
             xrToggleSer.ApplyModifiedProperties();
 
-            // Hide the chat panel at start (XRPanelToggle also does this in Awake)
-            chatCanvas.SetActive(false);
+            // Keep the chat panel active at start for hand tracking users without controllers
+            chatCanvas.SetActive(true);
 
             EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
             EditorSceneManager.SaveScene(EditorSceneManager.GetActiveScene());

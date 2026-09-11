@@ -69,6 +69,7 @@ export class SoftLayerLoader {
         'chameleon.js',
         'clothing.js',
         'wall.js',
+        'chat_relay.js',
     ];
 
     constructor(apiBase: string = API_BASE) {

@@ -1525,15 +1525,15 @@ if __name__ == "__main__":
     import sys
     crash_log_path = os.path.join(os.path.dirname(__file__), "..", "..", "logs", "soul_core_crash.log")
     try:
-    try:
-        import sys
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-        from server_config import ServerConfig as cfg
-        _host = cfg.BIND_HOST
-        _port = cfg.SOUL_PORT
-    except ImportError:
-        _host = os.getenv("FOVEAI_BIND_HOST", "0.0.0.0")
-        _port = int(os.getenv("SOUL_PORT", "8001"))
+        try:
+            import sys
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+            from server_config import ServerConfig as cfg
+            _host = cfg.BIND_HOST
+            _port = cfg.SOUL_PORT
+        except ImportError:
+            _host = os.getenv("FOVEAI_BIND_HOST", "0.0.0.0")
+            _port = int(os.getenv("SOUL_PORT", "8001"))
         uvicorn.run(app, host=_host, port=_port, log_level="warning")
     except Exception as e:
         with open(crash_log_path, "a") as f:
@@ -1541,6 +1541,6 @@ if __name__ == "__main__":
             f.write(f"Exception: {e}\n")
             traceback.print_exc(file=f)
             f.write("\n")
-        print(f"[Soul Core] 💥 CRASH — logged to {crash_log_path}")
-        print(f"[Soul Core] 💥 Exception: {e}")
+        print(f"[Soul Core] CRASH — logged to {crash_log_path}")
+        print(f"[Soul Core] Exception: {e}")
         raise

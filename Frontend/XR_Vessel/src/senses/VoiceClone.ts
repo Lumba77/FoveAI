@@ -11,7 +11,8 @@
 export interface VoiceSample { base64: string; duration: number; source: string; }
 export interface VoiceProfile { name: string; samples: VoiceSample[]; model: 'xttsv2' | 'piper' | 'elevenlabs'; }
 
-const HF_TOKEN = typeof process !== 'undefined' ? (process.env.HF_TOKEN || '') : '';
+const envProcess = typeof globalThis !== 'undefined' ? (globalThis as any).process : undefined;
+const HF_TOKEN = envProcess?.env?.HF_TOKEN || '';
 
 export class VoiceClone {
     private profiles: Map<string, VoiceProfile> = new Map();
