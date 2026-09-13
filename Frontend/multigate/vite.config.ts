@@ -1,4 +1,5 @@
-import { defineConfig, loadEnv, Plugin } from 'vite'
+import { defineConfig, loadEnv } from 'vite';
+import type { Plugin } from 'vite';
 import react from '@vitejs/plugin-react'
 import path from 'path'
 import crypto from 'crypto'
@@ -128,7 +129,7 @@ function passwordGate(password: string, allowInsecure: boolean): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, envDir, '')
   const proxyUrl = (env.XRLF_MEMORY_PROXY_URL || 'http://127.0.0.1:8400').replace(/\/$/, '')
-  const soulUrl = (env.SOUL_URL || 'http://127.0.0.1:8404').replace(/\/$/, '')
+  const soulUrl = (env.SOUL_URL || 'http://127.0.0.1:8000').replace(/\/$/, '')
   const mouthUrl = (env.MOUTH_URL || 'http://127.0.0.1:8406').replace(/\/$/, '')
   const proxyPort = (() => {
     try { return new URL(proxyUrl).port || '8400' } catch { return '8400' }
@@ -160,7 +161,7 @@ export default defineConfig(({ mode }) => {
           rewrite: (p) => p.replace(/^\/api\/foveated/, '')
         },
         '/api/soul': {
-          target: proxyUrl,
+          target: soulUrl,
           changeOrigin: true
         },
         '/api/tts': {
@@ -189,6 +190,31 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true
         },
         '/api/thought_stream': {
+          target: proxyUrl,
+          changeOrigin: true
+        },
+        // ── Tunnel same-origin bridges (xarel.net / *.1um6a.se → :5177) ──
+        // The CF tunnel routes apex hostnames to this port; these entries let
+        // the settings panel + full API work through the tunnel with no ports.
+        '/settings.html': {
+          target: 'http://127.0.0.1:8401',
+          changeOrigin: true
+        },
+        '/xrlf': {
+          target: 'http://127.0.0.1:8402',
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/xrlf/, '')
+        },
+        '/v1': {
+          target: proxyUrl,
+          changeOrigin: true
+        },
+        '/health': {
+          target: proxyUrl,
+          changeOrigin: true
+        },
+        // Generic /api fallback LAST — specific /api/* routes above win
+        '/api': {
           target: proxyUrl,
           changeOrigin: true
         }

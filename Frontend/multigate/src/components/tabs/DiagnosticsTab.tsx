@@ -56,7 +56,7 @@ export const DiagnosticsTab: React.FC<DiagnosticsTabProps> = ({
     <div style={{ display: 'flex', gap: '16px', height: '100%', width: '100%', padding: '16px', boxSizing: 'border-box', overflow: 'hidden', background: '#02050a' }}>
       
       {/* LEFT SIDE: Compact Matrix Table Container */}
-      <div style={{ flex: '1.4', minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%', background: 'rgba(5, 12, 22, 0.7)', border: '1px solid rgba(0, 243, 255, 0.15)', borderRadius: '8px', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)', overflow: 'hidden' }}>
+      <div style={{ flex: '1.4', minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%', background: 'rgba(5, 12, 22, 0.7)', border: '1px solid rgba(0, 229, 255, 0.15)', borderRadius: '8px', boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)', overflow: 'hidden' }}>
         
         {loading ? (
           <div style={{ padding: '60px', textAlign: 'center', color: 'var(--accent-cyan)', fontFamily: 'Share Tech Mono' }}>
@@ -65,15 +65,15 @@ export const DiagnosticsTab: React.FC<DiagnosticsTabProps> = ({
         ) : (
           <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', position: 'relative' }}>
             <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.68rem', color: '#fff' }}>
-              <thead style={{ position: 'sticky', top: 0, zIndex: 100, background: '#090e17' }}>
-                <tr style={{ background: '#0a1322', borderBottom: '2px solid #00f3ff' }}>
-                  <th style={{ textAlign: 'left', padding: '8px 10px', fontFamily: 'Orbitron', fontSize: '0.62rem', letterSpacing: '1px', whiteSpace: 'nowrap', width: '22%', background: '#090e17', borderBottom: '2px solid #00f3ff', borderRight: '1px solid rgba(0, 243, 255, 0.2)', color: '#00f3ff' }}>
+              <thead style={{ position: 'sticky', top: 0, zIndex: 100, background: 'var(--bg-panel)' }}>
+                <tr style={{ background: '#0a1322', borderBottom: '2px solid var(--accent-cyan)' }}>
+                  <th style={{ textAlign: 'left', padding: '8px 10px', fontFamily: 'Orbitron', fontSize: '0.62rem', letterSpacing: '1px', whiteSpace: 'nowrap', width: '22%', background: 'var(--bg-panel)', borderBottom: '2px solid var(--accent-cyan)', borderRight: '1px solid rgba(0, 229, 255, 0.2)', color: 'var(--accent-cyan)' }}>
                     Disorder Profile (Click to Assimilate)
                   </th>
                   {DIAGNOSTIC_CRITERIA.map((c, idx) => (
                     <th 
                       key={idx} 
-                      style={{ padding: '6px 2px', borderLeft: '1px solid rgba(255,255,255,0.06)', textAlign: 'center', width: '5.5%', cursor: 'help', background: '#090e17', borderBottom: '2px solid #00f3ff' }}
+                      style={{ padding: '6px 2px', borderLeft: '1px solid rgba(255,255,255,0.06)', textAlign: 'center', width: '5.5%', cursor: 'help', background: 'var(--bg-panel)', borderBottom: '2px solid var(--accent-cyan)' }}
                       onMouseEnter={() => {
                         setHoveredCrit(`${c.label} (${c.id})\n\nClinical Criterion:\n${c.question}`);
                       }}
@@ -81,12 +81,12 @@ export const DiagnosticsTab: React.FC<DiagnosticsTabProps> = ({
                         setHoveredCrit('Hover over any column header or cell to inspect dimension criteria...');
                       }}
                     >
-                      <div style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)', height: '85px', whiteSpace: 'nowrap', margin: '0 auto', fontSize: '0.6rem', padding: '2px 0', color: '#00f3ff', fontWeight: 600 }}>
+                      <div style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)', height: '85px', whiteSpace: 'nowrap', margin: '0 auto', fontSize: '0.6rem', padding: '2px 0', color: 'var(--accent-cyan)', fontWeight: 600 }}>
                         {c.label}
                       </div>
                     </th>
                   ))}
-                  <th style={{ padding: '6px 2px', borderLeft: '1px solid rgba(255,255,255,0.06)', width: '5.5%', cursor: 'help', background: '#090e17', borderBottom: '2px solid #00f3ff' }}>
+                  <th style={{ padding: '6px 2px', borderLeft: '1px solid rgba(255,255,255,0.06)', width: '5.5%', cursor: 'help', background: 'var(--bg-panel)', borderBottom: '2px solid var(--accent-cyan)' }}>
                     <div style={{ writingMode: 'vertical-lr', transform: 'rotate(180deg)', height: '85px', whiteSpace: 'nowrap', margin: '0 auto', fontSize: '0.6rem', padding: '2px 0', color: '#70e0ff', fontWeight: 600 }}>
                       Genetic
                     </div>
@@ -106,7 +106,7 @@ export const DiagnosticsTab: React.FC<DiagnosticsTabProps> = ({
                         borderBottom: '1px solid rgba(255,255,255,0.04)', 
                         transition: 'all 0.15s ease',
                         cursor: 'pointer',
-                        background: isSimulated ? 'rgba(0, 243, 255, 0.12)' : isSelected ? 'rgba(0, 243, 255, 0.08)' : 'transparent'
+                        background: isSimulated ? 'rgba(0, 229, 255, 0.12)' : isSelected ? 'rgba(0, 229, 255, 0.08)' : 'transparent'
                       }}
                       onMouseEnter={() => {
                         setHoveredDef(`[${row.Disorder}] Cluster: ${row.Cluster}\n\nClick row to assimilate this clinical profile into Lumax Persona.\n\nResonance Pattern:\nAbnormal Beliefs: ${row.AbnormalBeliefs || 0} | Social Detachment: ${row.SocialDetachment || 0} | Psychosis: ${row.Psychosis || 0}`);
@@ -115,22 +115,22 @@ export const DiagnosticsTab: React.FC<DiagnosticsTabProps> = ({
                         setHoveredDef('Hover over or click any row to inspect & assimilate clinical disorder profiles...');
                       }}
                     >
-                      <td style={{ textAlign: 'left', padding: '6px 10px', fontFamily: 'Orbitron', fontSize: '0.62rem', whiteSpace: 'nowrap', background: isSimulated ? 'rgba(0, 243, 255, 0.25)' : '#070c14', borderRight: '1px solid rgba(0, 243, 255, 0.15)', color: isSimulated ? '#00f3ff' : '#e0f8ff', fontWeight: isSimulated ? 'bold' : 'normal' }}>
+                      <td style={{ textAlign: 'left', padding: '6px 10px', fontFamily: 'Orbitron', fontSize: '0.62rem', whiteSpace: 'nowrap', background: isSimulated ? 'rgba(0, 229, 255, 0.25)' : '#070c14', borderRight: '1px solid rgba(0, 229, 255, 0.15)', color: isSimulated ? 'var(--accent-cyan)' : '#e0f8ff', fontWeight: isSimulated ? 'bold' : 'normal' }}>
                         {isSimulated && '🎭 '}
                         {row.Disorder}
                       </td>
                       {DIAGNOSTIC_CRITERIA.map((c, colIdx) => {
                         const val = row[c.id] || 0;
-                        let cellStyle: React.CSSProperties = { border: '1px solid rgba(0, 243, 255, 0.06)', textAlign: 'center', fontWeight: 'bold' };
+                        let cellStyle: React.CSSProperties = { border: '1px solid rgba(0, 229, 255, 0.06)', textAlign: 'center', fontWeight: 'bold' };
                         if (val === 1) {
                           cellStyle.background = 'rgba(0, 140, 180, 0.35)';
-                          cellStyle.color = '#50d8ff';
+                          cellStyle.color = 'var(--accent-purple)';
                           cellStyle.border = '1px solid rgba(0, 200, 240, 0.3)';
                         } else if (val === 2) {
-                          cellStyle.background = 'rgba(0, 243, 255, 0.85)';
+                          cellStyle.background = 'rgba(0, 229, 255, 0.85)';
                           cellStyle.color = '#002030';
-                          cellStyle.boxShadow = '0 0 10px rgba(0, 243, 255, 0.8)';
-                          cellStyle.border = '1px solid #00f3ff';
+                          cellStyle.boxShadow = '0 0 10px rgba(0, 229, 255, 0.8)';
+                          cellStyle.border = '1px solid var(--accent-cyan)';
                           cellStyle.fontWeight = 800;
                         }
 
@@ -147,12 +147,12 @@ export const DiagnosticsTab: React.FC<DiagnosticsTabProps> = ({
                         );
                       })}
                       <td style={{ 
-                        border: '1px solid rgba(0, 243, 255, 0.06)', 
-                        background: row.Genetic === 2 ? 'rgba(0, 243, 255, 0.85)' : (row.Genetic === 1 ? 'rgba(0, 140, 180, 0.35)' : 'transparent'),
-                        boxShadow: row.Genetic === 2 ? '0 0 10px rgba(0, 243, 255, 0.8)' : 'none',
+                        border: '1px solid rgba(0, 229, 255, 0.06)', 
+                        background: row.Genetic === 2 ? 'rgba(0, 229, 255, 0.85)' : (row.Genetic === 1 ? 'rgba(0, 140, 180, 0.35)' : 'transparent'),
+                        boxShadow: row.Genetic === 2 ? '0 0 10px rgba(0, 229, 255, 0.8)' : 'none',
                         textAlign: 'center' 
                       }}>
-                        {row.Genetic > 0 ? <div style={{ fontSize: '9px', color: row.Genetic === 2 ? '#002030' : '#50d8ff', fontWeight: 'bold' }}>{row.Genetic === 2 ? '🧬🧬' : '🧬'}</div> : ''}
+                        {row.Genetic > 0 ? <div style={{ fontSize: '9px', color: row.Genetic === 2 ? '#002030' : 'var(--accent-purple)', fontWeight: 'bold' }}>{row.Genetic === 2 ? '🧬🧬' : '🧬'}</div> : ''}
                       </td>
                     </tr>
                   );
@@ -168,9 +168,9 @@ export const DiagnosticsTab: React.FC<DiagnosticsTabProps> = ({
         
         {/* Active Simulation Status Card */}
         {activeSimulation && (
-          <div style={{ background: 'rgba(0, 243, 255, 0.1)', border: '1px solid #00f3ff', padding: '14px', borderRadius: '8px', boxShadow: '0 0 16px rgba(0, 243, 255, 0.3)' }}>
+          <div style={{ background: 'rgba(0, 229, 255, 0.1)', border: '1px solid var(--accent-cyan)', padding: '14px', borderRadius: '8px', boxShadow: '0 0 16px rgba(0, 229, 255, 0.3)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontFamily: 'Orbitron', fontSize: '0.72rem', color: '#00f3ff', fontWeight: 'bold' }}>
+              <div style={{ fontFamily: 'Orbitron', fontSize: '0.72rem', color: 'var(--accent-cyan)', fontWeight: 'bold' }}>
                 🎭 ACTIVE SIMULATION
               </div>
               <button 
@@ -183,40 +183,40 @@ export const DiagnosticsTab: React.FC<DiagnosticsTabProps> = ({
             <div style={{ fontSize: '0.85rem', fontWeight: 'bold', color: '#fff', marginTop: '6px' }}>
               {activeSimulation.Disorder}
             </div>
-            <div style={{ fontSize: '0.68rem', color: '#a0e0ff', marginTop: '4px' }}>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '4px' }}>
               🛡️ Memory Shield Active: Turn events are isolated and will not pollute permanent memory.
             </div>
           </div>
         )}
 
         {/* Title & Action Box */}
-        <div style={{ background: 'rgba(0, 243, 255, 0.03)', border: '1px solid rgba(0, 243, 255, 0.2)', padding: '16px', borderRadius: '8px' }}>
-          <div className="breadcrumb" style={{ fontSize: '0.75rem', color: '#00f3ff', letterSpacing: '1px' }}>
+        <div style={{ background: 'rgba(0, 229, 255, 0.03)', border: '1px solid rgba(0, 229, 255, 0.2)', padding: '16px', borderRadius: '8px' }}>
+          <div className="breadcrumb" style={{ fontSize: '0.75rem', color: 'var(--accent-cyan)', letterSpacing: '1px' }}>
             DIAGNOSTIC COMPARISON MATRIX
           </div>
-          <div style={{ fontSize: '0.72rem', opacity: 0.8, color: '#a0e0ff', marginTop: '6px', lineHeight: '1.4' }}>
+          <div style={{ fontSize: '0.72rem', opacity: 0.8, color: 'var(--text-muted)', marginTop: '6px', lineHeight: '1.4' }}>
             Click any disorder profile row to temporarily assimilate the clinical traits into Lumax Persona for educational exploration.
           </div>
           
           {/* Legend */}
           <div style={{ display: 'flex', gap: '12px', marginTop: '12px', padding: '8px 10px', background: 'rgba(0,0,0,0.4)', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)', fontSize: '0.65rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '12px', height: '12px', background: 'rgba(0, 140, 180, 0.45)', border: '1px solid #00b4d8', borderRadius: '2px' }}></div>
+              <div style={{ width: '12px', height: '12px', background: 'rgba(0, 140, 180, 0.45)', border: '1px solid var(--accent-purple)', borderRadius: '2px' }}></div>
               <span style={{ color: '#70e0ff' }}>1 = Moderate</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <div style={{ width: '12px', height: '12px', background: 'rgba(0, 243, 255, 0.85)', boxShadow: '0 0 8px #00f3ff', borderRadius: '2px' }}></div>
-              <span style={{ color: '#00f3ff', fontWeight: 'bold' }}>2 = Severe Flare</span>
+              <div style={{ width: '12px', height: '12px', background: 'rgba(0, 229, 255, 0.85)', boxShadow: '0 0 8px var(--accent-cyan)', borderRadius: '2px' }}></div>
+              <span style={{ color: 'var(--accent-cyan)', fontWeight: 'bold' }}>2 = Severe Flare</span>
             </div>
           </div>
         </div>
 
         {/* Selected Disorder Card */}
         {selectedDisorder && (
-          <div style={{ background: 'rgba(0, 243, 255, 0.05)', border: '1px solid rgba(0, 243, 255, 0.3)', padding: '14px', borderRadius: '8px' }}>
-            <div style={{ fontSize: '0.68rem', fontFamily: 'Orbitron', color: '#00f3ff' }}>SELECTED PROFILE FOR ASSIMILATION</div>
+          <div style={{ background: 'rgba(0, 229, 255, 0.03)', backdropFilter: 'blur(12px)', border: '1px solid rgba(0, 229, 255, 0.3)', padding: '14px', borderRadius: '8px' }}>
+            <div style={{ fontSize: '0.68rem', fontFamily: 'Orbitron', color: 'var(--accent-cyan)' }}>SELECTED PROFILE FOR ASSIMILATION</div>
             <div style={{ fontSize: '0.95rem', fontWeight: 'bold', color: '#fff', margin: '4px 0' }}>{selectedDisorder.Disorder}</div>
-            <div style={{ fontSize: '0.72rem', color: '#a0e0ff', marginBottom: '10px' }}>Cluster: {selectedDisorder.Cluster}</div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '10px' }}>Cluster: {selectedDisorder.Cluster}</div>
 
             <div style={{ display: 'flex', gap: '8px' }}>
               <button 
@@ -227,7 +227,7 @@ export const DiagnosticsTab: React.FC<DiagnosticsTabProps> = ({
               </button>
               <button 
                 onClick={() => onAssimilateDisorder && onAssimilateDisorder(selectedDisorder, 'xr')}
-                style={{ flex: 1, padding: '8px 10px', background: 'rgba(0,0,0,0.5)', color: '#00f3ff', border: '1px solid #00f3ff', borderRadius: '4px', fontWeight: 'bold', fontSize: '0.68rem', cursor: 'pointer' }}
+                style={{ flex: 1, padding: '8px 10px', background: 'rgba(0,0,0,0.5)', color: 'var(--accent-cyan)', border: '1px solid var(--accent-cyan)', borderRadius: '4px', fontWeight: 'bold', fontSize: '0.68rem', cursor: 'pointer' }}
               >
                 🕶️ WebXR Experience
               </button>
@@ -236,21 +236,21 @@ export const DiagnosticsTab: React.FC<DiagnosticsTabProps> = ({
         )}
 
         {/* Dynamic Criteria Definition Panel */}
-        <div style={{ background: 'rgba(0, 243, 255, 0.04)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(0, 243, 255, 0.2)', fontSize: '0.75rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ color: '#00f3ff', fontFamily: 'Orbitron', fontWeight: 700, fontSize: '0.7rem', letterSpacing: '1px', marginBottom: '8px' }}>
+        <div style={{ background: 'rgba(0, 229, 255, 0.02)', backdropFilter: 'blur(12px)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(0, 229, 255, 0.2)', fontSize: '0.75rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ color: 'var(--accent-cyan)', fontFamily: 'Orbitron', fontWeight: 700, fontSize: '0.7rem', letterSpacing: '1px', marginBottom: '8px' }}>
             🔬 CRITERIA DIMENSION
           </div>
-          <div style={{ opacity: 0.9, fontFamily: 'Share Tech Mono', color: '#d0f5ff', whiteSpace: 'pre-wrap', lineHeight: '1.5', flex: 1, overflowY: 'auto' }}>
+          <div style={{ opacity: 0.9, fontFamily: 'Share Tech Mono', color: 'var(--text-main)', whiteSpace: 'pre-wrap', lineHeight: '1.5', flex: 1, overflowY: 'auto' }}>
             {hoveredCrit}
           </div>
         </div>
 
         {/* Dynamic Clinical Detail Panel */}
-        <div style={{ background: 'rgba(0, 180, 216, 0.04)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(0, 180, 216, 0.2)', fontSize: '0.75rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ color: '#50d8ff', fontFamily: 'Orbitron', fontWeight: 700, fontSize: '0.7rem', letterSpacing: '1px', marginBottom: '8px' }}>
+        <div style={{ background: 'rgba(157, 78, 221, 0.02)', backdropFilter: 'blur(12px)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(157, 78, 221, 0.2)', fontSize: '0.75rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ color: 'var(--accent-purple)', fontFamily: 'Orbitron', fontWeight: 700, fontSize: '0.7rem', letterSpacing: '1px', marginBottom: '8px' }}>
             📋 CLINICAL DISORDER DETAIL
           </div>
-          <div style={{ opacity: 0.9, fontFamily: 'Share Tech Mono', color: '#d0f5ff', whiteSpace: 'pre-wrap', lineHeight: '1.5', flex: 1, overflowY: 'auto' }}>
+          <div style={{ opacity: 0.9, fontFamily: 'Share Tech Mono', color: 'var(--text-main)', whiteSpace: 'pre-wrap', lineHeight: '1.5', flex: 1, overflowY: 'auto' }}>
             {hoveredDef}
           </div>
         </div>
@@ -260,8 +260,8 @@ export const DiagnosticsTab: React.FC<DiagnosticsTabProps> = ({
       {/* ASSIMILATION CONFIRMATION MODAL */}
       {showModal && selectedDisorder && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 10000, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ width: '440px', background: '#090e17', border: '1px solid #00f3ff', borderRadius: '12px', padding: '24px', boxShadow: '0 0 30px rgba(0, 243, 255, 0.4)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ fontFamily: 'Orbitron', fontSize: '0.9rem', color: '#00f3ff', fontWeight: 'bold' }}>
+          <div style={{ width: '440px', background: 'var(--bg-panel)', border: '1px solid var(--accent-cyan)', borderRadius: '12px', padding: '24px', boxShadow: '0 0 30px rgba(0, 229, 255, 0.4)', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ fontFamily: 'Orbitron', fontSize: '0.9rem', color: 'var(--accent-cyan)', fontWeight: 'bold' }}>
               🎭 ASSIMILATE CLINICAL SIMULATION
             </div>
             
@@ -269,7 +269,7 @@ export const DiagnosticsTab: React.FC<DiagnosticsTabProps> = ({
               Apply <strong>{selectedDisorder.Disorder}</strong> traits to Lumax Persona for an educational simulation session?
             </div>
 
-            <div style={{ background: 'rgba(0, 243, 255, 0.08)', border: '1px solid rgba(0, 243, 255, 0.2)', padding: '12px', borderRadius: '6px', fontSize: '0.75rem', color: '#a0e0ff', lineHeight: '1.4' }}>
+            <div style={{ background: 'rgba(0, 229, 255, 0.08)', border: '1px solid rgba(0, 229, 255, 0.2)', padding: '12px', borderRadius: '6px', fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>
               🛡️ <strong>Memory Shield Enabled:</strong> Conversation turns during this simulation will be isolated and will NOT be saved to Lumax's permanent memory.
             </div>
 
@@ -279,7 +279,7 @@ export const DiagnosticsTab: React.FC<DiagnosticsTabProps> = ({
                   setShowModal(false);
                   if (onAssimilateDisorder) onAssimilateDisorder(selectedDisorder, 'chat');
                 }}
-                style={{ padding: '12px', background: '#00f3ff', color: '#000', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'Orbitron', letterSpacing: '1px' }}
+                style={{ padding: '12px', background: 'var(--accent-cyan)', color: '#000', border: 'none', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'Orbitron', letterSpacing: '1px' }}
               >
                 💬 START CHAT SIMULATION
               </button>
@@ -289,7 +289,7 @@ export const DiagnosticsTab: React.FC<DiagnosticsTabProps> = ({
                   setShowModal(false);
                   if (onAssimilateDisorder) onAssimilateDisorder(selectedDisorder, 'xr');
                 }}
-                style={{ padding: '12px', background: 'transparent', color: '#00f3ff', border: '1px solid #00f3ff', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'Orbitron', letterSpacing: '1px' }}
+                style={{ padding: '12px', background: 'transparent', color: 'var(--accent-cyan)', border: '1px solid var(--accent-cyan)', borderRadius: '6px', fontWeight: 'bold', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'Orbitron', letterSpacing: '1px' }}
               >
                 🕶️ EXPERIENCE IN WEBXR PORTAL
               </button>

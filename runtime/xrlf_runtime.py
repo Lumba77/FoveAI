@@ -130,6 +130,8 @@ class XRLFRuntime:
 
         # Runtime state
         self.loaded = False
+        self.load_state = "idle"   # idle | loading | ready | error
+        self.load_error: Optional[str] = None
         self.model_name = ""
         self._mm_hooks: Dict = {}
         self._mm_registry: Optional[MMHookRegistry] = None
@@ -155,6 +157,17 @@ class XRLFRuntime:
     # ── Load ──────────────────────────────────────────────────────────────────
 
     def load(self) -> "XRLFRuntime":
+        """Public loader — tracks load_state so /health can answer during load."""
+        self.load_state = "loading"
+        self.load_error = None
+        try:
+            return self._load_impl()
+        except Exception as e:
+            self.load_state = "error"
+            self.load_error = str(e)
+            raise
+
+    def _load_impl(self) -> "XRLFRuntime":
         print("\n" + "=" * 60)
         print("  XRLF RUNTIME — Loading")
         print("=" * 60)
@@ -357,6 +370,7 @@ class XRLFRuntime:
         self._init_soul_bridge()
 
         self.loaded = True
+        self.load_state = "ready"
         print("\n  ✅ XRLF Runtime ready\n")
         return self
 
@@ -759,12 +773,37 @@ class XRLFRuntime:
         if self._memory:
             self._memory.store_turn("user", user_msg)
             self._memory.store_turn("assistant", response)
+            self._resolve_constellation_refs(response)
 
         # Evolve cognitive state
         if self._soul:
             self._soul.evolve(user_msg, response, has_image=has_image)
 
         return response
+
+    def _resolve_constellation_refs(self, response: str) -> None:
+        """Ring-7 endpoint wiring: when the model emits c:<id> constellation
+        handles, expand them and persist the expansion as a system turn —
+        the expansion enters TF-IDF and future co-recall, closing the loop."""
+        import re as _re
+        if self._memory is None:
+            return
+        handles = _re.findall(r'\bc:(\d+)\b|<constellation:\s*([^>]+)>', response)
+        for num, label in handles:
+            handle = int(num) if num else label.strip()
+            expanded = self._memory.expand_constellation(handle)
+            if expanded:
+                digest = "; ".join(
+                    (m["content"][:80] + "…") if len(m["content"]) > 80 else m["content"]
+                    for m in expanded["members"][:4]
+                )
+                self._memory.store_turn(
+                    "system",
+                    f"[constellation c:{expanded['id']} expanded] "
+                    f"{expanded['label']}: {digest}",
+                    tags=["constellation", "expansion"],
+                    ring_id=7,
+                )
 
     def _stream_and_store(
         self,
@@ -777,6 +816,7 @@ class XRLFRuntime:
         response = "".join(full_response)
         self._memory.store_turn("user", user_msg)
         self._memory.store_turn("assistant", response)
+        self._resolve_constellation_refs(response)
 
     def generate(
         self,
@@ -815,6 +855,7 @@ class XRLFRuntime:
             shutil.rmtree(self._tmpdir, ignore_errors=True)
 
         self.loaded = False
+        self.load_state = "idle"
         print("  XRLF Runtime closed.")
 
     def _repack_memory(self):
@@ -854,11 +895,17 @@ def _inject_system(
     if not combined_system:
         return steered
 
+    import re
+
     # Update existing system message or prepend
     for i, m in enumerate(steered):
         if m.get("role") == "system":
             existing = m.get("content", "")
-            steered[i] = {"role": "system", "content": combined_system + "\n\n" + existing}
+            # Remove any existing <background_memory> blocks and the trailing note to prevent infinite growth
+            existing = re.sub(r'<background_memory>.*?</background_memory>\n(?:\[Note:.*?\]\n*)?', '', existing, flags=re.DOTALL)
+            existing = existing.strip()
+            
+            steered[i] = {"role": "system", "content": combined_system + ("\n\n" + existing if existing else "")}
             return steered
 
     steered.insert(0, {"role": "system", "content": combined_system})

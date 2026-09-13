@@ -187,7 +187,11 @@ def main():
     # The HTTP API can stay on localhost, but the WebSocket IPC server must
     # bind to 0.0.0.0 so Quest 3 / network clients can connect.
     # FOVEAI_BACKEND_HOST env var overrides config for network accessibility.
-    api_host = config.get("api", {}).get("host", "127.0.0.1")
+    # Bind host chain: specific override → global FOVEAI_BIND_HOST (.env, the
+    # same base var server_config.py uses) → yaml → localhost.
+    api_host = (os.environ.get("FOVEAI_API_HOST")
+                or os.environ.get("FOVEAI_BIND_HOST")
+                or config.get("api", {}).get("host", "127.0.0.1"))
     ws_host = os.environ.get("FOVEAI_BACKEND_HOST", "0.0.0.0")
     gpu_layers = config.get("gpu_layers", -1)
     n_ctx = config.get("n_ctx", 8192)
@@ -206,6 +210,10 @@ def main():
     import uvicorn
     import asyncio
 
+    # Construct the runtime WITHOUT loading — the HTTP API binds first so
+    # /health can answer {"loaded": false, "load_state": "loading"} during the
+    # entire model-load window instead of refusing connections (which made
+    # panels/trays/launchers report "offline" while it was working).
     runtime = XRLFRuntime(
         xrlf_path=model_path,
         session_id=session_id,
@@ -214,7 +222,6 @@ def main():
         persistent_memory=persistent,
         verbose=verbose,
     )
-    runtime.load()
     app = create_app(runtime)
 
     # ── WebSocket IPC Server (socket-based, minimal latency) ─────────────
@@ -223,18 +230,15 @@ def main():
     ws_port = args.ws_port if args.ws_port else (port + 1)
     ipc_server = IPCServer(runtime=runtime, host=ws_host, port=ws_port)
     ipc_server.runtime_url = f"http://127.0.0.1:{port}"
+    app.state.ipc_server = ipc_server
 
     # Set fallback URLs for STT/TTS (used only when model lacks native audio)
     ipc_server.soul_url = os.environ.get('SOUL_URL', 'http://127.0.0.1:8402')
     ipc_server.mouth_url = os.environ.get('MOUTH_URL', f'http://127.0.0.1:{port}')
 
-    # Preload Whisper (STT) and Kokoro (TTS) so they're always ready
-    print("  📦 Preloading Whisper + Kokoro (always ready, never lazy)...")
-    ipc_server.preload_models()
-
     print(f"\n  🚀 XRLF API   → http://{api_host}:{port}/v1")
     print(f"  🔌 XRLF Socket → ws://{ws_host}:{ws_port}/ws  (Quest clients connect here)")
-    print(f"     Model : {runtime.model_name}")
+    print(f"     Model : {model_path} (loads in background — watch /health load_state)")
     print(f"     Memory: embedded foveated (6-ring, persistent={persistent})")
     print(f"     TTS   : provider-driven (http / Piper / espeak / stub)")
     print(f"\n  HTTP clients  → http://{api_host}:{port}/v1/chat/completions")
@@ -270,6 +274,26 @@ def main():
     ws_thread = threading.Thread(target=_run_ws, daemon=True, name="xrlf-ws")
     ws_thread.start()
     print(f"  📡 WebSocket thread started ({ws_thread.name})")
+
+    # ── Model load in a background thread ──────────────────────────────
+    # /health goes live immediately and reports load_state="loading" until
+    # ready — this is the "announcement" pollers were missing.
+    def _load_model():
+        try:
+            runtime.load()
+            # Preload Whisper (STT) and Kokoro (TTS) so they're always ready
+            print("  📦 Preloading Whisper + Kokoro (always ready, never lazy)...")
+            ipc_server.preload_models()
+            print("  📦 Whisper + Kokoro preloaded")
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            runtime.load_state = "error"
+            runtime.load_error = str(e)
+            print(f"  ❌ Model load failed: {e}")
+
+    load_thread = threading.Thread(target=_load_model, daemon=True, name="xrlf-loader")
+    load_thread.start()
 
     # Run HTTP server in the main thread (uvicorn manages its own loop)
     try:

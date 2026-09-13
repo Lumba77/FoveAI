@@ -120,11 +120,15 @@ def create_app(runtime: XRLFRuntime) -> "FastAPI":
 
     @app.get("/health")
     async def health():
+        load_state = getattr(runtime, "load_state", "ready" if runtime.loaded else "idle")
         return {
             "status": "ok",
             "model": runtime.model_name,
             "runtime": "xrlf-1.0",
             "loaded": runtime.loaded,
+            "loading": load_state == "loading",
+            "load_state": load_state,
+            "load_error": getattr(runtime, "load_error", None),
         }
 
     # ── SoftLayer: serve hot-reloadable JS modules ────────────────────────────
@@ -184,10 +188,12 @@ def create_app(runtime: XRLFRuntime) -> "FastAPI":
     @app.post("/unload")
     async def unload_model():
         """Unload the current model from VRAM without killing the runtime process."""
+        if getattr(runtime, "load_state", "idle") == "loading":
+            raise HTTPException(status_code=409, detail="Model load in progress — wait or restart the runtime")
         if not runtime.loaded:
             return {"status": "ok", "loaded": False, "message": "No model loaded"}
         try:
-            runtime.close()
+            await asyncio.to_thread(runtime.close)
             return {"status": "ok", "loaded": False, "message": f"Unloaded {runtime.model_name}"}
         except Exception as e:
             return {"status": "error", "loaded": runtime.loaded, "error": str(e)}
@@ -196,6 +202,7 @@ def create_app(runtime: XRLFRuntime) -> "FastAPI":
     async def load_model(request: Request):
         """Hot-swap to a different model without restarting the runtime process.
         Body: {"model": "path/to/model.xrlf"}
+        Runs in a thread so /health stays responsive and reports load_state.
         """
         try:
             body = await request.json()
@@ -205,20 +212,25 @@ def create_app(runtime: XRLFRuntime) -> "FastAPI":
         if not model_path:
             return {"status": "error", "loaded": runtime.loaded, "error": "missing 'model' in body"}
 
+        if getattr(runtime, "load_state", "idle") == "loading":
+            raise HTTPException(status_code=409, detail="Model load already in progress")
+
         # Unload current model first if loaded
         if runtime.loaded:
             try:
-                runtime.close()
+                await asyncio.to_thread(runtime.close)
             except Exception as e:
                 print(f"  ⚠️ Error during unload: {e}")
 
         # Reconfigure runtime with new model path and load
         try:
             runtime.xrlf_path = str(model_path)
-            runtime.load()
+            await asyncio.to_thread(runtime.load)
             return {"status": "ok", "loaded": True, "model": runtime.model_name}
         except Exception as e:
-            return {"status": "error", "loaded": runtime.loaded, "error": str(e)}
+            return {"status": "error", "loaded": runtime.loaded,
+                    "load_state": getattr(runtime, "load_state", "error"),
+                    "error": str(e)}
 
     @app.get("/v1/models")
     async def list_models():
@@ -275,6 +287,13 @@ def create_app(runtime: XRLFRuntime) -> "FastAPI":
         completion_id = f"chatcmpl-{uuid.uuid4().hex[:12]}"
         model_id = runtime.model_name or "xrlf-model"
 
+        if not runtime.loaded:
+            state = getattr(runtime, "load_state", "idle")
+            detail = getattr(runtime, "load_error", None) or (
+                "model still loading" if state == "loading" else "no model loaded"
+            )
+            raise HTTPException(status_code=503, detail=f"XRLF runtime not ready ({state}): {detail}")
+
         if req.stream:
             return StreamingResponse(
                 _stream_chat(
@@ -284,9 +303,11 @@ def create_app(runtime: XRLFRuntime) -> "FastAPI":
                 media_type="text/event-stream",
             )
 
-        # Non-streaming
+        # Non-streaming — run in a thread so the event loop (and /health)
+        # stays responsive during blocking inference.
         try:
-            response_text = runtime.chat(
+            response_text = await asyncio.to_thread(
+                runtime.chat,
                 messages=messages,
                 max_tokens=req.max_tokens,
                 temperature=req.temperature,
@@ -450,6 +471,36 @@ def create_app(runtime: XRLFRuntime) -> "FastAPI":
                 except (ImportError, Exception) as e:
                     print(f"[API] Native STT error: {e}")
 
+            # Fallback to IPCServer Whisper if available
+            ipc_server = getattr(request.app.state, "ipc_server", None)
+            fwhisper = getattr(ipc_server, "_fwhisper_model", None) if ipc_server else None
+            if fwhisper:
+                try:
+                    import io, wave, numpy as np
+                    import asyncio
+                    with wave.open(io.BytesIO(audio_bytes), 'rb') as wav:
+                        sr = wav.getframerate()
+                        n_channels = wav.getnchannels()
+                        frames = wav.readframes(wav.getnframes())
+                        audio_np = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+                        if n_channels > 1:
+                            audio_np = audio_np[::n_channels]
+                        if sr != 16000:
+                            n_samples = int(len(audio_np) * 16000 / sr)
+                            indices = np.linspace(0, len(audio_np) - 1, n_samples)
+                            audio_np = np.interp(indices, np.arange(len(audio_np)), audio_np)
+                    
+                    segments, info = await asyncio.to_thread(
+                        fwhisper.transcribe,
+                        audio_np, language="en", beam_size=5,
+                        vad_filter=True,
+                        vad_parameters=dict(min_silence_duration_ms=500, speech_pad_ms=200),
+                    )
+                    text = " ".join(seg.text.strip() for seg in segments).strip()
+                    return {"text": text}
+                except Exception as e:
+                    print(f"[API] IPC Whisper STT error: {e}")
+
             raise HTTPException(status_code=503, detail="Native STT not available — model has no audio support or mmproj not loaded")
         finally:
             os.unlink(tmp.name)
@@ -483,6 +534,28 @@ def create_app(runtime: XRLFRuntime) -> "FastAPI":
                     )
             except Exception as e:
                 print(f"[API] TTS hook error: {e}")
+
+        # Fallback to IPCServer Kokoro if available
+        ipc_server = getattr(request.app.state, "ipc_server", None)
+        if ipc_server and hasattr(ipc_server, "_kokoro_tts"):
+            try:
+                import asyncio
+                pcm_data = await asyncio.to_thread(ipc_server._kokoro_tts, text, voice, 24000)
+                if pcm_data:
+                    import wave, io
+                    buf = io.BytesIO()
+                    with wave.open(buf, 'wb') as wf:
+                        wf.setnchannels(1)
+                        wf.setsampwidth(2)
+                        wf.setframerate(24000)
+                        wf.writeframes(pcm_data)
+                    return Response(
+                        content=buf.getvalue(),
+                        media_type="audio/wav",
+                        headers={"Content-Disposition": "inline; filename=speech.wav"}
+                    )
+            except Exception as e:
+                print(f"[API] IPC Kokoro TTS error: {e}")
 
         raise HTTPException(status_code=503, detail="TTS not available — no TTS hook or external server")
 
