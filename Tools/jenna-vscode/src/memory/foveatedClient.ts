@@ -41,7 +41,7 @@ export interface ChatOptions {
   sessionId?: string;
 }
 
-export type PersonaId = 'code' | 'architect' | 'audit' | 'scribe' | 'test' | 'probe' | 'plan';
+export type PersonaId = 'code' | 'architect' | 'audit' | 'scribe' | 'test' | 'probe' | 'plan' | 'selfcode' | 'fovecode';
 
 export interface PersonaDef {
   id: PersonaId;
@@ -129,6 +129,29 @@ Focus on test coverage, unit testing, integration suites, edge case boundary val
     systemPrompt: `You are Jenna operating in PROBE mode.
 Your goal is to probe the user with sharp, targeted questions to uncover hidden requirements, resolve ambiguity, and align on design trade-offs.
 Ask clarifying questions, present structured options, and help the user flesh out their vision before writing code.`,
+  },
+  selfcode: {
+    id: 'selfcode',
+    name: 'SelfCode',
+    shortName: 'SelfCode',
+    icon: '🤖',
+    role: 'Plugin & App Self-Developer',
+    description: 'Develops the Jenna extension and the FoveAI app itself — vibe-coding the tool from inside the tool.',
+    systemPrompt: `You are Jenna operating in SELFCODE mode — developing the FoveAI system and this very extension (Tools/jenna-vscode) from inside itself.
+Your job: implement features, fix bugs, refactor, and organize the codebase for FoveAI — the local-first XR/AI OS whose XRLF models run locally through the foveated-memory proxy (:8400) and llama.cpp runtime (:8402).
+You may be a cloud model (NVIDIA NIM) acting as a contractor: XRLF local models are the product — never suggest replacing them with cloud calls. Cloud is scaffolding; local is the cathedral.
+Prefer minimal targeted diffs, follow existing conventions, and keep everything typed. Emit code blocks the Apply button can insert.`,
+  },
+  fovecode: {
+    id: 'fovecode',
+    name: 'FoveCode',
+    shortName: 'FoveCode',
+    icon: '🏠',
+    role: 'FoveAI Repository Maintainer',
+    description: 'Main FoveAI repository mode — full-system view across proxy, runtime, frontends, and tools.',
+    systemPrompt: `You are Jenna operating in FOVECODE mode — maintaining the main FoveAI repository as a whole.
+Scope: foveated-memory proxy (:8400), XRLF runtime (:8402/8403), dashboard (:8401), XR frontends (:5176/:5177), Tools/*, selfcoder, and the root .env that is the shared source of truth for compression/aggression settings (XRLF_PROXY_AGGRESSION, XRLF_FOVEATION_OVERRIDE, XRLF_CONTEXT_OVERRIDE, XRLF_REPO_ENABLED).
+Help organize the repo, keep ports/protocols consistent (replace legacy references, don't merge zombie code), and respect the local-first architecture. XRLF models are the proof-of-concept product; cloud models are optional helpers only.`,
   },
 };
 
@@ -321,6 +344,9 @@ export class FoveatedClient {
 
   /** Best-effort: fetch the active model name from /v1/models without failing the whole status call. */
   private async _probeModelName(workspaceId: string, fallback: string): Promise<string> {
+    if (fallback && fallback !== 'auto' && fallback !== 'unknown') {
+      return fallback;
+    }
     try {
       const resp = await fetch(`${this.baseUrl}/v1/models`, {
         headers: this.authHeader(workspaceId),
@@ -329,11 +355,6 @@ export class FoveatedClient {
       if (resp.ok) {
         const data = await resp.json() as { data?: Array<{ id: string }> };
         const ids = data.data?.map(m => m.id) ?? [];
-        // Prefer a primary/active model if present, else the first listed.
-        const preferred = ['gemma-4-12b-it-moq', 'qwopus3.5-9b-coder-mtp-moq', 'qwen3.5-4b-moq', 'kimi-k2.7-code'];
-        for (const p of preferred) {
-          if (ids.includes(p)) return p;
-        }
         return ids[0] ?? fallback;
       }
     } catch {

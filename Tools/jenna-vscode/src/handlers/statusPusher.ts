@@ -81,8 +81,10 @@ export class StatusPusher {
       const totalProblems = errorCount + warningCount;
       const problemsText = totalProblems === 0 ? '0 Problems (Clean)' : `${errorCount} Err, ${warningCount} Warn`;
 
-      const cfgModel = vscode.workspace.getConfiguration('jenna').get<string>('model') || 'XRLF 9B (Coder)';
-      const activeModel = (st && st.model && st.model !== 'auto') ? st.model : cfgModel;
+      const cfgModel = vscode.workspace.getConfiguration('jenna').get<string>('model') || '';
+      const activeModel = (cfgModel && cfgModel !== 'auto' && cfgModel !== 'Auto (Smart Router)')
+        ? cfgModel
+        : ((st && st.model && st.model !== 'auto') ? st.model : 'XRLF 9B (Coder)');
 
       const ae = vscode.window.activeTextEditor;
       const af = ae ? path.basename(ae.document.fileName) : '';

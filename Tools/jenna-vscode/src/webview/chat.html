@@ -46,12 +46,12 @@
     .workspace-context-grid {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 5px;
+      gap: 4px;
       text-align: left;
       background: var(--vscode-editor-background);
       border: 1px solid var(--vscode-panel-border);
       border-radius: 6px;
-      padding: 6px;
+      padding: 5px;
       width: 100%;
       box-sizing: border-box;
       align-items: stretch;
@@ -62,7 +62,7 @@
       justify-content: space-between;
       align-items: flex-start;
       gap: 1px;
-      padding: 5px 7px;
+      padding: 4px 6px;
       background: var(--vscode-input-background);
       border: 1px solid var(--vscode-focusBorder, rgba(0, 255, 204, 0.25));
       border-radius: 6px;
@@ -70,9 +70,9 @@
       overflow: hidden;
       box-sizing: border-box;
       cursor: pointer;
-      min-height: 68px;
-      max-height: 74px;
-      height: 70px;
+      min-height: 56px;
+      max-height: 62px;
+      height: 58px;
       user-select: none;
       position: relative;
     }
@@ -91,7 +91,7 @@
     .ws-stat-secondary {
       display: flex;
     }
-    @media (max-height: 729px) {
+    @media (max-height: 559px) {
       .ws-stat-secondary {
         display: none !important;
       }
@@ -125,30 +125,30 @@
       text-overflow: ellipsis;
       text-align: left;
       color: var(--vscode-foreground, #d4d4d4);
-      font-size: 11px;
-      line-height: 1.25;
+      font-size: 10.5px;
+      line-height: 1.2;
       width: 100%;
     }
     .workspace-context-subvalue {
-      font-size: 9.5px;
+      font-size: 9px;
       color: #00ffcc;
       opacity: 0.85;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       text-align: left;
-      line-height: 1.15;
+      line-height: 1.1;
       width: 100%;
     }
     .workspace-context-detail {
-      font-size: 9px;
+      font-size: 8.5px;
       color: var(--text-muted, #a0aec0);
       opacity: 0.75;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       text-align: left;
-      line-height: 1.1;
+      line-height: 1.05;
       width: 100%;
     }
 
@@ -495,20 +495,29 @@
     }
 
     .msg { display: flex; flex-direction: column; gap: 4px; }
-    .msg-role { font-size: 11px; font-weight: 600; opacity: 0.6; text-transform: uppercase; }
+    .msg-role { font-size: 11px; font-weight: 600; opacity: 0.65; text-transform: uppercase; letter-spacing: 0.5px; }
     .msg-bubble {
-      padding: 10px 12px;
-      border-radius: 8px;
+      padding: 10px 14px;
+      border-radius: 12px;
       background: var(--bg-glass);
       border: 1px solid var(--border);
-      line-height: 1.5;
+      line-height: 1.55;
       font-size: var(--font-size-base);
-      -webkit-backdrop-filter: blur(8px);
-      backdrop-filter: blur(8px); /* Blur behind bubbles for readability */
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.22);
     }
     .msg.user { align-items: flex-end; }
-    .msg.user .msg-bubble { background: color-mix(in srgb, var(--bg-panel) 95%, transparent); max-width: 90%; }
-    .msg.assistant .msg-bubble { background: color-mix(in srgb, var(--bg-panel) 85%, transparent); max-width: 95%; }
+    .msg.user .msg-bubble {
+      background: color-mix(in srgb, var(--bg-panel) 92%, #3794ff 8%);
+      border-color: rgba(55, 148, 255, 0.25);
+      max-width: 90%;
+    }
+    .msg.assistant .msg-bubble {
+      background: color-mix(in srgb, var(--bg-panel) 88%, transparent);
+      border-color: rgba(255, 255, 255, 0.1);
+      max-width: 96%;
+    }
 
     /* ── CODE BLOCKS (IDE Chat Code Block Cards) ────────────────────────── */
     .code-block-container {
@@ -576,17 +585,36 @@
       white-space: pre;
       color: var(--vscode-editor-foreground, #d4d4d4);
     }
+    .inline-code {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0 4px;
+      font-family: var(--vscode-editor-font-family, 'Cascadia Code', Consolas, monospace);
+      font-size: 11px;
+    }
+    .md-h { font-weight: 700; margin: 8px 0 4px; }
+    .md-h1 { font-size: 15px; }
+    .md-h2 { font-size: 14px; }
+    .md-h3 { font-size: 13px; }
+    .md-h4 { font-size: 12px; }
+    .md-li { padding-left: 14px; }
+    .md-link {
+      color: var(--vscode-textLink-foreground, #3794ff);
+      text-decoration: underline;
+      cursor: pointer;
+    }
 
     /* Empty state / Welcome screen */
     #empty-state {
-      margin-top: 40px; /* Moved up for workspace statistics space */
+      margin-top: 70px; /* Fixed margin — no JS jump */
       margin-left: auto;
       margin-right: auto;
-      margin-bottom: auto;
+      margin-bottom: 0; /* auto breaks overflow scrolling in flex column */
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
       opacity: 1.0;
       width: 100%;
     }
@@ -708,49 +736,194 @@
       margin: 0 2px;
       flex-shrink: 0;
     }
+    /* ── DEVIN-INSPIRED FLOATING CAPSULE INPUT BAR ───────────────────────────── */
+    #input-area {
+      padding: 6px 10px 8px 10px;
+      position: relative;
+      z-index: 50;
+      background: var(--bg-base);
+      flex-shrink: 0;
+    }
+
     #input-wrap {
       display: flex !important;
-      background: var(--vscode-input-background, #252526) !important;
-      border: 1px solid var(--border) !important;
-      border-radius: 18px !important;
-      padding: 4px 6px 4px 12px !important;
-      margin: 0 10px 4px 10px !important;
-      align-items: flex-end !important;
-      gap: 6px !important;
+      flex-direction: column !important;
+      background: var(--vscode-editorWidget-background, #252526) !important;
+      border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.14)) !important;
+      border-radius: 14px !important;
+      padding: 0 !important;
+      margin: 0 !important;
       box-sizing: border-box !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28) !important;
+      backdrop-filter: blur(14px) !important;
+      -webkit-backdrop-filter: blur(14px) !important;
       transition: border-color 0.2s, box-shadow 0.2s !important;
       position: relative !important;
     }
     #input-wrap:focus-within {
-      border-color: var(--vscode-focusBorder, #007fd4) !important;
-      box-shadow: 0 0 0 1px var(--vscode-focusBorder, #007fd4) !important;
+      border-color: var(--vscode-focusBorder, #00ffcc) !important;
+      box-shadow: 0 0 0 1px var(--vscode-focusBorder, #00ffcc), 0 4px 20px rgba(0, 255, 204, 0.12) !important;
     }
-    /* Send button anchored to the right inside the input wrap */
-    #input-wrap #send-btn {
-      flex-shrink: 0 !important;
-      align-self: flex-end !important;
-      margin-bottom: 2px !important;
-    }
-    
+
     #chat-input {
       flex: 1 !important;
+      width: auto !important;
       background: transparent !important;
       border: none !important;
       color: var(--text-primary) !important;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-      font-size: 11.5px !important;
-      line-height: 1.35 !important;
+      font-size: 12px !important;
+      line-height: 1.4 !important;
       resize: none !important;
       outline: none !important;
-      min-height: 32px !important;
+      min-height: 46px !important;
       max-height: 180px !important;
-      padding: 2px 0 !important;
+      padding: 8px 4px 6px 12px !important;
       margin: 0 !important;
       box-sizing: border-box !important;
       display: block !important;
       overflow-y: auto !important;
     }
-    #chat-input::placeholder { color: var(--text-muted); opacity: 0.65; font-size: 11.5px; }
+    #chat-input::placeholder { color: var(--text-muted); opacity: 0.6; font-size: 11.5px; }
+
+    /* Top control row inside the capsule (above the input) */
+    #capsule-controls-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 8px 4px 8px;
+      gap: 6px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    /* Input row: growable textarea + send button */
+    #chat-input-row {
+      display: flex;
+      align-items: flex-end;
+      width: 100%;
+      padding: 0 8px 7px 0;
+      box-sizing: border-box;
+    }
+    /* Inner controls row at the bottom of the capsule (centered) */
+    #capsule-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 8px 7px 8px;
+      gap: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .capsule-controls-left {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+    .capsule-controls-right {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex-shrink: 0;
+    }
+
+    /* Devin-style pill button */
+    .devin-pill-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      height: 25px;
+      padding: 0 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--vscode-foreground, #d4d4d4);
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      pointer-events: auto !important;
+      touch-action: manipulation;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .devin-pill-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.25);
+      color: #ffffff;
+    }
+    .devin-pill-btn:active {
+      transform: translateY(1px);
+    }
+
+    /* Devin-style circular icon button */
+    .devin-icon-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      min-width: 28px;
+      min-height: 28px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--vscode-foreground, #d4d4d4);
+      font-size: 12.5px;
+      cursor: pointer;
+      pointer-events: auto !important;
+      touch-action: manipulation;
+      transition: all 0.15s ease;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .devin-icon-btn:hover {
+      background: rgba(255, 255, 255, 0.14);
+      border-color: rgba(255, 255, 255, 0.28);
+      color: #ffffff;
+    }
+    .devin-icon-btn:active {
+      transform: scale(0.95);
+    }
+
+    /* Devin-style quiet footer row below input card */
+    #devin-footer-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 4px 1px 4px;
+      font-size: 10.5px;
+      opacity: 0.75;
+      font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+      user-select: none;
+    }
+    .devin-footer-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .devin-footer-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .devin-footer-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      cursor: pointer;
+      padding: 1px 5px;
+      border-radius: 4px;
+      color: var(--vscode-descriptionForeground, #a0aec0);
+      transition: all 0.15s ease;
+    }
+    .devin-footer-chip:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: #00ffcc;
+    }
     
     .action-btn {
       background: var(--accent); /* Theme button color */
@@ -876,6 +1049,460 @@
     .stats-banner-val { font-size: 16px; font-weight: 800; color: #4CAF50; }
     .stats-banner-val-sm { font-size: 14px; font-weight: 700; color: #4CAF50; }
     .text-right { text-align: right; }
+
+    /* ══════════════════════════════════════════════════════════════════════════
+       FOVEAI AURORA — cohesive design layer (v0.5.0)
+       Devin-inspired polish, distinct identity: deep-ink surfaces, aurora teal
+       primary + soft violet secondary, quiet borders, layered capsule cards.
+       Appended last so it wins the cascade; !important only where the legacy
+       rules or inline styles require it.
+       ══════════════════════════════════════════════════════════════════════════ */
+    :root {
+      --fv-surface: rgba(148, 163, 184, 0.055);
+      --fv-surface-2: rgba(148, 163, 184, 0.10);
+      --fv-border: rgba(148, 163, 184, 0.14);
+      --fv-border-strong: rgba(148, 163, 184, 0.28);
+      --fv-accent: #5eead4;
+      --fv-accent-2: #a78bfa;
+      --fv-accent-dim: rgba(94, 234, 212, 0.12);
+      --fv-violet-dim: rgba(167, 139, 250, 0.12);
+      --fv-text: #e6edf3;
+      --fv-muted: #93a1b0;
+      --fv-danger: #f87171;
+      --fv-radius: 10px;
+      --fv-radius-lg: 14px;
+      --fv-shadow: 0 3px 14px rgba(0, 0, 0, 0.30);
+      --fv-shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.50);
+      --fv-ease: cubic-bezier(0.2, 0.8, 0.3, 1);
+    }
+
+    /* ── Ambient aurora wash behind everything ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(560px 240px at 50% -70px, rgba(94, 234, 212, 0.075), transparent 70%),
+        radial-gradient(480px 220px at 88% 108%, rgba(167, 139, 250, 0.055), transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Quiet scrollbars ── */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.22);
+      border-radius: 99px;
+      border: 2px solid transparent;
+      background-clip: padding-box;
+    }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.4); background-clip: padding-box; }
+
+    /* ── Header: slim translucent bar ── */
+    #header {
+      background: color-mix(in srgb, var(--bg-base) 78%, transparent);
+      -webkit-backdrop-filter: blur(14px);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--fv-border);
+      padding: 7px 12px;
+    }
+    .status-label { color: var(--fv-muted); }
+    #status-text { font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
+    #status-dot.online { background: var(--fv-accent); box-shadow: 0 0 8px rgba(94, 234, 212, 0.8); }
+    #status-dot.offline { background: var(--fv-danger); box-shadow: 0 0 6px rgba(248, 113, 113, 0.6); }
+
+    /* ── Pill buttons (header + toolbar unified with capsule language) ── */
+    .hud-stat-btn {
+      border-radius: 999px !important;
+      background: var(--fv-surface) !important;
+      border: 1px solid var(--fv-border) !important;
+      color: var(--fv-text) !important;
+      font-weight: 500;
+      box-shadow: none;
+      transition: background 0.15s var(--fv-ease), border-color 0.15s var(--fv-ease), color 0.15s;
+    }
+    .hud-stat-btn:hover {
+      background: var(--fv-accent-dim) !important;
+      border-color: rgba(94, 234, 212, 0.4) !important;
+      color: var(--fv-accent) !important;
+      box-shadow: none !important;
+    }
+    .btn-problems-hud { color: var(--fv-danger) !important; }
+
+    .toolbar-btn {
+      border-radius: 999px !important;
+      background: var(--fv-surface) !important;
+      border: 1px solid var(--fv-border) !important;
+      color: var(--fv-text) !important;
+      box-shadow: none !important;
+      font-weight: 500;
+    }
+    .toolbar-btn:hover {
+      background: var(--fv-accent-dim) !important;
+      border-color: rgba(94, 234, 212, 0.4) !important;
+      color: var(--fv-accent) !important;
+      box-shadow: none !important;
+    }
+    .toolbar-btn:active { background: rgba(94, 234, 212, 0.2) !important; box-shadow: none !important; }
+    .toolbar-btn-danger {
+      border-color: rgba(248, 113, 113, 0.4) !important;
+      color: var(--fv-danger) !important;
+      background: rgba(248, 113, 113, 0.1) !important;
+    }
+    .toolbar-btn-danger:hover {
+      background: rgba(248, 113, 113, 0.22) !important;
+      border-color: rgba(248, 113, 113, 0.6) !important;
+      color: #fff !important;
+      box-shadow: none !important;
+    }
+
+    /* ── Dropdowns: floating cards ── */
+    .persona-dropdown {
+      background: color-mix(in srgb, var(--bg-panel) 88%, black) !important;
+      border: 1px solid var(--fv-border) !important;
+      border-radius: var(--fv-radius-lg) !important;
+      padding: 5px !important;
+      box-shadow: var(--fv-shadow-lg) !important;
+      -webkit-backdrop-filter: blur(18px);
+      backdrop-filter: blur(18px);
+    }
+    .persona-option {
+      border-radius: 8px !important;
+      padding: 7px 10px !important;
+      color: var(--fv-text) !important;
+      font-size: 11.5px;
+    }
+    .persona-option:hover {
+      background: var(--fv-accent-dim) !important;
+      color: var(--fv-accent) !important;
+    }
+    .persona-option.selected {
+      background: var(--fv-accent-dim) !important;
+      color: var(--fv-accent) !important;
+      font-weight: 600;
+    }
+
+    /* ── Message bubbles: layered cards, aurora accent on user side ── */
+    #messages { padding: 10px 12px; gap: 14px; }
+    .msg-role {
+      font-size: 10px;
+      letter-spacing: 0.9px;
+      color: var(--fv-muted);
+      opacity: 1;
+    }
+    .msg.user .msg-role { color: var(--fv-accent); }
+    .msg-bubble {
+      border-radius: var(--fv-radius-lg) !important;
+      padding: 11px 15px;
+      border: 1px solid var(--fv-border) !important;
+      box-shadow: var(--fv-shadow);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+    }
+    .msg.assistant .msg-bubble {
+      background: color-mix(in srgb, var(--bg-panel) 82%, transparent) !important;
+    }
+    .msg.user .msg-bubble {
+      background: linear-gradient(135deg,
+        rgba(94, 234, 212, 0.11),
+        rgba(167, 139, 250, 0.09)) !important;
+      border-color: rgba(94, 234, 212, 0.28) !important;
+      border-bottom-right-radius: 5px !important;
+    }
+    .msg.assistant .msg-bubble { border-bottom-left-radius: 5px !important; }
+
+    /* ── Code cards ── */
+    .code-block-container {
+      border-radius: var(--fv-radius) !important;
+      border: 1px solid var(--fv-border) !important;
+      box-shadow: var(--fv-shadow);
+    }
+    .code-block-header {
+      background: rgba(0, 0, 0, 0.25);
+      border-bottom: 1px solid var(--fv-border);
+      padding: 5px 10px;
+    }
+    .code-block-lang { color: var(--fv-accent); }
+    .code-action-btn {
+      border-radius: 999px !important;
+      border: 1px solid var(--fv-border) !important;
+      background: var(--fv-surface) !important;
+    }
+    .code-action-btn:hover {
+      border-color: rgba(94, 234, 212, 0.4) !important;
+      color: var(--fv-accent) !important;
+      background: var(--fv-accent-dim) !important;
+    }
+    .code-action-btn.apply-btn {
+      background: var(--fv-accent-dim) !important;
+      border-color: rgba(94, 234, 212, 0.4) !important;
+      color: var(--fv-accent) !important;
+    }
+    .inline-code {
+      background: var(--fv-surface-2);
+      border: 1px solid var(--fv-border);
+      border-radius: 5px;
+    }
+    .md-link { color: var(--fv-accent); }
+
+    /* ── Task board: quiet card, not neon box ── */
+    #task-board {
+      border: 1px solid var(--fv-border) !important;
+      border-radius: var(--fv-radius-lg) !important;
+      background: var(--fv-surface) !important;
+      margin: 2px 8px 0 8px;
+    }
+    #task-board-header {
+      border-bottom: 1px solid var(--fv-border) !important;
+      background: transparent !important;
+      padding: 7px 12px;
+    }
+    #task-board-title { color: var(--fv-accent) !important; font-size: 10.5px; }
+    #task-board-badge {
+      background: var(--fv-accent-dim) !important;
+      color: var(--fv-accent) !important;
+      border-radius: 999px !important;
+    }
+    #task-board-toggle { color: var(--fv-muted) !important; }
+    #task-board-empty { color: var(--fv-muted) !important; }
+    .task-item:hover { background: var(--fv-surface-2) !important; }
+    .task-checkbox { border-color: var(--fv-border-strong) !important; border-radius: 4px !important; }
+    .task-item.done .task-checkbox { background: var(--fv-accent) !important; border-color: var(--fv-accent) !important; }
+    .task-label { color: var(--fv-text) !important; }
+    .task-item.done .task-label { color: var(--fv-muted) !important; }
+    .task-board-action-btn { color: var(--fv-muted) !important; }
+    .task-board-action-btn:hover { color: var(--fv-accent) !important; border-color: rgba(94,234,212,0.3) !important; }
+    #task-board-footer { border-top: 1px solid var(--fv-border) !important; }
+
+    /* ── Empty state: gradient hero title + quiet tiles ── */
+    #empty-state-hero h2 {
+      font-family: 'Outfit', sans-serif !important;
+      font-weight: 700 !important;
+      letter-spacing: 0.3px;
+      background: linear-gradient(92deg, var(--fv-accent) 10%, var(--fv-accent-2) 90%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent !important;
+    }
+    .workspace-context { color: var(--fv-accent) !important; }
+    .workspace-context-grid {
+      background: transparent !important;
+      border: none !important;
+      gap: 6px !important;
+      padding: 0 !important;
+    }
+    .ws-stat-block {
+      background: var(--fv-surface) !important;
+      border: 1px solid var(--fv-border) !important;
+      border-radius: var(--fv-radius) !important;
+      -webkit-backdrop-filter: blur(8px);
+      backdrop-filter: blur(8px);
+    }
+    .ws-stat-block:hover {
+      border-color: rgba(94, 234, 212, 0.4) !important;
+      background: var(--fv-accent-dim) !important;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3) !important;
+      transform: translateY(-1px);
+    }
+    .workspace-context-label { color: var(--fv-accent) !important; }
+    .workspace-context-subvalue { color: var(--fv-accent) !important; opacity: 0.8; }
+
+    /* ── Sessions accordion + cards ── */
+    .acc-category {
+      border: 1px solid var(--fv-border) !important;
+      border-radius: var(--fv-radius-lg) !important;
+      background: var(--fv-surface) !important;
+    }
+    .acc-header { padding: 9px 12px; }
+    .acc-header:hover { background: var(--fv-surface-2) !important; }
+    .acc-label { color: var(--fv-text); }
+    .acc-count {
+      background: var(--fv-accent-dim) !important;
+      color: var(--fv-accent);
+      border-radius: 999px !important;
+    }
+    .acc-body { border-top: 1px solid var(--fv-border) !important; background: transparent !important; }
+    .recent-session-card {
+      border: 1px solid var(--fv-border) !important;
+      border-radius: var(--fv-radius) !important;
+      background: var(--fv-surface) !important;
+    }
+    .recent-session-card:hover {
+      background: var(--fv-surface-2) !important;
+      border-color: rgba(94, 234, 212, 0.35) !important;
+    }
+    .rs-title { color: var(--fv-text) !important; }
+    #sort-select {
+      background: var(--fv-surface) !important;
+      border: 1px solid var(--fv-border) !important;
+      border-radius: 8px !important;
+      color: var(--fv-text) !important;
+    }
+
+    /* ── Modals: floating glass cards ── */
+    .modal-popover {
+      background: color-mix(in srgb, var(--bg-panel) 88%, black) !important;
+      border: 1px solid var(--fv-border) !important;
+      border-radius: var(--fv-radius-lg) !important;
+      box-shadow: var(--fv-shadow-lg) !important;
+      -webkit-backdrop-filter: blur(18px);
+      backdrop-filter: blur(18px);
+      padding: 14px;
+    }
+    .modal-header { border-bottom: 1px solid var(--fv-border) !important; }
+    .modal-close-btn:hover { color: var(--fv-accent); }
+
+    /* ── Stats surfaces ── */
+    .stats-row, .stats-card {
+      background: var(--fv-surface) !important;
+      border: 1px solid var(--fv-border) !important;
+      border-radius: var(--fv-radius) !important;
+    }
+    .stats-level { color: var(--fv-accent); }
+    .stats-banner {
+      border-radius: var(--fv-radius) !important;
+      border-color: rgba(94, 234, 212, 0.35) !important;
+      background: var(--fv-accent-dim) !important;
+    }
+    .stats-banner-val, .stats-banner-val-sm { color: var(--fv-accent); }
+
+    /* ── Input capsule: keep the loved shape, tune to aurora ── */
+    #input-area { background: transparent !important; }
+    #input-wrap {
+      background: color-mix(in srgb, var(--bg-panel) 88%, black) !important;
+      border: 1px solid var(--fv-border) !important;
+      border-radius: 16px !important;
+      box-shadow: var(--fv-shadow) !important;
+    }
+    #input-wrap:focus-within {
+      border-color: rgba(94, 234, 212, 0.5) !important;
+      box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.25),
+                  0 6px 24px rgba(0, 0, 0, 0.35),
+                  0 0 18px rgba(94, 234, 212, 0.08) !important;
+    }
+    #capsule-controls { border-top: 1px solid var(--fv-border) !important; }
+    .devin-pill-btn, .devin-icon-btn {
+      border: 1px solid var(--fv-border) !important;
+      background: var(--fv-surface) !important;
+      color: var(--fv-text) !important;
+    }
+    .devin-pill-btn:hover, .devin-icon-btn:hover {
+      background: var(--fv-accent-dim) !important;
+      border-color: rgba(94, 234, 212, 0.4) !important;
+      color: var(--fv-accent) !important;
+    }
+    #devin-footer-bar { color: var(--fv-muted); }
+    .devin-footer-chip { color: var(--fv-muted) !important; }
+    .devin-footer-chip:hover {
+      background: var(--fv-surface-2) !important;
+      color: var(--fv-accent) !important;
+    }
+
+    /* ── Misc quiet surfaces ── */
+    #attached-files-bar > div {
+      background: var(--fv-surface) !important;
+      border: 1px solid var(--fv-border) !important;
+      border-radius: 999px !important;
+    }
+    .empty-state-btn {
+      border-radius: 999px !important;
+      border: 1px solid var(--fv-border) !important;
+      background: var(--fv-surface) !important;
+      color: var(--fv-text) !important;
+    }
+    .empty-state-btn:hover {
+      border-color: rgba(94, 234, 212, 0.4) !important;
+      color: var(--fv-accent) !important;
+      background: var(--fv-accent-dim) !important;
+    }
+
+    /* ── AURORA v2: sculpted glass + motion ────────────────────────────── */
+    :root {
+      --fv-glass-top: linear-gradient(180deg, rgba(255,255,255,0.085), rgba(255,255,255,0.025));
+      --fv-glass-card: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.015));
+      --fv-inset-hi: inset 0 1px 0 rgba(255,255,255,0.09);
+      --fv-inset-press: inset 0 2px 6px rgba(0,0,0,0.45);
+      --fv-shadow-btn: var(--fv-inset-hi), 0 2px 8px rgba(0,0,0,0.35);
+      --fv-t: 0.16s var(--fv-ease);
+    }
+    @keyframes fv-drift {
+      0%   { transform: translate3d(0, 0, 0) scale(1); }
+      50%  { transform: translate3d(0, -12px, 0) scale(1.04); }
+      100% { transform: translate3d(0, 0, 0) scale(1); }
+    }
+    @keyframes fv-rise {
+      from { opacity: 0; transform: translateY(6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fv-pulse {
+      0%, 100% { box-shadow: 0 0 6px rgba(94, 234, 212, 0.7); }
+      50%      { box-shadow: 0 0 14px rgba(94, 234, 212, 1.0); }
+    }
+
+    body::before { animation: fv-drift 36s ease-in-out infinite; }
+
+    /* glass buttons — top-lit, lift on hover, press on click */
+    .hud-stat-btn, .toolbar-btn, .devin-pill-btn, .devin-icon-btn,
+    .code-action-btn, .empty-state-btn {
+      background: var(--fv-glass-top), var(--fv-surface) !important;
+      box-shadow: var(--fv-shadow-btn) !important;
+      transition: transform var(--fv-t), box-shadow var(--fv-t),
+                  background var(--fv-t), border-color var(--fv-t), color var(--fv-t) !important;
+    }
+    .hud-stat-btn:hover, .toolbar-btn:hover, .devin-pill-btn:hover,
+    .devin-icon-btn:hover, .code-action-btn:hover, .empty-state-btn:hover {
+      transform: translateY(-1px) !important;
+      box-shadow: var(--fv-inset-hi), 0 4px 14px rgba(0,0,0,0.4),
+                  0 0 12px rgba(94, 234, 212, 0.15) !important;
+    }
+    .hud-stat-btn:active, .toolbar-btn:active, .devin-pill-btn:active,
+    .devin-icon-btn:active, .code-action-btn:active, .empty-state-btn:active {
+      transform: translateY(1px) scale(0.98) !important;
+      box-shadow: var(--fv-inset-press) !important;
+    }
+    .devin-icon-btn:active { transform: scale(0.92) !important; }
+
+    /* glass cards — lit from above, soft depth */
+    .msg-bubble, .ws-stat-block, .acc-category, .recent-session-card,
+    #task-board, .stats-row, .stats-card, .code-block-container {
+      background: var(--fv-glass-card), var(--fv-surface) !important;
+      box-shadow: var(--fv-inset-hi), var(--fv-shadow) !important;
+    }
+    .msg.assistant .msg-bubble {
+      background: var(--fv-glass-card),
+                  color-mix(in srgb, var(--bg-panel) 82%, transparent) !important;
+    }
+    .msg.user .msg-bubble {
+      background: var(--fv-glass-card),
+                  linear-gradient(135deg, rgba(94,234,212,0.11), rgba(167,139,250,0.09)) !important;
+    }
+    #input-wrap {
+      background: var(--fv-glass-card),
+                  color-mix(in srgb, var(--bg-panel) 88%, black) !important;
+      box-shadow: var(--fv-inset-hi), var(--fv-shadow) !important;
+    }
+    .persona-dropdown, .modal-popover {
+      box-shadow: var(--fv-inset-hi), var(--fv-shadow-lg) !important;
+    }
+
+    /* motion — messages rise in, dot breathes, interactive cards lift */
+    .msg { animation: fv-rise 0.28s var(--fv-ease); }
+    #status-dot.online { animation: fv-pulse 3.2s ease-in-out infinite; }
+    .ws-stat-block, .recent-session-card {
+      transition: transform var(--fv-t), box-shadow var(--fv-t),
+                  background var(--fv-t), border-color var(--fv-t) !important;
+    }
+    .ws-stat-block:hover, .recent-session-card:hover {
+      transform: translateY(-2px) !important;
+      box-shadow: var(--fv-inset-hi), 0 8px 20px rgba(0,0,0,0.42),
+                  0 0 16px rgba(94, 234, 212, 0.10) !important;
+    }
+
+    /* send button: aurora ring on hover */
+    #send-btn:hover {
+      filter: drop-shadow(0 0 6px rgba(94, 234, 212, 0.6)) !important;
+      transform: scale(1.08) !important;
+    }
   </style>
 </head>
 <body>
@@ -911,6 +1538,8 @@
             <div class="persona-option" data-id="Coder">Coder</div>
             <div class="persona-option" data-id="Architect">Architect</div>
             <div class="persona-option" data-id="Plan">Plan</div>
+            <div class="persona-option" data-id="SelfCode">🤖 SelfCode</div>
+            <div class="persona-option" data-id="FoveCode">🏠 FoveCode</div>
           </div>
         </div>
 
@@ -919,7 +1548,7 @@
         <!-- XRL Compression Selector Dropdown -->
         <div class="persona-container">
           <button type="button" id="xrl-btn" class="hud-stat-btn" title="Change Context Compression Level (Xrl)" aria-label="Change Context Compression Level (Xrl)">
-            <span id="hud-xrl">Xrl 5</span> ▾
+            <span id="hud-xrl">Xrl …</span> ▾
           </button>
           <div id="xrl-dropdown" class="persona-dropdown">
             <div class="persona-option" data-level="0">Xrl 0</div>
@@ -930,6 +1559,16 @@
             <div class="persona-option" data-level="5">Xrl 5</div>
           </div>
         </div>
+
+        <!-- Send Problems Button -->
+        <button type="button" id="send-problems-btn" class="hud-stat-btn" title="Send all problems to Vibe Coder" aria-label="Send Problems">
+          <span>🤖 Fix</span>
+        </button>
+
+        <!-- New Session Button -->
+        <button type="button" id="new-session-btn" class="hud-stat-btn" title="Start New Session" aria-label="New Session">
+          <span>✨ New</span>
+        </button>
 
       </div>
     </div>
@@ -1065,57 +1704,123 @@
       </div>
     </div>
 
-    <!-- INPUT AREA -->
+    <!-- INPUT AREA (Devin-Inspired Floating Capsule & Context Footer) -->
     <div id="input-area">
       <div id="attached-files-bar" class="gap-6"></div>
 
-      <!-- ── Top rounded action bar (Symmetrical & Centered) ── -->
-      <div style='display: flex; align-items: center; justify-content: center; padding: 0 10px 8px 10px; gap: 8px;'>
-        <button type='button' id='toolbar-problems-btn' class='toolbar-btn' style='border-radius: 999px; padding: 6px 14px; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: 6px;' title='Send problems'>
-          <svg width='13' height='13' viewBox='0 0 24 24' fill='currentColor' aria-hidden='true'><path d='M12 2L1 21h22L12 2zm0 3.5L20.3 19H3.7L12 5.5zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z'/></svg>
-          <span>Send problems</span>
-          <span id='toolbar-problem-count' style='display: none; background: rgba(239,68,68,0.7); color: white; border-radius: 8px; font-size: 10px; font-weight: 700; padding: 0 5px; min-width: 16px; height: 16px; margin-left: 4px; align-items: center; justify-content: center;'>0</span>
-        </button>
-        <button type='button' id='btn-load-latest' class='toolbar-btn' style='border-radius: 999px; padding: 6px 14px; font-size: 12px; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: 6px;' title='Load Latest Session'>🕒 Latest</button>
-        <button type='button' id='speaker-btn' class='toolbar-btn' style='border-radius: 50%; width: 32px; height: 32px; min-width: 32px; min-height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center;' title='Toggle voice output'>🔊</button>
-        <button type='button' id='record-btn' class='toolbar-btn' style='border-radius: 50%; width: 32px; height: 32px; min-width: 32px; min-height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 14px;' title='Voice Input' aria-label='Voice Input'>🎤</button>
-      </div>
+      <!-- ── Unified Floating Capsule Card ── -->
+      <div id='input-wrap'>
+        <!-- Top row: context controls -->
+        <div id='capsule-controls-top'>
+          <div class='capsule-controls-left'>
+            <button type='button' id='toolbar-attach-btn' class='devin-icon-btn' title='Attach File' aria-label='Attach File'>
+              <span style='font-size: 15px; line-height: 1;'>+</span>
+            </button>
 
-      <!-- ── Text input row ──────────────────────────────────────────── -->
-      <div id='input-wrap' style='padding: 6px 8px 6px 14px;'>
-        <label for='chat-input' class='sr-only'>Ask Vibe Coder</label>
-        <textarea id='chat-input' placeholder='Formulate a prompt.' rows='1' aria-label='Chat Message Input' style='font-family: Inter, sans-serif; padding: 4px 0;'></textarea>
-        <button type='button' id='send-btn' class='action-btn action-btn-trans' style='width: 32px; height: 32px; min-width: 32px; min-height: 32px; flex: 0 0 32px; flex-shrink: 0; aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; background: transparent; border: none; padding: 0; box-shadow: none; border-radius: 50%; cursor: pointer;' title='Send Message' aria-label='Send Message'>
-          <img id='send-btn-img' src='{{SEND_BTN_URI}}' style='width: 32px; height: 32px; min-width: 32px; min-height: 32px; aspect-ratio: 1/1; border-radius: 50%; object-fit: cover; display: block; flex-shrink: 0;' alt='Send'/>
-          <div id='tape-recorder-box' style='display: none; width: 32px; height: 32px; align-items: center; justify-content: center;'></div>
-        </button>
-      </div>
+            <div class="persona-container">
+              <button type='button' id='person-btn' class='devin-pill-btn' title='Persona Mode'>
+                <span>✦</span>
+                <span id='person-btn-label'>Coder</span>
+                <span style='font-size: 8.5px; opacity: 0.55; margin-left: -1px;'>▾</span>
+              </button>
+              <div id="bottom-persona-dropdown" class="persona-dropdown" style="bottom: calc(100% + 6px); top: auto; min-width: 120px; left: 0; transform: none;">
+                <div class="persona-option" data-id="Coder">Coder</div>
+                <div class="persona-option" data-id="Architect">Architect</div>
+                <div class="persona-option" data-id="Plan">Plan</div>
+                <div class="persona-option" data-id="SelfCode">🤖 SelfCode</div>
+                <div class="persona-option" data-id="FoveCode">🏠 FoveCode</div>
+              </div>
+            </div>
 
-      <!-- ── Bottom rounded action bar (Symmetrical & Centered) ── -->
-      <div style='display: flex; align-items: center; justify-content: center; padding: 8px 10px 0 10px; gap: 8px; flex-wrap: wrap;'>
-        <div class="persona-container">
-          <button type='button' id='model-btn' class='toolbar-btn' style='border-radius: 999px; padding: 5px 12px; font-size: 12px;' title='Select Coding Specialist Model'>XRLF 9B (Coder)</button>
-          <div id="model-dropdown" class="persona-dropdown" style="bottom: calc(100% + 6px); top: auto; min-width: 210px; left: 50%; transform: translateX(-50%);">
-            <div class="persona-option" data-model="Auto (Smart Router)">⚡ Auto (Smart Router)</div>
-            <div class="persona-option" data-model="XRLF 9B (Coder)">🧠 XRLF 9B (Coder) ★</div>
-            <div class="persona-option" data-model="XRLF 1.5B (Coder MTP)">⚡ XRLF 1.5B (Coder MTP)</div>
-            <div class="persona-option" data-model="Cloud — Gemini 3.6 Flash">☁️ Cloud — Gemini 3.6 Flash</div>
-            <div class="persona-option" data-model="Cloud — Gemini 2.5 Pro">☁️ Cloud — Gemini 2.5 Pro</div>
-            <div class="persona-option" data-model="Cloud — Claude 3.7 Sonnet">☁️ Cloud — Claude 3.7 Sonnet</div>
-            <div class="persona-option" data-model="Cloud — Ollama Cloud">☁️ Cloud — Ollama Cloud</div>
+            <div class="persona-container">
+              <button type='button' id='model-btn' class='devin-pill-btn' title='Select Coding Specialist Model'>
+                <span>🧠</span>
+                <span id='model-btn-label'>XRLF 9B (Coder)</span>
+                <span style='font-size: 8.5px; opacity: 0.55; margin-left: -1px;'>▾</span>
+              </button>
+              <div id="model-dropdown" class="persona-dropdown" style="bottom: calc(100% + 6px); top: auto; min-width: 260px; left: 0; transform: none;">
+                <div class="persona-option" data-model="Auto (Smart Router)">⚡ Auto (Smart Router)</div>
+                <div class="persona-option" data-model="XRLF 9B (Coder)">🧠 XRLF 9B (Coder) ★</div>
+                <div class="persona-option" data-model="XRLF 1.5B (Coder MTP)">⚡ XRLF 1.5B (Coder MTP)</div>
+                <div class="persona-option" data-model="Cloud — Gemini 3.6 Flash">☁️ Cloud — Gemini 3.6 Flash</div>
+                <div class="persona-option" data-model="Cloud — Gemini 2.5 Pro">☁️ Cloud — Gemini 2.5 Pro</div>
+                <div class="persona-option" data-model="Cloud — Claude 3.7 Sonnet">☁️ Cloud — Claude 3.7 Sonnet</div>
+                <div class="persona-option" data-model="Cloud — Ollama Cloud">☁️ Cloud — Ollama Cloud</div>
+                <div class="persona-option" data-model="nvidia/moonshotai/kimi-k3">🟢 NVIDIA — Kimi K3 (Reasoning)</div>
+                <div class="persona-option" data-model="nvidia/deepseek-ai/deepseek-v4-pro-0813">🟢 NVIDIA — DeepSeek V4 Pro (Reasoning)</div>
+                <div class="persona-option" data-model="nvidia/deepseek-ai/deepseek-v4-flash-0731">🟢 NVIDIA — DeepSeek V4 Flash (Fast)</div>
+                <div class="persona-option" data-model="nvidia/deepseek-ai/deepseek-coder-6.7b-instruct">🟢 NVIDIA — DeepSeek Coder 6.7B</div>
+                <div class="persona-option" data-model="nvidia/meta/codellama-70b">🟢 NVIDIA — CodeLlama 70B</div>
+                <div class="persona-option" data-model="nvidia/mistralai/codestral-22b-instruct-v0.1">🟢 NVIDIA — Codestral 22B</div>
+                <div class="persona-option" data-model="nvidia/google/gemma-4-31b-it">🟢 NVIDIA — Gemma 4 31B</div>
+                <div class="persona-option" data-model="nvidia/nvidia/llama-3.1-nemotron-ultra-253b-v1">🟢 NVIDIA — Nemotron Ultra 253B</div>
+                <div class="persona-option" data-model="nvidia/nvidia/nemotron-3-super-120b-a12b">🟢 NVIDIA — Nemotron Super 120B</div>
+                <div class="persona-option" data-model="nvidia/openai/gpt-oss-20b">🟢 NVIDIA — GPT-OSS 20B</div>
+                <div class="persona-option" data-model="nvidia/z-ai/glm-5.3-flash">🟢 NVIDIA — GLM 5.3 Flash</div>
+                <div class="persona-option" data-model="nvidia/mistralai/mistral-large-2-instruct">🟢 NVIDIA — Mistral Large 2</div>
+              </div>
+            </div>
+
+            <button type='button' id='toolbar-problems-btn' class='devin-pill-btn' title='Send problems' style='display: none;'>
+              <span>⚠️</span>
+              <span id='toolbar-problem-count'>0</span>
+            </button>
+          </div>
+          <div class='capsule-controls-right'>
+            <button type='button' id='input-mode-btn' class='devin-pill-btn' style='font-size: 10px; padding: 0 7px; height: 25px;' title='Cycle Mode: TXT / PTT / VAD'>
+              <span>💬 TXT</span>
+            </button>
           </div>
         </div>
-        <button type='button' id='settings-icon-btn' class='toolbar-btn' style='border-radius: 50%; width: 32px; height: 32px; min-width: 32px; min-height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 15px;' title='Attach File' aria-label='Attach File'>📎</button>
-        <div class="persona-container">
-          <button type='button' id='person-btn' class='toolbar-btn' style='border-radius: 50%; width: 32px; height: 32px; min-width: 32px; min-height: 32px; padding: 0; display: inline-flex; align-items: center; justify-content: center; font-size: 14px;' title='Persona'>👤</button>
-          <div id="bottom-persona-dropdown" class="persona-dropdown" style="bottom: calc(100% + 6px); top: auto; min-width: 110px; left: 50%; transform: translateX(-50%);">
-            <div class="persona-option" data-id="Coder">Coder</div>
-            <div class="persona-option" data-id="Architect">Architect</div>
-            <div class="persona-option" data-id="Plan">Plan</div>
+
+        <!-- Middle: two-line growable input with send anchored right -->
+        <div id='chat-input-row'>
+          <label for='chat-input' class='sr-only'>Ask Vibe Coder</label>
+          <textarea id='chat-input' placeholder='Formulate a prompt.' rows='2' aria-label='Chat Message Input'></textarea>
+          <button type='button' id='send-btn' class='action-btn action-btn-trans' style='width: 28px; height: 28px; min-width: 28px; min-height: 28px; flex: 0 0 28px; aspect-ratio: 1/1; display: flex; align-items: center; justify-content: center; background: transparent; border: none; padding: 0; box-shadow: none; border-radius: 50%; cursor: pointer; margin: 0 4px 8px 0;' title='Send Message' aria-label='Send Message'>
+            <img id='send-btn-img' src='{{SEND_BTN_URI}}' style='width: 28px; height: 28px; min-width: 28px; min-height: 28px; aspect-ratio: 1/1; border-radius: 50%; object-fit: cover; display: block; flex-shrink: 0;' alt='Send'/>
+            <div id='tape-recorder-box' style='display: none; width: 28px; height: 28px; align-items: center; justify-content: center;'></div>
+          </button>
+        </div>
+
+        <!-- Bottom row: session & voice actions (centered) -->
+        <div id='capsule-controls'>
+          <button type='button' id='btn-load-latest' class='devin-icon-btn' title='Load Latest Session' aria-label='Load Latest Session'>
+            <span style='font-size: 12px;'>🕒</span>
+          </button>
+          <button type='button' id='btn-list-sessions' class='devin-icon-btn' title='Browse Sessions' aria-label='Browse Sessions'>
+            <span style='font-size: 12px;'>📋</span>
+          </button>
+          <button type='button' id='speaker-btn' class='devin-icon-btn' title='Toggle Voice Output' aria-label='Toggle Voice Output'>
+            <span style='font-size: 13px;'>🔊</span>
+          </button>
+          <button type='button' id='record-btn' class='devin-icon-btn' title='Voice Input (PTT/VAD)' aria-label='Voice Input'>
+            <span style='font-size: 13px;'>🎤</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ── Devin-Style Quiet Context Footer ── -->
+      <div id='devin-footer-bar'>
+        <div class='devin-footer-left'>
+          <span class='devin-footer-chip' id='footer-env' title='Local Node'>💻 Local</span>
+          <span class='devin-footer-chip' id='footer-workspace' title='Click to reveal in Explorer'>📁 <span id='footer-ws-name'>FoveAI</span></span>
+          <span class='devin-footer-chip' id='footer-branch' title='Click to view Git branch'>🌿 <span id='footer-branch-name'>main</span></span>
+        </div>
+        <div class='devin-footer-right'>
+          <button type='button' id='btn-start-new' class='devin-footer-chip' style='background: none; border: none; font-size: 10.5px;' title='Start New Session'>✨ New</button>
+          <div class="persona-container">
+            <button type='button' id='more-actions-btn' class='devin-footer-chip' style='background: none; border: none; font-size: 13px; padding: 0 4px;' title='More Actions' aria-label='More Actions'>⋮</button>
+            <div id="more-actions-dropdown" class="persona-dropdown" style="bottom: calc(100% + 6px); top: auto; min-width: 180px; right: 0; left: auto; transform: none;">
+              <div class="persona-option" data-action="clear_memory">🧹 Clear Memory</div>
+              <div class="persona-option" data-action="search_memory">🔍 Search Memory</div>
+              <div class="persona-option" data-action="switch_model">🧠 Switch Model</div>
+              <div class="persona-option" data-action="list_mcp_servers">🧩 MCP Servers</div>
+              <div class="persona-option" data-action="reload_webview">🔄 Reload Frame</div>
+              <div class="persona-option" data-action="toggle_status">⚙️ Settings & Status</div>
+            </div>
           </div>
         </div>
-        <button type='button' id='input-mode-btn' class='toolbar-btn' style='border-radius: 999px; padding: 5px 12px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s;' title='Cycle Mode: TXT / PTT / VAD'>💬 TXT</button>
-        <button type='button' id='btn-start-new' class='toolbar-btn' style='border-radius: 999px; padding: 5px 12px; font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.2s;' title='Start New Session'>✨ New</button>
       </div>
     </div>
   </div>
@@ -1158,6 +1863,7 @@
     
     const $input = document.getElementById('chat-input');
     const $sendBtn = document.getElementById('send-btn') || document.getElementById('send-bottom-btn');
+    const $sendBottomBtn = document.getElementById('send-bottom-btn');
     const $recordBtn = document.getElementById('record-btn');
     const $modelBtn = document.getElementById('model-btn');
     const $modelDropdown = document.getElementById('model-dropdown');
@@ -1284,8 +1990,6 @@
 
     const $personaBtn = document.getElementById('persona-btn');
     const $personaDropdown = document.getElementById('persona-dropdown');
-    const $modelBtn = document.getElementById('model-btn');
-    const $modelDropdown = document.getElementById('model-dropdown');
     const $hudModel = document.getElementById('hud-model');
     const $xrlBtn = document.getElementById('xrl-btn');
     const $xrlDropdown = document.getElementById('xrl-dropdown');
@@ -1321,9 +2025,9 @@
     if ($sendBtn) {
       // Click handler
       $sendBtn.addEventListener('click', (e) => {
-        if (currentInputMode === 'TXT') {
+        if (window.currentInputMode === 'TXT') {
           sendMessage();
-        } else if (currentInputMode === 'VAD') {
+        } else if (window.currentInputMode === 'VAD') {
           if ($input.value.trim().length > 0) {
             sendMessage();
           } else {
@@ -1343,7 +2047,7 @@
 
       // PTT Hold-to-Talk handlers
       const startPtt = (e) => {
-        if (currentInputMode !== 'PTT') return;
+        if (window.currentInputMode !== 'PTT') return;
         e.preventDefault();
         $sendBtn.classList.add('recording-active');
         if (recognition && !isRecording) {
@@ -1355,7 +2059,7 @@
       };
 
       const endPtt = (e) => {
-        if (currentInputMode !== 'PTT') return;
+        if (window.currentInputMode !== 'PTT') return;
         e.preventDefault();
         if ($sendBtn.classList.contains('recording-active')) {
           $sendBtn.classList.remove('recording-active');
@@ -1386,38 +2090,7 @@
     const $bottomPersonaDropdown = document.getElementById('bottom-persona-dropdown');
     const $inputModeBtn = document.getElementById('input-mode-btn');
 
-    let currentInputMode = 'TXT'; // 'TXT' | 'PTT' | 'VAD'
-
-    function updateSendBtnForMode() {
-      if (!$sendBtn) return;
-      $sendBtn.classList.remove('vad-active', 'recording-active', 'ptt-active');
-      if (currentInputMode === 'VAD') {
-        $sendBtn.title = 'Continuous Voice (VAD) — Click to start/pause';
-      } else if (currentInputMode === 'PTT') {
-        $sendBtn.title = 'Push-To-Talk (PTT) — Hold to speak';
-      } else {
-        $sendBtn.title = 'Send Message';
-      }
-    }
-
-    if ($inputModeBtn) {
-      bindUniversalClick($inputModeBtn, (e) => {
-        if (currentInputMode === 'TXT') {
-          currentInputMode = 'PTT';
-          $inputModeBtn.textContent = '🎙️ PTT';
-          $inputModeBtn.title = 'Mode: Push-To-Talk (Hold microphone/send to speak)';
-        } else if (currentInputMode === 'PTT') {
-          currentInputMode = 'VAD';
-          $inputModeBtn.textContent = '⚡ VAD';
-          $inputModeBtn.title = 'Mode: Voice Activity Detection (Continuous listening)';
-        } else {
-          currentInputMode = 'TXT';
-          $inputModeBtn.textContent = '💬 TXT';
-          $inputModeBtn.title = 'Mode: Text Input';
-        }
-        updateSendBtnForMode();
-      });
-    }
+    // Input mode state lives on window.currentInputMode (unified block below).
 
     function closeDropdownsIfOutside(e) {
       if (e && e.target) {
@@ -1432,6 +2105,22 @@
     }
 
     document.addEventListener('click', closeDropdownsIfOutside);
+
+    // More Actions dropdown
+    if ($moreActionsBtn && $moreActionsDropdown) {
+      bindUniversalClick($moreActionsBtn, (e) => {
+        e.stopPropagation();
+        $moreActionsDropdown.classList.toggle('open');
+        $moreActionsDropdown.classList.toggle('show');
+      });
+      $moreActionsDropdown.querySelectorAll('.persona-option').forEach(opt => {
+        bindUniversalClick(opt, () => {
+          const action = opt.getAttribute('data-action');
+          $moreActionsDropdown.classList.remove('open', 'show');
+          if (action) vscode.postMessage({ type: action });
+        });
+      });
+    }
 
     let attachedFiles = [];
     const $attachedFilesBar = document.getElementById('attached-files-bar');
@@ -1652,13 +2341,65 @@
         });
       }
 
-      let html = escaped;
-      html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => `<pre><code>${code.trim()}</code></pre>`);
-      html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+      // 3. Fenced code blocks → Code Block Cards (extracted before inline rules)
+      let html = escaped.replace(/```(\w*)\n?([\s\S]*?)(?:```|$)/g, (_, lang, code) => {
+        const id = _codeBlockSeq++;
+        _codeBlockStore[id] = code.replace(/\n$/, '');
+        _codeBlockLangs[id] = (lang || '').toLowerCase();
+        return ' CB' + id + ' ';
+      });
+
+      // 4. Inline markdown
+      html = html.replace(/`([^`\n]+)`/g, '<code class="inline-code">$1</code>');
+      html = html.replace(/^####\s+(.+)$/gm, '<div class="md-h md-h4">$1</div>');
+      html = html.replace(/^###\s+(.+)$/gm, '<div class="md-h md-h3">$1</div>');
+      html = html.replace(/^##\s+(.+)$/gm, '<div class="md-h md-h2">$1</div>');
+      html = html.replace(/^#\s+(.+)$/gm, '<div class="md-h md-h1">$1</div>');
       html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      html = html.replace(/(^|[^*\w])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+      html = html.replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<span class="md-link" data-url="$2">$1</span>');
+      html = html.replace(/^\s*[-*•]\s+(.+)$/gm, '<div class="md-li">• $1</div>');
+      html = html.replace(/^\s*(\d+)\.\s+(.+)$/gm, '<div class="md-li">$1. $2</div>');
       html = html.replace(/\n/g, '<br/>');
+
+      // 5. Restore code block cards
+      html = html.replace(/\x00CB(\d+)\x00/g, (_, id) => codeCardHtml(+id, _codeBlockStore[+id] || ''));
       return html;
     }
+
+    let _codeBlockSeq = 0;
+    const _codeBlockStore = {};
+    const _codeBlockLangs = {};
+
+    function codeCardHtml(id, escapedCode) {
+      const langLabel = (_codeBlockLangs[id] || 'text') || 'text';
+      return `<div class="code-block-container"><div class="code-block-header"><span class="code-block-lang">${langLabel}</span><span class="code-block-actions"><button type="button" class="code-action-btn code-copy-btn" data-code-id="${id}" title="Copy code">📋 Copy</button><button type="button" class="code-action-btn apply-btn code-apply-btn" data-code-id="${id}" title="Insert at cursor / replace selection">⚡ Apply</button></span></div><pre class="code-block-body">${escapedCode}</pre></div>`;
+    }
+
+    function unescapeHtml(s) {
+      return String(s).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+    }
+
+    // Code card + link actions (delegated — survives re-renders)
+    $messages.addEventListener('click', (e) => {
+      const cp = e.target.closest('.code-copy-btn');
+      if (cp) {
+        const raw = unescapeHtml(_codeBlockStore[+cp.dataset.codeId] || '');
+        if (navigator.clipboard) navigator.clipboard.writeText(raw).catch(() => {});
+        cp.textContent = '✓ Copied';
+        setTimeout(() => { cp.textContent = '📋 Copy'; }, 1500);
+        return;
+      }
+      const ap = e.target.closest('.code-apply-btn');
+      if (ap) {
+        vscode.postMessage({ type: 'apply_edit', text: unescapeHtml(_codeBlockStore[+ap.dataset.codeId] || '') });
+        ap.textContent = '✓ Applied';
+        setTimeout(() => { ap.textContent = '⚡ Apply'; }, 1500);
+        return;
+      }
+      const ln = e.target.closest('.md-link');
+      if (ln && ln.dataset.url) vscode.postMessage({ type: 'open_url', url: ln.dataset.url });
+    });
     function escapeHtml(str) {
       if(!str) return '';
       return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1904,6 +2645,20 @@
     window.addEventListener('message', (event) => {
       const msg = event.data;
       switch (msg.type) {
+        case 'clear':
+          // Extension cleared the session — wipe all messages and show empty state
+          document.querySelectorAll('.msg').forEach(el => el.remove());
+          if ($emptyState) $emptyState.style.display = 'flex';
+          currentStreamBubble = null;
+          isStreaming = false;
+          if ($sendBtn) $sendBtn.disabled = false;
+          break;
+        case 'sessions_offline':
+          // Proxy is down — show feedback in sessions list
+          if ($recentSessionsList) {
+            $recentSessionsList.innerHTML = '<div style="text-align: center; font-size: 11px; opacity: 0.6; padding: 20px;">⚠️ Foveated Memory proxy offline. Start it on port 8400.</div>';
+          }
+          break;
         case 'stream_start':
           currentStreamBubble = startStreamBubble();
           break;
@@ -1911,7 +2666,28 @@
           if (currentStreamBubble) appendToStreamBubble(currentStreamBubble, msg.chunk);
           break;
         case 'stream_end':
-          if (currentStreamBubble) finalizeStreamBubble(currentStreamBubble);
+          if (currentStreamBubble) {
+            finalizeStreamBubble(currentStreamBubble);
+            // TTS: speak the assistant response if speaker is on
+            if (window.speakerOn && 'speechSynthesis' in window && currentStreamBubble.dataset.raw) {
+              try {
+                // Strip markdown/code for cleaner speech
+                let speakText = currentStreamBubble.dataset.raw
+                  .replace(/```[\s\S]*?```/g, ' code block ')
+                  .replace(/[*_#`~]/g, '')
+                  .replace(/\n+/g, '. ')
+                  .trim();
+                if (speakText.length > 0) {
+                  const utter = new SpeechSynthesisUtterance(speakText.slice(0, 500));
+                  utter.rate = 1.0;
+                  utter.pitch = 1.0;
+                  utter.volume = 1.0;
+                  window.speechSynthesis.cancel();
+                  window.speechSynthesis.speak(utter);
+                }
+              } catch(_) {}
+            }
+          }
           currentStreamBubble = null;
           isStreaming = false;
           $sendBtn.disabled = false;
@@ -1940,6 +2716,16 @@
             renderAttachedFiles();
           }
           break;
+        case 'mcp_servers': {
+          const list = msg.servers || [];
+          const md = list.length === 0
+            ? '_No MCP servers configured._'
+            : '**Installed MCP servers**\n\n' + list.map(s =>
+                `- \`${s.name}\` — ${s.scope}${s.disabled ? ' _(disabled)_' : ''}\n  \`${s.command || s.url || ''}\``
+              ).join('\n');
+          addMessage('assistant', '🧩 MCP Servers', md);
+          break;
+        }
         case 'status_update':
           updateStatus(msg.status);
           if (msg.status) {
@@ -1968,6 +2754,12 @@
             const wsSub = s.activeFile || (s.workspacePath ? 'Workspace: ' + s.workspacePath : 'Active Workspace');
             const wsStack = s.stack || 'Python • FastAPI • Redis';
             updateTile('tile-workspace', 'ws-ctx-name', 'ws-ctx-path', 'ws-ctx-stack', wsName, wsSub, wsStack, 'Click to reveal Workspace in Explorer');
+
+            // Update Devin Footer
+            const $fWs = document.getElementById('footer-ws-name');
+            if ($fWs) $fWs.textContent = wsName;
+            const $fBranch = document.getElementById('footer-branch-name');
+            if ($fBranch) $fBranch.textContent = s.branch || 'main';
 
             // 2. REPO BRANCH
             updateTile('tile-branch', 'ws-ctx-branch', 'ws-ctx-branch-status', 'ws-ctx-repo-url', s.branch || 'main', s.branchStatus || 'Clean & Synced', s.repoUrl || 'github.com/Lumba77/lumax', 'Click to view Branch on GitHub');
@@ -2008,7 +2800,9 @@
             }
 
             if (s.model && s.model !== 'auto' && $modelBtn) {
-              $modelBtn.textContent = s.model;
+              const chipModelLbl = document.getElementById('model-btn-label');
+              if (chipModelLbl) chipModelLbl.textContent = s.model.replace(/^nvidia\//i, '').replace(/Cloud — /i, '☁️ ');
+              else $modelBtn.textContent = s.model;
               $modelDropdown?.querySelectorAll('.persona-option').forEach(opt => {
                 if (opt.dataset.model === s.model || opt.textContent === s.model) {
                   opt.classList.add('selected');
@@ -2040,7 +2834,9 @@
           break;
         case 'model_updated':
           if (msg.model && $modelBtn) {
-            $modelBtn.textContent = msg.model;
+            const chipModelLbl = document.getElementById('model-btn-label');
+            if (chipModelLbl) chipModelLbl.textContent = msg.model.replace(/^nvidia\//i, '').replace(/Cloud — /i, '☁️ ');
+            else $modelBtn.textContent = msg.model;
             $modelDropdown?.querySelectorAll('.persona-option').forEach(opt => {
               if (opt.dataset.model === msg.model || opt.textContent === msg.model) {
                 opt.classList.add('selected');
@@ -2068,8 +2864,47 @@
             else if (m.role === 'assistant') addMessage('assistant', 'Vibe Coder', m.content);
           });
           break;
+        case 'xrl_update': {
+          const lvl = Number(msg.level);
+          if (!Number.isNaN(lvl)) {
+            const lbl = document.getElementById('hud-xrl');
+            if (lbl) lbl.textContent = `Xrl ${lvl}`;
+            document.querySelectorAll('#xrl-dropdown .persona-option').forEach(o => {
+              o.classList.toggle('selected', Number(o.dataset.level) === lvl);
+            });
+          }
+          break;
+        }
+        case 'recording_state':
+          if (typeof setRecordingVisuals === 'function') setRecordingVisuals(!!msg.recording);
+          if (msg.recording && $input) $input.placeholder = '🎙️ Listening...';
+          break;
+        case 'dictation_result':
+          if (msg.text && $input) {
+            $input.value = ($input.value ? $input.value.trim() + ' ' : '') + msg.text;
+            autoResizeInput();
+            if (window.currentInputMode === 'VAD') {
+              sendMessage();
+              vscode.postMessage({ type: 'start_recording' });
+              if (typeof setRecordingVisuals === 'function') setRecordingVisuals(true);
+            }
+          }
+          break;
         case 'persona_update':
           // Ignoring dynamic persona update, using hardcoded options
+          break;
+        case 'speaker_state':
+          // Sync speaker state from extension config
+          if (typeof msg.enabled === 'boolean') {
+            window.speakerOn = msg.enabled;
+            try { localStorage.setItem('vibe_coder_speaker', msg.enabled ? 'true' : 'false'); } catch(_) {}
+            const $sb = document.getElementById('speaker-btn');
+            if ($sb) {
+              $sb.textContent = msg.enabled ? '🔊' : '🔇';
+              $sb.style.color = msg.enabled ? '' : '#f87171';
+              $sb.style.borderColor = msg.enabled ? '' : 'rgba(239, 68, 68, 0.4)';
+            }
+          }
           break;
         case 'compression_stats':
           const d = msg.data || {};
@@ -2197,9 +3032,11 @@
         if (hasProblems) {
           $toolbarProblemCount.textContent = String(n);
           $toolbarProblemCount.style.display = 'inline-flex';
+          if ($toolbarProblemsBtn) $toolbarProblemsBtn.style.display = 'inline-flex';
           $toolbarProblemsBtn && $toolbarProblemsBtn.classList.add('toolbar-btn-danger');
         } else {
           $toolbarProblemCount.style.display = 'none';
+          if ($toolbarProblemsBtn) $toolbarProblemsBtn.style.display = 'none';
           $toolbarProblemsBtn && $toolbarProblemsBtn.classList.remove('toolbar-btn-danger');
         }
         // Header button (send-problems-btn)
@@ -2268,7 +3105,6 @@
       $input.placeholder = 'Type your instructions here...';
     }
 
-    const $statsBtn = document.getElementById('stats-btn');
     const $newSessionBtn = document.getElementById('new-session-btn');
     if ($newSessionBtn) {
       bindUniversalClick($newSessionBtn, () => {
@@ -2352,6 +3188,8 @@
       const pId = opt.dataset.id || opt.textContent.trim();
       const lbl = document.getElementById('persona-label');
       if (lbl) lbl.textContent = pId;
+      const chipLbl = document.getElementById('person-btn-label');
+      if (chipLbl) chipLbl.textContent = pId;
       vscode.postMessage({ type: 'set_persona', personaId: pId.toLowerCase() });
     });
 
@@ -2367,32 +3205,14 @@
     // Model Selector Dropdown
     setupDropdown('model-btn', 'model-dropdown', (opt) => {
       const mdl = opt.dataset.model || opt.textContent.trim();
-      const btn = document.getElementById('model-btn');
-      if (btn) btn.textContent = mdl;
+      const chipModelLbl = document.getElementById('model-btn-label');
+      if (chipModelLbl) chipModelLbl.textContent = mdl.replace(/^nvidia\//i, '').replace(/Cloud — /i, '☁️ ');
       const wsMdl = document.getElementById('ws-ctx-model');
       if (wsMdl) wsMdl.textContent = mdl;
       vscode.postMessage({ type: 'set_model', model: mdl });
     });
 
-    // Speaker Toggle Button
-    const $speakerBtn = document.getElementById('speaker-btn');
-    if ($speakerBtn) {
-      let isMuted = false;
-      bindUniversalClick($speakerBtn, () => {
-        isMuted = !isMuted;
-        $speakerBtn.textContent = isMuted ? '🔇' : '🔊';
-        $speakerBtn.title = isMuted ? 'Voice output muted — Click to unmute' : 'Voice output unmuted — Click to mute';
-        vscode.postMessage({ type: 'toggle_speaker', muted: isMuted });
-      });
-    }
-
-    // Attach File Button (Settings Icon / Paperclip)
-    const $settingsIconBtn = document.getElementById('settings-icon-btn');
-    if ($settingsIconBtn) {
-      bindUniversalClick($settingsIconBtn, () => {
-        vscode.postMessage({ type: 'attach_file' });
-      });
-    }
+    // Speaker Toggle Button — bound once in the unified voice block below (window.speakerOn).
 
     // Record / Voice Input Button
     if ($recordBtn) {
@@ -2401,15 +3221,7 @@
       });
     }
 
-    // Stats Button & Modal Handlers
-    const $statsBtn = document.getElementById('stats-btn');
-    if ($statsBtn) {
-      bindUniversalClick($statsBtn, (e) => {
-        const modal = document.getElementById('stats-modal');
-        if (modal) modal.style.display = 'block';
-        vscode.postMessage({ type: 'get_compression_stats' });
-      });
-    }
+    // Stats Button & Modal Handlers — toggle binding lives in $statsHeaderBtn below.
     const $closeStatsBtn = document.getElementById('close-stats-modal-btn');
     if ($closeStatsBtn) {
       bindUniversalClick($closeStatsBtn, () => {
@@ -2418,22 +3230,7 @@
       });
     }
 
-    // Input Mode Button (Cycles: 💬 TXT -> 🎙️ PTT -> ⚡ VAD)
-    const $inputModeBtn = document.getElementById('input-mode-btn');
-    if ($inputModeBtn) {
-      let currentModeIdx = 0;
-      const modes = [
-        { label: '💬 TXT', mode: 'txt' },
-        { label: '🎙️ PTT', mode: 'ptt' },
-        { label: '⚡ VAD', mode: 'vad' }
-      ];
-      bindUniversalClick($inputModeBtn, () => {
-        currentModeIdx = (currentModeIdx + 1) % modes.length;
-        const m = modes[currentModeIdx];
-        $inputModeBtn.textContent = m.label;
-        vscode.postMessage({ type: 'set_input_mode', mode: m.mode });
-      });
-    }
+    // Input Mode Button — handled by the unified 3-state block below (single binding).
 
     // Close dropdowns on outside click
     document.addEventListener('click', (e) => {
@@ -2442,9 +3239,9 @@
       }
     });
 
-    // Lock table top at 70px below header so heads & shoulders remain completely visible below status bar
+    // Lock table top at 70px below header — now set in CSS, no JS jump
     function alignTableToArtwork() {
-      $emptyState.style.marginTop = '70px';
+      // CSS #empty-state margin-top: 70px handles this; kept for backward compat
     }
     window.addEventListener('resize', alignTableToArtwork);
     const $wmImg = document.querySelector('#app-watermark img');
@@ -2466,8 +3263,16 @@
     bindTile('tile-workspace', () => {
       vscode.postMessage({ type: 'reveal_workspace' });
     });
+    bindTile('footer-workspace', () => {
+      vscode.postMessage({ type: 'reveal_workspace' });
+    });
 
     bindTile('tile-branch', () => {
+      const b = window._branchName || 'main';
+      const url = `${window._repoUrl}/tree/${b}`;
+      vscode.postMessage({ type: 'open_external_url', url });
+    });
+    bindTile('footer-branch', () => {
       const b = window._branchName || 'main';
       const url = `${window._repoUrl}/tree/${b}`;
       vscode.postMessage({ type: 'open_external_url', url });
@@ -2507,13 +3312,6 @@
       }
     });
 
-    const $toolbarProblemsBtn = document.getElementById('toolbar-problems-btn');
-    if ($toolbarProblemsBtn) {
-      bindUniversalClick($toolbarProblemsBtn, () => {
-        vscode.postMessage({ type: 'get_problems' });
-      });
-    }
-
     const $statsHeaderBtn = document.getElementById('stats-btn');
     if ($statsHeaderBtn) {
       bindUniversalClick($statsHeaderBtn, (e) => {
@@ -2531,7 +3329,7 @@
 
     // ── Pure Auto-Responsive Tiles Fitter (Auto-hides secondary tiles if screen height < 730px) ─────
     function autoFitTiles() {
-      const isSmallScreen = window.innerHeight < 730;
+      const isSmallScreen = window.innerHeight < 560;
       const $secondaryTiles = document.querySelectorAll('.ws-stat-secondary');
       $secondaryTiles.forEach(tile => {
         tile.style.display = isSmallScreen ? 'none' : 'flex';
@@ -2542,10 +3340,13 @@
     autoFitTiles();
 
     // ── Unified 3-State Input Mode (TXT / PTT / VAD) & Smart Voice ────────────
-    const $inputModeBtn = document.getElementById('input-mode-btn');
     const $sendBtnImg = document.getElementById('send-btn-img');
     const $tapeRecorderBox = document.getElementById('tape-recorder-box');
     const $speakerBtn = document.getElementById('speaker-btn');
+
+    // Initialize speaker state from localStorage (default ON)
+    window.speakerOn = true;
+    try { const saved = localStorage.getItem('vibe_coder_speaker'); if (saved !== null) window.speakerOn = saved === 'true'; } catch(_) {}
 
     window.currentInputMode = 'TXT'; // 'TXT' | 'PTT' | 'VAD'
     let isRecording = false;
@@ -2556,13 +3357,17 @@
     if ($speakerBtn) {
       const updateSpeakerVisuals = () => {
         $speakerBtn.textContent = window.speakerOn ? '🔊' : '🔇';
-        $speakerBtn.style.opacity = window.speakerOn ? '1' : '0.4';
+        // Keep full opacity so muted button stays same visual size as others;
+        // use a subtle red tint to indicate muted state instead of fading.
+        $speakerBtn.style.opacity = '1';
+        $speakerBtn.style.color = window.speakerOn ? '' : '#f87171';
+        $speakerBtn.style.borderColor = window.speakerOn ? '' : 'rgba(239, 68, 68, 0.4)';
       };
       updateSpeakerVisuals();
       $speakerBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         window.speakerOn = !window.speakerOn;
-        localStorage.setItem('vibe_coder_speaker', window.speakerOn ? 'true' : 'false');
+        try { localStorage.setItem('vibe_coder_speaker', window.speakerOn ? 'true' : 'false'); } catch(_) {}
         updateSpeakerVisuals();
         vscode.postMessage({ type: 'toggle_speaker', enabled: window.speakerOn });
         if (!window.speakerOn && 'speechSynthesis' in window) {
@@ -2571,54 +3376,73 @@
       });
     }
 
+    // Recording works in two modes: browser SpeechRecognition when available,
+    // otherwise the extension-side recorder (AudioManager → /api/soul/stt).
+    const setRecordingVisuals = (on) => {
+      isRecording = on;
+      if ($recordBtn) {
+        $recordBtn.style.color = on ? '#ff5252' : 'inherit';
+        $recordBtn.style.backgroundColor = on ? 'rgba(255, 82, 82, 0.15)' : 'transparent';
+      }
+    };
+
+    const startSpeechRec = () => {
+      if (isRecording) return;
+      finalTranscript = '';
+      if (recognition) {
+        try { recognition.start(); setRecordingVisuals(true); } catch(e) {}
+      } else {
+        vscode.postMessage({ type: 'start_recording' });
+        setRecordingVisuals(true);
+      }
+    };
+
+    const stopSpeechRec = () => {
+      if (!isRecording) return;
+      if (recognition) {
+        try { recognition.stop(); } catch(e) {}
+        setRecordingVisuals(false);
+      } else {
+        vscode.postMessage({ type: 'stop_recording' });
+        setRecordingVisuals(false);
+      }
+    };
+
+    // Handle PTT pointer events on record button
+    const pttStart = (e) => {
+      if (window.currentInputMode !== 'PTT' && window.currentInputMode !== 'TXT') return;
+      e.preventDefault();
+      startSpeechRec();
+      if ($input) $input.placeholder = '🎙️ Listening... Release when done';
+    };
+
+    const pttEnd = (e) => {
+      if (window.currentInputMode !== 'PTT' && window.currentInputMode !== 'TXT') return;
+      e.preventDefault();
+      stopSpeechRec();
+      if ($input) $input.placeholder = 'Formulate a prompt.';
+    };
+
+    if ($recordBtn) {
+      $recordBtn.addEventListener('mousedown', pttStart);
+      $recordBtn.addEventListener('mouseup', pttEnd);
+      $recordBtn.addEventListener('mouseleave', pttEnd);
+      $recordBtn.addEventListener('touchstart', pttStart);
+      $recordBtn.addEventListener('touchend', pttEnd);
+      // In VAD mode a plain click toggles continuous listening
+      $recordBtn.addEventListener('click', (e) => {
+        if (window.currentInputMode !== 'VAD') return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        if (isRecording) stopSpeechRec(); else startSpeechRec();
+      });
+    }
+
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
-
-      const setRecordingVisuals = (on) => {
-        isRecording = on;
-        if ($recordBtn) {
-          $recordBtn.style.color = on ? '#ff5252' : 'inherit';
-          $recordBtn.style.backgroundColor = on ? 'rgba(255, 82, 82, 0.15)' : 'transparent';
-        }
-      };
-
-      const startSpeechRec = () => {
-        if (isRecording) return;
-        finalTranscript = '';
-        try { recognition.start(); setRecordingVisuals(true); } catch(e) {}
-      };
-
-      const stopSpeechRec = () => {
-        if (!isRecording) return;
-        try { recognition.stop(); } catch(e) {}
-        setRecordingVisuals(false);
-      };
-
-      // Handle PTT pointer events on record button
-      const pttStart = (e) => {
-        if (window.currentInputMode !== 'PTT' && window.currentInputMode !== 'TXT') return;
-        e.preventDefault();
-        startSpeechRec();
-        if ($input) $input.placeholder = '🎙️ Listening... Release when done';
-      };
-
-      const pttEnd = (e) => {
-        if (window.currentInputMode !== 'PTT' && window.currentInputMode !== 'TXT') return;
-        e.preventDefault();
-        stopSpeechRec();
-        if ($input) $input.placeholder = 'Formulate a prompt.';
-      };
-
-      if ($recordBtn) {
-        $recordBtn.addEventListener('mousedown', pttStart);
-        $recordBtn.addEventListener('mouseup', pttEnd);
-        $recordBtn.addEventListener('mouseleave', pttEnd);
-        $recordBtn.addEventListener('touchstart', pttStart);
-        $recordBtn.addEventListener('touchend', pttEnd);
-      }
 
       recognition.onresult = (event) => {
         let interimTranscript = '';
@@ -2675,21 +3499,21 @@
           $inputModeBtn.style.background = 'rgba(255,255,255,0.05)';
           $inputModeBtn.style.borderColor = 'var(--border)';
           if ($input) $input.placeholder = 'Formulate a prompt.';
-          if (isRecording && recognition) { try { recognition.stop(); } catch(e) {} }
+          if (isRecording) { stopSpeechRec(); }
         } else if (mode === 'PTT') {
           $inputModeBtn.textContent = '👆 PTT';
           $inputModeBtn.style.color = '#39ff14';
           $inputModeBtn.style.background = 'rgba(57,255,20,0.12)';
           $inputModeBtn.style.borderColor = 'rgba(57,255,20,0.4)';
           if ($input) $input.placeholder = 'Hold mic or Send to speak (PTT)...';
-          if (isRecording && recognition) { try { recognition.stop(); } catch(e) {} }
+          if (isRecording) { stopSpeechRec(); }
         } else if (mode === 'VAD') {
           $inputModeBtn.textContent = '🎙️ VAD';
           $inputModeBtn.style.color = '#ff6b6b';
           $inputModeBtn.style.background = 'rgba(255,107,107,0.15)';
           $inputModeBtn.style.borderColor = 'rgba(255,107,107,0.5)';
           if ($input) $input.placeholder = '🎙️ VAD listening... speak freely.';
-          if (recognition) { try { recognition.start(); } catch(e) {} }
+          startSpeechRec();
         }
       }
     }
@@ -2712,6 +3536,7 @@
     }
 
     // ── Buffer buttons: Status, Approve All, Rollback ─────────────────────
+    const $lipBtn = document.getElementById('lip-btn'); // element removed — stays null, guard below skips
     const $bufferStatusBtn = document.getElementById('buffer-status-btn');
     const $bufferApproveAllBtn = document.getElementById('buffer-approve-all-btn');
     const $bufferRollbackBtn = document.getElementById('buffer-rollback-btn');
@@ -2754,6 +3579,7 @@
     // Startup
     vscode.postMessage({ type: 'get_status' });
     vscode.postMessage({ type: 'get_sessions' });
+    vscode.postMessage({ type: 'get_xrl' });
     if (typeof vscode !== "undefined") {
       vscode.postMessage({ type: "webview_ready" });
     }

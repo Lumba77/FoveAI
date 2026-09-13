@@ -10,6 +10,7 @@ import { FoveatedClient, PersonaId, PERSONAS } from '../memory/foveatedClient';
 import { SessionLogger } from '../bonding/sessionLogger';
 import { JennaStatusBar } from '../statusBar';
 import { ExecutionBuffer } from '../executionBuffer';
+import { AudioManager } from '../audioManager';
 import { ContextAnalyzer } from './contextAnalyzer';
 import { EditApplicator } from './editApplicator';
 import { StatusPusher } from './statusPusher';
@@ -37,6 +38,7 @@ export class MessageRouter {
     buffer: ExecutionBuffer,
     storageUri: vscode.Uri,
     private _post: (msg: Record<string, unknown>) => void,
+    private _audio?: AudioManager,
   ) {
     const onChat = (text: string, tasks?: any[]) => this._chat.handleChat(text, tasks);
     
@@ -50,6 +52,23 @@ export class MessageRouter {
 
   get chat(): ChatHandler { return this._chat; }
   get sessions(): SessionManager { return this._sessions; }
+
+  /** Pull the live aggression level from the proxy's shared env — the same
+   *  source of truth Commando/Commander write via POST /api/setting. */
+  private async _syncXrlFromProxy(): Promise<void> {
+    try {
+      const baseUrl = vscode.workspace.getConfiguration('jenna').get<string>('foveatedMemoryUrl', 'http://127.0.0.1:8400');
+      const r = await fetch(`${baseUrl}/api/setting?key=XRLF_PROXY_AGGRESSION`, { signal: AbortSignal.timeout(3000) });
+      if (r.ok) {
+        const d = await r.json() as { value?: string | null };
+        const lvl = Number(d.value);
+        if (!Number.isNaN(lvl) && d.value != null) {
+          this._xrlLevel = Math.max(0, Math.min(5, lvl));
+          this._post({ type: 'xrl_update', level: this._xrlLevel });
+        }
+      }
+    } catch {}
+  }
 
   async handle(msg: any): Promise<void> {
     switch (msg.type) {
@@ -112,7 +131,7 @@ export class MessageRouter {
         break;
 
       case 'set_persona':
-        if (msg.personaId && PERSONAS[msg.personaId as PersonaId]) { this._activePersona = msg.personaId as PersonaId; vscode.workspace.getConfiguration('lumax').update('persona', msg.personaId, true); this._post({ type: 'persona_update', activePersona: this._activePersona, personas: PERSONAS }); }
+        if (msg.personaId && PERSONAS[msg.personaId as PersonaId]) { this._activePersona = msg.personaId as PersonaId; vscode.workspace.getConfiguration('FoveAI').update('persona', msg.personaId, true); this._post({ type: 'persona_update', activePersona: this._activePersona, personas: PERSONAS }); }
         break;
 
       case 'set_model':
@@ -125,7 +144,25 @@ export class MessageRouter {
 
       case 'set_xrl':
       case 'set_fovea_level':
-        if (typeof msg.level === 'number') { this._xrlLevel = Math.max(0, Math.min(5, msg.level)); vscode.workspace.getConfiguration('lumax').update('xrlLevel', this._xrlLevel, true); await this._status.push(); }
+        if (typeof msg.level === 'number') {
+          this._xrlLevel = Math.max(0, Math.min(5, msg.level));
+          vscode.workspace.getConfiguration('foveai').update('xrlLevel', this._xrlLevel, true);
+          // Push to the shared env via the proxy — same lever Commando/Commander use.
+          try {
+            const baseUrl = vscode.workspace.getConfiguration('jenna').get<string>('foveatedMemoryUrl', 'http://127.0.0.1:8400');
+            fetch(`${baseUrl}/api/setting`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ key: 'XRLF_PROXY_AGGRESSION', val: String(this._xrlLevel) }),
+              signal: AbortSignal.timeout(3000),
+            }).catch(() => {});
+          } catch {}
+          await this._status.push();
+        }
+        break;
+
+      case 'get_xrl':
+        await this._syncXrlFromProxy();
         break;
 
       case 'attach_file':
@@ -151,10 +188,45 @@ export class MessageRouter {
         }
         break;
       }
-      case 'open_settings': vscode.commands.executeCommand('workbench.action.openSettings', 'lumax'); break;
-      case 'toggle_speaker': vscode.workspace.getConfiguration('lumax').update('speakerEnabled', msg.enabled, true); break;
+      case 'open_settings': vscode.commands.executeCommand('workbench.action.openSettings', 'FoveAI'); break;
+      case 'toggle_speaker': vscode.workspace.getConfiguration('jenna').update('speakerEnabled', msg.enabled, true); break;
+      case 'get_compression_stats': {
+        try {
+          const baseUrl = vscode.workspace.getConfiguration('jenna').get<string>('foveatedMemoryUrl', 'http://127.0.0.1:8400');
+          const r = await fetch(`${baseUrl}/api/compression/stats?workspace_id=${encodeURIComponent(this._chat['_workspaceId'])}`, { signal: AbortSignal.timeout(3000) });
+          if (r.ok) {
+            const data = await r.json() as any;
+            this._post({ type: 'compression_stats', data: { ...data, level: this._xrlLevel } });
+          } else {
+            this._post({ type: 'compression_stats', data: { level: this._xrlLevel, rawTokens: 0, foveatedTokens: 0, messageCount: 0, moneySaved: 0 } });
+          }
+        } catch {
+          this._post({ type: 'compression_stats', data: { level: this._xrlLevel, rawTokens: 0, foveatedTokens: 0, messageCount: 0, moneySaved: 0 } });
+        }
+        break;
+      }
+      case 'start_recording': {
+        if (!this._audio) break;
+        const ok = await this._audio.startRecording();
+        this._post({ type: 'recording_state', recording: ok });
+        break;
+      }
+      case 'stop_recording': {
+        if (!this._audio) break;
+        const text = await this._audio.stopRecording();
+        this._post({ type: 'recording_state', recording: false });
+        if (text) this._post({ type: 'dictation_result', text });
+        break;
+      }
+      case 'cancel_recording': this._audio?.cancelRecording(); this._post({ type: 'recording_state', recording: false }); break;
+      case 'set_input_mode':
+        if (this._audio) this._audio.micMode = msg.mode === 'ptt' ? 'ptt' : 'continuous';
+        break;
       case 'webview_ready':
         this._post({ type: 'persona_update', activePersona: this._activePersona, personas: PERSONAS });
+        // Push saved speaker config so webview stays in sync with extension settings
+        this._post({ type: 'speaker_state', enabled: vscode.workspace.getConfiguration('jenna').get<boolean>('speakerEnabled', true) });
+        await this._syncXrlFromProxy();
         await this._status.push();
         if (this._history.value.length === 0) {
           await this._sessions.loadLatest();
@@ -195,6 +267,42 @@ export class MessageRouter {
         vscode.env.openExternal(vscode.Uri.parse('http://127.0.0.1:8401'));
         break;
       case 'buffer_rollback': const m = await this._buffer.rollbackLast(typeof msg.count === 'number' ? msg.count : 1); this._post({ type: 'status_update', status: { online: true, loading: false, message: 'Rolled back ' + m + ' entries' } }); break;
+      case 'clear_memory': await vscode.commands.executeCommand('jenna.clearMemory'); break;
+      case 'search_memory': await vscode.commands.executeCommand('jenna.searchMemory'); break;
+      case 'switch_model': await vscode.commands.executeCommand('jenna.switchModel'); break;
+      case 'reload_webview': await vscode.commands.executeCommand('jenna.reloadWebview'); break;
+      case 'toggle_status': await vscode.commands.executeCommand('jenna.toggleStatus'); break;
+
+      case 'list_mcp_servers': {
+        const home = require('os').homedir();
+        const wsFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+        const files = [
+          { scope: 'devin-user', file: path.join(home, '.config', 'devin', 'mcp_config.json') },
+          { scope: 'devin-project', file: path.join(wsFolder, '.devin', 'mcp_config.json') },
+          { scope: 'devin-local', file: path.join(wsFolder, '.devin', 'mcp_config.local.json') },
+          { scope: 'agents', file: path.join(wsFolder, '.agents', 'mcp_config.json') },
+          { scope: 'kilocode', file: path.join(wsFolder, '.kilocode', 'mcp.json') },
+          { scope: 'roo', file: path.join(wsFolder, '.roo', 'mcp.json') },
+        ];
+        const servers: { name: string; scope: string; command: string; disabled: boolean }[] = [];
+        for (const f of files) {
+          try {
+            if (!fs.existsSync(f.file)) continue;
+            const cfg = JSON.parse(fs.readFileSync(f.file, 'utf8'));
+            const mcp = cfg.mcpServers || {};
+            for (const [name, s] of Object.entries<any>(mcp)) {
+              servers.push({
+                name,
+                scope: f.scope,
+                command: s.command ? `${s.command} ${(s.args || []).join(' ')}`.trim() : (s.url || ''),
+                disabled: !!s.disabled,
+              });
+            }
+          } catch { /* unreadable config — skip */ }
+        }
+        this._post({ type: 'mcp_servers', servers });
+        break;
+      }
     }
   }
 }

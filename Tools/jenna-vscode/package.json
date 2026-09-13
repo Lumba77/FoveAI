@@ -2,7 +2,7 @@
   "name": "foveai-vibe-coder",
   "displayName": "FoveAI Vibe Coder",
   "description": "Persistent-memory AI vibe coder powered by FoveAI Foveated Memory — voice, context farming, repo scanning, execution buffer, and autonomous intent engine.",
-  "version": "0.4.6",
+  "version": "0.5.1",
   "publisher": "foveai",
   "engines": {
     "vscode": "^1.85.0"
@@ -157,7 +157,10 @@
             "audit",
             "scribe",
             "test",
-            "probe"
+            "probe",
+            "plan",
+            "selfcode",
+            "fovecode"
           ],
           "enumDescriptions": [
             "Code — Code implementation & pair programming",
@@ -165,7 +168,10 @@
             "Audit — Code review, security & bug investigation",
             "Scribe — Documentation, docstrings & specs",
             "Test — Unit testing & test suite validation",
-            "Probe — Interactive requirements & design alignment"
+            "Probe — Interactive requirements & design alignment",
+            "Plan — Research & implementation planning",
+            "SelfCode — Develop the Jenna extension & FoveAI app itself",
+            "FoveCode — Maintain the main FoveAI repository"
           ],
           "description": "Active operational mode for FoveAI AI Agent"
         },

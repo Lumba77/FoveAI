@@ -416,6 +416,44 @@ const COGNITIVE_MODE = (process.env.XRLF_COGNITIVE_MODE || 'local').toLowerCase(
 const OLLAMA_CLOUD_URL = process.env.XRLF_PROXY_TARGET || 'https://ollama.com/v1';
 const OLLAMA_API_KEY = process.env.XRLF_PROXY_API_KEY || process.env.OLLAMA_API_KEY || '';
 
+// ── NVIDIA NIM side-route ─────────────────────────────────────────────────────
+// Models in XRLF_NVIDIA_MODELS are exposed in /v1/models as `nvidia/<id>` and
+// routed per-request to integrate.api.nvidia.com — works alongside local XRLF
+// models without flipping COGNITIVE_MODE.
+const NVIDIA_BASE_URL = (process.env.FOVEAI_NVIDIA_URL || 'https://integrate.api.nvidia.com/v1/chat/completions')
+    .replace(/\/chat\/completions\/?$/, '');   // ends with /v1
+const NVIDIA_API_KEY  = process.env.FOVEAI_NVIDIA_API_KEY || '';
+const NVIDIA_PREFIX   = 'nvidia/';
+const NVIDIA_MODELS   = (process.env.XRLF_NVIDIA_MODELS ||
+    'moonshotai/kimi-k3,deepseek-ai/deepseek-v4-flash-0731,nvidia/nemotron-3-super-120b-a12b')
+    .split(',').map(s => s.trim()).filter(Boolean);
+const isNvidiaModel   = (m) => typeof m === 'string' && m.startsWith(NVIDIA_PREFIX);
+
+// Architecture brief injected as a system message on nvidia/* requests so the
+// cloud model knows XRLF local models are the product and it is a dev helper.
+const NVIDIA_CONTEXT_ENABLED = (process.env.XRLF_NVIDIA_CONTEXT || 'true').toLowerCase() !== 'false';
+let _nvidiaContext = '';
+if (NVIDIA_CONTEXT_ENABLED) {
+    try {
+        _nvidiaContext = fs.readFileSync(
+            process.env.XRLF_NVIDIA_CONTEXT_FILE || path.resolve(__dirname, 'nvidia-context.md'), 'utf8'
+        ).trim();
+    } catch { /* brief optional */ }
+}
+function injectNvidiaContext(messages) {
+    if (!_nvidiaContext || !Array.isArray(messages)) return messages;
+    const out = messages.slice();
+    if (out[0] && out[0].role === 'system') {
+        out[0] = { ...out[0], content: `${out[0].content}\n\n${_nvidiaContext}` };
+    } else {
+        out.unshift({ role: 'system', content: _nvidiaContext });
+    }
+    return out;
+}
+
+if (NVIDIA_API_KEY) console.log(`[NVIDIA] side-route enabled: ${NVIDIA_MODELS.map(m => NVIDIA_PREFIX + m).join(', ')} (context=${_nvidiaContext ? 'on' : 'off'})`);
+else console.warn('[NVIDIA] FOVEAI_NVIDIA_API_KEY not set — nvidia/* models will fail');
+
 // ── Bearer-based collective memory / billing key ──────────────────────────────
 // The client's Authorization token is used as the workspace/memory scope key.
 // If the client omits a token, fall back to a default workspace so the proxy
@@ -510,7 +548,7 @@ async function ensureLMStudio() {
     if (_lmStudioStarting) return false;
 
     // Headless auto-start disabled to prevent background VRAM/RAM exhaustion
-    if (process.env.LUMAX_ALLOW_SPAWN_LMSTUDIO !== 'true') {
+    if (process.env.FOVEAI_ALLOW_SPAWN_LMSTUDIO !== 'true') {
         console.warn('[AutoStart] LM Studio offline on ' + XRLF_RUNTIME_URL + ' (headless auto-spawning disabled)');
         return false;
     }
@@ -930,6 +968,31 @@ dashboardApp.get('/api/proximity/state', (req, res) => {
     res.json(getProximityState());
 });
 
+// ── Same-origin bridges (for Cloudflare-tunnel / LAN access) ────────────────
+// A tunnel domain can only proxy ONE port per hostname, so panels served from
+// :8401 must reach the runtime (:8402) and the proxy API (:8400) same-origin.
+// /xrlf/* forwards to the runtime; everything else falls through to the full
+// proxy app mounted below.
+dashboardApp.use('/xrlf', async (req, res) => {
+    try {
+        const r = await fetch(`http://127.0.0.1:8402${req.url}`, {
+            method: req.method,
+            headers: { 'Content-Type': 'application/json' },
+            body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body || {}),
+            signal: AbortSignal.timeout(120000),
+        });
+        const text = await r.text();
+        res.status(r.status).type(r.headers.get('content-type') || 'text/plain').send(text);
+    } catch (e) {
+        res.status(502).json({ error: `xrlf runtime unreachable: ${e.message}` });
+    }
+});
+
+// Mount the proxy app LAST so dashboard routes/static win on conflicts — this
+// exposes /api/env, /api/setting, /api/control, /api/subsystems, /health,
+// /v1/* etc. on the dashboard port for any same-origin client.
+dashboardApp.use(app);
+
 // ── Express Error Handler (catch body-parser errors, return JSON not HTML) ──
 app.use((err, req, res, next) => {
     if (err && (err.type === 'entity.parse.failed' || err.message?.includes('raw-body') || err.message?.includes('stream') || err.code === 'HPE_INVALID_CONSTANT')) {
@@ -1097,6 +1160,18 @@ function scaleConfigForModel(modelName, baseConfig) {
         console.log(`[Fovea] Manual override: XRLF_PROXY_AGGRESSION=${aggressionLevel} → multiplier=${multiplier} (${label})`);
     }
 
+    // ── NVIDIA Cloud Supermemory ─────────────────────────────────────────────
+    // nvidia/* cloud models get a dedicated large ring budget — the foveated
+    // memory expands to XRLF_NVIDIA_MEMORY_CAP tokens (default 64K). This is
+    // applied AFTER the aggression lever, which governs local XRLF models only.
+    if (isNvidiaModel(model)) {
+        const cap = parseInt(process.env.XRLF_NVIDIA_MEMORY_CAP || '65536', 10);
+        const base = Math.max(1, baseConfig.ring_token_budget || 8192);
+        multiplier = cap / base;
+        label = `${Math.round(cap / 1024)}K (Cloud Supermemory)`;
+        console.log(`[Fovea] NVIDIA supermemory: ${label} — ring budget ${cap} tokens`);
+    }
+
     // ── Log Holonic Tier Activation ───────────────────────────────────────────
     if (label.includes('Retina') || label.includes('Photon') || label.includes('Starlight')) {
         console.log(`[Holonic] 🔬 ${label} activated — low-powered retina cell firing like photons`);
@@ -1198,7 +1273,7 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
             
             hudBlock = await buildMembraneHUD({
                 redThread: body.messages?.[0]?.content?.slice(0, 200) || 'AI Pair Programming Session',
-                turnCount: rawMessages.length,
+                turnCount: body.messages?.length || 0,
                 clearedTasks,
                 pendingTasks,
                 recentFileDiagnostics,
@@ -1382,7 +1457,10 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
     // Patch messages with ring block + ACTIVE RECALL instructions
     // Skip for local XRLF server — its llama.cpp runtime doesn't accept injected system prompts.
     const isXrlfServer = config._active_profile && config._active_profile.provider === 'xrlf_server';
-    body.messages = (REPO_ENABLED && REPO_CAPABILITY_OVERRIDE && !isXrlfServer) ? patchMessages(baseMessages, ringBlock, scaledConfig, body) : baseMessages;
+    // NVIDIA side-route: resolved early so nvidia/* requests also receive the
+    // memory/repo ring — the cloud model is a co-developer and needs context.
+    const nvidiaRequested = isNvidiaModel(body.model || '');
+    body.messages = (REPO_ENABLED && REPO_CAPABILITY_OVERRIDE && (!isXrlfServer || nvidiaRequested)) ? patchMessages(baseMessages, ringBlock, scaledConfig, body) : baseMessages;
     logDebug(`[${new Date().toISOString()}] after patchMessages\n`);
 
     // ── Self-Healing Context Guard ────────────────────────────────────────
@@ -1434,7 +1512,21 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
 
     // In cloud mode, pass through the client's model name — don't override it.
     // Only override when: (a) local LM Studio needs a specific model, or (b) model is 'auto'/empty.
-    const shouldOverride = (isLocalLMStudio && COGNITIVE_MODE !== 'cloud') || originalModel === 'auto' || !originalModel;
+    // NVIDIA side-routes are exempt — the nvidia/<id> name selects the upstream below.
+    const shouldOverride = !nvidiaRequested &&
+        ((isLocalLMStudio && COGNITIVE_MODE !== 'cloud') || originalModel === 'auto' || !originalModel);
+    if (nvidiaRequested) {
+        body.model = originalModel.slice(NVIDIA_PREFIX.length);
+        body.messages = injectNvidiaContext(body.messages);
+        // Strip custom client parameters that strict NVIDIA NIM schema validation rejects (HTTP 400)
+        delete body.session_id;
+        delete body._tasks;
+        delete body.tasks;
+        delete body.persona;
+        delete body.workspaceId;
+        delete body.workspace_id;
+        console.log(`[NVIDIA] Routing '${originalModel}' → NVIDIA NIM as '${body.model}'`);
+    }
     const currentEnvModel = COGNITIVE_MODE === 'cloud'
         ? (process.env.XRLF_MODEL_CLOUD_ID || process.env.XRLF_PROXY_MODEL || UPSTREAM_MODEL).trim()
         : (process.env.XRLF_MODEL_LOCAL_ID || process.env.XRLF_PROXY_MODEL || UPSTREAM_MODEL).trim();
@@ -1455,18 +1547,19 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
     while (retryCount <= MAX_CTX_RETRIES) {
         try {
             const upstreamHeaders = { 'Content-Type': 'application/json' };
-            if (config._cloud_mode && config._api_key) {
+            if (nvidiaRequested) {
+                upstreamHeaders['Authorization'] = `Bearer ${NVIDIA_API_KEY}`;
+            } else if (config._cloud_mode && config._api_key) {
                 upstreamHeaders['Authorization'] = `Bearer ${config._api_key}`;
-            } else {
             }
 
             // P2P Swarm Routing: Determine best available local node based on capability
             const swarmRouter = getSwarmRouter(path.resolve(__dirname, 'memory_data'));
             const requiredCapability = swarmRouter.detectCapability(body.messages);
-            let targetUpstream = config.upstream_url;
+            let targetUpstream = nvidiaRequested ? NVIDIA_BASE_URL : config.upstream_url;
 
             // Only use Swarm Router in local Cognitive Mode and when repo context override is enabled
-            if (COGNITIVE_MODE !== 'cloud' && REPO_ENABLED && REPO_CONTEXT_OVERRIDE) {
+            if (!nvidiaRequested && COGNITIVE_MODE !== 'cloud' && REPO_ENABLED && REPO_CONTEXT_OVERRIDE) {
                 const bestNode = swarmRouter.route(requiredCapability);
                 if (bestNode) {
                     targetUpstream = bestNode;
@@ -2326,6 +2419,23 @@ app.post('/v1/memory/search', async (req, res) => {
     }
 });
 
+// Store a single message turn (used by the foveated-memory MCP server so
+// external IDEs write through the same getStore(workspace) path as chat).
+app.post('/v1/memory/store', async (req, res) => {
+    try {
+        const workspaceId = req.headers['authorization']?.replace('Bearer ', '') || config.workspace_id;
+        const { role, content, session } = req.body || {};
+        if (!role || !content) return res.status(400).json({ error: 'role and content required' });
+        const s = getStore(workspaceId);
+        const sessionId = session || new Date().toISOString().slice(0, 10);
+        await s.store(sessionId, role, content, new Date().toISOString());
+        const total = await s.count();
+        res.json({ saved: true, workspace: workspaceId, session: sessionId, total_messages: total });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // ── XRLF Format Inspector ──────────────────────────────────────────────────
 app.get('/api/xrlf/inspect', (req, res) => {
     res.json({
@@ -2794,6 +2904,17 @@ app.get(['/v1/models', '/models'], async (req, res) => {
             console.warn(`[Fovea] /v1/models profile injection failed: ${profileErr.message}`);
         }
 
+        // ── Inject NVIDIA NIM side-route models (nvidia/<id>) ────────────────
+        if (data && Array.isArray(data.data)) {
+            const ids = new Set(data.data.map(m => m.id));
+            for (const m of NVIDIA_MODELS) {
+                const nid = NVIDIA_PREFIX + m;
+                if (!ids.has(nid)) {
+                    data.data.push({ id: nid, object: 'model', created: Math.floor(Date.now() / 1000), owned_by: 'nvidia-nim' });
+                }
+            }
+        }
+
         // Always inject foveated-proxy-auto into the real model list
         if (data && data.data && !data.data.find(m => m.id === 'foveated-proxy-auto')) {
             // data.data.unshift({ id: 'foveated-proxy-auto', object: 'model', created: Math.floor(Date.now()/1000), owned_by: 'foveated-proxy' });
@@ -3225,7 +3346,7 @@ app.post('/api/consolidate', async (req, res) => {
 
 // ═══ Settings / Control Panel API (user-initiated only; no watchdog loops) ═══
 
-const envFilePath = path.resolve(__dirname, '..', '..', '.env');
+const envFilePath = path.resolve(__dirname, '..', '.env');
 
 function readEnv() {
     if (!fs.existsSync(envFilePath)) return '';
@@ -3291,7 +3412,7 @@ function applyFrontendPreset(ui) {
 
     // Touch .env so Sleipnir's watchdog redeploys the frontend node
     try {
-        const envPath = path.resolve(__dirname, '..', '..', '.env');
+        const envPath = path.resolve(__dirname, '..', '.env');
         const now = new Date();
         fs.utimesSync(envPath, now, now);
     } catch (e) {
@@ -3347,6 +3468,14 @@ function runPwsh(command, callback) {
 
 app.use(express.json());
 
+// GET /api/setting?key=X — read the LIVE effective value (process.env is the
+// running source of truth shared with Commando/Commander writes via POST below).
+app.get('/api/setting', (req, res) => {
+    const key = String(req.query.key || '');
+    if (!key) return res.status(400).json({ error: 'missing key' });
+    res.json({ key, value: process.env[key] ?? null });
+});
+
 app.post('/api/setting', (req, res) => {
     const { key, val } = req.body || {};
     if (!key) return res.status(400).json({ error: 'missing key' });
@@ -3400,7 +3529,7 @@ app.post('/api/setting', (req, res) => {
 });
 
 app.get('/api/env', (req, res) => {
-    const envPath = path.resolve(__dirname, '..', '..', '.env');
+    const envPath = path.resolve(__dirname, '..', '.env');
     const out = {};
     try {
         const raw = fs.readFileSync(envPath, 'utf8');
@@ -3413,7 +3542,9 @@ app.get('/api/env', (req, res) => {
             if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
                 v = v.slice(1, -1);
             }
-            out[k] = v;
+            // Mask secrets — the panel only needs presence, not values,
+            // and this endpoint is reachable over LAN/tunnel.
+            out[k] = /KEY|TOKEN|SECRET|PASS|CREDENTIAL/i.test(k) && v ? '***' : v;
         }
     } catch (e) {
         return res.status(500).json({ error: e.message });
@@ -3427,6 +3558,60 @@ app.post('/api/toggle', (req, res) => {
     const envName = name === 'voice' ? 'XRLF_VOICE_ENABLED' : name === 'mic' ? 'XRLF_MIC_ENABLED' : name;
     setEnvVar(envName, value ? 'true' : 'false');
     res.json({ ok: true, [envName]: value ? 'true' : 'false' });
+});
+
+// Server-side subsystem probe — checks run on THIS host (127.0.0.1), so remote
+// panels (Quest, LAN browsers) see the PC's true service states instead of
+// probing their own localhost.
+app.get('/api/subsystems', async (req, res) => {
+    const net = require('net');
+    const tcpCheck = (port, timeout = 800) => new Promise(resolve => {
+        const sock = new net.Socket();
+        let done = false;
+        const finish = ok => { if (!done) { done = true; try { sock.destroy(); } catch (_) {} resolve(ok); } };
+        sock.setTimeout(timeout);
+        sock.once('connect', () => finish(true));
+        sock.once('timeout', () => finish(false));
+        sock.once('error', () => finish(false));
+        try { sock.connect(port, '127.0.0.1'); } catch (_) { finish(false); }
+    });
+    const httpCheck = async (port, p, timeout = 1500) => {
+        try {
+            const r = await fetch(`http://127.0.0.1:${port}${p}`, { signal: AbortSignal.timeout(timeout) });
+            let body = null;
+            try { body = await r.json(); } catch (_) {}
+            return { ok: r.ok || r.status === 302, status: r.status, body };
+        } catch (_) { return { ok: false, status: 0, body: null }; }
+    };
+    const checks = [
+        { name: 'Proxy',            port: 8400, http: '/health' },
+        { name: 'Dashboard',        port: 8401, http: '/api/status' },
+        { name: 'XRLF Runtime',     port: 8402, http: '/health' },
+        { name: 'WS IPC',           port: 8403 },
+        { name: 'Body',             port: 8404, http: '/health' },
+        { name: 'Subconscious IN',  port: 8405, http: '/health' },
+        { name: 'Subconscious OUT', port: 8406, http: '/health' },
+        { name: 'Chat Relay',       port: 8407, http: '/health' },
+        { name: 'LM Studio',        port: 1234, http: '/v1/models' },
+        { name: 'XR Vessel',        port: 5176, http: '/' },
+        { name: 'Multigate',        port: 5177, http: '/' },
+    ];
+    const results = await Promise.all(checks.map(async c => {
+        const out = { name: c.name, port: c.port };
+        if (!(await tcpCheck(c.port))) { out.state = 'offline'; return out; }
+        if (!c.http) { out.state = 'listening'; return out; }
+        const h = await httpCheck(c.port, c.http);
+        out.state = h.ok ? 'online' : 'dormant';
+        out.http_status = h.status;
+        if (c.port === 8402 && h.body) {
+            out.model = h.body.model;
+            out.loaded = h.body.loaded;
+            out.load_state = h.body.load_state;
+            out.load_error = h.body.load_error;
+        }
+        return out;
+    }));
+    res.json({ host: '127.0.0.1', checks: results });
 });
 
 app.post('/api/route', (req, res) => {

@@ -83,6 +83,7 @@ export function activate(context: vscode.ExtensionContext): void {
     statusBar,
     workspaceId,
     executionBuffer,
+    audioManager,
   );
   context.subscriptions.push(executionBuffer);
 

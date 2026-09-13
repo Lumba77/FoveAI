@@ -1,33 +1,46 @@
 const fs = require('fs');
 const path = require('path');
-
-// Determine Antigravity extensions path
 const homeDir = require('os').homedir();
-const antiGravityExtDir = path.join(homeDir, '.antigravity-ide', 'extensions');
 
-// Check possible folder names
-const possibleFolders = ['foveai.foveai-vibe-coder-0.3.2', 'lumax.jenna-copilot-0.2.0', 'lumax.jenna-copilot-0.2.1-universal'];
-let targetPath = '';
-for (const folder of possibleFolders) {
-  const p = path.join(antiGravityExtDir, folder);
-  if (fs.existsSync(p)) {
-    targetPath = p;
-    break;
+// Extension host dirs to try, in priority order. The Devin IDE reads
+// ~/.devin/extensions; older installs used Antigravity/Windsurf paths.
+const candidateRoots = [
+  path.join(homeDir, '.devin', 'extensions'),
+  path.join(homeDir, '.antigravity', 'extensions'),
+  path.join(homeDir, '.antigravity-ide', 'extensions'),
+  path.join(homeDir, '.windsurf', 'extensions'),
+  path.join(homeDir, '.vscode', 'extensions'),
+];
+
+function semverKey(dirName) {
+  const m = dirName.match(/(\d+)\.(\d+)\.(\d+)/);
+  return m ? (+m[1]) * 1e6 + (+m[2]) * 1e3 + (+m[3]) : 0;
+}
+
+// Find every installed foveai-vibe-coder dir across candidate roots,
+// pick the highest version.
+const matches = [];
+for (const root of candidateRoots) {
+  if (!fs.existsSync(root)) continue;
+  for (const d of fs.readdirSync(root)) {
+    if (/foveai-vibe-coder|jenna-copilot/i.test(d)) {
+      matches.push({ root, dir: d, ver: semverKey(d) });
+    }
   }
 }
 
-// Fallback search
-if (!targetPath && fs.existsSync(antiGravityExtDir)) {
-  const dirs = fs.readdirSync(antiGravityExtDir);
-  const match = dirs.find(d => d.includes('foveai-vibe-coder') || d.includes('jenna-copilot'));
-  if (match) targetPath = path.join(antiGravityExtDir, match);
-}
-
-if (!targetPath || !fs.existsSync(targetPath)) {
-  console.log(`[DEPLOY] ⚠️ Target extension directory not found in ${antiGravityExtDir}`);
+if (!matches.length) {
+  console.log('[DEPLOY] ⚠️  No installed foveai-vibe-coder extension found in:');
+  candidateRoots.forEach(r => console.log(`          ${r}`));
   process.exit(1);
 }
+
+matches.sort((a, b) => b.ver - a.ver);
+const targetPath = path.join(matches[0].root, matches[0].dir);
 console.log(`[DEPLOY] 🎯 Deploying to: ${targetPath}`);
+if (matches.length > 1) {
+  console.log(`[DEPLOY] (other versions present: ${matches.slice(1).map(m => m.dir).join(', ')})`);
+}
 
 function copyDirectorySync(src, dest) {
   if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
@@ -45,7 +58,7 @@ function copyDirectorySync(src, dest) {
   }
 }
 
-console.log(`\n🚀 [DEPLOY] Pushing Jenna changes to Antigravity IDE...`);
+console.log(`\n🚀 [DEPLOY] Pushing Jenna changes to Devin IDE extensions...`);
 try {
   // Copy 'src' folder (HTML webviews)
   const srcDir = path.join(__dirname, '..', 'src');
@@ -61,7 +74,7 @@ try {
     console.log(`   ✅ Copied 'dist' folder`);
   }
 
-  console.log(`\n🎉 [DEPLOY] Success! Reload your Antigravity IDE plugins area to see the changes.\n`);
+  console.log(`\n🎉 [DEPLOY] Success! Run "Developer: Reload Window" (or jenna.reloadWindow) to load the new build.\n`);
 } catch (error) {
   console.error(`\n❌ [DEPLOY] Error copying files:`, error.message);
   process.exit(1);

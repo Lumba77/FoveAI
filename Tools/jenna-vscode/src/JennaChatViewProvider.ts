@@ -27,6 +27,7 @@ export class JennaChatViewProvider implements vscode.WebviewViewProvider {
     private _statusBar: JennaStatusBar,
     private _workspaceId: string,
     private _buffer: ExecutionBuffer,
+    private _audio?: import('./audioManager').AudioManager,
   ) {}
 
   public setPersona(personaId: PersonaId): void {
@@ -57,7 +58,7 @@ export class JennaChatViewProvider implements vscode.WebviewViewProvider {
     const post = (msg: Record<string, unknown>) => this._post(msg);
     this._router = new MessageRouter(
       this._client, this._logger, this._statusBar, this._workspaceId,
-      this._buffer, this._storageUri, post,
+      this._buffer, this._storageUri, post, this._audio,
     );
 
     try {
