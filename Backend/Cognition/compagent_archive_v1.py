@@ -240,8 +240,8 @@ SOFT_LOCAL_MAX_TOKENS_HOT = int(os.getenv("FoveAI_SOFT_LOCAL_MAX_TOKENS_HOT", "2
 SOFT_LOCAL_MAX_TOKENS_DEEP = int(os.getenv("FoveAI_SOFT_LOCAL_MAX_TOKENS_DEEP", "1536"))
 CLOUD_CHAT_ENABLED = _env_bool("FoveAI_CLOUD_CHAT_ENABLED", True)
 DEEP_THINK_DEFAULT = _env_bool("FoveAI_DEEP_THINK_DEFAULT", False)
-DIRECTOR_CLOUD_ENABLED = _env_bool("LUMAX_DIRECTOR_CLOUD_ENABLED", True)
-DIRECTOR_CLOUD_ROUTING = (os.getenv("LUMAX_DIRECTOR_CLOUD_ROUTING", "splice") or "splice").strip().lower()
+DIRECTOR_CLOUD_ENABLED = _env_bool("FOVEAI_DIRECTOR_CLOUD_ENABLED", True)
+DIRECTOR_CLOUD_ROUTING = (os.getenv("FOVEAI_DIRECTOR_CLOUD_ROUTING", "splice") or "splice").strip().lower()
 SOUL_DREAM_LOOP_ENABLED = _env_bool("FoveAI_SOUL_DREAM_LOOP_ENABLED", True)
 SOUL_DREAM_INTERVAL_SEC = max(60, int(os.getenv("FoveAI_SOUL_DREAM_INTERVAL_SEC", "300") or "300"))
 SOUL_DREAM_IDLE_MIN_SEC = max(60, int(os.getenv("FoveAI_SOUL_DREAM_IDLE_MIN_SEC", "900") or "900"))
@@ -3915,7 +3915,7 @@ async def handle_compagent_request(request: CompagentRequest):
 
         director_blob = (request.director_context or "").strip()
         if not director_blob:
-            director_blob = os.getenv("LUMAX_DIRECTOR_CONTEXT", "").strip()
+            director_blob = os.getenv("FOVEAI_DIRECTOR_CONTEXT", "").strip()
         if director_blob:
             sensory_ctx["director_bridge"] = director_blob[:limit_director]
 

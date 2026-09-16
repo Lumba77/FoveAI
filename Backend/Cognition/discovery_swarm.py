@@ -739,7 +739,7 @@ async def execute_discovery_mission(
         duration_minutes: Max time for discovery scan
         use_director: If True, send results to cloud Director Manager
         auto_apply: If True, auto-apply Director's indexing decisions
-                   (overrides LUMAX_DIRECTOR_AUTO_APPLY env var)
+                   (overrides FOVEAI_DIRECTOR_AUTO_APPLY env var)
     """
     global DISCOVERY_STATE
     DISCOVERY_STATE["active"] = True

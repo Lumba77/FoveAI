@@ -14,7 +14,8 @@
         "VRM",
         "Unity.XR.ARFoundation",
         "Unity.TextMeshPro",
-        "Unity.XR.Interaction.Toolkit"
+        "Unity.XR.Interaction.Toolkit",
+        "Unity.XR.Hands"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-generate_repo_skeleton.py — OPTIMIZED for local models
-Scans all key source files with TokenSlayer, produces a structural mind map
+generate_repo_principia.py — OPTIMIZED for local models
+Scans all key source files via XRL signature scan, produces a structural mind map
 for injection into every agent's working memory.
 
 Supports multiple tiers:
@@ -9,7 +9,7 @@ Supports multiple tiers:
   --tier standard  (~6.5K tokens) — imports + signatures (current default)
   --tier full      (~25K tokens)  — full file contents (no reduction)
 
-Respects .tokenslayer-ignore for excluding noise files.
+Respects .xrl-ignore (or .tokenslayer-ignore) for excluding noise files.
 
 Also generates a Dependency Map section showing:
 - Cross-file imports (who depends on what)
@@ -17,7 +17,7 @@ Also generates a Dependency Map section showing:
 - API route mappings (endpoint → handler function)
 
 Usage:
-    python Scripts/generate_repo_skeleton.py [--tier micro|standard|full]
+    python Scripts/generate_repo_principia.py [--tier micro|standard|full]
 """
 
 import subprocess
@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-ROOT = Path("C:/Users/danie/program/LUMAX/FoveAI")
+ROOT = Path(os.environ.get("FOVEAI_ROOT") or Path(__file__).resolve().parent.parent)
 OUTPUT = ROOT / "repo-principia.md"
 TS = ROOT / "Forge/scratch/TokenSlayer/standalone/tokenslayer.js"
 IGNORE_FILE = ROOT / ".xrl-ignore"
@@ -44,13 +44,13 @@ for i, arg in enumerate(sys.argv[1:]):
             print(f"Error: --tier must be micro, standard, or full (got {TIER})")
             sys.exit(1)
 
-# Map tier to TokenSlayer level
+# Map tier to scan level
 TIER_TO_LEVEL = {"micro": 4, "standard": 3, "full": 0}
 TS_LEVEL = TIER_TO_LEVEL[TIER]
 
 
 def load_ignore_patterns() -> list:
-    """Load glob patterns from .tokenslayer-ignore file."""
+    """Load glob patterns from .xrl-ignore file."""
     patterns = []
     if IGNORE_FILE.exists():
         for line in IGNORE_FILE.read_text(encoding="utf-8").splitlines():
@@ -126,13 +126,51 @@ FORGE_FILES = [
     "Forge/scratch/TokenSlayer/mcp-server/build/index.js",
 ]
 
+# Cross-repo scan — directories walked recursively for source files.
+# The static lists above are merged with auto-discovered files so the
+# principia covers the live XRLF stack, not just the legacy services.
+SCAN_DIRS = [
+    "Backend",
+    "runtime",
+    "memory",
+    "formats",
+    "builder",
+    "foveated-memory/core",
+    "foveated-memory/bin",
+    "Frontend/XR_Vessel/src",
+    "client_quest/Assets/Scripts",
+    "Tools",
+    "Scripts",
+    "tests",
+]
+SCAN_EXTS = {".py", ".ts", ".tsx", ".js", ".cs"}
+SCAN_MAX_FILE_BYTES = 300_000
+SCAN_MAX_FILES = 150
+SCAN_XRL_LINES = 15
+SKIP_DIRS = {"__pycache__", "node_modules", ".venv", ".git", "dist", "build"}
+
+SIG_PREFIXES = (
+    "import ", "from ", "def ", "class ", "async def ", "@",
+    "export ", "function ", "interface ", "type ", "struct ",
+    "const ", "let ", "var ", "fn ", "pub ", "impl ", "trait ",
+    "enum ", "case ", "object ", "public ", "private ", "protected ",
+    "static ", "void ", "async ", "module ",
+)
+
 # Service port map for dependency analysis
 SERVICE_PORTS = {
     "soul_core.py": 8402,
-    "memory_service.py": 8002,
-    "foveai_mcp_server.py": 8002,
-    "creative_service.py": 8003,
-    "tokenslayer_proxy_server.py": 8103,
+    "xrlf_runtime.py": 8402,
+    "run_xrlf.py": 8402,
+    "memory_service.py": 8407,
+    "foveai_mcp_server.py": 8407,
+    "creative_service.py": 8408,
+    "stt_whisper_server.py": 8409,
+    "motor_daemon.py": 8410,
+    "autonomous_agent.py": 8410,
+    "subconscious_daemon.py": 8411,
+    "ignition_server.py": 8409,
+    "tokenslayer_proxy_server.py": 8200,
     "smart_context.py": 8104,
 }
 
@@ -142,8 +180,52 @@ IMPORT_PATTERN = re.compile(r'from\s+([.\w]+)\s+import|import\s+([.\w]+)')
 HTTP_PATTERN = re.compile(r'(?:httpx|requests|fetch|axios)\.(?:get|post|put|delete)\s*\(\s*["\'](?:http://)?127\.0\.0\.1:(\d+)')
 
 
-def run_tokenslayer(filepath: Path) -> str:
-    """Run TokenSlayer and return ONLY the skeleton lines (no headers/noise)."""
+def xrlate(filepath: Path, max_lines: int = 60) -> str:
+    """Pure-Python XRL scanner — used when the legacy JS scanner is absent.
+
+    Emits signature/import lines only (equivalent to scan level 3):
+    imports, classes, function signatures, decorators. For Python files,
+    the module docstring's first line is kept as a semantic header.
+    """
+    try:
+        text = filepath.read_text(encoding="utf-8", errors="replace")
+    except Exception as e:
+        return f"// ERROR: {e}"
+
+    out = []
+    if filepath.suffix == ".py":
+        doc = re.search(r'"""(.*?)"""', text, re.DOTALL)
+        if doc:
+            first = doc.group(1).strip().split("\n")[0][:120]
+            if first:
+                out.append(f'"""{first}"""')
+    else:
+        for line in text.splitlines()[:12]:
+            m = re.match(r'\s*(?://+|/\*+|\*)\s*(.+)', line)
+            if m:
+                out.append(f"// {m.group(1).strip()[:120]}")
+                break
+
+    for line in text.splitlines():
+        t = line.strip()
+        if not t or t.startswith(("#", "//", "/*", "*", '"""', "'''")):
+            continue
+        if t.startswith(SIG_PREFIXES) or re.match(r'^(async\s+)?(public|private|protected|static|internal|sealed|override|virtual)\s', t):
+            out.append(line.rstrip() + (" ..." if t.endswith((":", "{")) else ""))
+        if len(out) >= max_lines:
+            out.append(f"// ... [{filepath.name} truncated at {max_lines} scan lines]")
+            break
+    return "\n".join(out)
+
+
+def run_xrlate(filepath: Path) -> str:
+    """Run the XRL scan and return ONLY the scan lines (no headers/noise).
+
+    Falls back to the pure-Python scanner when the legacy JS scanner
+    isn't present on this machine.
+    """
+    if not TS.exists():
+        return xrlate(filepath)
     try:
         result = subprocess.run(
             ["node", str(TS), str(filepath), "--level", str(TS_LEVEL)],
@@ -156,11 +238,41 @@ def run_tokenslayer(filepath: Path) -> str:
             and not l.startswith("[TokenSlayer Saved")
             and not l.startswith("Auto-activating")
             and not l.startswith("<previous line")
-            and not (l.strip().startswith("//") and "skeleton" in l.lower())
+            and not (l.strip().startswith("//") and "scan" in l.lower())
         ]
         return "\n".join(filtered)
     except Exception as e:
         return f"// ERROR: {e}"
+
+
+def discover_scan_files(ignore_patterns: list) -> list:
+    """Recursively discover source files under SCAN_DIRS for the cross-repo scan.
+
+    Results are sorted by mtime (newest first) so the live stack —
+    runtime/, memory/, foveated-memory — outranks untouched legacy code.
+    """
+    found = {}
+    for d in SCAN_DIRS:
+        base = ROOT / d
+        if not base.is_dir():
+            continue
+        for dirpath, dirnames, filenames in os.walk(base):
+            dirnames[:] = [x for x in dirnames if x not in SKIP_DIRS]
+            for name in filenames:
+                p = Path(dirpath) / name
+                if p.suffix not in SCAN_EXTS:
+                    continue
+                try:
+                    st = p.stat()
+                    if st.st_size > SCAN_MAX_FILE_BYTES:
+                        continue
+                except OSError:
+                    continue
+                rel = p.relative_to(ROOT).as_posix()
+                if is_ignored(rel, ignore_patterns):
+                    continue
+                found[rel] = st.st_mtime
+    return sorted(found, key=lambda r: -found[r])
 
 
 def get_compact_tree(ignore_patterns: list) -> str:
@@ -271,11 +383,11 @@ def build_route_map(processed_files: dict) -> list:
     return sorted(routes)
 
 
-def generate_micro_skeleton(processed_files: dict, ignore_patterns: list) -> str:
-    """Generate a micro-skeleton (<500 tokens) with tree + ports + one-line summaries."""
+def generate_micro_principia(processed_files: dict, ignore_patterns: list) -> str:
+    """Generate a micro-principia (<500 tokens) with tree + ports + one-line summaries."""
     lines = []
-    lines.append("# FoveAI Micro-Skeleton")
-    lines.append(f"*{datetime.now().strftime('%Y-%m-%d %H:%M')} | Tier: micro | .tokenslayer-ignore active*\n")
+    lines.append("# FoveAI Micro-Principia")
+    lines.append(f"*{datetime.now().strftime('%Y-%m-%d %H:%M')} | Tier: micro | .xrl-ignore active*\n")
 
     # Tree
     lines.append("## Tree")
@@ -339,17 +451,24 @@ def generate_micro_skeleton(processed_files: dict, ignore_patterns: list) -> str
 
 
 def main():
-    print(f"=== Generating Repo Skeleton (tier={TIER}, level={TS_LEVEL}) ===")
+    print(f"=== Generating Repo Principia (tier={TIER}, level={TS_LEVEL}) ===")
 
     # Load ignore patterns
     ignore_patterns = load_ignore_patterns()
-    print(f"  Loaded {len(ignore_patterns)} ignore patterns from .tokenslayer-ignore")
+    print(f"  Loaded {len(ignore_patterns)} ignore patterns from .xrl-ignore")
+
+    # Merge static lists with auto-discovered cross-repo files
+    discovered = discover_scan_files(ignore_patterns)
+    static_set = set(BACKEND_FILES + FORGE_FILES)
+    extra_files = [f for f in discovered if f not in static_set][:SCAN_MAX_FILES]
+    all_files = list(dict.fromkeys(BACKEND_FILES + FORGE_FILES + extra_files))
+    print(f"  Cross-repo scan discovered {len(discovered)} files "
+          f"({len(extra_files)} beyond static list, capped at {SCAN_MAX_FILES})")
 
     # Count how many files would be excluded
-    all_files = BACKEND_FILES + FORGE_FILES
-    excluded = [f for f in all_files if is_ignored(f, ignore_patterns)]
+    excluded = [f for f in (BACKEND_FILES + FORGE_FILES) if is_ignored(f, ignore_patterns)]
     if excluded:
-        print(f"  Excluded by .tokenslayer-ignore: {len(excluded)} files")
+        print(f"  Excluded by .xrl-ignore: {len(excluded)} files")
         for f in excluded:
             print(f"    - {f}")
 
@@ -373,7 +492,7 @@ def main():
 
     # MICRO TIER — completely different output format
     if TIER == "micro":
-        output = generate_micro_skeleton(processed_files, ignore_patterns)
+        output = generate_micro_principia(processed_files, ignore_patterns)
         with open(OUTPUT, "w", encoding="utf-8") as f:
             f.write(output)
     else:
@@ -381,14 +500,14 @@ def main():
         with open(OUTPUT, "w", encoding="utf-8") as f:
             # Ultra-compact header
             tier_name = {"standard": "L3", "full": "L0"}[TIER]
-            f.write("# FoveAI Repo Skeleton\n")
-            f.write(f"*{datetime.now().strftime('%Y-%m-%d %H:%M')} | TokenSlayer {tier_name} | .tokenslayer-ignore active*\n\n")
+            f.write("# FoveAI Repo Principia\n")
+            f.write(f"*{datetime.now().strftime('%Y-%m-%d %H:%M')} | XRL scan {tier_name} | .xrl-ignore active*\n\n")
 
             # Maintenance section
             f.write("## Maintenance\n")
-            f.write("Auto-generated by [`Scripts/generate_repo_skeleton.py`](Scripts/generate_repo_skeleton.py).\n")
-            f.write("Edit [`.tokenslayer-ignore`](.tokenslayer-ignore) to exclude files. Regenerate:\n")
-            f.write("```bash\npython Scripts/generate_repo_skeleton.py [--tier micro|standard|full]\n```\n\n")
+            f.write("Auto-generated by [`Scripts/generate_repo_principia.py`](Scripts/generate_repo_principia.py).\n")
+            f.write("Edit [`.xrl-ignore`](.xrl-ignore) to exclude files. Regenerate:\n")
+            f.write("```bash\npython Scripts/generate_repo_principia.py [--tier micro|standard|full]\n```\n\n")
 
             # Compact directory tree
             f.write("## Tree\n")
@@ -396,7 +515,7 @@ def main():
 
             # Compact service map (single line per service)
             f.write("## Ports\n")
-            f.write("Soul:8402 | Proxy:8400 | Dashboard:8401 | WS_IPC:8403 | Memory:8002 | MemoryMCP:8002 | Creative:8003 | TSProxy:8103 | WebUI:8080\n\n")
+            f.write("Proxy:8400 | Dashboard:8401 | Soul/XRLF:8402 | WS_IPC:8403 | TTS:8406 | Memory:8407 | Creative:8408 | STT:8409 | Motor/Auto:8410 | Subconscious:8411 | XRVessel:5176 | WebUI:5177\n\n")
 
             # === DEPENDENCY MAP ===
             f.write("## Dependencies\n")
@@ -425,33 +544,44 @@ def main():
                         f.write(f"  {rel_path} ← {', '.join(local_imports[:5])}\n")
             f.write("\n")
 
-            # === SKELETONS ===
+            # === XRL SCANS ===
             f.write("## Backend\n")
             for rel_path in BACKEND_FILES:
                 if is_ignored(rel_path, ignore_patterns):
-                    print(f"  IGNORED: {rel_path} (matches .tokenslayer-ignore)")
+                    print(f"  IGNORED: {rel_path} (matches .xrl-ignore)")
                     continue
                 full_path = ROOT / rel_path
                 if full_path.exists():
                     print(f"  {rel_path}...")
-                    skeleton = run_tokenslayer(full_path)
-                    if skeleton.strip():
-                        f.write(f"// {rel_path}\n{skeleton}\n\n")
+                    scan = run_xrlate(full_path)
+                    if scan.strip():
+                        f.write(f"// {rel_path}\n{scan}\n\n")
                 else:
                     print(f"  SKIP: {rel_path}")
 
-            # Forge skeletons
+            # Forge scans
             f.write("## Forge\n")
             for rel_path in FORGE_FILES:
                 if is_ignored(rel_path, ignore_patterns):
-                    print(f"  IGNORED: {rel_path} (matches .tokenslayer-ignore)")
+                    print(f"  IGNORED: {rel_path} (matches .xrl-ignore)")
                     continue
                 full_path = ROOT / rel_path
                 if full_path.exists():
                     print(f"  {rel_path}...")
-                    skeleton = run_tokenslayer(full_path)
-                    if skeleton.strip():
-                        f.write(f"// {rel_path}\n{skeleton}\n\n")
+                    scan = run_xrlate(full_path)
+                    if scan.strip():
+                        f.write(f"// {rel_path}\n{scan}\n\n")
+
+            # Cross-repo scans (auto-discovered — tighter cap to keep
+            # the principia within a sane token budget)
+            if extra_files:
+                f.write("## Cross-Repo\n")
+                for rel_path in extra_files:
+                    full_path = ROOT / rel_path
+                    if full_path.exists():
+                        scan = run_xrlate(full_path) if TS.exists() else xrlate(full_path, max_lines=SCAN_XRL_LINES)
+                        if scan.strip():
+                            f.write(f"// {rel_path}\n{scan}\n\n")
 
             # Config links (minimal)
             f.write("## Config\n")

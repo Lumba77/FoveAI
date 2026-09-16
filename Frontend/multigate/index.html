@@ -3,9 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <script>
-      // Force HTTPS for WebXR context (unless on localhost)
-      if (location.protocol === 'http:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-        location.replace(`https://${location.hostname}${location.pathname}${location.search}`);
+      // Force HTTPS for WebXR context — only for real domain names that can
+      // terminate TLS (xarel.net etc). IP literals and .local have no TLS
+      // endpoint, so upgrading would break LAN access; also keep the port.
+      var _isLocal = /^(localhost|127\.0\.0\.1|(\d{1,3}\.){3}\d{1,3}|\[.*\])$/.test(location.hostname) || location.hostname.endsWith('.local');
+      if (location.protocol === 'http:' && !_isLocal) {
+        location.replace(`https://${location.host}${location.pathname}${location.search}`);
       }
     </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

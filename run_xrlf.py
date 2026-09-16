@@ -209,6 +209,42 @@ def main():
     from Backend.app.IPC.websocket_server import IPCServer
     import uvicorn
     import asyncio
+    import socket
+
+    # ── Single-instance preflight ────────────────────────────────────────────
+    # A second run_xrlf on the same ports used to evict the healthy model via
+    # the VRAM lock files, then die on EADDRINUSE — leaving a zombie with no
+    # model and no API. Check the ports BEFORE constructing the runtime so we
+    # never touch the guardrail unless we can actually serve.
+    def _port_free(host: str, p: int) -> bool:
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            s.bind((host, p))
+            return True
+        except OSError:
+            return False
+        finally:
+            s.close()
+
+    def _health_ping(p: int):
+        import urllib.request, json as _json
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{p}/health", timeout=2) as r:
+                return _json.loads(r.read())
+        except Exception:
+            return None
+
+    ws_port_preflight = args.ws_port if args.ws_port else (port + 1)
+    if not _port_free(api_host, port) or not _port_free(ws_host, ws_port_preflight):
+        h = _health_ping(port)
+        if h:
+            print(f"\n  ℹ️  XRLF runtime already running on :{port} "
+                  f"(model={h.get('model')}, load_state={h.get('load_state')}) — exiting.")
+            sys.exit(0)
+        print(f"\n  ❌ Port :{port} or :{ws_port_preflight} is held by a process that "
+              f"doesn't answer /health (stale/zombie instance).")
+        print(f"     Stop it first: systemctl --user stop foveai-xrlf  (or pkill -f run_xrlf.py)\n")
+        sys.exit(2)
 
     # Construct the runtime WITHOUT loading — the HTTP API binds first so
     # /health can answer {"loaded": false, "load_state": "loading"} during the
@@ -295,11 +331,20 @@ def main():
     load_thread = threading.Thread(target=_load_model, daemon=True, name="xrlf-loader")
     load_thread.start()
 
-    # Run HTTP server in the main thread (uvicorn manages its own loop)
+    # Run HTTP server in the main thread (uvicorn manages its own loop).
+    # On ANY exit path we hard-exit via os._exit: preload/executor threads are
+    # non-daemon and would otherwise keep a port-less zombie process alive,
+    # which is exactly the state that caused restart loops to spiral.
     try:
         uvicorn.run(app, host=api_host, port=port, log_level="warning")
-    finally:
+    except Exception as e:
+        print(f"\n  ❌ API server failed to start on {api_host}:{port}: {e}")
+        os._exit(2)
+    try:
         runtime.close()
+    except Exception:
+        pass
+    os._exit(0)
 
 
 if __name__ == "__main__":

@@ -39,7 +39,19 @@ class TestAPIHealth(unittest.TestCase):
             "model": "test-model",
             "runtime": "xrlf-1.0",
             "loaded": True,
+            "loading": False,
+            "load_state": "ready",
+            "load_error": None,
         })
+
+    def test_health_reports_load_state(self) -> None:
+        self.runtime.loaded = False
+        self.runtime.load_state = "loading"
+        self.runtime.load_error = None
+        h = self.client.get("/health").json()
+        self.assertIs(h["loaded"], False)
+        self.assertIs(h["loading"], True)
+        self.assertEqual(h["load_state"], "loading")
 
     def test_health_reports_unloaded_model(self) -> None:
         response = self.client.get("/health")

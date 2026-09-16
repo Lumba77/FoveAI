@@ -25,6 +25,15 @@ namespace FoveAI.Environment
 
             Debug.Log("[RoomManagerEnabler] Enabling room scanning components...");
 
+            // OVRSceneManager silently no-ops without an OVRManager instance.
+            // OVRManager is safe alongside OpenXR — it only hosts OVRPlugin services
+            // (Scene API, anchors) and does not drive tracking/rendering.
+            if (OVRManager.instance == null)
+            {
+                gameObject.AddComponent<OVRManager>();
+                Debug.Log("[RoomManagerEnabler] Created OVRManager (required by OVRSceneManager).");
+            }
+
             var sceneManager = GetComponent<OVRSceneManager>();
             if (sceneManager != null)
             {

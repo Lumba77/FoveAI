@@ -1,12 +1,12 @@
 {
   "current_focus": "Active dialogue and assistance",
-  "emotional_state": "CURIOUS",
-  "curiosity_level": 0.8200000000000001,
-  "energy_level": 1.0,
+  "emotional_state": "HAPPY",
+  "curiosity_level": 1.0,
+  "energy_level": 0.24999999999999933,
   "active_intentions": [
     "Help the user",
     "Understand context",
     "Grow closer"
   ],
-  "last_updated": 1788720781.2320077
+  "last_updated": 1789529394.9772928
 }

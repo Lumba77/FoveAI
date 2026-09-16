@@ -25,6 +25,19 @@ namespace FoveAI.Avatar
         public float walkSpeed = 1.0f;
         public float rotationSpeed = 3.0f;
 
+        [Header("Controller Puppeteering")]
+        [Tooltip("IK weight for hands following controllers (0=animation, 1=full controller control).")]
+        [Range(0f, 1f)] public float handIkWeight = 0.85f;
+        [Tooltip("Smoothing for hand IK position tracking.")]
+        public float handIkSmooth = 12f;
+        [Tooltip("Offset applied to controller position to reach avatar hand (avatar local space).")]
+        public Vector3 leftHandOffset = new Vector3(0f, -0.05f, 0.02f);
+        public Vector3 rightHandOffset = new Vector3(0f, -0.05f, 0.02f);
+        [Tooltip("If true, avatar head follows the HMD rotation when puppeteering.")]
+        public bool headFollowHmd = true;
+        [Tooltip("Smoothing for head follow.")]
+        public float headSmooth = 8f;
+
         private Vector3 _targetPosition;
         private Quaternion _targetRotation;
         private bool _isWalking = false;
@@ -37,6 +50,13 @@ namespace FoveAI.Avatar
         private Vector2 _aiVirtualMove = Vector2.zero;
         private Vector2 _aiVirtualSpin = Vector2.zero;
         private Coroutine _aiVirtualTimer;
+
+        // --- Controller Puppeteering IK ---
+        private Vector3 _ikLeftHandPos = Vector3.zero;
+        private Vector3 _ikRightHandPos = Vector3.zero;
+        private Quaternion _ikLeftHandRot = Quaternion.identity;
+        private Quaternion _ikRightHandRot = Quaternion.identity;
+        private bool _ikInitialized = false;
 
         private void Awake()
         {
@@ -230,6 +250,21 @@ namespace FoveAI.Avatar
                 return;
             }
 
+            // Skip procedural arm pose when puppet steering is active — IK controls arms
+            if (_isPuppetSteeringActive)
+            {
+                // Only apply leg swing during walk, leave arms to IK
+                if (_animator != null && _animator.isHuman && _isWalking)
+                {
+                    Transform leftLeg = _animator.GetBoneTransform(HumanBodyBones.LeftUpperLeg);
+                    Transform rightLeg = _animator.GetBoneTransform(HumanBodyBones.RightUpperLeg);
+                    float legSwing = Mathf.Sin(_walkPhase) * 30f;
+                    if (leftLeg != null) leftLeg.localRotation = Quaternion.Euler(-legSwing, 0, 0);
+                    if (rightLeg != null) rightLeg.localRotation = Quaternion.Euler(legSwing, 0, 0);
+                }
+                return;
+            }
+
             if (_animator != null)
             {
                 Transform leftArm = _animator.isHuman ? _animator.GetBoneTransform(HumanBodyBones.LeftUpperArm) : null;
@@ -258,6 +293,109 @@ namespace FoveAI.Avatar
                         leftLeg.localRotation = Quaternion.Euler(-legSwing, 0, 0);
                     if (rightLeg != null && _isWalking)
                         rightLeg.localRotation = Quaternion.Euler(legSwing, 0, 0);
+                }
+            }
+        }
+
+        // ── Controller Puppeteering IK ──
+        // When _isPuppetSteeringActive is true, the player's controller positions
+        // drive Alice's hands via Unity humanoid IK. When false, IK weight is 0
+        // and Alice's autonomous animations control her arms.
+
+        private void OnAnimatorIK(int layerIndex)
+        {
+            if (_animator == null)
+            {
+                _animator = GetComponentInChildren<Animator>();
+                if (_animator == null) return;
+            }
+
+            if (!_animator.isHuman) return;
+
+            if (!_isPuppetSteeringActive)
+            {
+                // Release IK — let autonomous animation drive arms
+                _animator.SetIKPositionWeight(AvatarIKGoal.LeftHand, 0f);
+                _animator.SetIKRotationWeight(AvatarIKGoal.LeftHand, 0f);
+                _animator.SetIKPositionWeight(AvatarIKGoal.RightHand, 0f);
+                _animator.SetIKRotationWeight(AvatarIKGoal.RightHand, 0f);
+                if (headFollowHmd)
+                {
+                    _animator.SetLookAtWeight(0f);
+                }
+                _ikInitialized = false;
+                return;
+            }
+
+            // Get controller positions/rotations in world space
+            Vector3 leftPos = OVRInput.GetLocalControllerPosition(OVRInput.Controller.LTouch);
+            Quaternion leftRot = OVRInput.GetLocalControllerRotation(OVRInput.Controller.LTouch);
+            Vector3 rightPos = OVRInput.GetLocalControllerPosition(OVRInput.Controller.RTouch);
+            Quaternion rightRot = OVRInput.GetLocalControllerRotation(OVRInput.Controller.RTouch);
+
+            // Convert from tracking space to world space via the camera rig
+            Camera cam = Camera.main;
+            if (cam != null)
+            {
+                Transform origin = cam.transform.parent;
+                if (origin != null)
+                {
+                    leftPos = origin.TransformPoint(leftPos);
+                    rightPos = origin.TransformPoint(rightPos);
+                    leftRot = origin.rotation * leftRot;
+                    rightRot = origin.rotation * rightRot;
+                }
+                else
+                {
+                    leftPos = cam.transform.TransformPoint(leftPos);
+                    rightPos = cam.transform.TransformPoint(rightPos);
+                    leftRot = cam.transform.rotation * leftRot;
+                    rightRot = cam.transform.rotation * rightRot;
+                }
+            }
+
+            // Apply hand offsets (adjust so controller grip maps to avatar hand)
+            leftPos += leftHandOffset;
+            rightPos += rightHandOffset;
+
+            // Initialize IK positions on first activation
+            if (!_ikInitialized)
+            {
+                _ikLeftHandPos = leftPos;
+                _ikRightHandPos = rightPos;
+                _ikLeftHandRot = leftRot;
+                _ikRightHandRot = rightRot;
+                _ikInitialized = true;
+            }
+
+            // Smooth IK targets
+            float smooth = handIkSmooth * Time.deltaTime;
+            _ikLeftHandPos = Vector3.Lerp(_ikLeftHandPos, leftPos, smooth);
+            _ikRightHandPos = Vector3.Lerp(_ikRightHandPos, rightPos, smooth);
+            _ikLeftHandRot = Quaternion.Slerp(_ikLeftHandRot, leftRot, smooth);
+            _ikRightHandRot = Quaternion.Slerp(_ikRightHandRot, rightRot, smooth);
+
+            // Apply IK
+            _animator.SetIKPositionWeight(AvatarIKGoal.LeftHand, handIkWeight);
+            _animator.SetIKRotationWeight(AvatarIKGoal.LeftHand, handIkWeight);
+            _animator.SetIKPositionWeight(AvatarIKGoal.RightHand, handIkWeight);
+            _animator.SetIKRotationWeight(AvatarIKGoal.RightHand, handIkWeight);
+
+            _animator.SetIKPosition(AvatarIKGoal.LeftHand, _ikLeftHandPos);
+            _animator.SetIKRotation(AvatarIKGoal.LeftHand, _ikLeftHandRot);
+            _animator.SetIKPosition(AvatarIKGoal.RightHand, _ikRightHandPos);
+            _animator.SetIKRotation(AvatarIKGoal.RightHand, _ikRightHandRot);
+
+            // Head follows HMD
+            if (headFollowHmd && cam != null)
+            {
+                Transform headBone = _animator.GetBoneTransform(HumanBodyBones.Head);
+                if (headBone != null)
+                {
+                    Quaternion targetHeadRot = cam.transform.rotation;
+                    // Smooth head rotation
+                    headBone.rotation = Quaternion.Slerp(
+                        headBone.rotation, targetHeadRot, headSmooth * Time.deltaTime);
                 }
             }
         }

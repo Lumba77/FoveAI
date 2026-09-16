@@ -1,14 +1,11 @@
-Plumax-xrlf-proxy/
+FoveAI/
+  _agent/
+    workflows/
+      dev-collab.md
+    check_skeleton.py
+    stats.py
+    test_ignore.py
   _forge/
-    lumax-forge/
-      soundtrack_director_1b/
-    models--w-ahmad--Gemma-4-12B-it-qat-GGUF-MoQ/
-      blobs/
-      refs/
-      snapshots/
-      .transport.gguf-a58cd2edcbe5de6f7ecc07df
-    smart-router-gguf_gguf/
-      Modelfile
     adapter_config.json
     added_tokens.json
     build_manifest.py
@@ -18,25 +15,31 @@ Plumax-xrlf-proxy/
     README.md
     special_tokens_map.json
     tokenizer_config.json
-  api/
-    __init__.py
-    server.py
-  builder/
-    distillation/
-      __init__.py
-    packer/
-      __init__.py
-      pack_xrlf.py
-    probes/
-      __init__.py
-      benchmark_suite.py
-    __init__.py
-    finetune_xrl_bone.py
-  formats/
-    __init__.py
-    xrlf_packer.py
-    xrlf_parser.py
-    xrlf_schema.py
-  foveated-memory/
-    config/
-(24 files, 16 dirs — 20 skipped as noise)
+  .agent/
+    skills/
+      aicb-claude-skill.changelog/
+      aicb-claude-skill.imprint/
+      nexysync-mcp/
+  .agent-mem/
+    observations/
+      2026-08-22.md
+      2026-08-28.md
+      2026-09-02.md
+    .cache_idx
+    index.md
+    last-session.md
+    skills.md
+  .agents/
+    bridge/
+      ANTIGRAVITY_INBOX.md
+      DEVIN_INBOX.md
+      events.jsonl
+      README.md
+      SHARED_TASKS.md
+    rules/
+      neurosync-context.md
+    skills/
+      config/
+      convention/
+      decision/
+(26 files, 17 dirs — 7 skipped as noise)

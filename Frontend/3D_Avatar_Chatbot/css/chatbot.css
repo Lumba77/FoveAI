@@ -1259,3 +1259,4 @@ input[type="text"]:focus {
     color: var(--neon-cyan);
     border-color: var(--neon-cyan);
 }
+#ar-volume-btn svg { transform: scale(1.4); }

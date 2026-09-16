@@ -450,7 +450,7 @@ async function ensureLlamaServer(modelPath, port, label) {
     } catch (_) {}
 
     // Auto-spawning disabled to prevent choking the PC with background servers
-    if (process.env.LUMAX_ALLOW_SPAWN_LLAMA !== 'true') {
+    if (process.env.FOVEAI_ALLOW_SPAWN_LLAMA !== 'true') {
         throw new Error(`${label} server on :${port} is offline (auto-spawning disabled to protect PC memory)`);
     }
 

@@ -294,3 +294,12 @@ code {
     border-right-color: var(--border);
   }
 }
+
+/* ── FOVEAI AURORA accent alignment (theme/foveai-aurora.css) ── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --accent: #5eead4;
+    --accent-bg: rgba(94, 234, 212, 0.12);
+    --accent-border: rgba(94, 234, 212, 0.45);
+  }
+}

@@ -18,6 +18,14 @@ import logging
 import asyncio
 import sys
 
+def _global_exception_handler(loop, context):
+    logger.error(f"Global asyncio exception caught! Crashing process for systemd restart. Context: {context}")
+    import os
+    os._exit(1)
+
+# Attach near top level
+
+
 # WORKAROUND: Prevent Uvicorn from crashing on [WinError 64] "The specified network name is no longer available"
 # This occurs on Windows with the default ProactorEventLoop when a client drops the connection during handshake.
 if sys.platform == 'win32':
@@ -240,8 +248,8 @@ SOFT_LOCAL_MAX_TOKENS_HOT = int(os.getenv("FoveAI_SOFT_LOCAL_MAX_TOKENS_HOT", "2
 SOFT_LOCAL_MAX_TOKENS_DEEP = int(os.getenv("FoveAI_SOFT_LOCAL_MAX_TOKENS_DEEP", "1536"))
 CLOUD_CHAT_ENABLED = _env_bool("FoveAI_CLOUD_CHAT_ENABLED", True)
 DEEP_THINK_DEFAULT = _env_bool("FoveAI_DEEP_THINK_DEFAULT", False)
-DIRECTOR_CLOUD_ENABLED = _env_bool("LUMAX_DIRECTOR_CLOUD_ENABLED", True)
-DIRECTOR_CLOUD_ROUTING = (os.getenv("LUMAX_DIRECTOR_CLOUD_ROUTING", "splice") or "splice").strip().lower()
+DIRECTOR_CLOUD_ENABLED = _env_bool("FOVEAI_DIRECTOR_CLOUD_ENABLED", True)
+DIRECTOR_CLOUD_ROUTING = (os.getenv("FOVEAI_DIRECTOR_CLOUD_ROUTING", "splice") or "splice").strip().lower()
 SOUL_DREAM_LOOP_ENABLED = _env_bool("FoveAI_SOUL_DREAM_LOOP_ENABLED", True)
 SOUL_DREAM_INTERVAL_SEC = max(60, int(os.getenv("FoveAI_SOUL_DREAM_INTERVAL_SEC", "300") or "300"))
 SOUL_DREAM_IDLE_MIN_SEC = max(60, int(os.getenv("FoveAI_SOUL_DREAM_IDLE_MIN_SEC", "900") or "900"))
@@ -1098,7 +1106,20 @@ async def lifespan(app: FastAPI):
     except Exception:
         pass
 
-app = FastAPI(title="Lumax Mind Core", lifespan=lifespan)
+
+
+app = FastAPI(
+    title="FoveAI Sovereign Core",
+    version="2.0.0"
+)
+
+@app.on_event("startup")
+async def _startup_crash_guard():
+    loop = asyncio.get_running_loop()
+    loop.set_exception_handler(_global_exception_handler)
+    logger.info("Global crash guard installed on asyncio loop.")
+
+# title="Lumax Mind Core", lifespan=lifespan)
 
 from config_manager import config_router
 app.include_router(config_router)
@@ -3840,7 +3861,7 @@ async def handle_compagent_request(request: CompagentRequest):
 
         director_blob = (request.director_context or "").strip()
         if not director_blob:
-            director_blob = os.getenv("LUMAX_DIRECTOR_CONTEXT", "").strip()
+            director_blob = os.getenv("FOVEAI_DIRECTOR_CONTEXT", "").strip()
         if director_blob:
             sensory_ctx["director_bridge"] = director_blob[:limit_director]
 
@@ -5068,7 +5089,7 @@ if __name__ == "__main__":
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
         from server_config import ServerConfig as cfg
         _host = cfg.BIND_HOST
-        _port = cfg.COMPAGENT_PORT
+        _port = 8000
     except ImportError:
         _host = os.getenv("FOVEAI_BIND_HOST", "0.0.0.0")
         _port = int(os.getenv("FOVEAI_COMPAGENT_PORT", "8400"))

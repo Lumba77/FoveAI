@@ -1,0 +1,35 @@
+{
+  "xrlf_version": "1.0",
+  "description": "Resonance tuning — model parameters, steering strength, and behavioral calibration",
+  "xrl": {
+    "steering_strength": 0.8,
+    "profile_auto_detect": true,
+    "verbose": false
+  },
+  "memory": {
+    "token_budget": 2048,
+    "tfidf_top_k": 5,
+    "embedding_model": "qwen3.5-4b"
+  },
+  "tts": {
+    "enabled": true,
+    "engine": "auto",
+    "provider": "http",
+    "endpoint": "http://127.0.0.1:8004/tts",
+    "voice": "default",
+    "fallback": ["http", "piper", "espeak", "stub"]
+  },
+  "behavioral": {
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "top_k": 40,
+    "repeat_penalty": 1.1,
+    "max_tokens": 4096,
+    "stop_sequences": ["<|im_end|>", "<|endoftext|>"]
+  },
+  "checkpoint": {
+    "lm_studio_endpoint": "http://127.0.0.1:7272/v1",
+    "compression_model": "qwen3.5-4b",
+    "fallback_strategy": "extractive"
+  }
+}

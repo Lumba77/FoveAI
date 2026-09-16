@@ -1,0 +1,10 @@
+tunnel: 75326542-df38-40ee-9041-bf4931f3d1d9
+credentials-file: C:\Users\danie\.cloudflared\75326542-df38-40ee-9041-bf4931f3d1d9.json
+origincert: C:\Users\danie\.cloudflared\cert.pem
+protocol: http2
+ingress:
+  - hostname: xarel.net
+    service: http://127.0.0.1:5177
+  - hostname: xrlf.xarel.net
+    service: http://127.0.0.1:5176
+  - service: http_status:404

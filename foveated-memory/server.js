@@ -45,7 +45,7 @@ const http = require('http');
 const fetch   = require('node-fetch');
 const path    = require('path');
 const fs      = require('fs');
-const { execFile } = require('child_process');
+const { execFile, spawn } = require('child_process');
 const { v4: uuidv4 } = require('uuid');
 
 
@@ -815,7 +815,6 @@ const handleXRLFDispatch = async (req, res) => {
 dashboardApp.get('/api/ide/detect', handleIdeDetect);
 app.get('/api/ide/detect', handleIdeDetect);
 dashboardApp.get('/api/status', (req, res) => res.json({ status: 'ok' }));
-app.get('/api/status', (req, res) => res.json({ status: 'ok' }));
 dashboardApp.post('/api/XRLF/dispatch', handleXRLFDispatch);
 app.post('/api/XRLF/dispatch', handleXRLFDispatch);
 
@@ -3677,14 +3676,63 @@ app.post('/api/control', (req, res) => {
         : path.join(foveaiDir, '.venv', 'Scripts', 'python.exe');
     const sendOk = () => res.json({ ok: true, action });
     const sendErr = (err) => res.status(500).json({ error: err?.message || String(err) });
+
+    // ── XRLF runtime lifecycle (Linux) ──────────────────────────────
+    // The runtime is owned by foveai-xrlf.service (systemd --user,
+    // Restart=always). ALL start/stop/restart goes through systemctl so
+    // cgroup tracking applies. Previously we pkill'd + detached-spawned
+    // run_xrlf.py ourselves — that produced un-tracked processes that
+    // fought the VRAM guardrail and left zombie runtimes with no model.
+    const xrlfCtl = (verb, done) => {
+        // Kill un-tracked strays first (their cgroup isn't the unit's, so
+        // systemctl can't see them), then hand lifecycle to systemd.
+        execFile('pkill', ['-f', 'run_xrlf.py'], () => {
+            execFile('systemctl', ['--user', verb, 'foveai-xrlf'], (err) => done(err || null));
+        });
+    };
+
+    // Cold-start with a non-default model: systemd loads the unit's default,
+    // then we hot-swap via /load once /health reports loaded.
+    const xrlfDeferredHotSwap = (model, port = 8402) => {
+        const base = p => String(p).split(/[\\/]/).pop().replace(/\.xrlf$/i, '');
+        const defaultModel = process.env.XRLF_MODEL_LOCAL_ID || 'gemma-4-e2b-multimodal-v1.0.xrlf';
+        if (base(model) === base(defaultModel)) return;  // unit already loads this
+        const resolved = String(model).includes('/') ? model : `xrl_encoded/${model}`;
+        let tries = 0;
+        const iv = setInterval(() => {
+            if (++tries > 90) { clearInterval(iv); return; }
+            fetch(`http://127.0.0.1:${port}/health`, { timeout: 3000 })
+                .then(r => r.json())
+                .then(h => {
+                    if (h.loaded) {
+                        clearInterval(iv);
+                        console.log(`[xrlf] Cold-start swap → ${resolved}`);
+                        fetch(`http://127.0.0.1:${port}/load`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({model: resolved}),
+                            timeout: 120000,
+                        }).catch(e => console.warn('[xrlf] deferred swap failed:', e.message));
+                    } else if (h.load_state === 'error') {
+                        clearInterval(iv);
+                        console.warn(`[xrlf] load_state=error before swap: ${h.load_error}`);
+                    }
+                })
+                .catch(() => {});
+        }, 4000);
+    };
+
     switch (action) {
         case 'start-stack':
             if (IS_LINUX) {
-                execFile('node', ['sleipnir_launcher.js'], {
-                    cwd: repoRoot,
+                const child = spawn('bash', [path.join(foveaiDir, 'sleipnir_launcher.sh')], {
+                    cwd: foveaiDir,
                     detached: true,
                     stdio: 'ignore'
-                }, (err) => err ? sendErr(err) : sendOk());
+                });
+                child.on('error', (err) => { if (!res.headersSent) sendErr(err); });
+                child.unref();
+                sendOk();
             } else {
                 execFile('C:\\Windows\\System32\\cmd.exe', ['/c', 'start', '/min', '', 'node', 'sleipnir_launcher.js'], {
                     cwd: repoRoot,
@@ -3695,7 +3743,7 @@ app.post('/api/control', (req, res) => {
             break;
         case 'stop-stack':
             if (IS_LINUX) {
-                execFile('pkill', ['-f', 'sleipnir_launcher.js'], () => sendOk());
+                execFile('bash', [path.join(foveaiDir, 'sleipnir_launcher.sh'), '--stop'], { cwd: foveaiDir }, (err) => err ? sendErr(err) : sendOk());
             } else {
                 runPwsh(`Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*sleipnir_launcher.js*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`, (err) => err ? sendErr(err) : sendOk());
             }
@@ -3753,11 +3801,10 @@ app.post('/api/control', (req, res) => {
             break;
         case 'restart-local':
             if (IS_LINUX) {
-                // Restart XRLF runtime: kill stale run_xrlf processes then relaunch
-                execFile('pkill', ['-f', 'run_xrlf.py'], () => {
-                    const restartModel = process.env.XRLF_MODEL_LOCAL_ID || 'gemma-4-e2b-multimodal-v1.0.xrlf';
-                    execFile(venvPython, ['run_xrlf.py', '--model', restartModel, '--port', '8402', '--ws-port', '8403'], { cwd: foveaiDir, detached: true, stdio: 'ignore' }, (err) => err ? sendErr(err) : sendOk());
-                });
+                // systemd owns the runtime — restart the unit (kills cgroup,
+                // respawns with Restart=always). pkill inside xrlfCtl sweeps
+                // any un-tracked strays first.
+                xrlfCtl('restart', (err) => err ? sendErr(err) : sendOk());
             } else {
                 runPwsh('Restart-Service -Name "LMStudio*" -Force -ErrorAction SilentlyContinue', (err) => err ? sendErr(err) : sendOk());
             }
@@ -3790,7 +3837,22 @@ app.post('/api/control', (req, res) => {
             break;
         case 'restart-proxy':
             sendOk();
-            setTimeout(() => { process.exit(0); }, 500);
+            setTimeout(() => {
+                // Under systemd (INVOCATION_ID set) Restart=always brings us
+                // back. Launched manually (nohup/double-click) nothing would —
+                // so respawn ourselves first, then exit.
+                if (!process.env.INVOCATION_ID) {
+                    try {
+                        const child = spawn(process.execPath, [__filename], {
+                            cwd: __dirname, detached: true, stdio: 'ignore', env: process.env,
+                        });
+                        child.unref();
+                    } catch (e) {
+                        console.error('[restart-proxy] self-respawn failed:', e.message);
+                    }
+                }
+                process.exit(0);
+            }, 500);
             break;
         case 'test-news-impulse':
             if (IS_LINUX) {
@@ -3811,18 +3873,13 @@ app.post('/api/control', (req, res) => {
             const xrlfRuntimePort = 8402;
             const xrlfRuntimeWs = 8403;
             if (IS_LINUX) {
-                // Spawn detached — model takes ~3min to load, don't wait for port
-                const xrlfChild = execFile(venvPython,
-                    ['run_xrlf.py', '--model', xrlfModelPath, '--port', String(xrlfRuntimePort), '--ws-port', String(xrlfRuntimeWs), '--verbose'],
-                    { cwd: foveaiDir, detached: true, stdio: 'ignore' },
-                    (err) => {
-                        if (err) {
-                            console.warn(`[start-xrlf-runtime] Process exited: ${err.message}`);
-                        }
-                    }
-                );
-                xrlfChild.unref(); // Don't keep parent alive waiting for child
-                sendOk(); // Respond immediately — frontend polls /health
+                // systemd owns the runtime — restart is idempotent whether the
+                // unit is up or dead, and gives us cgroup-clean teardown.
+                xrlfCtl('restart', (err) => {
+                    if (err) return sendErr(err);
+                    xrlfDeferredHotSwap(xrlfModelPath, xrlfRuntimePort);
+                    sendOk(); // frontend polls /health
+                });
             } else {
                 execFile('C:\\Windows\\System32\\cmd.exe',
                     ['/c', 'start', '/min', '', venvPython, 'run_xrlf.py', '--model', xrlfRuntimeModel, '--port', String(xrlfRuntimePort), '--ws-port', String(xrlfRuntimeWs)],
@@ -3857,21 +3914,15 @@ app.post('/api/control', (req, res) => {
                     sendOk();
                 })
                 .catch(err => {
-                    // Runtime is down — kill stale processes, wait for ports, then start fresh
+                    // Runtime is down — restart the systemd unit (clean cgroup
+                    // teardown + auto-respawn), then deferred hot-swap if the
+                    // requested model isn't the unit default.
                     console.log(`[start-xrlf] Runtime not responding (${err.message}). Full restart…`);
                     if (IS_LINUX) {
-                        execFile('pkill', ['-f', 'run_xrlf.py'], () => {
-                            // Wait for ports to free up (poll up to 15s)
-                            const portCheck = `for i in $(seq 1 15); do if ! ss -ltn | grep -qE ':(${xrlfPort}|${xrlfWsPort})\\b'; then echo PORTS_FREE; break; fi; sleep 1; done`;
-                            execFile('bash', ['-c', portCheck], () => {
-                                setTimeout(() => {
-                                    sendOk();
-                                    execFile(venvPython,
-                                        ['run_xrlf.py', '--model', xrlfModel, '--port', String(xrlfPort), '--ws-port', String(xrlfWsPort)],
-                                        { cwd: foveaiDir, detached: true, stdio: 'ignore' }
-                                    );
-                                }, 3000);
-                            });
+                        xrlfCtl('restart', (ctlErr) => {
+                            if (ctlErr) return sendErr(ctlErr);
+                            sendOk();
+                            xrlfDeferredHotSwap(xrlfModel, xrlfPort);
                         });
                     } else {
                         runPwsh(`taskkill /F /T /IM python.exe /FI "WINDOWTITLE eq run_xrlf*" 2>$null; Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*run_xrlf.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`, () => {
@@ -3894,8 +3945,12 @@ app.post('/api/control', (req, res) => {
             // Kill all XRLF runtime processes — frees VRAM
             // Respond immediately; the frontend polls the health endpoint to confirm
             if (IS_LINUX) {
-                execFile('pkill', ['-f', 'run_xrlf.py'], (err) => {
-                    if (err) console.warn('[stop-xrlf] Kill command error:', err.message);
+                // Stop the unit AND sweep strays — systemctl stop alone can't
+                // see manually-spawned run_xrlf processes.
+                execFile('systemctl', ['--user', 'stop', 'foveai-xrlf'], () => {
+                    execFile('pkill', ['-f', 'run_xrlf.py'], (err) => {
+                        if (err) console.warn('[stop-xrlf] Kill command error:', err.message);
+                    });
                 });
             } else {
                 runPwsh(`Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*run_xrlf.py*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`, (err) => {

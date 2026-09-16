@@ -176,7 +176,13 @@ class XRLFParser:
         entry = self._section_map.get(SectionType.CORE_GGUF)
         if entry is None:
             raise XRLFParseError("No CORE_GGUF section in this XRLF file")
+        return self._extract_to_file(entry, dest_path, "GGUF core", show_progress, unit="GB")
 
+    def _extract_to_file(self, entry, dest_path: str, label: str,
+                         show_progress: bool = True, unit: str = "MB") -> str:
+        """Stream a section entry to disk. Writes to <dest>.part first and
+        renames on completion — a mid-extraction kill must not leave a
+        truncated file that the artifact cache would treat as valid."""
         dest = Path(dest_path)
         dest.parent.mkdir(parents=True, exist_ok=True)
 
@@ -184,19 +190,25 @@ class XRLFParser:
         written = 0
         total = entry.length
 
-        with open(dest, "wb") as out:
-            pos = entry.offset
-            while pos < entry.offset + total:
-                end = min(pos + chunk, entry.offset + total)
-                out.write(self._mm[pos:end])
-                written += (end - pos)
-                pos = end
-                if show_progress:
-                    pct = 100 * written / total
-                    print(f"\r  Extracting GGUF core... {pct:.1f}%", end="", flush=True)
+        tmp = dest.with_suffix(dest.suffix + ".part")
+        try:
+            with open(tmp, "wb") as out:
+                pos = entry.offset
+                while pos < entry.offset + total:
+                    end = min(pos + chunk, entry.offset + total)
+                    out.write(self._mm[pos:end])
+                    written += (end - pos)
+                    pos = end
+                    if show_progress:
+                        pct = 100 * written / total
+                        print(f"\r  Extracting {label}... {pct:.1f}%", end="", flush=True)
+            tmp.replace(dest)
+        finally:
+            tmp.unlink(missing_ok=True)
 
         if show_progress:
-            print(f"\r  Extracted GGUF core → {dest}  ({written / 1e9:.2f} GB)")
+            divisor = 1e9 if unit == "GB" else 1e6
+            print(f"\r  Extracted {label} → {dest}  ({written / divisor:.2f} {unit})")
         return str(dest)
 
     def extract_mmproj(self, dest_path: str, show_progress: bool = True) -> str:
@@ -207,28 +219,7 @@ class XRLFParser:
         entry = self._section_map.get(SectionType.CORE_MMPROJ)
         if entry is None:
             raise XRLFParseError("No CORE_MMPROJ section in this XRLF file")
-
-        dest = Path(dest_path)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-
-        chunk = 64 * 1024 * 1024  # 64 MB
-        written = 0
-        total = entry.length
-
-        with open(dest, "wb") as out:
-            pos = entry.offset
-            while pos < entry.offset + total:
-                end = min(pos + chunk, entry.offset + total)
-                out.write(self._mm[pos:end])
-                written += (end - pos)
-                pos = end
-                if show_progress:
-                    pct = 100 * written / total
-                    print(f"\r  Extracting MMPROJ... {pct:.1f}%", end="", flush=True)
-
-        if show_progress:
-            print(f"\r  Extracted MMPROJ → {dest}  ({written / 1e6:.2f} MB)")
-        return str(dest)
+        return self._extract_to_file(entry, dest_path, "MMPROJ", show_progress)
 
     def extract_draft_gguf(self, dest_path: str, show_progress: bool = True) -> str:
         """
@@ -238,28 +229,7 @@ class XRLFParser:
         entry = self._section_map.get(SectionType.CORE_DRAFT_GGUF)
         if entry is None:
             raise XRLFParseError("No CORE_DRAFT_GGUF section in this XRLF file")
-
-        dest = Path(dest_path)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-
-        chunk = 64 * 1024 * 1024  # 64 MB
-        written = 0
-        total = entry.length
-
-        with open(dest, "wb") as out:
-            pos = entry.offset
-            while pos < entry.offset + total:
-                end = min(pos + chunk, entry.offset + total)
-                out.write(self._mm[pos:end])
-                written += (end - pos)
-                pos = end
-                if show_progress:
-                    pct = 100 * written / total
-                    print(f"\r  Extracting DRAFT GGUF... {pct:.1f}%", end="", flush=True)
-
-        if show_progress:
-            print(f"\r  Extracted DRAFT GGUF → {dest}  ({written / 1e6:.2f} MB)")
-        return str(dest)
+        return self._extract_to_file(entry, dest_path, "DRAFT GGUF", show_progress)
 
     def extract_whisper_gguf(self, dest_path: str, show_progress: bool = True) -> str:
         """
@@ -269,28 +239,7 @@ class XRLFParser:
         entry = self._section_map.get(SectionType.CORE_WHISPER_GGUF)
         if entry is None:
             raise XRLFParseError("No CORE_WHISPER_GGUF section in this XRLF file")
-
-        dest = Path(dest_path)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-
-        chunk = 64 * 1024 * 1024  # 64 MB
-        written = 0
-        total = entry.length
-
-        with open(dest, "wb") as out:
-            pos = entry.offset
-            while pos < entry.offset + total:
-                end = min(pos + chunk, entry.offset + total)
-                out.write(self._mm[pos:end])
-                written += (end - pos)
-                pos = end
-                if show_progress:
-                    pct = 100 * written / total
-                    print(f"\r  Extracting WHISPER GGUF... {pct:.1f}%", end="", flush=True)
-
-        if show_progress:
-            print(f"\r  Extracted WHISPER GGUF → {dest}  ({written / 1e6:.2f} MB)")
-        return str(dest)
+        return self._extract_to_file(entry, dest_path, "WHISPER GGUF", show_progress)
 
     def extract_kokoro_model(self, dest_path: str, show_progress: bool = True) -> str:
         """
@@ -300,28 +249,7 @@ class XRLFParser:
         entry = self._section_map.get(SectionType.CORE_KOKORO_MODEL)
         if entry is None:
             raise XRLFParseError("No CORE_KOKORO_MODEL section in this XRLF file")
-
-        dest = Path(dest_path)
-        dest.parent.mkdir(parents=True, exist_ok=True)
-
-        chunk = 64 * 1024 * 1024  # 64 MB
-        written = 0
-        total = entry.length
-
-        with open(dest, "wb") as out:
-            pos = entry.offset
-            while pos < entry.offset + total:
-                end = min(pos + chunk, entry.offset + total)
-                out.write(self._mm[pos:end])
-                written += (end - pos)
-                pos = end
-                if show_progress:
-                    pct = 100 * written / total
-                    print(f"\r  Extracting KOKORO MODEL... {pct:.1f}%", end="", flush=True)
-
-        if show_progress:
-            print(f"\r  Extracted KOKORO MODEL → {dest}  ({written / 1e6:.2f} MB)")
-        return str(dest)
+        return self._extract_to_file(entry, dest_path, "KOKORO MODEL", show_progress)
 
     def extract_memory_db(self, dest_path: str) -> str:
         """Extract the embedded SQLite memory store to a file."""

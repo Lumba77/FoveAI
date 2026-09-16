@@ -1,0 +1,486 @@
+#!/usr/bin/env python3
+"""Deploy TypeScript sense modules to the XR Vessel frontend.
+
+Decodes base64-embedded TypeScript source files and writes them to:
+    Frontend/XR_Vessel/src/senses/
+
+Modules deployed:
+    - WebSearch.ts      (avatar internet browser / search)
+    - CommsBridge.ts    (email, SMS, phone calls, WhatsApp)
+    - VoiceClone.ts     (voice sampling & cloned speech synthesis)
+    - GameController.ts (virtual gamepad, keyboard emulation, VR ghost)
+
+Usage:
+    python deploy                # normal deployment
+    python deploy --dry-run      # validate without writing files
+    python deploy --force        # skip validation, write anyway
+"""
+
+from __future__ import annotations
+
+import base64
+import logging
+import os
+import sys
+import tempfile
+import traceback
+from pathlib import Path
+from typing import Dict
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
+
+# Target directory relative to this script's location
+TARGET_SUBDIR: tuple[str, ...] = ("Frontend", "XR_Vessel", "src", "senses")
+
+# Minimum expected file size in bytes (catches truncated / corrupted decodes)
+MIN_EXPECTED_SIZE: int = 200
+
+# ---------------------------------------------------------------------------
+# Logging setup
+# ---------------------------------------------------------------------------
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)-7s | %(message)s",
+    stream=sys.stdout,
+)
+log = logging.getLogger("deploy")
+
+# ---------------------------------------------------------------------------
+# Embedded TypeScript modules (base64-encoded)
+# ---------------------------------------------------------------------------
+
+MODULES_B64: Dict[str, str] = {
+    "WebSearch.ts": (
+        "LyoqCiAgICAgICAgKiBXRUIgU0VBUkNIIC0gQXZhdGFyJ3Mgb3duIGludGVybmV0IGJyb3dzZXIvc2VhcmNoIGNhcGFiaWxpdHkuCiAgICAgICAgICAgICog"
+        "U2ltdWxhdGVzIGEgdmlydHVhbCBsYXB0b3Agc28gdGhlIGF2YXRhciBjYW4gc2VhcmNoLCBicm93c2UgcGFnZXMsCiAqIGRvdWJsZSAtIGNoZWNrIGZhY3Rz"
+        "LCBmaW5kIG1pc3NpbmcgaW5mbywgYW5kIGhlbHAgdGhlIHVzZXIgcmVzZWFyY2guCiAqCiAqIEJhY2tlbmRzOiBEdWNrRHVja0dvIEluc3RhbnQgQW5zd2Vy"
+        "IEFQSShmcmVlKSwgQnJhdmUgU2VhcmNoKGtleWVkKSwKICogUGxheXdyaWdodCAvIGhlYWRsZXNzIGJyb3dzZXIgZm9yIGZ1bGwgcGFnZSByZWFkaW5nLgog"
+        "Ki8KZXhwb3J0IGludGVyZmFjZSBTZWFyY2hSZXN1bHQgeyB0aXRsZTogc3RyaW5nOyB1cmw6IHN0cmluZzsgc25pcHBldDogc3RyaW5nOyB9CmV4cG9ydCBp"
+        "bnRlcmZhY2UgUGFnZVNuYXBzaG90IHsgdXJsOiBzdHJpbmc7IHRpdGxlOiBzdHJpbmc7IHRleHRDb250ZW50OiBzdHJpbmc7IHNjcmVlbnNob3RzOiBzdHJp"
+        "bmdbXTsgfQoKY29uc3QgRERHID0gJ2h0dHBzOi8vYXBpLmR1Y2tkdWNrZ28uY29tJzsKY29uc3QgQlJBVkUgPSAnaHR0cHM6Ly9hcGkuc2VhcmNoLmJyYXZl"
+        "LmNvbS9yZXMvdjEvd2ViL3NlYXJjaCc7CgpleHBvcnQgY2xhc3MgV2ViU2VhcmNoIHsKICAgIHByaXZhdGUgYnJhdmVLZXk6IHN0cmluZyB8IG51bGwgPSBu"
+        "dWxsOwogICAgcHJpdmF0ZSBsb2c6IChtOiBzdHJpbmcsIGM6IHN0cmluZykgPT4gdm9pZDsKCiAgICBjb25zdHJ1Y3RvcihicmF2ZUFwaUtleT86IHN0cmlu"
+        "ZywgbG9nRm4/OiAobTogc3RyaW5nLCBjOiBzdHJpbmcpID0+IHZvaWQpIHsKICAgICAgICB0aGlzLmJyYXZlS2V5ID0gYnJhdmVBcGlLZXkgfHwgbnVsbDsK"
+        "ICAgICAgICB0aGlzLmxvZyA9IGxvZ0ZuIHx8ICgobSwgYykgPT4gY29uc29sZS5sb2coJ1tXZWJTZWFyY2hdICcgKyBtKSk7CiAgICB9CgogICAgLyoqIER1"
+        "Y2tEdWNrR28gc2VhcmNoIChmcmVlLCBubyBrZXkgbmVlZGVkKS4gKi8KICAgIGFzeW5jIHNlYXJjaERERyhxdWVyeTogc3RyaW5nKTogUHJvbWlzZTxTZWFy"
+        "Y2hSZXN1bHRbXT4gewogICAgICAgIHRyeSB7CiAgICAgICAgICAgIGNvbnN0IHIgPSBhd2FpdCBmZXRjaChgJHtEREd9Lz9xPSR7ZW5jb2RlVVJJQ29tcG9u"
+        "ZW50KHF1ZXJ5KX0mZm9ybWF0PWpzb24mbm9faHRtbD0xJnNraXBfZGlzYW1iaWc9MWApOwogICAgICAgICAgICBpZiAoIXIub2spIHJldHVybiBbXTsKICAg"
+        "ICAgICAgICAgY29uc3QgZGF0YSA9IGF3YWl0IHIuanNvbigpOwogICAgICAgICAgICBjb25zdCByZXN1bHRzOiBTZWFyY2hSZXN1bHRbXSA9IFtdOwogICAg"
+        "ICAgICAgICBmb3IgKGNvbnN0IGl0ZW0gb2YgZGF0YS5SZWxhdGVkVG9waWNzIHx8IFtdKSB7CiAgICAgICAgICAgICAgICBpZiAoaXRlbS5UZXh0ICYmIGl0"
+        "ZW0uRmlyc3RVUkwpIHsKICAgICAgICAgICAgICAgICAgICByZXN1bHRzLnB1c2goeyB0aXRsZTogaXRlbS5UZXh0LnNwbGl0KCcgLSAnKVswXSB8fCBpdGVt"
+        "LlRleHQsIHVybDogaXRlbS5GaXJzdFVSTCwgc25pcHBldDogaXRlbS5UZXh0IH0pOwogICAgICAgICAgICAgICAgfQogICAgICAgICAgICB9CiAgICAgICAg"
+        "ICAgIGlmIChkYXRhLkFic3RyYWN0VGV4dCkgewogICAgICAgICAgICAgICAgcmVzdWx0cy51bnNoaWZ0KHsgdGl0bGU6IGRhdGEuSGVhZGluZyB8fCAnQWJz"
+        "dHJhY3QnLCB1cmw6IGRhdGEuQWJzdHJhY3RVUkwgfHwgJycsIHNuaXBwZXQ6IGRhdGEuQWJzdHJhY3RUZXh0IH0pOwogICAgICAgICAgICB9CiAgICAgICAg"
+        "ICAgIHRoaXMubG9nKGBGb3VuZCAke3Jlc3VsdHMubGVuZ3RofSByZXN1bHRzIGZvciAiJHtxdWVyeX0iYCwgJyMwYWYnKTsKICAgICAgICAgICAgcmV0dXJu"
+        "IHJlc3VsdHMuc2xpY2UoMCwgMTApOwogICAgICAgIH0gY2F0Y2ggKGU6IGFueSkgeyByZXR1cm4gW107IH0KICAgIH0KCiAgICAvKiogQnJhdmUgU2VhcmNo"
+        "IChoaWdoZXIgcXVhbGl0eSwgbmVlZHMgQVBJIGtleSkuICovCiAgICBhc3luYyBzZWFyY2hCcmF2ZShxdWVyeTogc3RyaW5nKTogUHJvbWlzZTxTZWFyY2hS"
+        "ZXN1bHRbXT4gewogICAgICAgIGlmICghdGhpcy5icmF2ZUtleSkgcmV0dXJuIHRoaXMuc2VhcmNoRERHKHF1ZXJ5KTsKICAgICAgICB0cnkgewogICAgICAg"
+        "ICAgICBjb25zdCByID0gYXdhaXQgZmV0Y2goYCR7QlJBVkV9P3E9JHtlbmNvZGVVUklDb21wb25lbnQocXVlcnkpfSZjb3VudD0xMGAsIHsKICAgICAgICAg"
+        "ICAgICAgIGhlYWRlcnM6IHsgJ0FjY2VwdCc6ICdhcHBsaWNhdGlvbi9qc29uJywgJ1gtU3Vic2NyaXB0aW9uLVRva2VuJzogdGhpcy5icmF2ZUtleSB9LAog"
+        "ICAgICAgICAgICB9KTsKICAgICAgICAgICAgaWYgKCFyLm9rKSByZXR1cm4gdGhpcy5zZWFyY2hEREcocXVlcnkpOwogICAgICAgICAgICBjb25zdCBkYXRh"
+        "ID0gYXdhaXQgci5qc29uKCk7CiAgICAgICAgICAgIHJldHVybiAoKGRhdGEud2ViPy5yZXN1bHRzIHx8IFtdKSBhcyBhbnlbXSkubWFwKGl0ZW0gPT4gKHsK"
+        "ICAgICAgICAgICAgICAgIHRpdGxlOiBpdGVtLnRpdGxlIHx8ICcnLCB1cmw6IGl0ZW0udXJsIHx8ICcnLCBzbmlwcGV0OiBpdGVtLmRlc2NyaXB0aW9uIHx8"
+        "ICcnLAogICAgICAgICAgICB9KSk7CiAgICAgICAgfSBjYXRjaCB7IHJldHVybiB0aGlzLnNlYXJjaERERyhxdWVyeSk7IH0KICAgIH0KCiAgICAvKiogRmV0"
+        "Y2ggYSB3ZWIgcGFnZSBhbmQgZXh0cmFjdCByZWFkYWJsZSB0ZXh0ICh2aWEgYmFja2VuZCBzY3JhcGVyKS4gKi8KICAgIGFzeW5jIHJlYWRQYWdlKHVybDog"
+        "c3RyaW5nKTogUHJvbWlzZTxQYWdlU25hcHNob3QgfCBudWxsPiB7CiAgICAgICAgdHJ5IHsKICAgICAgICAgICAgY29uc3QgciA9IGF3YWl0IGZldGNoKGAv"
+        "YXBpL3dlYi9zY3JhcGU/dXJsPSR7ZW5jb2RlVVJJQ29tcG9uZW50KHVybCl9YCk7CiAgICAgICAgICAgIGlmICghci5vaykgcmV0dXJuIG51bGw7CiAgICAg"
+        "ICAgICAgIGNvbnN0IGRhdGEgPSBhd2FpdCByLmpzb24oKTsKICAgICAgICAgICAgcmV0dXJuIHsgdXJsOiBkYXRhLnVybCB8fCB1cmwsIHRpdGxlOiBkYXRh"
+        "LnRpdGxlIHx8ICcnLCB0ZXh0Q29udGVudDogZGF0YS50ZXh0IHx8ICcnLCBzY3JlZW5zaG90czogZGF0YS5zY3JlZW5zaG90cyB8fCBbXSB9OwogICAgICAg"
+        "IH0gY2F0Y2ggeyByZXR1cm4gbnVsbDsgfQogICAgfQoKICAgIC8qKiBHZXQgdGhlIHdlYiBzZWFyY2ggY29udGV4dCBmb3IgTExNIHByb21wdC4gKi8KICAg"
+        "IGdldENvbnRleHQoKTogc3RyaW5nIHsKICAgICAgICByZXR1cm4gJ1tXRUIgU0VBUkNIXSBEdWNrRHVja0dvICsgQnJhdmUgYXZhaWxhYmxlLiBDYW4gc2Vh"
+        "cmNoIGludGVybmV0LCByZWFkIHBhZ2VzLCBkb3VibGUtY2hlY2sgZmFjdHMuJzsKICAgIH0KfQo="
+    ),
+    "CommsBridge.ts": (
+        "LyoqCiAgICAqIENPTU1TIEJSSURHRSAtIEF2YXRhciBoYW5kbGVzIHVzZXIncyBlbWFpbCwgU01TLCBhbmQgcGhvbmUgY2FsbHMuCiAgICAgICAgKiBDb25u"
+        "ZWN0cyB0aHJvdWdoIHRoZSB1c2VyJ3MgcGhvbmUgdmlhIHRoZSBNb2JpbGVfVmVzc2VsIGJyaWRnZSwKICAgICAgICAgICAgKiBvciBkaXJlY3RseSB2aWEg"
+        "R21haWwgLyBPdXRsb29rIEFQSXMgZm9yIGVtYWlsLgogKgogKiBWb2ljZTogQ2FuIGFuc3dlciBjYWxscyBmb3IgdGhlIHVzZXIod2l0aCBjb25zZW50KSB1"
+        "c2luZyBWb2ljZUNsb25lLgogKiBTTVM6IFJlYWQgLyByZXNwb25kIHRvIHRleHQgbWVzc2FnZXMgdmlhIHBob25lIGJyaWRnZS4KICogRW1haWw6IFJlYWQg"
+        "LyB3cml0ZSBlbWFpbCB2aWEgR21haWwgQVBJIG9yIElNQVAuCiAqLwpleHBvcnQgaW50ZXJmYWNlIEVtYWlsIHsgaWQ6IHN0cmluZzsgZnJvbTogc3RyaW5n"
+        "OyBzdWJqZWN0OiBzdHJpbmc7IHNuaXBwZXQ6IHN0cmluZzsgYm9keTogc3RyaW5nOyBkYXRlOiBzdHJpbmc7IH0KZXhwb3J0IGludGVyZmFjZSBTbXNNZXNz"
+        "YWdlIHsgZnJvbTogc3RyaW5nOyBib2R5OiBzdHJpbmc7IHRpbWVzdGFtcDogbnVtYmVyOyByZWFkOiBib29sZWFuOyB9CmV4cG9ydCBpbnRlcmZhY2UgQ2Fs"
+        "bEluZm8geyBudW1iZXI6IHN0cmluZzsgbmFtZTogc3RyaW5nIHwgbnVsbDsgdGltZXN0YW1wOiBudW1iZXI7IGR1cmF0aW9uOiBudW1iZXI7IG1pc3NlZDog"
+        "Ym9vbGVhbjsgfQoKY29uc3QgQVBJID0gJy9hcGkvY29tbXMnOwoKZXhwb3J0IGNsYXNzIENvbW1zQnJpZGdlIHsKICAgIHByaXZhdGUgbG9nOiAobTogc3Ry"
+        "aW5nLCBjOiBzdHJpbmcpID0+IHZvaWQ7CgogICAgY29uc3RydWN0b3IobG9nRm4/OiAobTogc3RyaW5nLCBjOiBzdHJpbmcpID0+IHZvaWQpIHsKICAgICAg"
+        "ICB0aGlzLmxvZyA9IGxvZ0ZuIHx8ICgobSwgYykgPT4gY29uc29sZS5sb2coJ1tDb21tc10gJyArIG0pKTsKICAgIH0KCiAgICAvLyDilIDilIAgRU1BSUwg"
+        "4pSA4pSACiAgICBhc3luYyBsaXN0RW1haWxzKG1heFJlc3VsdHMgPSAxMCk6IFByb21pc2U8RW1haWxbXT4gewogICAgICAgIHRyeSB7CiAgICAgICAgICAg"
+        "IGNvbnN0IHIgPSBhd2FpdCBmZXRjaChgJHtBUEl9L2VtYWlsL2xpc3Q/bWF4PSR7bWF4UmVzdWx0c31gKTsKICAgICAgICAgICAgcmV0dXJuIHIub2sgPyAo"
+        "KGF3YWl0IHIuanNvbigpKS5lbWFpbHMgfHwgW10pIDogW107CiAgICAgICAgfSBjYXRjaCB7IHJldHVybiBbXTsgfQogICAgfQoKICAgIGFzeW5jIHNlbmRF"
+        "bWFpbCh0bzogc3RyaW5nLCBzdWJqZWN0OiBzdHJpbmcsIGJvZHk6IHN0cmluZyk6IFByb21pc2U8Ym9vbGVhbj4gewogICAgICAgIHRyeSB7CiAgICAgICAg"
+        "ICAgIGNvbnN0IHIgPSBhd2FpdCBmZXRjaChgJHtBUEl9L2VtYWlsL3NlbmRgLCB7CiAgICAgICAgICAgICAgICBtZXRob2Q6ICdQT1NUJywgaGVhZGVyczog"
+        "eyAnQ29udGVudC1UeXBlJzogJ2FwcGxpY2F0aW9uL2pzb24nIH0sCiAgICAgICAgICAgICAgICBib2R5OiBKU09OLnN0cmluZ2lmeSh7IHRvLCBzdWJqZWN0"
+        "LCBib2R5IH0pLAogICAgICAgICAgICB9KTsKICAgICAgICAgICAgaWYgKHIub2spIHRoaXMubG9nKGBFbWFpbCBzZW50IHRvICR7dG99YCwgJyMwZjAnKTsK"
+        "ICAgICAgICAgICAgcmV0dXJuIHIub2s7CiAgICAgICAgfSBjYXRjaCB7IHJldHVybiBmYWxzZTsgfQogICAgfQoKICAgIGFzeW5jIHJlYWRFbWFpbChpZDog"
+        "c3RyaW5nKTogUHJvbWlzZTxzdHJpbmcgfCBudWxsPiB7CiAgICAgICAgdHJ5IHsKICAgICAgICAgICAgY29uc3QgciA9IGF3YWl0IGZldGNoKGAke0FQSX0v"
+        "ZW1haWwvcmVhZD9pZD0ke2VuY29kZVVSSUNvbXBvbmVudChpZCl9YCk7CiAgICAgICAgICAgIHJldHVybiByLm9rID8gKChhd2FpdCByLmpzb24oKSkuYm9k"
+        "eSB8fCBudWxsKSA6IG51bGw7CiAgICAgICAgfSBjYXRjaCB7IHJldHVybiBudWxsOyB9CiAgICB9CgogICAgLy8g4pSA4pSAIFNNUyAodmlhIHBob25lIGJy"
+        "aWRnZSkg4pSA4pSACiAgICBhc3luYyBsaXN0U21zKG1heFJlc3VsdHMgPSAxMCk6IFByb21pc2U8U21zTWVzc2FnZVtdPiB7CiAgICAgICAgdHJ5IHsKICAg"
+        "ICAgICAgICAgY29uc3QgciA9IGF3YWl0IGZldGNoKGAke0FQSX0vc21zL2xpc3Q/bWF4PSR7bWF4UmVzdWx0c31gKTsKICAgICAgICAgICAgcmV0dXJuIHIu"
+        "b2sgPyAoKGF3YWl0IHIuanNvbigpKS5tZXNzYWdlcyB8fCBbXSkgOiBbXTsKICAgICAgICB9IGNhdGNoIHsgcmV0dXJuIFtdOyB9CiAgICB9CgogICAgYXN5"
+        "bmMgc2VuZFNtcyh0bzogc3RyaW5nLCBib2R5OiBzdHJpbmcpOiBQcm9taXNlPGJvb2xlYW4+IHsKICAgICAgICB0cnkgewogICAgICAgICAgICBjb25zdCBy"
+        "ID0gYXdhaXQgZmV0Y2goYCR7QVBJfS9zbXMvc2VuZGAsIHsKICAgICAgICAgICAgICAgIG1ldGhvZDogJ1BPU1QnLCBoZWFkZXJzOiB7ICdDb250ZW50LVR5"
+        "cGUnOiAnYXBwbGljYXRpb24vanNvbicgfSwKICAgICAgICAgICAgICAgIGJvZHk6IEpTT04uc3RyaW5naWZ5KHsgdG8sIGJvZHkgfSksCiAgICAgICAgICAg"
+        "IH0pOwogICAgICAgICAgICBpZiAoci5vaykgdGhpcy5sb2coYFNNUyBzZW50IHRvICR7dG99YCwgJyMwZjAnKTsKICAgICAgICAgICAgcmV0dXJuIHIub2s7"
+        "CiAgICAgICAgfSBjYXRjaCB7IHJldHVybiBmYWxzZTsgfQogICAgfQoKICAgIC8vIOKUgOKUgCBDQUxMUyDilIDilIAKICAgIGFzeW5jIGdldFJlY2VudENh"
+        "bGxzKCk6IFByb21pc2U8Q2FsbEluZm9bXT4gewogICAgICAgIHRyeSB7CiAgICAgICAgICAgIGNvbnN0IHIgPSBhd2FpdCBmZXRjaChgJHtBUEl9L2NhbGxz"
+        "L3JlY2VudGApOwogICAgICAgICAgICByZXR1cm4gci5vayA/ICgoYXdhaXQgci5qc29uKCkpLmNhbGxzIHx8IFtdKSA6IFtdOwogICAgICAgIH0gY2F0Y2gg"
+        "eyByZXR1cm4gW107IH0KICAgIH0KCiAgICAvKiogQW5zd2VyIGEgY2FsbCBhbmQgc3BlYWsgYXMgdGhlIHVzZXIgKHVzZXMgVm9pY2VDbG9uZSBmb3IgVFRT"
+        "KS4gKi8KICAgIGFzeW5jIGFuc3dlckNhbGwoY2FsbElkOiBzdHJpbmcsIGdyZWV0aW5nOiBzdHJpbmcsIHVzZVVzZXJWb2ljZSA9IHRydWUpOiBQcm9taXNl"
+        "PGJvb2xlYW4+IHsKICAgICAgICB0cnkgewogICAgICAgICAgICBjb25zdCByID0gYXdhaXQgZmV0Y2goYCR7QVBJfS9jYWxscy9hbnN3ZXJgLCB7CiAgICAg"
+        "ICAgICAgICAgICBtZXRob2Q6ICdQT1NUJywgaGVhZGVyczogeyAnQ29udGVudC1UeXBlJzogJ2FwcGxpY2F0aW9uL2pzb24nIH0sCiAgICAgICAgICAgICAg"
+        "ICBib2R5OiBKU09OLnN0cmluZ2lmeSh7IGNhbGxJZCwgZ3JlZXRpbmcsIHVzZVVzZXJWb2ljZSB9KSwKICAgICAgICAgICAgfSk7CiAgICAgICAgICAgIGlm"
+        "IChyLm9rKSB0aGlzLmxvZygnQW5zd2VyZWQgY2FsbCBhcyB1c2VyJywgJyMwZjAnKTsKICAgICAgICAgICAgcmV0dXJuIHIub2s7CiAgICAgICAgfSBjYXRj"
+        "aCB7IHJldHVybiBmYWxzZTsgfQogICAgfQoKICAgIC8vIOKUgOKUgCBXSEFUU0FQUCAvIFRFTEVHUkFNIEJSSURHRSDilIDilIAKICAgIC8qKiBTZW5kIGEg"
+        "V2hhdHNBcHAgbWVzc2FnZSAodmlhIGxpbmtlZCBwaG9uZSkuICovCiAgICBhc3luYyBzZW5kV2hhdHNBcHAodG86IHN0cmluZywgYm9keTogc3RyaW5nKTog"
+        "UHJvbWlzZTxib29sZWFuPiB7CiAgICAgICAgdHJ5IHsKICAgICAgICAgICAgY29uc3QgciA9IGF3YWl0IGZldGNoKGAke0FQSX0vd2hhdHNhcHAvc2VuZGAs"
+        "IHsKICAgICAgICAgICAgICAgIG1ldGhvZDogJ1BPU1QnLCBoZWFkZXJzOiB7ICdDb250ZW50LVR5cGUnOiAnYXBwbGljYXRpb24vanNvbicgfSwKICAgICAg"
+        "ICAgICAgICAgIGJvZHk6IEpTT04uc3RyaW5naWZ5KHsgdG8sIGJvZHkgfSksCiAgICAgICAgICAgIH0pOwogICAgICAgICAgICByZXR1cm4gci5vazsKICAg"
+        "ICAgICB9IGNhdGNoIHsgcmV0dXJuIGZhbHNlOyB9CiAgICB9CgogICAgZ2V0Q29udGV4dCgpOiBzdHJpbmcgewogICAgICAgIHJldHVybiAnW0NPTU1TIEJS"
+        "SURHRV0gRW1haWwgKHJlYWQvc2VuZCksIFNNUywgY2FsbHMsIFdoYXRzQXBwIGF2YWlsYWJsZS4gQ2FuIGFuc3dlciBwaG9uZSBhcyB1c2VyICh2b2ljZSBj"
+        "bG9uZWQpLic7CiAgICB9Cn0K"
+    ),
+    "VoiceClone.ts": (
+        "LyoqCiAgICAqIFZPSUNFIENMT05FIC0gU2FtcGxlIHVzZXIncyB2b2ljZSBhbmQgc3BlYWsgYXMgdGhlbS4KICAgICAgICAqIFVzZXMgWFRUU3YyIG9yIFBp"
+        "cGVyIHdpdGgganVzdCA2IHNlY29uZHMgb2YgYXVkaW8gc2FtcGxlLgogKgogKiBUaGUgYXZhdGFyIGNhbiBhbnN3ZXIgdGhlIHVzZXIncyBwaG9uZSwgcmVz"
+        "cG9uZCB0byB2b2ljZW1haWxzLAogICAgKiBvciBwZXJmb3JtIGFzc2lzdGFudCB0YXNrcyB1c2luZyB0aGUgdXNlcidzIG93biB2b2ljZSAod2l0aCBjb25z"
+        "ZW50KS4KICAgICAgICAqCiAqIE1vZGVsczogWFRUU3YyKGNvcXVpIC8gWFRUUyAtIHYyIG9uIEhGIEh1YiksIFBpcGVyIHdpdGggY3VzdG9tIHZvaWNlLAog"
+        "KiBFbGV2ZW5MYWJzKEFQSSwgaGlnaGVzdCBxdWFsaXR5KSwgUGxheUhUKEFQSSkKICAgICovCmV4cG9ydCBpbnRlcmZhY2UgVm9pY2VTYW1wbGUgeyBiYXNl"
+        "NjQ6IHN0cmluZzsgZHVyYXRpb246IG51bWJlcjsgc291cmNlOiBzdHJpbmc7IH0KZXhwb3J0IGludGVyZmFjZSBWb2ljZVByb2ZpbGUgeyBuYW1lOiBzdHJp"
+        "bmc7IHNhbXBsZXM6IFZvaWNlU2FtcGxlW107IG1vZGVsOiAneHR0c3YyJyB8ICdwaXBlcicgfCAnZWxldmVubGFicyc7IH0KCmNvbnN0IEhGX1RPS0VOID0g"
+        "dHlwZW9mIHByb2Nlc3MgIT09ICd1bmRlZmluZWQnID8gKHByb2Nlc3MuZW52LkhGX1RPS0VOIHx8ICcnKSA6ICcnOwoKZXhwb3J0IGNsYXNzIFZvaWNlQ2xv"
+        "bmUgewogICAgcHJpdmF0ZSBwcm9maWxlczogTWFwPHN0cmluZywgVm9pY2VQcm9maWxlPiA9IG5ldyBNYXAoKTsKICAgIHByaXZhdGUgdXNlclByb2ZpbGU6"
+        "IFZvaWNlUHJvZmlsZSB8IG51bGwgPSBudWxsOwogICAgcHJpdmF0ZSBsb2c6IChtOiBzdHJpbmcsIGM6IHN0cmluZykgPT4gdm9pZDsKCiAgICBjb25zdHJ1"
+        "Y3Rvcihsb2dGbj86IChtOiBzdHJpbmcsIGM6IHN0cmluZykgPT4gdm9pZCkgewogICAgICAgIHRoaXMubG9nID0gbG9nRm4gfHwgKChtLCBjKSA9PiBjb25z"
+        "b2xlLmxvZygnW1ZvaWNlQ2xvbmVdICcgKyBtKSk7CiAgICB9CgogICAgLyoqCiAgICAgKiBSZWNvcmQgdm9pY2Ugc2FtcGxlIGZyb20gbWljcm9waG9uZS4K"
+        "ICAgICAqIEp1c3QgNiBzZWNvbmRzIGlzIGVub3VnaCBmb3IgWFRUU3YyIHZvaWNlIGNsb25pbmcuCiAgICAgKi8KICAgIGFzeW5jIHJlY29yZFNhbXBsZShk"
+        "dXJhdGlvblNlYyA9IDYpOiBQcm9taXNlPFZvaWNlU2FtcGxlIHwgbnVsbD4gewogICAgICAgIHRyeSB7CiAgICAgICAgICAgIGNvbnN0IHN0cmVhbSA9IGF3"
+        "YWl0IG5hdmlnYXRvci5tZWRpYURldmljZXMuZ2V0VXNlck1lZGlhKHsgYXVkaW86IHRydWUgfSk7CiAgICAgICAgICAgIGNvbnN0IHJlY29yZGVyID0gbmV3"
+        "IE1lZGlhUmVjb3JkZXIoc3RyZWFtLCB7IG1pbWVUeXBlOiAnYXVkaW8vd2VibScgfSk7CiAgICAgICAgICAgIGNvbnN0IGNodW5rczogQmxvYltdID0gW107"
+        "CiAgICAgICAgICAgIHJlY29yZGVyLm9uZGF0YWF2YWlsYWJsZSA9IGUgPT4gY2h1bmtzLnB1c2goZS5kYXRhKTsKICAgICAgICAgICAgcmVjb3JkZXIuc3Rh"
+        "cnQoKTsKCiAgICAgICAgICAgIHJldHVybiBuZXcgUHJvbWlzZShyZXNvbHZlID0+IHsKICAgICAgICAgICAgICAgIHNldFRpbWVvdXQoYXN5bmMgKCkgPT4g"
+        "ewogICAgICAgICAgICAgICAgICAgIHJlY29yZGVyLnN0b3AoKTsKICAgICAgICAgICAgICAgICAgICBzdHJlYW0uZ2V0VHJhY2tzKCkuZm9yRWFjaCh0ID0+"
+        "IHQuc3RvcCgpKTsKICAgICAgICAgICAgICAgICAgICBjb25zdCBibG9iID0gbmV3IEJsb2IoY2h1bmtzLCB7IHR5cGU6ICdhdWRpby93ZWJtJyB9KTsKICAg"
+        "ICAgICAgICAgICAgICAgICBjb25zdCByZWFkZXIgPSBuZXcgRmlsZVJlYWRlcigpOwogICAgICAgICAgICAgICAgICAgIHJlYWRlci5vbmxvYWQgPSAoKSA9"
+        "PiB7CiAgICAgICAgICAgICAgICAgICAgICAgIGNvbnN0IGI2NCA9IChyZWFkZXIucmVzdWx0IGFzIHN0cmluZykuc3BsaXQoJywnKVsxXSB8fCAnJzsKICAg"
+        "ICAgICAgICAgICAgICAgICAgICAgcmVzb2x2ZSh7IGJhc2U2NDogYjY0LCBkdXJhdGlvbjogZHVyYXRpb25TZWMsIHNvdXJjZTogJ21pY3JvcGhvbmUnIH0p"
+        "OwogICAgICAgICAgICAgICAgICAgIH07CiAgICAgICAgICAgICAgICAgICAgcmVhZGVyLnJlYWRBc0RhdGFVUkwoYmxvYik7CiAgICAgICAgICAgICAgICB9"
+        "LCBkdXJhdGlvblNlYyAqIDEwMDApOwogICAgICAgICAgICB9KTsKICAgICAgICB9IGNhdGNoIChlOiBhbnkpIHsKICAgICAgICAgICAgdGhpcy5sb2coJ01p"
+        "YyBhY2Nlc3MgZGVuaWVkOiAnICsgZS5tZXNzYWdlLCAnI2Y4MCcpOwogICAgICAgICAgICByZXR1cm4gbnVsbDsKICAgICAgICB9CiAgICB9CgogICAgLyoq"
+        "IENyZWF0ZSB1c2VyJ3Mgdm9pY2UgcHJvZmlsZSBmcm9tIHNhbXBsZXMuICovCiAgICBhc3luYyBjcmVhdGVQcm9maWxlKG5hbWU6IHN0cmluZywgbW9kZWw6"
+        "IFZvaWNlUHJvZmlsZVsnbW9kZWwnXSA9ICd4dHRzdjInKTogUHJvbWlzZTxWb2ljZVByb2ZpbGUgfCBudWxsPiB7CiAgICAgICAgY29uc3Qgc2FtcGxlID0g"
+        "YXdhaXQgdGhpcy5yZWNvcmRTYW1wbGUoNik7CiAgICAgICAgaWYgKCFzYW1wbGUpIHJldHVybiBudWxsOwogICAgICAgIGNvbnN0IHByb2ZpbGUgPSB7IG5h"
+        "bWUsIHNhbXBsZXM6IFtzYW1wbGVdLCBtb2RlbCB9OwogICAgICAgIHRoaXMudXNlclByb2ZpbGUgPSBwcm9maWxlOwogICAgICAgIHRoaXMucHJvZmlsZXMu"
+        "c2V0KG5hbWUsIHByb2ZpbGUpOwogICAgICAgIHRoaXMubG9nKCdWb2ljZSBwcm9maWxlIGNyZWF0ZWQ6ICcgKyBuYW1lICsgJyAoJyArIG1vZGVsICsgJykn"
+        "LCAnIzBmMCcpOwogICAgICAgIHJldHVybiBwcm9maWxlOwogICAgfQoKICAgIC8qKiBTeW50aGVzaXplIHNwZWVjaCBpbiB1c2VyJ3MgY2xvbmVkIHZvaWNl"
+        "LiAqLwogICAgYXN5bmMgc3BlYWsodGV4dDogc3RyaW5nLCB1c2VVc2VyVm9pY2UgPSB0cnVlKTogUHJvbWlzZTxzdHJpbmcgfCBudWxsPiB7CiAgICAgICAg"
+        "Y29uc3QgcHJvZmlsZSA9IHVzZVVzZXJWb2ljZSA/IHRoaXMudXNlclByb2ZpbGUgOiBudWxsOwogICAgICAgIGlmICghcHJvZmlsZSkgcmV0dXJuIHRoaXMu"
+        "c3BlYWtEZWZhdWx0KHRleHQpOwoKICAgICAgICB0cnkgewogICAgICAgICAgICBjb25zdCByID0gYXdhaXQgZmV0Y2goJy9hcGkvdm9pY2UvY2xvbmUnLCB7"
+        "CiAgICAgICAgICAgICAgICBtZXRob2Q6ICdQT1NUJywgaGVhZGVyczogeyAnQ29udGVudC1UeXBlJzogJ2FwcGxpY2F0aW9uL2pzb24nIH0sCiAgICAgICAg"
+        "ICAgICAgICBib2R5OiBKU09OLnN0cmluZ2lmeSh7CiAgICAgICAgICAgICAgICAgICAgdGV4dCwKICAgICAgICAgICAgICAgICAgICB2b2ljZVByb2ZpbGU6"
+        "IHByb2ZpbGUubmFtZSwKICAgICAgICAgICAgICAgICAgICBtb2RlbDogcHJvZmlsZS5tb2RlbCwKICAgICAgICAgICAgICAgICAgICBzYW1wbGVzOiBwcm9m"
+        "aWxlLnNhbXBsZXMubWFwKHMgPT4gcy5iYXNlNjQpLAogICAgICAgICAgICAgICAgfSksCiAgICAgICAgICAgIH0pOwogICAgICAgICAgICBpZiAoci5vaykg"
+        "ewogICAgICAgICAgICAgICAgY29uc3QgZGF0YSA9IGF3YWl0IHIuanNvbigpOwogICAgICAgICAgICAgICAgcmV0dXJuIGRhdGEuYXVkaW9CYXNlNjQgfHwg"
+        "bnVsbDsgLy8gUGxheSB2aWEgQXVkaW8gZWxlbWVudAogICAgICAgICAgICB9CiAgICAgICAgfSBjYXRjaCB7IH0KICAgICAgICByZXR1cm4gdGhpcy5zcGVh"
+        "a0RlZmF1bHQodGV4dCk7CiAgICB9CgogICAgLyoqIEZhbGxiYWNrOiBkZWZhdWx0IFBpcGVyIEFteSB2b2ljZSAobm8gY2xvbmluZyBuZWVkZWQpLiAqLwog"
+        "ICAgYXN5bmMgc3BlYWtEZWZhdWx0KHRleHQ6IHN0cmluZyk6IFByb21pc2U8c3RyaW5nIHwgbnVsbD4gewogICAgICAgIHRyeSB7CiAgICAgICAgICAgIGNv"
+        "bnN0IHIgPSBhd2FpdCBmZXRjaCgnL2FwaS9tb3V0aC90dHMnLCB7CiAgICAgICAgICAgICAgICBtZXRob2Q6ICdQT1NUJywgaGVhZGVyczogeyAnQ29udGVu"
+        "dC1UeXBlJzogJ2FwcGxpY2F0aW9uL2pzb24nIH0sCiAgICAgICAgICAgICAgICBib2R5OiBKU09OLnN0cmluZ2lmeSh7IHRleHQsIHZvaWNlOiAncGlwZXJf"
+        "YW15JyB9KSwKICAgICAgICAgICAgfSk7CiAgICAgICAgICAgIGlmIChyLm9rKSByZXR1cm4gKGF3YWl0IHIuanNvbigpKS5hdWRpb0Jhc2U2NCB8fCBudWxs"
+        "OwogICAgICAgIH0gY2F0Y2ggeyB9CiAgICAgICAgcmV0dXJuIG51bGw7CiAgICB9CgogICAgLyoqIEFuc3dlciBhIGNhbGwgdXNpbmcgY2xvbmVkIHZvaWNl"
+        "LiAqLwogICAgYXN5bmMgYW5zd2VyQ2FsbCh0ZXh0OiBzdHJpbmcpOiBQcm9taXNlPHN0cmluZyB8IG51bGw+IHsKICAgICAgICByZXR1cm4gdGhpcy5zcGVh"
+        "ayh0ZXh0LCB0cnVlKTsKICAgIH0KCiAgICBnZXRDb250ZXh0KCk6IHN0cmluZyB7CiAgICAgICAgaWYgKHRoaXMudXNlclByb2ZpbGUpIHsKICAgICAgICAg"
+        "ICAgcmV0dXJuIGBbVk9JQ0UgQ0xPTkVdIFVzZXIgdm9pY2UgcHJvZmlsZSAiJHt0aGlzLnVzZXJQcm9maWxlLm5hbWV9IiByZWFkeSAoJHt0aGlzLnVzZXJQ"
+        "cm9maWxlLm1vZGVsfSkuIENhbiBzcGVhayBhcyB0aGUgdXNlci5gOwogICAgICAgIH0KICAgICAgICByZXR1cm4gJ1tWT0lDRSBDTE9ORV0gTm8gdm9pY2Ug"
+        "cHJvZmlsZSB5ZXQuIENhbGwgY3JlYXRlUHJvZmlsZSgpIHRvIHNhbXBsZSA2cyBvZiBhdWRpby4nOwogICAgfQp9Cg=="
+    ),
+    "GameController.ts": (
+        "LyoqCiAgICAqIEdBTUUgQ09OVFJPTExFUiAtIFZpcnR1YWwgY29udHJvbGxlciBlbXVsYXRpb24gZm9yIGNvIC0gb3AgZ2FtaW5nLgogKgogKiBFbmFibGVz"
+        "IHRoZSBhdmF0YXIgdG8gcGxheSBjbyAtIG9wIGdhbWVzIHdpdGggdGhlIHVzZXIgYnk6CiAqIDEuIFNpbXVsYXRpbmcgYSBNZXRhIFF1ZXN0IGdob3N0IGFj"
+        "Y291bnQgZm9yIFZSIGNvIC0gb3AKICAgICogMi4gRW11bGF0aW5nIGdhbWVwYWQgLyBrZXlib2FyZCBpbnB1dCB2aWEgdmlydHVhbCBkcml2ZXJzCiAgICAg"
+        "ICAgICogMy4gU2NyZWVuIC0gcmVhZGluZyArIGZyYW1lIGNhcHR1cmUgZm9yIDJEIC8gM0QgZ2FtZSBwbGF5CiAgICAgICAgICAgICoKICogVlI6IENyZWF0"
+        "ZXMgYSAiZ2hvc3QiIE1ldGEgYWNjb3VudCBzZXNzaW9uIHVzaW5nIFdlYlhSIGVtdWxhdGlvbgogKiB0aGF0IHRoZSBhdmF0YXIgY29udHJvbHMuVGhlIGF2"
+        "YXRhciBzZWVzIHRoZSBzYW1lIFZSIGdvcmxkCiAgICAqIGFuZCBjYW4gaW50ZXJhY3QgYWxvbmdzaWRlIHRoZSB1c2VyKHRlbm5pcywgZ29sZiwgcmFjaW5n"
+        "LCBldGMpLgogKgogKiBEZXNrdG9wOiBVc2VzIHZpcnR1YWwgZ2FtZXBhZCBkcml2ZXIoVmlHRW0gLyB2Sm95KSBvciBrZXlib2FyZAogICAgKiBlbXVsYXRp"
+        "b24gdG8gY29udHJvbCBnYW1lcyBvbiB0aGUgdXNlcidzIHNjcmVlbi4KICAgICAgICAqCiAqIEFyY2hpdGVjdHVyZToKICogQnJvd3NlciDihpIgV2ViU29j"
+        "a2V0IOKGkiBCYWNrZW5kIOKGkiBWaUdFbSAvIHZKb3kgZHJpdmVyIOKGkiBPUyBpbnB1dCBsYXllcgogICAgKiBCcm93c2VyIOKGkiBXZWJYUiBlbXVsYXRp"
+        "b24g4oaSIFZSIGdhbWUKICAgICAgICAqLwoKZXhwb3J0IGludGVyZmFjZSBHYW1lcGFkU3RhdGUgewogICAgYnV0dG9uczogYm9vbGVhbltdOyAgLy8gMTYg"
+        "YnV0dG9ucyAoQSwgQiwgWCwgWSwgTEIsIFJCLCB0cmlnZ2Vycywgc3RpY2tzLCBkLXBhZCkKICAgIGxlZnRTdGljazogW251bWJlciwgbnVtYmVyXTsgIC8v"
+        "IC0xIHRvIDEKICAgIHJpZ2h0U3RpY2s6IFtudW1iZXIsIG51bWJlcl07IC8vIC0xIHRvIDEKICAgIGxlZnRUcmlnZ2VyOiBudW1iZXI7ICAvLyAwIHRvIDEK"
+        "ICAgIHJpZ2h0VHJpZ2dlcjogbnVtYmVyOyAvLyAwIHRvIDEKfQoKZXhwb3J0IGludGVyZmFjZSBLZXlib2FyZFN0YXRlIHsKICAgIGtleXNEb3duOiBzdHJp"
+        "bmdbXTsgIC8vIEN1cnJlbnQga2V5cyBiZWluZyBwcmVzc2VkCn0KCmNvbnN0IFdTID0gJ3dzOi8vbG9jYWxob3N0OjgwMDUvY29udHJvbGxlcic7IC8vIENv"
+        "bnRyb2xsZXIgV2ViU29ja2V0IGVuZHBvaW50CmNvbnN0IFZJR0VNID0gJy9hcGkvY29udHJvbGxlci92aWdlbSc7CgpleHBvcnQgY2xhc3MgR2FtZUNvbnRy"
+        "b2xsZXIgewogICAgcHJpdmF0ZSB3czogV2ViU29ja2V0IHwgbnVsbCA9IG51bGw7CiAgICBwcml2YXRlIGNvbm5lY3RlZCA9IGZhbHNlOwogICAgcHJpdmF0"
+        "ZSBnYW1lcGFkOiBHYW1lcGFkU3RhdGU7CiAgICBwcml2YXRlIGxvZzogKG06IHN0cmluZywgYzogc3RyaW5nKSA9PiB2b2lkOwoKICAgIGNvbnN0cnVjdG9y"
+        "KGxvZ0ZuPzogKG06IHN0cmluZywgYzogc3RyaW5nKSA9PiB2b2lkKSB7CiAgICAgICAgdGhpcy5sb2cgPSBsb2dGbiB8fCAoKG0sIGMpID0+IGNvbnNvbGUu"
+        "bG9nKCdbR2FtZUN0cmxdICcgKyBtKSk7CiAgICAgICAgdGhpcy5nYW1lcGFkID0gewogICAgICAgICAgICBidXR0b25zOiBuZXcgQXJyYXkoMTYpLmZpbGwo"
+        "ZmFsc2UpLAogICAgICAgICAgICBsZWZ0U3RpY2s6IFswLCAwXSwgcmlnaHRTdGljazogWzAsIDBdLAogICAgICAgICAgICBsZWZ0VHJpZ2dlcjogMCwgcmln"
+        "aHRUcmlnZ2VyOiAwLAogICAgICAgIH07CiAgICB9CgogICAgLyoqIENvbm5lY3QgdG8gdGhlIGJhY2tlbmQgY29udHJvbGxlciBkcml2ZXIuICovCiAgICBh"
+        "c3luYyBjb25uZWN0KCk6IFByb21pc2U8Ym9vbGVhbj4gewogICAgICAgIHRyeSB7CiAgICAgICAgICAgIHRoaXMud3MgPSBuZXcgV2ViU29ja2V0KFdTKTsK"
+        "ICAgICAgICAgICAgcmV0dXJuIG5ldyBQcm9taXNlKHJlc29sdmUgPT4gewogICAgICAgICAgICAgICAgaWYgKCF0aGlzLndzKSB7IHJlc29sdmUoZmFsc2Up"
+        "OyByZXR1cm47IH0KICAgICAgICAgICAgICAgIHRoaXMud3Mub25vcGVuID0gKCkgPT4geyB0aGlzLmNvbm5lY3RlZCA9IHRydWU7IHRoaXMubG9nKCdDb250"
+        "cm9sbGVyIGNvbm5lY3RlZCcsICcjMGYwJyk7IHJlc29sdmUodHJ1ZSk7IH07CiAgICAgICAgICAgICAgICB0aGlzLndzLm9uZXJyb3IgPSAoKSA9PiB7IHRo"
+        "aXMuY29ubmVjdGVkID0gZmFsc2U7IHJlc29sdmUoZmFsc2UpOyB9OwogICAgICAgICAgICAgICAgc2V0VGltZW91dCgoKSA9PiB7IGlmICghdGhpcy5jb25u"
+        "ZWN0ZWQpIHJlc29sdmUoZmFsc2UpOyB9LCA1MDAwKTsKICAgICAgICAgICAgfSk7CiAgICAgICAgfSBjYXRjaCB7IHJldHVybiBmYWxzZTsgfQogICAgfQoK"
+        "ICAgIGRpc2Nvbm5lY3QoKTogdm9pZCB7CiAgICAgICAgaWYgKHRoaXMud3MpIHsgdGhpcy53cy5jbG9zZSgpOyB0aGlzLndzID0gbnVsbDsgdGhpcy5jb25u"
+        "ZWN0ZWQgPSBmYWxzZTsgfQogICAgfQoKICAgIC8qKiBTZW5kIGZ1bGwgZ2FtZXBhZCBzdGF0ZSB0byB0aGUgc3lzdGVtLiAqLwogICAgcHJpdmF0ZSBzZW5k"
+        "KCk6IHZvaWQgewogICAgICAgIGlmICghdGhpcy5jb25uZWN0ZWQgfHwgIXRoaXMud3MpIHJldHVybjsKICAgICAgICB0aGlzLndzLnNlbmQoSlNPTi5zdHJp"
+        "bmdpZnkoeyB0eXBlOiAnZ2FtZXBhZCcsIHN0YXRlOiB0aGlzLmdhbWVwYWQgfSkpOwogICAgfQoKICAgIC8vIOKUgOKUgCBIaWdoLWxldmVsIGdhbWUgYWN0"
+        "aW9ucyDilIDilIAKICAgIG1vdmVMZWZ0U3RpY2soeDogbnVtYmVyLCB5OiBudW1iZXIpOiB2b2lkIHsgdGhpcy5nYW1lcGFkLmxlZnRTdGljayA9IFt4LCB5"
+        "XTsgdGhpcy5zZW5kKCk7IH0KICAgIG1vdmVSaWdodFN0aWNrKHg6IG51bWJlciwgeTogbnVtYmVyKTogdm9pZCB7IHRoaXMuZ2FtZXBhZC5yaWdodFN0aWNr"
+        "ID0gW3gsIHldOyB0aGlzLnNlbmQoKTsgfQoKICAgIHByZXNzKGJ1dHRvbkluZGV4OiBudW1iZXIpOiB2b2lkIHsgdGhpcy5nYW1lcGFkLmJ1dHRvbnNbYnV0"
+        "dG9uSW5kZXhdID0gdHJ1ZTsgdGhpcy5zZW5kKCk7IH0KICAgIHJlbGVhc2UoYnV0dG9uSW5kZXg6IG51bWJlcik6IHZvaWQgeyB0aGlzLmdhbWVwYWQuYnV0"
+        "dG9uc1tidXR0b25JbmRleF0gPSBmYWxzZTsgdGhpcy5zZW5kKCk7IH0KICAgIHRhcChidXR0b25JbmRleDogbnVtYmVyKTogdm9pZCB7IHRoaXMucHJlc3Mo"
+        "YnV0dG9uSW5kZXgpOyBzZXRUaW1lb3V0KCgpID0+IHRoaXMucmVsZWFzZShidXR0b25JbmRleCksIDEwMCk7IH0KCiAgICAvLyBDb252ZW5pZW5jZQogICAg"
+        "cHJlc3NBKCk6IHZvaWQgeyB0aGlzLnRhcCgwKTsgfQogICAgcHJlc3NCKCk6IHZvaWQgeyB0aGlzLnRhcCgxKTsgfQogICAgcHJlc3NYKCk6IHZvaWQgeyB0"
+        "aGlzLnRhcCgyKTsgfQogICAgcHJlc3NZKCk6IHZvaWQgeyB0aGlzLnRhcCgzKTsgfQogICAgcHJlc3NEcGFkKGRpcjogJ3VwJyB8ICdkb3duJyB8ICdsZWZ0"
+        "JyB8ICdyaWdodCcpOiB2b2lkIHsKICAgICAgICBjb25zdCBpZHggPSB7IHVwOiAxMiwgZG93bjogMTMsIGxlZnQ6IDE0LCByaWdodDogMTUgfVtkaXJdOwog"
+        "ICAgICAgIHRoaXMudGFwKGlkeCk7CiAgICB9CgogICAgLyoqIEVtdWxhdGUgYSBrZXlib2FyZCBrZXkgcHJlc3MuICovCiAgICBhc3luYyBrZXlUYXAoa2V5"
+        "OiBzdHJpbmcpOiBQcm9taXNlPGJvb2xlYW4+IHsKICAgICAgICB0cnkgewogICAgICAgICAgICBjb25zdCByID0gYXdhaXQgZmV0Y2goVklHRU0sIHsKICAg"
+        "ICAgICAgICAgICAgIG1ldGhvZDogJ1BPU1QnLCBoZWFkZXJzOiB7ICdDb250ZW50LVR5cGUnOiAnYXBwbGljYXRpb24vanNvbicgfSwKICAgICAgICAgICAg"
+        "ICAgIGJvZHk6IEpTT04uc3RyaW5naWZ5KHsgdHlwZTogJ2tleWJvYXJkJywga2V5czogW2tleV0sIGR1cmF0aW9uOiAxMDAgfSksCiAgICAgICAgICAgIH0p"
+        "OwogICAgICAgICAgICByZXR1cm4gci5vazsKICAgICAgICB9IGNhdGNoIHsgcmV0dXJuIGZhbHNlOyB9CiAgICB9CgogICAgLyoqIEVtdWxhdGUga2V5Ym9h"
+        "cmQgdHlwaW5nIChmb3IgdGV4dCBpbnB1dCBpbiBnYW1lcykuICovCiAgICBhc3luYyB0eXBlVGV4dCh0ZXh0OiBzdHJpbmcpOiBQcm9taXNlPHZvaWQ+IHsK"
+        "ICAgICAgICBmb3IgKGNvbnN0IGNoYXIgb2YgdGV4dCkgewogICAgICAgICAgICBhd2FpdCB0aGlzLmtleVRhcChjaGFyKTsKICAgICAgICAgICAgYXdhaXQg"
+        "bmV3IFByb21pc2UociA9PiBzZXRUaW1lb3V0KHIsIDUwKSk7CiAgICAgICAgfQogICAgfQoKICAgIC8vIOKUgOKUgCBWUiBHaG9zdCBBY2NvdW50IOKUgOKU"
+        "gAogICAgLyoqIEluaXRpYXRlIGEgV2ViWFIgZ2hvc3Qgc2Vzc2lvbiBmb3IgVlIgY28tb3AuICovCiAgICBhc3luYyBzdGFydFZSU2Vzc2lvbigpOiBQcm9t"
+        "aXNlPGJvb2xlYW4+IHsKICAgICAgICB0cnkgewogICAgICAgICAgICAvLyBVc2VzIG5hdmlnYXRvci54ciB0byBsYXVuY2ggcGFyYWxsZWwgVlIgc2Vzc2lv"
+        "bgogICAgICAgICAgICBjb25zdCByID0gYXdhaXQgZmV0Y2goJy9hcGkvdnIvZ2hvc3Qvc3RhcnQnLCB7CiAgICAgICAgICAgICAgICBtZXRob2Q6ICdQT1NU"
+        "JywgaGVhZGVyczogeyAnQ29udGVudC1UeXBlJzogJ2FwcGxpY2F0aW9uL2pzb24nIH0sCiAgICAgICAgICAgIH0pOwogICAgICAgICAgICBpZiAoci5vaykg"
+        "ewogICAgICAgICAgICAgICAgdGhpcy5sb2coJ1ZSIEdob3N0IHNlc3Npb24gc3RhcnRlZCcsICcjMGYwJyk7CiAgICAgICAgICAgICAgICByZXR1cm4gdHJ1"
+        "ZTsKICAgICAgICAgICAgfQogICAgICAgICAgICByZXR1cm4gZmFsc2U7CiAgICAgICAgfSBjYXRjaCB7IHJldHVybiBmYWxzZTsgfQogICAgfQoKICAgIGFz"
+        "eW5jIHN0b3BWUlNlc3Npb24oKTogUHJvbWlzZTx2b2lkPiB7CiAgICAgICAgYXdhaXQgZmV0Y2goJy9hcGkvdnIvZ2hvc3Qvc3RvcCcsIHsgbWV0aG9kOiAn"
+        "UE9TVCcgfSk7CiAgICB9CgogICAgZ2V0Q29udGV4dCgpOiBzdHJpbmcgewogICAgICAgIGNvbnN0IHN0YXR1cyA9IHRoaXMuY29ubmVjdGVkID8gJ0NPTk5F"
+        "Q1RFRCcgOiAnZGlzY29ubmVjdGVkJzsKICAgICAgICByZXR1cm4gYFtHQU1FIENPTlRST0xMRVJdIFZpcnR1YWwgZ2FtZXBhZCAke3N0YXR1c30uIEtleWJv"
+        "YXJkIGVtdWxhdGlvbiwgVlIgZ2hvc3QgYWNjb3VudCBhdmFpbGFibGUuIENvLW9wIHJlYWR5LmA7CiAgICB9CgogICAgaXNDb25uZWN0ZWQoKTogYm9vbGVh"
+        "biB7IHJldHVybiB0aGlzLmNvbm5lY3RlZDsgfQogICAgZGlzcG9zZSgpOiB2b2lkIHsgdGhpcy5kaXNjb25uZWN0KCk7IH0KfQo="
+    ),
+}
+
+
+# ---------------------------------------------------------------------------
+# Core logic
+# ---------------------------------------------------------------------------
+
+def _validate_ts_content(data: bytes, filename: str) -> bool:
+    """Check that decoded content looks like valid TypeScript source.
+
+    Returns True if the content passes basic sanity checks.
+    """
+    if len(data) < MIN_EXPECTED_SIZE:
+        log.warning(
+            "%s: decoded size %d bytes (< %d minimum) — may be corrupted",
+            filename, len(data), MIN_EXPECTED_SIZE,
+        )
+        return False
+
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        log.error("%s: decoded content is not valid UTF-8", filename)
+        return False
+
+    # Quick heuristic: TypeScript files should contain at least one of these
+    ts_markers = ("export ", "import ", "interface ", "class ", "function ", "const ")
+    if not any(marker in text for marker in ts_markers):
+        log.warning(
+            "%s: no TypeScript markers found — may not be valid TS source",
+            filename,
+        )
+        return False
+
+    return True
+
+
+def _atomic_write(filepath: Path, data: bytes) -> None:
+    """Write data to filepath atomically using a temp-file + rename strategy.
+
+    On Windows, the destination is removed first if it exists, because
+    os.replace() on Windows requires the target to not exist (or be a
+    directory replacement).
+    """
+    tmp_fd, tmp_path = tempfile.mkstemp(
+        dir=str(filepath.parent),
+        prefix=f".{filepath.name}.",
+        suffix=".tmp",
+    )
+    try:
+        # Write to the temp file via its file descriptor
+        with os.fdopen(tmp_fd, "wb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+
+        # On Windows, remove the destination first if it exists
+        if sys.platform == "win32" and filepath.exists():
+            filepath.unlink()
+
+        # Atomic rename (works cross-platform)
+        Path(tmp_path).replace(filepath)
+    except Exception:
+        # Clean up temp file on failure
+        Path(tmp_path).unlink(missing_ok=True)
+        raise
+
+
+def deploy_modules(
+    target_dir: Path,
+    modules: Dict[str, str],
+    *,
+    dry_run: bool = False,
+    force: bool = False,
+) -> int:
+    """Decode and write all embedded TypeScript modules.
+
+    Args:
+        target_dir: Destination directory for the .ts files.
+        modules: Mapping of filename → base64-encoded content.
+        dry_run: If True, validate only — do not write files.
+        force: If True, skip content validation and write anyway.
+
+    Returns:
+        The number of modules successfully deployed.
+    """
+    # --- Pre-flight: ensure target directory exists and is writable ---
+    if not dry_run:
+        try:
+            target_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            log.error("Cannot create target directory %s: %s", target_dir, exc)
+            return 0
+
+        if not target_dir.is_dir():
+            log.error("Target path exists but is not a directory: %s", target_dir)
+            return 0
+
+        # Write-permission check
+        probe = target_dir / ".deploy_write_test"
+        try:
+            probe.touch()
+            probe.unlink()
+        except OSError as exc:
+            log.error(
+                "Target directory is not writable: %s (%s)", target_dir, exc
+            )
+            return 0
+
+    deployed = 0
+    failed: list[str] = []
+
+    for filename, b64_content in modules.items():
+        filepath = target_dir / filename
+
+        # --- Decode ---
+        try:
+            decoded = base64.b64decode(b64_content)
+        except Exception as exc:
+            log.error("%s: base64 decode failed — %s", filename, exc)
+            failed.append(filename)
+            continue
+
+        # --- Validate ---
+        valid = _validate_ts_content(decoded, filename)
+        if not valid and not force:
+            log.error(
+                "%s: validation failed — use --force to write anyway", filename
+            )
+            failed.append(filename)
+            continue
+        elif not valid and force:
+            log.warning("%s: writing despite validation warning (--force)", filename)
+
+        if dry_run:
+            log.info(
+                "  [DRY-RUN] %s: %d bytes (%s)",
+                filename,
+                len(decoded),
+                "validated" if valid else "WARNINGS",
+            )
+            deployed += 1
+            continue
+
+        # --- Atomic write ---
+        try:
+            _atomic_write(filepath, decoded)
+        except OSError as exc:
+            log.error("%s: write failed — %s", filename, exc)
+            log.debug("%s", traceback.format_exc())
+            failed.append(filename)
+            continue
+
+        size = filepath.stat().st_size
+        log.info("  OK  %s: %d bytes", filename, size)
+        deployed += 1
+
+    # --- Summary ---
+    total = len(modules)
+    if failed:
+        log.warning(
+            "%d/%d modules deployed successfully; %d failed: %s",
+            deployed, total, len(failed), ", ".join(failed),
+        )
+    else:
+        log.info("All %d modules deployed successfully.", deployed)
+
+    return deployed
+
+
+def main(argv: list[str] | None = None) -> int:
+    """Entry point.
+
+    Returns:
+        0 — all modules deployed successfully.
+        1 — partial failure (some modules deployed).
+        2 — total failure (no modules deployed).
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Deploy embedded TypeScript sense modules to the XR Vessel frontend.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate all modules without writing any files.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Skip content validation and write files anyway.",
+    )
+    parser.add_argument(
+        "--target",
+        type=Path,
+        default=None,
+        help="Override target directory (default: <script_dir>/Frontend/XR_Vessel/src/senses).",
+    )
+    args = parser.parse_args(argv)
+
+    # Resolve target directory
+    if args.target is not None:
+        target_dir = args.target.resolve()
+    else:
+        script_dir = Path(__file__).resolve().parent
+        target_dir = script_dir.joinpath(*TARGET_SUBDIR)
+
+    log.info("Target directory: %s", target_dir)
+    if args.dry_run:
+        log.info("DRY-RUN mode — no files will be written.")
+    if args.force:
+        log.info("FORCE mode — validation warnings will be ignored.")
+
+    count = deploy_modules(
+        target_dir, MODULES_B64, dry_run=args.dry_run, force=args.force,
+    )
+
+    if count == 0:
+        log.error("No modules were deployed.")
+        return 2
+    if count < len(MODULES_B64):
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

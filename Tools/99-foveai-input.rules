@@ -1,0 +1,6 @@
+# FoveAI input-router ACL: give lumba rw on all evdev nodes, persistent
+# across reboots and hotplug. Install:
+#   sudo cp 99-foveai-input.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload && sudo udevadm trigger --subsystem-match=input
+ACTION=="add|change", SUBSYSTEM=="input", KERNEL=="event*", \
+    RUN+="/usr/bin/setfacl -m u:lumba:rw /dev/input/%k"

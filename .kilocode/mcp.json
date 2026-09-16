@@ -1,1 +1,18 @@
-{"mcpServers":{}}
+{
+  "mcpServers": {
+    "foveai-memory": {
+      "command": "/home/lumba/FoveAI/.venv/bin/python",
+      "args": ["-B", "/home/lumba/FoveAI/Backend/Memory/foveai_mcp_server.py"],
+      "env": {
+        "FoveAI_REPO_ROOT": "/home/lumba/FoveAI",
+        "FOVEAI_MCP_CONTEXT": "0"
+      },
+      "type": "stdio"
+    },
+    "foveated-memory": {
+      "command": "node",
+      "args": ["/home/lumba/FoveAI/foveated-memory/mcp-server.js"],
+      "type": "stdio"
+    }
+  }
+}

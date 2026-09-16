@@ -3,6 +3,7 @@ LLM Mentor Analyzer - Cloud-based trading review
 Uses Ollama Cloud (qwen3.5:32b-cloud) for periodic strategy analysis
 """
 
+import os
 import httpx
 import logging
 import json
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # Ollama Cloud Configuration
 OLLAMA_CLOUD_URL = "https://ollama.com/v1/chat/completions"
-OLLAMA_CLOUD_KEY = "a87e5fe6d3334214b866ba8c79af3460.lCOisLzsLJ8X9Mug6VIfwQfU"
+OLLAMA_CLOUD_KEY = os.getenv("OLLAMA_API_KEY", "")
 MENTOR_MODEL = "qwen3.5:32b-cloud"  # Balanced 32B model for analysis
 
 

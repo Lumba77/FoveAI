@@ -101,8 +101,17 @@ cmd_status() {
     nvidia-smi --query-gpu=memory.used,memory.free,memory.total --format=csv,noheader 2>/dev/null || echo "    (nvidia-smi unavailable)"
 }
 
+# systemd --user owns the fleet when the units exist (Restart=always,
+# cgroup-clean teardown). nohup spawns remain as fallback only.
+have_unit() {
+    command -v systemctl &>/dev/null && systemctl --user cat "$1" &>/dev/null
+}
+
 cmd_stop() {
     log "Stopping FoveAI fleet..."
+    if have_unit foveai-xrlf.service || have_unit foveai-backend.service; then
+        systemctl --user stop foveai-xrlf.service foveai-backend.service 2>/dev/null || true
+    fi
     kill_port "$XRLF_PORT"
     kill_port "$XRLF_WS_PORT"
     kill_port "$BACKEND_PORT"
@@ -133,7 +142,9 @@ cmd_start() {
     # ── Node 1: Foveated Memory Proxy (:8400) ──
     log "Launching Foveated Memory Proxy (:$BACKEND_PORT)..."
     local fm_dir="$FOVEAI_DIR/foveated-memory"
-    if [ -d "$fm_dir" ] && [ -f "$fm_dir/server.js" ] && command -v "$NODE_BIN" &>/dev/null; then
+    if have_unit foveai-backend.service; then
+        systemctl --user restart foveai-backend.service
+    elif [ -d "$fm_dir" ] && [ -f "$fm_dir/server.js" ] && command -v "$NODE_BIN" &>/dev/null; then
         cd "$fm_dir"
         nohup "$NODE_BIN" server.js >> /home/lumba/foveated_proxy.log 2>&1 &
     else
@@ -144,7 +155,6 @@ cmd_start() {
         cd "$FOVEAI_DIR/Backend"
         nohup "$VENV_PYTHON" -m app.main >> /home/lumba/foveai_backend.log 2>&1 &
     fi
-    local backend_pid=$!
 
     # Wait for backend
     log "Waiting for backend (:$BACKEND_PORT)..."
@@ -164,25 +174,43 @@ cmd_start() {
         log "  Model path: $XRLF_MODEL_PATH"
         log "  API: :$XRLF_PORT  WS: :$XRLF_WS_PORT  Dashboard: :$DASHBOARD_PORT"
 
-        cd "$FOVEAI_DIR"
-        nohup env XRLF_REPO_ENABLED=true "$VENV_PYTHON" run_xrlf.py \
-            --model "$XRLF_MODEL_PATH" \
-            --port "$XRLF_PORT" \
-            --ws-port "$XRLF_WS_PORT" >> /home/lumba/xrlf_live.log 2>&1 &
-        local xrlf_pid=$!
-
-        # Wait for XRLF
-        log "Waiting for XRLF Runtime (:$XRLF_PORT)..."
-        for i in $(seq 1 60); do
-            port_alive "$XRLF_PORT" && break
-            sleep 1
-        done
-        if port_alive "$XRLF_PORT"; then
-            log "  ✅ XRLF Runtime online (:$XRLF_PORT)"
-            log "  ✅ Model loaded in dormant mode — ready for inference"
+        if have_unit foveai-xrlf.service; then
+            systemctl --user restart foveai-xrlf.service
         else
-            err "  ❌ XRLF Runtime failed to start (model may be loading slowly)"
-            warn "  Check: $VENV_PYTHON run_xrlf.py --model $XRLF_MODEL_PATH"
+            cd "$FOVEAI_DIR"
+            nohup env XRLF_REPO_ENABLED=true GGML_CUDA_NO_VMM=1 "$VENV_PYTHON" run_xrlf.py \
+                --model "$XRLF_MODEL_PATH" \
+                --port "$XRLF_PORT" \
+                --ws-port "$XRLF_WS_PORT" >> /home/lumba/xrlf_live.log 2>&1 &
+        fi
+
+        # The API binds before the model loads — /health answers immediately
+        # with load_state. Wait for a real "loaded" (or a real error), not
+        # just an open port.
+        log "Waiting for XRLF Runtime (:$XRLF_PORT)..."
+        local waited=0
+        for i in $(seq 1 180); do
+            if port_alive "$XRLF_PORT"; then
+                local h
+                h=$(curl -sf -m 2 "http://127.0.0.1:$XRLF_PORT/health" 2>/dev/null || true)
+                if [ -n "$h" ]; then
+                    case "$h" in
+                        *'"loaded": true'*|*'"loaded":true'*)
+                            log "  ✅ XRLF Runtime online — model loaded (:$XRLF_PORT)"
+                            break ;;
+                        *'"load_state": "error"'*|*'"load_state":"error"'*)
+                            err "  ❌ XRLF load_state=error — see /home/lumba/xrlf_live.log"
+                            break ;;
+                    esac
+                fi
+            fi
+            waited=$((waited+2)); sleep 2
+        done
+        if ! port_alive "$XRLF_PORT"; then
+            err "  ❌ XRLF Runtime never bound :$XRLF_PORT — process died. See /home/lumba/xrlf_live.log"
+        elif [ $waited -ge 360 ]; then
+            warn "  ⏳ XRLF still loading after 6min — probably still initializing."
+            warn "  Watch: tail -f /home/lumba/xrlf_live.log"
         fi
     else
         log "Light mode — skipping XRLF Runtime (no model loaded)"

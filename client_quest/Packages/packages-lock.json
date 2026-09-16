@@ -6,41 +6,73 @@
       "source": "embedded",
       "dependencies": {}
     },
+    "com.meta.xr.mrutilitykit": {
+      "version": "205.0.0",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.ai.navigation": "1.1.4",
+        "com.unity.nuget.newtonsoft-json": "3.0.2",
+        "com.meta.xr.sdk.core": "205.0.0",
+        "com.unity.textmeshpro": "3.0.6"
+      },
+      "url": "https://npm.developer.oculus.com"
+    },
     "com.meta.xr.sdk.avatars": {
       "version": "40.0.1",
       "depth": 0,
       "source": "registry",
       "dependencies": {
-        "com.unity.ugui": "1.0.0",
         "com.meta.xr.sdk.core": "69.0.1",
         "com.meta.xr.sdk.platform": "69.0.0",
         "com.unity.modules.jsonserialize": "1.0.0",
         "com.unity.xr.legacyinputhelpers": "2.1.9",
+        "com.unity.ugui": "1.0.0",
         "com.meta.xr.sdk.avatars.sample.assets": "40.0.1"
       },
-      "url": "https://packages.unity.com"
+      "url": "https://npm.developer.oculus.com"
     },
     "com.meta.xr.sdk.avatars.sample.assets": {
       "version": "40.0.1",
       "depth": 1,
       "source": "registry",
       "dependencies": {},
-      "url": "https://packages.unity.com"
+      "url": "https://npm.developer.oculus.com"
     },
     "com.meta.xr.sdk.core": {
       "version": "205.0.0",
       "depth": 0,
       "source": "registry",
       "dependencies": {
-        "com.unity.xr.hands": "1.7.2",
-        "com.unity.modules.ui": "1.0.0",
         "com.unity.modules.audio": "1.0.0",
-        "com.unity.modules.imgui": "1.0.0",
         "com.unity.modules.imageconversion": "1.0.0",
+        "com.unity.modules.imgui": "1.0.0",
+        "com.unity.modules.ui": "1.0.0",
         "com.unity.modules.unitywebrequest": "1.0.0",
-        "com.unity.modules.unitywebrequestaudio": "1.0.0"
+        "com.unity.modules.unitywebrequestaudio": "1.0.0",
+        "com.unity.xr.hands": "1.7.2"
       },
-      "url": "https://packages.unity.com"
+      "url": "https://npm.developer.oculus.com"
+    },
+    "com.meta.xr.sdk.interaction": {
+      "version": "205.0.0",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.textmeshpro": "3.0.6",
+        "com.unity.ugui": "1.0.0"
+      },
+      "url": "https://npm.developer.oculus.com"
+    },
+    "com.meta.xr.sdk.interaction.ovr": {
+      "version": "205.0.0",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.meta.xr.sdk.interaction": "205.0.0",
+        "com.meta.xr.sdk.core": "205.0.0"
+      },
+      "url": "https://npm.developer.oculus.com"
     },
     "com.meta.xr.sdk.platform": {
       "version": "69.0.0",
@@ -49,7 +81,7 @@
       "dependencies": {
         "com.unity.ugui": "1.0.0"
       },
-      "url": "https://packages.unity.com"
+      "url": "https://npm.developer.oculus.com"
     },
     "com.unity.ai.navigation": {
       "version": "2.0.14",
@@ -117,6 +149,13 @@
         "com.unity.modules.uielements": "1.0.0"
       }
     },
+    "com.unity.nuget.newtonsoft-json": {
+      "version": "3.2.2",
+      "depth": 1,
+      "source": "registry",
+      "dependencies": {},
+      "url": "https://packages.unity.com"
+    },
     "com.unity.test-framework": {
       "version": "1.6.0",
       "depth": 1,
@@ -125,6 +164,14 @@
         "com.unity.ext.nunit": "2.0.3",
         "com.unity.modules.imgui": "1.0.0",
         "com.unity.modules.jsonserialize": "1.0.0"
+      }
+    },
+    "com.unity.textmeshpro": {
+      "version": "5.0.0",
+      "depth": 1,
+      "source": "builtin",
+      "dependencies": {
+        "com.unity.ugui": "2.0.0"
       }
     },
     "com.unity.timeline": {

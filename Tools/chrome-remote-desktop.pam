@@ -1,0 +1,20 @@
+#%PAM-1.0
+# Chrome Remote Desktop local login check.
+#
+# CRD calls pam_start("chrome-remote-desktop") + pam_acct_mgmt() before
+# establishing a session. On this host (nobara-pc) no service file was
+# installed, so PAM fell back to /etc/pam.d/other = pam_deny and every
+# session was rejected AFTER the PIN had already been accepted — which
+# looked like "the PIN never changes" from the client side.
+#
+# The host also runs as an unprivileged user service (crd-virtual.service,
+# Xvfb mode), so it cannot read /etc/shadow — pam_unix account would fail.
+# The CRD PIN is the real access gate; this stack only verifies that the
+# target account is a real local user.
+#
+# Install:  sudo cp Tools/chrome-remote-desktop.pam /etc/pam.d/chrome-remote-desktop
+auth     required  pam_deny.so
+account  required  pam_localuser.so
+account  required  pam_permit.so
+password required  pam_deny.so
+session  required  pam_deny.so

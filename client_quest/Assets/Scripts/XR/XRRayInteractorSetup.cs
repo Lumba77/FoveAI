@@ -134,12 +134,14 @@ namespace FoveAI.XR
 
             string handName = isLeft ? "Left" : "Right";
 
-            // Remove the old custom XRControllerRayPointer if present (the custom ray visual + manual raycast)
-            var oldPointer = controllerObj.GetComponent<XRControllerRayPointer>();
-            if (oldPointer != null)
+            // Keep XRControllerRayPointer — it handles 3D physics raycasts and avatar interaction
+            // that XRRayInteractor alone cannot do (avatar poke, 3D object clicks)
+            var existingPointer = controllerObj.GetComponent<XRControllerRayPointer>();
+            if (existingPointer == null)
             {
-                Destroy(oldPointer);
-                QuestDebugOverlay.Log($"[XRRaySetup] Removed old XRControllerRayPointer on {handName}");
+                existingPointer = controllerObj.AddComponent<XRControllerRayPointer>();
+                existingPointer.hand = isLeft ? XRControllerRayPointer.ControllerHand.Left : XRControllerRayPointer.ControllerHand.Right;
+                QuestDebugOverlay.Log($"[XRRaySetup] Added XRControllerRayPointer on {handName} for 3D/avatar interaction");
             }
 
             // Remove the temporary cube visual child

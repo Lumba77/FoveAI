@@ -30,12 +30,12 @@ REPO_ROOT = Path(os.getenv("FoveAI_REPO_ROOT", Path(__file__).resolve().parent.p
 INVENTORY_PATH = Path(os.getenv("FoveAI_FEATURE_INVENTORY_PATH", REPO_ROOT / "FEATURE_INVENTORY.md"))
 
 # Director cloud configuration
-DIRECTOR_CLOUD_ENABLED = os.getenv("LUMAX_DIRECTOR_CLOUD_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
-DIRECTOR_BASE_URL = os.getenv("LUMAX_DIRECTOR_BASE_URL", "https://ollama.com/v1").rstrip("/")
+DIRECTOR_CLOUD_ENABLED = os.getenv("FOVEAI_DIRECTOR_CLOUD_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
+DIRECTOR_BASE_URL = os.getenv("FOVEAI_DIRECTOR_BASE_URL", "https://ollama.com/v1").rstrip("/")
 DIRECTOR_MODEL = os.getenv("FoveAI_MODEL_DIRECTOR_ID", "deepseek-v4-pro:1m").strip()
-DIRECTOR_API_KEY = os.getenv("LUMAX_DIRECTOR_API_KEY", "").strip()
-DIRECTOR_AUTO_APPLY = os.getenv("LUMAX_DIRECTOR_AUTO_APPLY", "true").strip().lower() in ("1", "true", "yes", "on")
-DIRECTOR_MAX_INDEX_PER_MISSION = int(os.getenv("LUMAX_DIRECTOR_MAX_INDEX_PER_MISSION", "50"))
+DIRECTOR_API_KEY = os.getenv("FOVEAI_DIRECTOR_API_KEY", "").strip()
+DIRECTOR_AUTO_APPLY = os.getenv("FOVEAI_DIRECTOR_AUTO_APPLY", "true").strip().lower() in ("1", "true", "yes", "on")
+DIRECTOR_MAX_INDEX_PER_MISSION = int(os.getenv("FOVEAI_DIRECTOR_MAX_INDEX_PER_MISSION", "50"))
 
 # ── Data Structures ────────────────────────────────────────────────────────────
 

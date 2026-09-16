@@ -5,11 +5,11 @@ FoveAI refactors away from brittle, high-latency multi-model HTTP swarms into a 
 
 | Component | Role / Model | Port / Protocol | Note |
 |---|---|---|---|
-| **Main Cognitive LLM** | `gemma-4-12b-mtp-xrlf` | 8400 (IPC WebSocket) | The single active cognitive core loaded in `xrlf_runtime.py` with MoQ core & cognitive steering. |
+| **Main Cognitive LLM** | `xrl_encoded/gemma-4-e2b-multimodal-v1.0.xrlf` | 8402 (HTTP) / 8403 (WS) | The single active cognitive core loaded in `run_xrlf.py` with MoQ core & cognitive steering. |
 | **Smart Proxy (Omni-Router)** | `lumax-plumax-omni-router-v2.xrlf` | 8400 (Internal Middleware) | Intercepts massive context dumps (>12K chars) and extracts critical code and intent. |
 | **Failover Omni-Router (No. 2)** | `no2-lumax-plumax-omni-router.xrlf` | Failover Channel | Load-balancer / secondary router engaged if Router 1 encounters congestion. |
-| **Memory Helper Model** | `lumax-summarizer-draft.gguf` | Embedded / 8402 | Background helper weaving active-recall memory ring blocks and compacting checkpoints. |
-| **IPC WebSocket Server** | `websocket_server.py` | 8400 (ws://) | Low-latency binary/JSON socket connecting Quest, WebXR, and Desktop clients. |
+| **Memory Helper Model** | `lumax-summarizer-draft.gguf` | Embedded | Background helper weaving active-recall memory ring blocks and compacting checkpoints. |
+| **Foveated Memory Proxy** | `foveated-memory/server.js` | 8400 (ws/http) | Memory ring manager, context proxy, and dynamic HUD injector. |
 | **Sovereign Core (Soul)** | `compagent.py` | 8000 | Cognition loop, motor intent extraction, and avatar coordination. |
 | **Stardust Gnists** | Vector Resonance | 8109 | 33M parameter vector matrix for instant semantic memory matching. |
 | **Motor Cortex** | `motor_daemon.py` | 8110 | Native avatar agency (walk, gesture, emotion rendering). |

@@ -9,12 +9,22 @@
         "com.vrmc.vrmshaders",
         "com.vrmc.gltf"
       ]
+    },
+    {
+      "name": "Meta NPM Registry",
+      "url": "https://npm.developer.oculus.com",
+      "scopes": [
+        "com.meta.xr"
+      ]
     }
   ],
   "dependencies": {
     "com.endel.nativewebsocket": "file:com.endel.nativewebsocket",
     "com.meta.xr.sdk.avatars": "40.0.1",
     "com.meta.xr.sdk.core": "205.0.0",
+    "com.meta.xr.sdk.interaction": "205.0.0",
+    "com.meta.xr.sdk.interaction.ovr": "205.0.0",
+    "com.meta.xr.mrutilitykit": "205.0.0",
     "com.unity.ai.navigation": "2.0.14",
     "com.unity.animation.rigging": "1.2.1",
     "com.unity.inputsystem": "1.19.0",

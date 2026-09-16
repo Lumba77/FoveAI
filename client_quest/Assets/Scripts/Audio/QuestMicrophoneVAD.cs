@@ -21,16 +21,16 @@ namespace FoveAI.Audio
     {
         [Header("VAD Sensitivity")]
         [Tooltip("RMS audio amplitude threshold to detect speech start.")]
-        [SerializeField] private float speechThreshold = 0.015f;
+        [SerializeField] private float speechThreshold = 0.008f;
 
         [Tooltip("Seconds of silence after speaking to consider utterance finished.")]
-        [SerializeField] private float silenceDuration = 0.85f;
+        [SerializeField] private float silenceDuration = 0.45f;
 
         [Tooltip("Minimum utterance duration in seconds to filter out mouth clicks/coughs.")]
-        [SerializeField] private float minSpeechDuration = 0.4f;
+        [SerializeField] private float minSpeechDuration = 0.15f;
 
         [Tooltip("Maximum utterance duration in seconds before forcing transcription.")]
-        [SerializeField] private float maxSpeechDuration = 15.0f;
+        [SerializeField] private float maxSpeechDuration = 12.0f;
 
         [Header("Audio Settings")]
         [SerializeField] private int sampleRate = 16000;

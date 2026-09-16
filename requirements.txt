@@ -27,6 +27,27 @@ numpy==2.5.2
 scipy==1.18.1
 
 # ── Local Inference (llama.cpp binding) ────────────────────────────────────
+# ⚠️ MUST be the CUDA build — a plain install of this pin pulls the CPU wheel
+# and silently kills GPU offload. Rebuild recipe (verified 2026-09-15, RTX 4060 sm_89):
+#   uv pip install 'nvidia-cuda-cccl==13.3.*' 'nvidia-cuda-crt==13.3.*' \
+#     'nvidia-cuda-nvcc==13.3.*' 'nvidia-nvvm==13.3.*' 'nvidia-cuda-runtime==13.3.*' \
+#     'nvidia-cublas' 'cmake<4'
+#   # unversioned .so symlinks required by FindCUDAToolkit:
+#   cd .venv/lib/python3.12/site-packages/nvidia/cu13/lib && \
+#     for f in *.so.13; do ln -sf "$f" "${f%.13}"; done && cd -
+#   PATH=$PWD/.venv/bin:$PATH \
+#   CMAKE_BUILD_PARALLEL_LEVEL=8 \
+#   CUDACXX=$PWD/.venv/lib/python3.12/site-packages/nvidia/cu13/bin/nvcc \
+#   CMAKE_ARGS="-DGGML_CUDA=on -DCMAKE_CUDA_ARCHITECTURES=89 \
+#     -DCUDAToolkit_ROOT=$PWD/.venv/lib/python3.12/site-packages/nvidia/cu13 \
+#     -DCMAKE_CUDA_FLAGS=--allow-unsupported-compiler" \
+#   FORCE_CMAKE=1 uv pip install --python .venv/bin/python \
+#     --no-binary llama-cpp-python --force-reinstall --no-deps llama-cpp-python==0.3.35
+#   # gotchas: cmake 4.x breaks FindCUDAToolkit (use cmake<4); gcc>15 needs
+#   # --allow-unsupported-compiler; uv caches wheels → use --no-binary, and
+#   # `uv cache clean llama-cpp-python` if it still installs in milliseconds.
+#   # Runtime requires env: GGML_CUDA_NO_VMM=1 (set in foveai-xrlf.service)
+# Verify: .venv/bin/python -c "import llama_cpp; print(llama_cpp.llama_supports_gpu_offload())"
 llama-cpp-python==0.3.35
 
 # ── Model / Tokenizer Support ──────────────────────────────────────────────

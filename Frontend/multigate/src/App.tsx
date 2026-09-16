@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 import AvatarOverlay from './AvatarOverlay';
 import IgnitionButton from './IgnitionButton';
+import IgnitionScreen from './IgnitionScreen';
+import Trackball from './trackball/Trackball';
+import { useTraits, boolDirs, fmtVal } from './trackball/useTraits';
 import { CanvasTab } from './components/tabs/CanvasTab';
 import { DiagnosticsTab } from './components/tabs/DiagnosticsTab';
 import { AgencyTab } from './components/tabs/AgencyTab';
@@ -39,6 +42,7 @@ function App() {
   });
 
   const [showSetup, setShowSetup] = useState(() => !currentUser);
+  const [ignited, setIgnited] = useState(false);
 
   // Persist login state to localStorage
   useEffect(() => {
@@ -633,6 +637,13 @@ function App() {
         { id: 'Diagnostics', label: 'Diagnostic Matrix', icon: '🔬' },
         { id: 'proxy_stats', label: `Foveated Memory Stats (${proxyPort})`, icon: '📊', isExternal: true, href: '/api/foveated/stats' }
       ]
+    },
+    {
+      title: 'SYSTEM',
+      icon: '⚙️',
+      items: [
+        { id: 'Settings', label: 'FoveAI Command', icon: '🎛️' }
+      ]
     }
   ];
 
@@ -737,7 +748,11 @@ function App() {
             })}
           </div>
         </nav>
-        
+
+        {/* the trackball instrument — sweep ring to arm a setting,
+            roll the ball to turn it, press to open FoveAI Command */}
+        <SidebarTrackball onOpenSettings={() => setActiveTab('Settings')} />
+
         <div className="user-profile">
           <div className="user-info">
             <div className="avatar">
@@ -828,6 +843,16 @@ function App() {
               src="https://foveai.1um6a.se/memory" 
               style={{ width: '100%', height: '100%', border: 'none', background: '#000' }} 
               title="Memory Vault Dashboard"
+            />
+          </div>
+        ) : activeTab === 'Settings' ? (
+          <div style={{ flex: 1, width: '100%', height: '100%', overflow: 'hidden' }}>
+            {/* FoveAI Command — proxied to the memory dashboard :8401 via vite,
+                same-origin so it works on localhost, LAN and the tunnel */}
+            <iframe
+              src="/settings.html"
+              style={{ width: '100%', height: '100%', border: 'none', background: '#0b0f1a' }}
+              title="FoveAI Command — Settings & Control"
             />
           </div>
         ) : activeTab === 'Canvas' ? (
@@ -986,21 +1011,54 @@ function App() {
                   disabled={isTyping}
                   style={{ flex: 1 }}
                 />
-                <button 
-                  className="send-btn" 
-                  onClick={handleSendMessage}
-                  disabled={!inputValue.trim() || isTyping}
+                {/* the send-ball — socketed into the bar's right end,
+                    press seats it deep and fires the message */}
+                <div
+                  className={`send-socket ${!inputValue.trim() || isTyping ? 'idle' : ''}`}
+                  title="press the ball to send"
                 >
-                  ↑
-                </button>
+                  <SendBall onSend={handleSendMessage} />
+                </div>
               </div>
             </div>
           </>
         )}
       </main>
       <IgnitionButton />
+      {!ignited && currentUser && (
+        <IgnitionScreen userName={currentUser.firstName} onEnter={() => setIgnited(true)} />
+      )}
     </div>
   );
+}
+
+/* Sidebar-mounted instance of the trackball instrument. Owns its own
+   TraitStore — armed dial + values live here; rolling the ball turns
+   real settings through /api/setting, press opens FoveAI Command. */
+function SidebarTrackball({ onOpenSettings }: { onOpenSettings: () => void }) {
+  const tb = useTraits();
+  return (
+    <div className="sidebar-trackball" title="Trackball — sweep to arm, roll to turn, press for FoveAI Command">
+      <Trackball store={tb} size={252} ballScale={0.54} compact onPress={onOpenSettings}
+        pressHint="open FoveAI Command" />
+      <div className="sidebar-trackball-readout">
+        <b>{tb.armed.label}</b> = <b>{tb.displayVal(tb.armed)}</b>
+        {boolDirs(tb.armed) && (
+          <span className="sidebar-trackball-dirs">
+            ▲{fmtVal(boolDirs(tb.armed)!.up)} · ▼{fmtVal(boolDirs(tb.armed)!.down)}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* Composer send-ball — the bare trackball seated in a bezel at the right
+   end of the input bar. Press = send. Rolls for the feel of it, but
+   turns no dial (bare mode). */
+function SendBall({ onSend }: { onSend: () => void }) {
+  const tb = useTraits();
+  return <Trackball store={tb} size={56} bare onPress={onSend} pressHint="press to send" />;
 }
 
 export default App;

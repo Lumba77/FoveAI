@@ -114,7 +114,7 @@ class LlamaEngine:
             n_threads=self.n_threads,
             verbose=self.verbose,
             n_batch=128,
-            use_mmap=False,  # Windows: avoids 0xC000001D illegal instruction on CUDA init
+            # use_mmap=False removed for Linux stability/performance
         )
         # KV cache quantization — requires flash_attn, which Gemma 4 can't use
         # (mismatched V embedding sizes across layers). Left here for non-Gemma models.
@@ -144,28 +144,12 @@ class LlamaEngine:
         # Multimodal Chat Handler
         if self.mmproj_path and Path(self.mmproj_path).exists():
             print(f"  Loading MMPROJ handler: {self.mmproj_path}")
-            try:
-                # Use native Gemma4 handler from llama_cpp (0.3.34+) — the local
-                # patched handler in llama_bridge/gemma4_handler.py was written for
-                # 0.3.16 and produces garbled output with 0.3.35's mtmd interface.
-                from llama_cpp.llama_chat_format import Gemma4ChatHandler
-                kwargs["chat_handler"] = Gemma4ChatHandler(clip_model_path=self.mmproj_path)
-                print("    Using Gemma4ChatHandler (native)")
-            except (ImportError, AttributeError):
-                try:
-                    # Fall back to local patched handler (has audio_url support)
-                    from llama_bridge.gemma4_handler import Gemma4ChatHandler
-                    kwargs["chat_handler"] = Gemma4ChatHandler(clip_model_path=self.mmproj_path)
-                    print("    Using Gemma4ChatHandler (local patched fallback — audio+vision)")
-                except (ImportError, AttributeError):
-                    try:
-                        from llama_cpp.llama_chat_format import Qwen25VLChatHandler
-                        kwargs["chat_handler"] = Qwen25VLChatHandler(clip_model_path=self.mmproj_path)
-                        print("    Using Qwen25VLChatHandler")
-                    except (ImportError, AttributeError):
-                        from llama_cpp.llama_chat_format import Llava15ChatHandler
-                        kwargs["chat_handler"] = Llava15ChatHandler(clip_model_path=self.mmproj_path)
-                        print("    Using Llava15ChatHandler (fallback)")
+            # NOTE: Gemma4ChatHandler (both native and local) emits <|turn> tokens
+            # which cause the model to generate 0 tokens and hang.
+            # The manual <start_of_turn>/<end_of_turn> template in _format_messages
+            # is confirmed working. Skip chat_handler — multimodal images can be
+            # passed via the manual template when needed.
+            print("    Skipping chat_handler — using manual Gemma template (avoids zero-token hang)")
 
         from llama_cpp import Llama, llama_cpp
         # ── MTP / Speculative Decoding ──────────────────────────────────────────

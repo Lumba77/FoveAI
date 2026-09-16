@@ -201,6 +201,13 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
+  // Show TokenSaver stats modal inside the webview (title-bar icon)
+  context.subscriptions.push(
+    vscode.commands.registerCommand('jenna.showStats', () => {
+      provider.openStats();
+    })
+  );
+
   // ── Phase 2: Inline completions, memory search, model switcher ──────────
 
   registerInlineProvider(context, client, workspaceId);

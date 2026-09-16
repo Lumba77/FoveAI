@@ -38,8 +38,8 @@ namespace FoveAI.Experiences
         [SerializeField] private Transform aliceTransform;
 
         [Header("Settings")]
-        public bool autoDetectSeason = true;
-        public bool autoDetectHoliday = true;
+        public bool autoDetectSeason = false;
+        public bool autoDetectHoliday = false;
         public float seasonalCommentInterval = 300f;  // every 5 min
         public float particleDensity = 1f;
 

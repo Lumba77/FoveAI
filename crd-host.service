@@ -1,0 +1,15 @@
+[Unit]
+Description=Chrome Remote Desktop Host
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lumba
+Environment=DISPLAY=:0
+ExecStart=/opt/google/chrome-remote-desktop/chrome-remote-desktop-host --console
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

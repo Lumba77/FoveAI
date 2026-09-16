@@ -1,0 +1,23 @@
+{
+    "xrlf_foveated": {
+        "base_url_env_key": "XLRF_BASEURL",
+        "default_model_env_key": "XRLF_MODEL",
+        "is_proxy": true,
+        "context_aggression_env_key": "LUMAX_PROXY_AGGRESSION",
+        "real_context_env_key": "LUMAX_LOCAL_N_CTX"
+    },
+    "lmstudio_direct": {
+        "base_url_env_key": "LM_STUDIO_URL",
+        "default_model_env_key": "LOCAL_LLM_MODEL",
+        "is_proxy": false,
+        "context_aggression_env_key": null,
+        "real_context_env_key": "LUMAX_LOCAL_N_CTX"
+    },
+    "unsloth_local": {
+        "base_url_env_key": "LUMAX_LOCAL_BASE_URL",
+        "default_model_env_key": "LUMAX_MODEL_LOCAL_ID",
+        "is_proxy": false,
+        "context_aggression_env_key": null,
+        "real_context_env_key": "LUMAX_LOCAL_N_CTX"
+    }
+}

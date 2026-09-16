@@ -3,13 +3,15 @@
 // experiences. Edit and save to change the VR environment in real-time.
 
 // ── Seasonal Theming ──
-FoveAI.setParam("season.autoDetect", true);
+// Sterile default: dressing is opt-in — the Director or the user can apply a
+// season on demand, but nothing decorates the scene at boot.
+FoveAI.setParam("season.autoDetect", false);
 FoveAI.setParam("season.current", "autumn");           // override: "spring"|"summer"|"autumn"|"winter"
 FoveAI.setParam("season.particleDensity", 1.0);
 FoveAI.setParam("season.commentInterval", 300);        // seconds between seasonal comments
 
 // ── Holiday overlay ──
-FoveAI.setParam("holiday.autoDetect", true);
+FoveAI.setParam("holiday.autoDetect", false);
 FoveAI.setParam("holiday.current", "none");            // "none"|"christmas"|"halloween"|"newyear"|"valentine"|"easter"
 
 // ── Director Engine ──

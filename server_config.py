@@ -63,6 +63,19 @@ def _env_int(key: str, default: int) -> int:
         return default
 
 
+def detect_lan_ip() -> str:
+    """Best-effort primary LAN IP (no traffic is sent — UDP route lookup only)."""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+
 class ServerConfig:
     """Central configuration for all FoveAI servers and clients.
 
@@ -73,7 +86,9 @@ class ServerConfig:
 
     # ── Network addresses (from .env) ────────────────────────────────────────
     BIND_HOST: str = _env("FOVEAI_BIND_HOST", "0.0.0.0")
-    SERVER_IP: str = _env("FOVEAI_SERVER_IP", "127.0.0.1")
+    # Client-facing IP. FOVEAI_SERVER_IP wins; otherwise auto-detect the LAN IP
+    # so Quest clients get a reachable address instead of a broken 127.0.0.1.
+    SERVER_IP: str = _env("FOVEAI_SERVER_IP", "") or detect_lan_ip()
 
     # ── Unified WebSocket port (from .env) ───────────────────────────────────
     # ALL client traffic goes through this one port: chat, TTS, STT, motor, etc.

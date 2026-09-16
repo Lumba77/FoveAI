@@ -1,0 +1,76 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   FOVEAI CELESTIAL — unified design language (v1.0)
+   Astrological instrument × high-tech console.
+
+   Deep-space indigo ground, starfield + constellation hairlines, brass
+   astrolabe metal, aurora teal/violet as nebula light, planet-red for the
+   trackball core. Merges the Garage (warm metal, diodes) and Aurora
+   (teal/violet glass) layers into one night-sky instrument.
+
+   Canonical token + recipe source — surfaces embed adapted copies
+   (settings.css, multigate index.css, IgnitionScreen inline block).
+   ══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── space ground ── */
+  --cel-bg: #070b1d;                       /* deep indigo space */
+  --cel-bg-2: #0b1029;                     /* lifted space */
+  --cel-panel: rgba(20, 26, 52, 0.55);     /* console glass */
+  --cel-panel-2: rgba(232, 182, 76, 0.07); /* brass-tinted glass */
+
+  /* ── instrument metal (astrolabe brass) ── */
+  --cel-brass: #e8b64c;
+  --cel-brass-hi: #ffd766;
+  --cel-brass-dim: rgba(232, 182, 76, 0.16);
+  --cel-brass-line: rgba(232, 182, 76, 0.34);
+
+  /* ── nebula accents (aurora kept) ── */
+  --cel-teal: #5eead4;
+  --cel-violet: #a78bfa;
+  --cel-teal-dim: rgba(94, 234, 212, 0.12);
+  --cel-violet-dim: rgba(167, 139, 250, 0.12);
+
+  /* ── starlight text ── */
+  --cel-text: #dfe7ff;
+  --cel-muted: #8a94b8;
+  --cel-lcd: #c9f0ae;                      /* LCD phosphor green (kept) */
+
+  /* ── semantics ── */
+  --cel-danger: #ff6a4d;
+  --cel-warn: #ffb833;
+  --cel-ok: #7ddf6a;
+  --cel-planet: #e8321e;                   /* the red ball */
+
+  /* ── structure ── */
+  --cel-border: rgba(148, 168, 220, 0.16);
+  --cel-border-strong: rgba(148, 168, 220, 0.30);
+  --cel-glass-top: linear-gradient(180deg, rgba(200,214,255,0.08), rgba(200,214,255,0.02));
+  --cel-inset-hi: inset 0 1px 0 rgba(220,230,255,0.10);
+  --cel-inset-press: inset 0 2px 6px rgba(0,0,0,0.5);
+  --cel-shadow: 0 3px 14px rgba(0,0,0,0.45);
+  --cel-shadow-lg: 0 12px 36px rgba(0,0,0,0.6);
+  --cel-ease: cubic-bezier(0.2, 0.8, 0.3, 1);
+
+  /* ── starfield tile (repeatable, no asset) ──
+     three depth layers of pinpoint stars + two faint nebula blooms */
+  --cel-stars:
+    radial-gradient(1px 1px at 12% 22%, rgba(255,255,255,.9), transparent 60%),
+    radial-gradient(1px 1px at 68% 8%,  rgba(255,255,255,.7), transparent 60%),
+    radial-gradient(1.5px 1.5px at 84% 44%, rgba(200,220,255,.8), transparent 60%),
+    radial-gradient(1px 1px at 34% 66%,  rgba(255,255,255,.6), transparent 60%),
+    radial-gradient(1px 1px at 52% 88%,  rgba(255,240,210,.7), transparent 60%),
+    radial-gradient(1.5px 1.5px at 8% 78%, rgba(255,255,255,.55), transparent 60%),
+    radial-gradient(1px 1px at 91% 81%,  rgba(255,255,255,.7), transparent 60%),
+    radial-gradient(1px 1px at 44% 34%,  rgba(180,200,255,.5), transparent 60%),
+    radial-gradient(240px 160px at 78% 18%, rgba(167,139,250,.10), transparent 70%),
+    radial-gradient(300px 200px at 18% 82%, rgba(94,234,212,.07), transparent 70%);
+}
+
+/* constellation hairline — thin line + two star nodes, for card corners */
+.cel-constel {
+  position: absolute; pointer-events: none; opacity: .5;
+  background:
+    radial-gradient(2.5px 2.5px at 0 0, var(--cel-brass-hi), transparent 60%),
+    radial-gradient(2.5px 2.5px at 100% 100%, var(--cel-teal), transparent 60%),
+    linear-gradient(120deg, transparent 48%, rgba(200,214,255,.35) 49% 51%, transparent 52%);
+}

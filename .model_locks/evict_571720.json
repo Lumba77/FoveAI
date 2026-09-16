@@ -1,8 +1,0 @@
-{
-  "role": "main",
-  "evicted_pid": 571720,
-  "evicted_model": "core.gguf",
-  "new_model": "core.gguf",
-  "timestamp": 1788700907.426232,
-  "silent": true
-}

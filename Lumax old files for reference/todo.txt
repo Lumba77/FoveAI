@@ -1,0 +1,10 @@
+1. No diagnosis data loaded (personality disorders chart). was fixed, now again broken.
+
+3. Menu pull up in pcvr: crash app
+
+4. No gemini loading at Ollama failure, no other repertoires, and no local models. (succeeded with openai according to log(?) but just initially)
+(set possinility to use gemini free tier models at will in .env)
+
+5. No image generation capability.
+
+- Menu pull up in pcvr: crash app (called some function that wasn't one.)

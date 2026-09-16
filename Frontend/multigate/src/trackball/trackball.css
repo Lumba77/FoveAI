@@ -1,0 +1,165 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   TRACKBALL — celestial control instrument
+   All geometry in em — .tb-root fontSize scales the whole instrument.
+   Palette: astrolabe brass · starlight · planet-red ball · aurora nebula.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.tb-root {
+  position: relative;
+  flex-shrink: 0;
+  --tb-finish: #ffb833;
+}
+
+/* ── astrolabe ring: two brass circles + clock ticks + star dust ── */
+.tb-ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  cursor: grab; touch-action: none; z-index: 1;
+  background:
+    repeating-conic-gradient(from -90.2deg, rgba(232,182,76,.42) 0 .4deg, transparent .4deg 6deg),
+    repeating-conic-gradient(from -90deg, rgba(200,214,255,.14) 0 .2deg, transparent .2deg 1.2deg),
+    radial-gradient(circle, transparent 0 62%, rgba(232,182,76,.30) 63% 63.4%, transparent 64%,
+                    transparent 70%, rgba(232,182,76,.5) 70.5% 71.2%, rgba(60,48,22,.55) 72%,
+                    rgba(30,24,32,.7) 96%, transparent 98%),
+    radial-gradient(circle, rgba(30,36,70,.35) 0 68%, transparent 69%);
+}
+.tb-ring:active { cursor: grabbing; }
+
+/* ── needle — brass pointer snapping to the armed position ── */
+.tb-needle {
+  position: absolute; left: 50%; top: 50%; width: .35em; height: 48%;
+  margin: -48% 0 0 -.175em; transform-origin: 50% 100%; z-index: 1;
+  pointer-events: none;
+  transition: transform .28s cubic-bezier(.3, 1.4, .5, 1);
+  background: linear-gradient(180deg, var(--tb-finish), transparent 85%);
+  clip-path: polygon(50% 0, 100% 4%, 60% 4%, 60% 100%, 40% 100%, 40% 4%, 0 4%);
+  filter: drop-shadow(0 0 .4em color-mix(in srgb, var(--tb-finish) 70%, transparent));
+}
+
+/* ── bearing-pips: little steel planets seated on the ring ── */
+.tb-pip {
+  position: absolute; left: 50%; top: 50%; width: 3.5em; height: 3.5em;
+  margin: -1.75em 0 0 -1.75em; z-index: 2;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: .06em; cursor: pointer;
+  font-family: 'Share Tech Mono', monospace;
+}
+.tb-pip-ball {
+  width: 1.65em; height: 1.65em; border-radius: 50%; flex-shrink: 0;
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255,255,255,.85) 0 12%, transparent 30%),
+    radial-gradient(circle at 40% 35%, #cfd4de 0%, #6a7080 45%, #14161f 100%);
+  border: 1px solid rgba(232,182,76, calc(.35 + var(--pv) * .5));
+  box-shadow:
+    0 0 calc(.2em + var(--pv) * .9em) rgba(232,182,76, calc(.15 + var(--pv) * .5)),
+    inset 0 -.3em .5em rgba(0,0,0,.65),
+    0 .2em .4em rgba(0,0,0,.6);
+  transition: box-shadow .25s, border-color .25s;
+}
+.tb-pip.armed .tb-pip-ball {
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255,255,255,.95) 0 12%, transparent 32%),
+    radial-gradient(circle at 40% 35%, color-mix(in srgb, var(--tb-finish) 85%, #fff) 0%,
+                    color-mix(in srgb, var(--tb-finish) 60%, #000) 55%, #100c04 100%);
+  border-color: var(--tb-finish);
+  box-shadow:
+    0 0 1.1em color-mix(in srgb, var(--tb-finish) 80%, transparent),
+    0 0 .3em var(--tb-finish),
+    inset 0 -.3em .5em rgba(0,0,0,.7);
+}
+.tb-pip-label {
+  font-size: .62em; letter-spacing: 1px; color: #b9c2de; white-space: nowrap;
+  text-shadow: 0 1px 3px #000, 0 0 .5em rgba(10,14,40,.9);
+}
+.tb-pip.armed .tb-pip-label { color: var(--tb-finish); text-shadow: 0 0 .5em var(--tb-finish), 0 1px 3px #000; }
+.tb-pip-val {
+  font-size: .66em; color: rgba(201,240,174, calc(.5 + var(--pv) * .5)); white-space: nowrap;
+  text-shadow: 0 1px 3px #000;
+}
+.tb-pip.armed .tb-pip-val { color: #eaffd0; text-shadow: 0 0 .5em #c9f0ae; }
+
+/* ── the socket the ball sits in ── */
+.tb-socket {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+  width: 15.4em; height: 15.4em; border-radius: 50%; z-index: 3;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 42%, #1a1408 0%, #0a0803 70%, #050301 100%);
+  box-shadow:
+    inset 0 .5em 1.2em rgba(0,0,0,.9),
+    inset 0 -.15em .4em rgba(255,205,110,.10),
+    0 0 0 .12em rgba(232,182,76,.30),
+    0 0 0 .35em rgba(10,8,4,.9),
+    0 0 2.2em rgba(232,182,76,.10);
+}
+
+/* ── the ball: glossy red planet, heavy lacquer ── */
+.tb-ball {
+  position: relative; width: 13.4em; height: 13.4em; border-radius: 50%;
+  cursor: pointer; touch-action: none; user-select: none; overflow: hidden;
+  background:
+    radial-gradient(circle at 33% 25%, rgba(255,255,255,.95) 0 4%, rgba(255,235,205,.55) 9%, transparent 26%),
+    radial-gradient(circle at 64% 86%, rgba(255,150,100,.24), transparent 42%),
+    radial-gradient(circle at 45% 40%, #ff6b4e 0%, #d92a12 42%, #7c0d03 72%, #2e0400 100%);
+  box-shadow:
+    inset 0 -1.9em 3em rgba(30,2,0,.78),
+    inset 0 .5em 1.1em rgba(255,190,160,.32),
+    inset 0 0 0 1px rgba(255,140,100,.22),
+    0 1.1em 2.6em rgba(0,0,0,.75);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.tb-ball:active {
+  transform: scale(.94) translateY(.25em);
+  box-shadow:
+    inset 0 -1.4em 2.4em rgba(30,2,0,.85),
+    inset 0 .3em .8em rgba(255,190,160,.2),
+    0 .4em 1.2em rgba(0,0,0,.8);
+}
+
+/* markers riding the surface — moved imperatively by pointer roll */
+.tb-dot {
+  position: absolute; left: 50%; top: 50%; width: 9%; height: 9%; border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #fff6e0, #e8c48f 60%, #b98a4e);
+  box-shadow: inset 0 -.1em .2em rgba(90,30,5,.5), 0 .05em .15em rgba(0,0,0,.35);
+  pointer-events: none;
+}
+.tb-speck {
+  position: absolute; left: 50%; top: 50%; width: 4.5%; height: 4.5%; border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #a83418, #5c0d02 70%);
+  box-shadow: inset 0 0 .1em rgba(0,0,0,.6);
+  pointer-events: none;
+}
+
+/* ── compact (sidebar) mode ── */
+.tb-compact .tb-pip { width: 3em; height: 3em; margin: -1.5em 0 0 -1.5em; }
+.tb-compact .tb-pip-ball { width: 1.35em; height: 1.35em; }
+.tb-compact .tb-pip-label { font-size: .44em; }
+
+/* ── hemisphere divider — etched midline + ▲▼ glyphs on the socket rim ── */
+.tb-divider {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+  border-radius: 50%; z-index: 4; pointer-events: none;
+}
+.tb-div-edge {
+  position: absolute; left: 0; right: 0; top: 50%; height: 1px;
+  background: linear-gradient(90deg,
+    rgba(232,182,76,.9) 0 9%, transparent 9% 91%, rgba(232,182,76,.9) 91% 100%);
+  box-shadow: 0 0 .3em rgba(232,182,76,.5);
+}
+.tb-div-glyph {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  font-size: .8em; color: #6d7590; line-height: 1;
+  text-shadow: 0 1px 2px #000;
+}
+.tb-div-glyph.up { top: 2.5%; }
+.tb-div-glyph.down { bottom: 2.5%; }
+.tb-div-glyph.lit { color: var(--tb-finish); text-shadow: 0 0 .5em var(--tb-finish), 0 1px 2px #000; }
+
+/* ── bare mode: ball socketed straight into a bezel (the clicker) ── */
+.tb-bare { display: flex; align-items: center; justify-content: center; }
+.tb-bare .tb-socket {
+  position: relative; left: auto; top: auto; transform: none;
+  width: 15.4em; height: 15.4em;
+  box-shadow:
+    inset 0 .5em 1.2em rgba(0,0,0,.92),
+    inset 0 -.15em .4em rgba(255,205,110,.12);
+}
+.tb-bare .tb-ball { cursor: pointer; }

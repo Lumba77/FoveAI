@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LUMAX Settings</title>
+  <title>FoveAI Command</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&family=Inter:wght@300;400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Orbitron:wght@400;700&family=Share+Tech+Mono&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="settings.css">
   <style>
     /* ── Mode selector hero ─────────────────────────────────── */
@@ -194,7 +194,7 @@
 </head>
 <body>
   <header>
-    <h1>⚙️ LUMAX Settings</h1>
+    <h1>🎛️ FoveAI Command</h1>
     <div class="status">
       <button onclick="openPage('/graphtest.html')" class="pill pill-accent">📊 Graph Test</button>
       <span id="proxyStatus" class="pill offline">Proxy: checking…</span>
@@ -202,6 +202,19 @@
       <span id="memCount" class="pill">Memories: —</span>
     </div>
   </header>
+  <nav class="garage-nav">
+    <a href="#sec-mode">Mode</a>
+    <a href="#sec-model">Core Model</a>
+    <a href="#sec-voice">Voice</a>
+    <a href="#sec-fovea">Foveation</a>
+    <a href="#sec-stack">Stack</a>
+    <a href="#sec-ui">Frontend</a>
+    <a href="#sec-persona">Persona</a>
+    <a href="#sec-test">Diagnostics</a>
+    <a href="#sec-cmd">Commando</a>
+    <a href="#sec-log">Event Log</a>
+  </nav>
+
 
   <main>
     <div class="grid">
@@ -209,7 +222,7 @@
       <!-- ═══════════════════════════════════════════════════════
            STEP 1: MODE SELECTOR (Local vs Cloud)
            ═══════════════════════════════════════════════════════ -->
-      <section class="card mode-hero">
+      <section class="card mode-hero" id="sec-mode">
         <h2>1 · Choose Mode</h2>
         <div class="mode-buttons">
           <button class="mode-btn" id="modeLocal" onclick="selectMode('local')">
@@ -249,7 +262,7 @@
       <div class="settings-grid" id="settingsGrid">
 
         <!-- Model Selection & VRAM Management -->
-        <section class="card model-card">
+        <section class="card model-card" id="sec-model">
           <h3>3 · Model Selection</h3>
           <select class="model-select" id="mainProjectModel" onchange="onModelSelected(this.value)">
             <!-- Populated dynamically -->
@@ -264,7 +277,7 @@
         </section>
 
         <!-- Voice & Push-to-Talk -->
-        <section class="card">
+        <section class="card" id="sec-voice">
           <h2>🎙️ Voice & Push-to-Talk</h2>
           <div class="row"><label>Voice Output (TTS)</label><div class="btn-grid"><button id="voiceOn" onclick="toggle('voice', true)">On</button><button id="voiceOff" onclick="toggle('voice', false)">Off</button></div></div>
             <label>Active TTS Engine</label>
@@ -283,11 +296,11 @@
           </div>
           <div class="row"><label>Microphone Mode</label><div class="btn-grid"><button id="micOn" onclick="toggle('mic', true)">On</button><button id="micOff" onclick="toggle('mic', false)">Off</button></div></div>
           <div class="row"><label>Push-to-Talk</label><div class="btn-grid"><button id="pttModeOff" onclick="togglePtt(false)">Continuous VAD</button><button id="pttModeOn" onclick="togglePtt(true)">Push-to-Talk</button></div></div>
-          <div class="row"><label>Talk to AI</label><button onclick="openPage('http://127.0.0.1:5177')">Open Chat</button></div>
+          <div class="row"><label>Talk to AI</label><button onclick="openPage(H(5177))">Open Chat</button></div>
         </section>
 
         <!-- Foveation & Context -->
-        <section class="card">
+        <section class="card" id="sec-fovea">
           <h2>⚡ Foveation & Context</h2>
           <div class="row"><label>Smart Context Router</label><div class="btn-grid"><button id="smartRouterOn" onclick="toggleSetting('XRLF_SMART_PROXY', 'true')">On</button><button id="smartRouterOff" onclick="toggleSetting('XRLF_SMART_PROXY', 'false')">Off</button></div></div>
           <div class="row"><label>XRL Auto-Checkpoint</label><div class="btn-grid"><button id="autoCkpOn" onclick="toggleSetting('XRLF_PROXY_AUTO_CHECKPOINT', 'true')">On (8 Turns)</button><button id="autoCkpOff" onclick="toggleSetting('XRLF_PROXY_AUTO_CHECKPOINT', 'false')">Off</button></div></div>
@@ -306,7 +319,7 @@
         </section>
 
         <!-- Stack Control -->
-        <section class="card">
+        <section class="card" id="sec-stack">
           <h2>🚀 Stack Control</h2>
           <div class="row"><label>Full Stack</label><div class="btn-grid"><button onclick="call('start-stack')">Start</button><button onclick="call('stop-stack')" class="danger">Stop</button></div></div>
           <div class="row"><label>Tray Hub</label><button onclick="call('open-tray')">Open Tray</button></div>
@@ -315,7 +328,7 @@
         </section>
 
         <!-- UI Shell -->
-        <section class="card">
+        <section class="card" id="sec-ui">
           <h2>📱 UI & Frontend</h2>
           <div class="row"><label>Active Desktop UI</label>
             <div class="btn-grid">
@@ -335,7 +348,7 @@
         </section>
 
         <!-- Model Thinking -->
-        <section class="card">
+        <section class="card" id="sec-persona">
           <h2>🎭 Persona & Reasoning</h2>
           <div class="row"><label>Model Thinking</label>
             <div class="btn-grid">
@@ -356,7 +369,7 @@
       </div><!-- /settings-grid -->
 
       <!-- Diagnostics -->
-      <div class="card card-full">
+      <div class="card card-full" id="sec-test">
         <h2>🔬 System Test & Context Debugger</h2>
         <div class="row" style="flex-wrap:wrap; gap:8px;">
           <button onclick="runSystemTest()" class="pill pill-accent">🧪 System Test</button>
@@ -376,7 +389,22 @@
         </div>
       </div>
 
-      <div class="card card-full">
+      <!-- ═══════════════════════════════════════════════════════
+           COMMANDO CENTRE — run every setting/test as a command
+           ═══════════════════════════════════════════════════════ -->
+      <div class="card card-full" id="sec-cmd">
+        <h2>⌨️ Commando Centre</h2>
+        <div id="cmdOut" class="log" style="min-height:140px; font-size:0.85rem;">
+          <span style="color:var(--text-muted);">Type <b>help</b> for commands. Every panel action is also a command.</span>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <input id="cmdInput" type="text" placeholder="> e.g.  status · set XRLF_MODEL_THINKING=true · fovea 3 · model gemma-4-e2b · subsystems"
+                 style="flex:1; font-family:'Share Tech Mono',monospace;" autocomplete="off">
+          <button class="pill pill-accent" onclick="runCommand()">Run ⏎</button>
+        </div>
+      </div>
+
+      <div class="card card-full" id="sec-log">
         <h2>📜 Event Log</h2>
         <div id="log" class="log"></div>
       </div>
@@ -384,7 +412,18 @@
   </main>
 
   <script>
-    const API = 'http://127.0.0.1:8400';
+    // Host is derived from the address this page was loaded on — so it works
+    // identically from localhost, the LAN IP (Quest/remote), or a tunnel domain.
+    // On a Cloudflare-tunnelled domain (xarel.net / 1um6a.se) ports can't be
+    // appended to the hostname — the dashboard server bridges /api/* (proxy
+    // :8400) and /xrlf/* (runtime :8402) on the SAME origin, so use relative
+    // paths there. Direct ports are only used on plain IP/localhost access.
+    const HOST = location.hostname || '127.0.0.1';
+    const IS_IP = /^[\d.]+$/.test(HOST) || HOST === 'localhost' || HOST.includes(':');
+    const API = IS_IP ? `http://${HOST}:8400` : location.origin;
+    const XRLF = IS_IP ? `http://${HOST}:8402` : `${location.origin}/xrlf`;
+    const WS_IPC = IS_IP ? `ws://${HOST}:8403` : null;
+    const H = (port, path = '') => IS_IP ? `http://${HOST}:${port}${path}` : `${location.origin}${path}`;
     const logEl = document.getElementById('log');
     function log(msg) { logEl.textContent += `\n[${new Date().toLocaleTimeString()}] ${msg}`; logEl.scrollTop = logEl.scrollHeight; }
 
@@ -425,6 +464,7 @@
     let currentModel = null;      // model object from registry
     let loadedModel = null;       // currently loaded model id
     let loadedModelCategory = null; // 'light' | 'medium' | 'heavy'
+    let _restoring = false;       // true during loadEnv() — suppresses setting writes
 
     // ═══════════════════════════════════════════════════════════════
     // STEP 1: MODE SELECTOR
@@ -514,8 +554,8 @@
       toggleSetting('XRLF_LOCAL_BASE_URL', baseUrlMap[engine]);
       log(`Engine ${engine}: upstream → ${baseUrlMap[engine]}`);
 
-      // Auto-select first model
-      if (fleet.length > 0) {
+      // Auto-select first model only if not restoring (during restore, loadEnv picks the saved model)
+      if (fleet.length > 0 && !_restoring) {
         select.value = fleet[0].id;
         onModelSelected(fleet[0].id);
       }
@@ -602,10 +642,16 @@
       if (currentEngine === 'xrlf') {
         let runtimeAlive = false;
         try {
-          const hr = await fetch('http://127.0.0.1:8402/health', { signal: AbortSignal.timeout(3000) });
+          const hr = await fetch(`${XRLF}/health`, { signal: AbortSignal.timeout(3000) });
           if (hr.ok) {
             const h = await hr.json();
             runtimeAlive = true;
+            if (h.load_state === 'loading') {
+              statusEl.className = 'loaded-status loading';
+              statusEl.textContent = 'Runtime is busy loading a model — wait for it, or restart the runtime';
+              log('Runtime busy: load_state=loading');
+              return;
+            }
             if (h.loaded) {
               // Runtime is already running — is it the same model?
               const runningModel = h.model || '';
@@ -632,7 +678,7 @@
           log(`Hot-swapping to ${currentModel.path}…`);
           statusEl.textContent = `Loading ${currentModel.label}…`;
           try {
-            const r = await fetch('http://127.0.0.1:8402/load', {
+            const r = await fetch(`${XRLF}/load`, {
               method: 'POST',
               headers: {'Content-Type':'application/json'},
               body: JSON.stringify({model: currentModel.path}),
@@ -666,24 +712,53 @@
             log(`XRLF start command sent: ${r.status} ${txt}`);
           } catch (e) { log(`XRLF start failed: ${e.message}`); }
 
-          // Poll health endpoint until the runtime is up (max 90s)
+          // Poll health endpoint until the runtime reports loaded (max 6 min).
+          // The API binds BEFORE the model loads, so /health answers during the
+          // whole load window — a persistent refusal means the PROCESS died,
+          // not that it's still working. Track whether we ever reached it.
           statusEl.textContent = `Waiting for runtime…`;
           let up = false;
-          for (let i = 0; i < 45; i++) {
+          let loadErr = null;
+          let sawHealth = false;
+          for (let i = 0; i < 180; i++) {
             await new Promise(r => setTimeout(r, 2000));
             try {
-              const hr = await fetch('http://127.0.0.1:8402/health', { signal: AbortSignal.timeout(2000) });
+              const hr = await fetch(`${XRLF}/health`, { signal: AbortSignal.timeout(2000) });
               if (hr.ok) {
+                sawHealth = true;
                 const h = await hr.json();
                 if (h.loaded) { up = true; log(`Runtime online: ${h.model}`); break; }
+                if (h.load_state === 'error') { loadErr = h.load_error || 'load failed'; break; }
+                statusEl.textContent = h.load_state === 'loading'
+                  ? `Loading model… (${(i+1)*2}s — runtime reports loading)`
+                  : `Waiting for runtime… (${(i+1)*2}s)`;
+                continue;
               }
             } catch {}
-            statusEl.textContent = `Waiting for runtime… (${(i+1)*2}s)`;
+            if (!sawHealth && i >= 30) {
+              // ~60s without /health ever answering — the runtime process
+              // failed at spawn (bad model path, port conflict, crash).
+              statusEl.className = 'loaded-status error';
+              statusEl.textContent = `❌ Runtime never came up after 60s — process likely died at launch`;
+              log('❌ /health never answered — run_xrlf exited early. Check ~/xrlf_live.log');
+              return;
+            }
+            statusEl.textContent = `Waiting for runtime process… (${(i+1)*2}s)`;
+          }
+          if (loadErr) {
+            statusEl.className = 'loaded-status error';
+            statusEl.textContent = `❌ Model load failed: ${loadErr}`;
+            log(`❌ Runtime load_state=error: ${loadErr}`);
+            return;
           }
           if (!up) {
-            statusEl.className = 'loaded-status error';
-            statusEl.textContent = `❌ Runtime failed to start within 90s`;
-            log('❌ XRLF runtime did not come up within 90s');
+            statusEl.className = sawHealth ? 'loaded-status loading' : 'loaded-status error';
+            statusEl.textContent = sawHealth
+              ? `⏳ Still loading after 6min — runtime hasn't reported loaded yet. It may still be initializing; re-check status shortly.`
+              : `❌ Runtime unreachable after 6min — process died or was never started`;
+            log(sawHealth
+              ? '⚠️ Runtime not reporting loaded after 6min — likely still initializing (see ~/xrlf_live.log)'
+              : '❌ /health never answered after 6min — see ~/xrlf_live.log');
             return;
           }
         }
@@ -691,7 +766,7 @@
         log(`Loading ${currentModel.id} in LM Studio…`);
         statusEl.textContent = `Loading in LM Studio…`;
         try {
-          const r = await fetch('http://127.0.0.1:1234/v1/chat/completions', {
+          const r = await fetch(H(1234, '/v1/chat/completions'), {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
             body: JSON.stringify({model: currentModel.id, messages: [{role:'user', content:'ping'}], max_tokens: 1})
@@ -722,7 +797,7 @@
         // Use the runtime's /unload endpoint — keeps the process alive, just frees VRAM
         log('Unloading model from runtime…');
         try {
-          const r = await fetch('http://127.0.0.1:8402/unload', {
+          const r = await fetch(`${XRLF}/unload`, {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
             signal: AbortSignal.timeout(30000)
@@ -733,7 +808,7 @@
 
         // Verify via health endpoint
         try {
-          const hr = await fetch('http://127.0.0.1:8402/health', { signal: AbortSignal.timeout(2000) });
+          const hr = await fetch(`${XRLF}/health`, { signal: AbortSignal.timeout(2000) });
           if (hr.ok) {
             const h = await hr.json();
             log(`Runtime alive, loaded=${h.loaded}`);
@@ -799,12 +874,13 @@
     }
 
     function openPage(path) {
-      const url = path.startsWith('http') ? path : `http://127.0.0.1:8401${path}`;
+      const url = path.startsWith('http') ? path : H(8401, path);
       window.open(url, '_blank');
       log(`Opened ${url}`);
     }
 
     async function toggle(name, value) {
+      if (_restoring) { updateToggleButtons(name, value); return; }
       log(`Setting ${name} = ${value}`);
       try {
         const r = await fetch(`${API}/api/toggle`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, value}) });
@@ -814,6 +890,7 @@
     }
 
     async function setFrontend(ui) {
+      if (_restoring) { updateFrontend(ui); return; }
       log(`Switching frontend to ${ui}…`);
       try {
         const r = await fetch(`${API}/api/setting`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key:'XRLF_FRONTEND_UI_PRESET', val: ui}) });
@@ -823,6 +900,7 @@
     }
 
     async function setFovea(level) {
+      if (_restoring) return;
       try {
         const r = await fetch(`${API}/api/fovea`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({level: parseInt(level,10)})});
         log(`Fovea => ${level} (${r.status})`);
@@ -830,6 +908,7 @@
     }
 
     async function setCap(v) {
+      if (_restoring) return;
       try {
         const r = await fetch(`${API}/api/cap`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({cap: parseInt(v,10)})});
         log(`Cap => ${v} (${r.status})`);
@@ -837,6 +916,7 @@
     }
 
     async function setPreserve(v) {
+      if (_restoring) return;
       try {
         const r = await fetch(`${API}/api/preserve`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({preserve: parseInt(v,10)})});
         log(`Preserve => ${v} (${r.status})`);
@@ -844,6 +924,7 @@
     }
 
     async function toggleSetting(key, val) {
+      if (_restoring) { log(`Restore: ${key} = ${val} (no write)`); return; }
       log(`Setting ${key} = ${val}`);
       try {
         const r = await fetch(`${API}/api/setting`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key, val}) });
@@ -853,9 +934,14 @@
     }
 
     function sendWsSetting(setting, value) {
+      if (_restoring) return;
+      if (!WS_IPC) {
+        log(`WS push skipped — tunneled domain (${HOST}) can't reach :8403; setting saved via API`);
+        return;
+      }
       log(`Sending WS Setting ${setting} = ${value}`);
       try {
-        const ws = new WebSocket('ws://127.0.0.1:8403');
+        const ws = new WebSocket(WS_IPC);
         ws.onopen = () => {
           ws.send(JSON.stringify({ event: "settings", payload: { setting, value } }));
           log(`WS Sent: ${setting}=${value}`);
@@ -874,6 +960,11 @@
     }
 
     async function togglePtt(enabled) {
+      if (_restoring) {
+        document.getElementById('pttModeOn').classList.toggle('active', enabled);
+        document.getElementById('pttModeOff').classList.toggle('active', !enabled);
+        return;
+      }
       toggleSetting('XRLF_MIC_PTT', enabled ? 'true' : 'false');
       document.getElementById('pttModeOn').classList.toggle('active', enabled);
       document.getElementById('pttModeOff').classList.toggle('active', !enabled);
@@ -889,11 +980,13 @@
     // LOAD ENV + RESTORE STATE
     // ═══════════════════════════════════════════════════════════════
     async function loadEnv() {
+      _restoring = true;
       try {
         const r = await fetch(`${API}/api/env`);
         if (!r.ok) throw new Error('not ok');
         const e = await r.json();
 
+        // Restore numeric inputs from env (no write)
         document.getElementById('cap').value = e.XRLF_CLOUD_MAX_TOKENS_CAP || 0;
         document.getElementById('preserve').value = e.XRLF_CLOUD_PRESERVE_LAST || 4;
         document.getElementById('fovea').value = e.XRLF_PROXY_AGGRESSION || 0;
@@ -901,7 +994,13 @@
         const compModelEl = document.getElementById('compressorModel');
         if (compModelEl) compModelEl.value = e.XRLF_COMPRESSOR_MODEL || 'xrlf_runtime';
 
-        // Restore mode + engine from env
+        // Restore TTS/STT engine selects from env
+        const ttsEl = document.getElementById('ttsEngineSelect');
+        if (ttsEl) ttsEl.value = e.XRLF_TTS_PROVIDER || 'websocket';
+        const sttEl = document.getElementById('sttEngineSelect');
+        if (sttEl) sttEl.value = e.XRLF_STT_PROVIDER || 'whisper';
+
+        // Restore mode + engine from env (selectMode/selectEngine won't write during restore)
         const provider = e.XRLF_LLM_PROVIDER || 'xrlf_proxy';
         const cognitiveMode = e.XRLF_COGNITIVE_MODE || 'local';
 
@@ -913,32 +1012,62 @@
           else selectEngine('xrlf');
         }
 
-        // Restore model selection
+        // Restore model selection from env — don't auto-select first if env has a saved model
         const savedModel = e.XRLF_MODEL_LOCAL_ID;
         if (savedModel) {
           const select = document.getElementById('mainProjectModel');
-          select.value = savedModel;
-          onModelSelected(savedModel);
+          // Check if the saved model exists in the current engine's fleet
+          const fleet = MODEL_REGISTRY[currentEngine] || [];
+          const exists = fleet.find(m => m.id === savedModel);
+          if (exists) {
+            select.value = savedModel;
+            onModelSelected(savedModel);
+          }
         }
 
         // Check if XRLF runtime is running and detect which model
         try {
-          const hr = await fetch('http://127.0.0.1:8402/health', { signal: AbortSignal.timeout(2000) });
+          const hr = await fetch(`${XRLF}/health`, { signal: AbortSignal.timeout(2000) });
           if (hr.ok) {
             const h = await hr.json();
-            if (h.loaded) {
+            if (h.load_state === 'loading') {
+              const statusEl = document.getElementById('loadedStatus');
+              statusEl.className = 'loaded-status loading';
+              statusEl.textContent = 'Runtime online — model still loading…';
+              log(`Runtime online: load_state=loading`);
+            } else if (h.load_state === 'error') {
+              const statusEl = document.getElementById('loadedStatus');
+              statusEl.className = 'loaded-status error';
+              statusEl.textContent = `❌ Load error: ${h.load_error || 'unknown'}`;
+              log(`Runtime load error: ${h.load_error}`);
+            } else if (h.loaded) {
               const runningModel = h.model || '';
               // Try to match the running model to one in our registry
-              const fleet = MODEL_REGISTRY.xrlf || [];
-              const matched = fleet.find(m => runningModel.includes(m.id) || m.id.includes(runningModel));
-              loadedModel = matched ? matched.id : (savedModel || 'lumax-plumax-omni-router-v2');
+              const allFleet = Object.values(MODEL_REGISTRY).flat();
+              const matched = allFleet.find(m => runningModel.includes(m.id) || m.id.includes(runningModel));
+              loadedModel = matched ? matched.id : (savedModel || runningModel);
               loadedModelCategory = matched ? matched.category : 'light';
               const statusEl = document.getElementById('loadedStatus');
               statusEl.className = 'loaded-status loaded';
               statusEl.textContent = `✅ ${matched ? matched.label : runningModel} — running`;
               log(`Detected running model: ${runningModel}`);
+
+              // Also select the running model in the dropdown if it matches
+              if (matched) {
+                const select = document.getElementById('mainProjectModel');
+                select.value = matched.id;
+                onModelSelected(matched.id);
+              }
               updateVRAMDisplay();
+            } else {
+              const statusEl = document.getElementById('loadedStatus');
+              statusEl.className = 'loaded-status idle';
+              statusEl.textContent = 'Runtime online — no model loaded';
             }
+          } else {
+            const statusEl = document.getElementById('loadedStatus');
+            statusEl.className = 'loaded-status idle';
+            statusEl.textContent = 'No model loaded — click Load Model to start';
           }
         } catch {
           const statusEl = document.getElementById('loadedStatus');
@@ -946,7 +1075,7 @@
           statusEl.textContent = 'No model loaded — click Load Model to start';
         }
 
-        // Restore toggle states
+        // Restore toggle states from env (visual only during restore)
         updateToggleButtons('voice', (e.XRLF_VOICE_ENABLED || '').toLowerCase() === 'true');
         updateToggleButtons('mic', (e.XRLF_MIC_ENABLED || '').toLowerCase() === 'true');
         document.getElementById('pttModeOn').classList.toggle('active', (e.XRLF_MIC_PTT || '').toLowerCase() === 'true');
@@ -959,11 +1088,13 @@
         document.getElementById('autoCkpOff').classList.toggle('active', (e.XRLF_PROXY_AUTO_CHECKPOINT || '').toLowerCase() === 'false');
         document.getElementById('shellCorner').classList.toggle('active', (e.XRLF_UI_SHELL || 'corner').toLowerCase() === 'corner');
         document.getElementById('shellTopBar').classList.toggle('active', (e.XRLF_UI_SHELL || '').toLowerCase() === 'topbar');
-        document.getElementById('tunnelTarget').textContent = e.VITE_URL || '—';
+        document.getElementById('tunnelTarget').textContent = e.VITE_URL || e.FOVEAI_PUBLIC_URL || '—';
         updateFrontend((e.XRLF_FRONTEND_UI || 'multigate').toLowerCase());
-        log('Settings loaded from .env');
+        log('Settings restored from running config (no writes)');
       } catch (err) {
-        log(`Could not load .env: ${err.message}`);
+        log(`Could not load env from ${API}/api/env: ${err.message}`);
+      } finally {
+        _restoring = false;
       }
     }
 
@@ -988,6 +1119,8 @@
           diag(`   Model: ${data.model || 'unknown'}`, '#aaa');
           diag(`   Reply: "${data.choices[0].message.content}"`, '#fff');
           if (data._healer) diag(`   Budget: ${data._healer.currentBudget}/${data._healer.maxBudget} chars`, '#aaa');
+        } else if (r.status === 502 || r.status === 503) {
+          diag(`❌ FAIL — HTTP ${r.status} (proxy up, XRLF runtime down)`, '#f00');
         } else { diag(`❌ FAIL — HTTP ${r.status}`, '#f00'); }
       } catch (e) { diag(`❌ ERROR — ${e.message}`, '#f00'); }
     }
@@ -1007,6 +1140,9 @@
           diag(`   Reply: "${reply}"`, '#fff');
           if (reply.length > 0 && !reply.includes('⚠️')) diag(`✅ PASS — Model responded`, '#0f0');
           else diag(`⚠️ WARNING — Error in response`, '#fa0');
+        } else if (r.status === 502 || r.status === 503) {
+          diag(`❌ FAIL — HTTP ${r.status} (proxy up, XRLF runtime down${data?.error ? `: ${data.error}` : ''})`, '#f00');
+          diag(`   → Runtime is loading or crashed. Check "Start XRLF Runtime" above.`, '#fa0');
         } else { diag(`❌ FAIL — HTTP ${r.status}`, '#f00'); }
       } catch (e) { diag(`❌ ERROR — ${e.message}`, '#f00'); }
     }
@@ -1036,38 +1172,63 @@
 
     async function runSubsystemsTest() {
       clearDiagnostics();
-      diag('⚙️ Subsystems Health Check…', '#0ff');
-      const checks = [
-        { name: 'Proxy :8400', url: `${API}/health`, type: 'http' },
-        { name: 'Sight :8400', url: 'http://127.0.0.1:8400/health', type: 'http' },
-        { name: 'Hearing :8401', url: 'http://127.0.0.1:8401/health', type: 'http' },
-        { name: 'XRLF Runtime :8402', url: 'http://127.0.0.1:8402/health', type: 'http', engine: 'xrlf' },
-        { name: 'WebSocket :8403', url: 'ws://127.0.0.1:8403', type: 'tcp', engine: 'xrlf' },
-        { name: 'Body :8404', url: 'http://127.0.0.1:8404/health', type: 'http' },
-        { name: 'Subconscious IN :8405', url: 'http://127.0.0.1:8405/health', type: 'http' },
-        { name: 'Subconscious OUT :8406', url: 'http://127.0.0.1:8406/health', type: 'http' },
-        { name: 'Chat Relay :8407', url: 'http://127.0.0.1:8407/health', type: 'http' },
-        { name: 'LM Studio :1234', url: 'http://127.0.0.1:1234/v1/models', type: 'http', engine: 'lmstudio' },
-        { name: 'Multigate :5177', url: 'http://127.0.0.1:5177/', type: 'http' },
-      ].filter(c => !c.engine || c.engine === currentEngine);
-      for (const c of checks) {
-        if (c.type === 'tcp') {
-          // WebSocket ports don't respond to HTTP — test with a raw TCP connection
-          try {
-            const ws = new WebSocket(c.url);
-            const connected = await Promise.race([
-              new Promise(resolve => { ws.onopen = () => { ws.close(); resolve(true); }; ws.onerror = () => resolve(false); }),
-              new Promise(resolve => setTimeout(() => { ws.close(); resolve(false); }, 3000))
-            ]);
-            if (connected) diag(`✅ ${c.name} — LISTENING`, '#0f0');
-            else diag(`❌ ${c.name} — OFFLINE`, '#f00');
-          } catch (e) { diag(`❌ ${c.name} — OFFLINE`, '#f00'); }
-        } else {
-          try {
-            const r = await fetch(c.url, { signal: AbortSignal.timeout(3000) });
-            if (r.ok) diag(`✅ ${c.name} — ONLINE`, '#0f0');
-            else diag(`⚠️ ${c.name} — HTTP ${r.status}`, '#fa0');
-          } catch (e) { diag(`❌ ${c.name} — OFFLINE`, '#f00'); }
+      // Preferred: server-side check via the proxy — it probes 127.0.0.1 on the
+      // PC itself, so the results are true regardless of which device browsed
+      // here (localhost, LAN IP, tunnel). Falls back to client-side checks.
+      diag('⚙️ Subsystems Health Check (server-side)…', '#0ff');
+      let serverSide = false;
+      try {
+        const r = await fetch(`${API}/api/subsystems`, { signal: AbortSignal.timeout(10000) });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = await r.json();
+        for (const c of (data.checks || [])) {
+          const ok = c.state === 'online' || c.state === 'listening';
+          const mark = ok ? '✅' : c.state === 'dormant' ? '⚠️' : '❌';
+          const color = ok ? '#0f0' : c.state === 'dormant' ? '#fa0' : '#f00';
+          let extra = c.http_status ? ` (HTTP ${c.http_status})` : '';
+          if (c.port === 8402 && c.load_state) {
+            extra += ` — ${c.load_state}${c.model ? ` (${c.model})` : ''}${c.load_error ? ` ERR: ${c.load_error}` : ''}`;
+          }
+          diag(`${mark} ${c.name} :${c.port} — ${c.state.toUpperCase()}${extra}`, color);
+        }
+        serverSide = true;
+      } catch (e) {
+        diag(`⚠️ Server-side check unavailable (${e.message}) — client-side from ${HOST}`, '#fa0');
+      }
+
+      if (!serverSide) {
+        const checks = [
+          { name: 'Proxy :8400', url: `${API}/health`, type: 'http' },
+          { name: 'Hearing :8401', url: H(8401, '/api/status'), type: 'http' },
+          { name: 'XRLF Runtime :8402', url: `${XRLF}/health`, type: 'http', engine: 'xrlf' },
+          { name: 'WebSocket :8403', url: WS_IPC, type: 'tcp', engine: 'xrlf' },
+          { name: 'Body :8404', url: H(8404, '/health'), type: 'http' },
+          { name: 'Subconscious IN :8405', url: H(8405, '/health'), type: 'http' },
+          { name: 'Subconscious OUT :8406', url: H(8406, '/health'), type: 'http' },
+          { name: 'Chat Relay :8407', url: H(8407, '/health'), type: 'http' },
+          { name: 'LM Studio :1234', url: H(1234, '/v1/models'), type: 'http', engine: 'lmstudio' },
+          { name: 'XR Vessel :5176', url: H(5176, '/'), type: 'http' },
+          { name: 'Multigate :5177', url: H(5177, '/'), type: 'http' },
+        ].filter(c => !c.engine || c.engine === currentEngine);
+        for (const c of checks) {
+          if (c.type === 'tcp') {
+            // WebSocket ports don't respond to HTTP — test with a raw TCP connection
+            try {
+              const ws = new WebSocket(c.url);
+              const connected = await Promise.race([
+                new Promise(resolve => { ws.onopen = () => { ws.close(); resolve(true); }; ws.onerror = () => resolve(false); }),
+                new Promise(resolve => setTimeout(() => { ws.close(); resolve(false); }, 3000))
+              ]);
+              if (connected) diag(`✅ ${c.name} — LISTENING`, '#0f0');
+              else diag(`❌ ${c.name} — OFFLINE`, '#f00');
+            } catch (e) { diag(`❌ ${c.name} — OFFLINE`, '#f00'); }
+          } else {
+            try {
+              const r = await fetch(c.url, { signal: AbortSignal.timeout(3000) });
+              if (r.ok) diag(`✅ ${c.name} — ONLINE`, '#0f0');
+              else diag(`⚠️ ${c.name} — HTTP ${r.status}`, '#fa0');
+            } catch (e) { diag(`❌ ${c.name} — OFFLINE`, '#f00'); }
+          }
         }
       }
       try {
@@ -1075,6 +1236,180 @@
         if (r.ok) { const h = await r.json(); diag(`✅ Context Healer — budget=${h.currentBudget}/${h.maxBudget}`, '#0f0'); }
       } catch { diag(`❌ Context Healer — unreachable`, '#f00'); }
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // COMMANDO CENTRE — command-line over the same routes the panel uses
+    // ═══════════════════════════════════════════════════════════════
+    const cmdOut = document.getElementById('cmdOut');
+    const cmdInput = document.getElementById('cmdInput');
+    const cmdHistory = [];
+    let cmdHistIdx = -1;
+    function cout(msg, color = '') {
+      cmdOut.innerHTML += `\n<span style="color:${color}">${msg}</span>`;
+      cmdOut.scrollTop = cmdOut.scrollHeight;
+    }
+
+    const COMMANDS = {
+      help:      'help — list commands',
+      status:    'status — proxy + runtime health',
+      subsystems:'subsystems — server-side fleet check (:8400)',
+      test:      'test — system chat ping',
+      coherence: 'coherence — random-question coherence check',
+      context:   'context — healer budget debugger',
+      set:       'set KEY=VALUE — live .env + proxy push',
+      get:       'get KEY — read env value',
+      env:       'env [filter] — dump env',
+      toggle:    'toggle voice|mic on|off',
+      fovea:     'fovea 0-5 — foveation level',
+      cap:       'cap N — cloud token cap',
+      preserve:  'preserve N — preserve-last turns',
+      mode:      'mode local|cloud — routing mode',
+      engine:    'engine xrlf|lmstudio|cloud — provider + base URL',
+      model:     'model list | model <id> — select + hot-load',
+      load:      'load <path.xrlf> — runtime /load',
+      unload:    'unload — runtime /unload (frees VRAM)',
+      runtime:   'runtime — :8402 status (load_state)',
+      restart:   'restart runtime|proxy',
+      stack:     'stack start|stop — full stack control',
+      frontend:  'frontend multigate|xr_vessel|3d_avatar',
+      ws:        'ws <setting> <value> — push to IPC :8403',
+      control:   'control <action> — raw /api/control passthrough',
+      open:      'open <path> — open a dashboard page',
+      clear:     'clear — wipe command output',
+    };
+
+    async function runCommand(raw) {
+      const line = (raw ?? cmdInput.value).trim();
+      if (!line) return;
+      cmdHistory.push(line); cmdHistIdx = cmdHistory.length;
+      cmdInput.value = '';
+      cout(`<span style="color:var(--accent)">&gt; ${line}</span>`);
+      const [cmd, ...rest] = line.split(/\s+/);
+      const argStr = rest.join(' ');
+      try {
+        switch (cmd.toLowerCase()) {
+          case 'help':
+            Object.values(COMMANDS).forEach(c => cout(`  ${c}`, '#aaa'));
+            break;
+          case 'clear': cmdOut.innerHTML = ''; break;
+          case 'status': case 'health': {
+            const h = await health();
+            const xr = await fetch(`${XRLF}/health`, { signal: AbortSignal.timeout(2000) }).then(r => r.json()).catch(() => null);
+            cout(`  proxy: ${h ? 'online' : 'OFFLINE'}  memories=${h?.stored_messages ?? '—'}`, h ? '#0f0' : '#f00');
+            cout(`  xrlf : ${xr ? `${xr.load_state || (xr.loaded ? 'ready' : 'idle')} (${xr.model || '—'})` : 'OFFLINE'}`, xr ? '#0f0' : '#f00');
+            break;
+          }
+          case 'subsystems': await runSubsystemsTest(); Array.from(diagEl.querySelectorAll('span')).forEach(s => cout(s.textContent, s.style.color)); diagEl.innerHTML = ''; break;
+          case 'test': case 'system': await runSystemTest(); Array.from(diagEl.querySelectorAll('span')).forEach(s => cout(s.textContent, s.style.color)); diagEl.innerHTML = ''; break;
+          case 'coherence': await runCoherenceTest(); Array.from(diagEl.querySelectorAll('span')).forEach(s => cout(s.textContent, s.style.color)); diagEl.innerHTML = ''; break;
+          case 'context': await runContextDebug(); Array.from(diagEl.querySelectorAll('span')).forEach(s => cout(s.textContent, s.style.color)); diagEl.innerHTML = ''; break;
+          case 'set': {
+            const m = argStr.match(/^(\S+)\s*=\s*(.*)$/);
+            if (!m) { cout('  usage: set KEY=VALUE', '#f00'); break; }
+            const r = await fetch(`${API}/api/setting`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key: m[1], val: m[2]}) });
+            cout(`  ${m[1]}=${m[2]} [${r.status}]`, r.ok ? '#0f0' : '#f00');
+            break;
+          }
+          case 'get': {
+            const e = await fetch(`${API}/api/env`).then(r => r.json());
+            const v = e[argStr.trim()];
+            const masked = /KEY|TOKEN|SECRET|PASS/i.test(argStr);
+            cout(`  ${argStr}=${v === undefined ? '(unset)' : masked ? '***' : v}`, v === undefined ? '#fa0' : '#0f0');
+            break;
+          }
+          case 'env': {
+            const e = await fetch(`${API}/api/env`).then(r => r.json());
+            const f = argStr.toLowerCase();
+            Object.keys(e).sort().filter(k => !f || k.toLowerCase().includes(f))
+              .forEach(k => cout(`  ${k}=${/KEY|TOKEN|SECRET|PASS/i.test(k) ? '***' : e[k]}`, '#aaa'));
+            break;
+          }
+          case 'toggle': {
+            const m = argStr.match(/^(\S+)\s+(on|off|true|false)$/i);
+            if (!m) { cout('  usage: toggle voice|mic on|off', '#f00'); break; }
+            await toggle(m[1], /^(on|true)$/i.test(m[2]));
+            break;
+          }
+          case 'fovea': await setFovea(argStr); break;
+          case 'cap': await setCap(argStr); break;
+          case 'preserve': await setPreserve(argStr); break;
+          case 'mode': {
+            if (!['local', 'cloud'].includes(argStr)) { cout('  usage: mode local|cloud', '#f00'); break; }
+            await toggleSetting('XRLF_COGNITIVE_MODE', argStr);
+            selectMode(argStr);
+            break;
+          }
+          case 'engine': {
+            const baseUrlMap = { xrlf: 'http://127.0.0.1:8402/v1', lmstudio: 'http://127.0.0.1:1234/v1', cloud: 'https://ollama.com/v1' };
+            const providerMap = { xrlf: 'xrlf_proxy', lmstudio: 'lmstudio', cloud: 'cloud' };
+            if (!providerMap[argStr]) { cout('  usage: engine xrlf|lmstudio|cloud', '#f00'); break; }
+            selectMode(argStr === 'cloud' ? 'cloud' : 'local');
+            selectEngine(argStr);
+            break;
+          }
+          case 'model': {
+            if (argStr === 'list' || !argStr) {
+              (MODEL_REGISTRY[currentEngine || 'xrlf'] || []).forEach(m => cout(`  ${m.id} — ${m.label}`, '#aaa'));
+              break;
+            }
+            const fleet = MODEL_REGISTRY[currentEngine || 'xrlf'] || [];
+            const m = fleet.find(x => x.id === argStr || x.id.includes(argStr));
+            if (!m) { cout(`  unknown model '${argStr}' — try 'model list'`, '#f00'); break; }
+            document.getElementById('mainProjectModel').value = m.id;
+            onModelSelected(m.id);
+            await loadModel();
+            break;
+          }
+          case 'load': {
+            if (!argStr) { cout('  usage: load <path.xrlf>', '#f00'); break; }
+            const r = await fetch(`${XRLF}/load`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({model: argStr}) });
+            cout(`  /load → [${r.status}] ${await r.text()}`, r.ok ? '#0f0' : '#f00');
+            break;
+          }
+          case 'unload': await unloadModel(); break;
+          case 'runtime': {
+            const xr = await fetch(`${XRLF}/health`, { signal: AbortSignal.timeout(2000) }).then(r => r.json()).catch(() => null);
+            cout(`  ${xr ? JSON.stringify(xr) : 'OFFLINE'}`, xr ? '#0f0' : '#f00');
+            break;
+          }
+          case 'restart': {
+            if (argStr === 'runtime') await call('restart-local');
+            else if (argStr === 'proxy') await call('restart-proxy');
+            else cout('  usage: restart runtime|proxy', '#f00');
+            break;
+          }
+          case 'stack': {
+            if (argStr === 'start') await call('start-stack');
+            else if (argStr === 'stop') await call('stop-stack');
+            else cout('  usage: stack start|stop', '#f00');
+            break;
+          }
+          case 'frontend': {
+            if (!['multigate', 'xr_vessel', '3d_avatar'].includes(argStr)) { cout('  usage: frontend multigate|xr_vessel|3d_avatar', '#f00'); break; }
+            await setFrontend(argStr);
+            break;
+          }
+          case 'ws': {
+            const m = argStr.match(/^(\S+)\s+(.+)$/);
+            if (!m) { cout('  usage: ws <setting> <value>', '#f00'); break; }
+            sendWsSetting(m[1], m[2]);
+            break;
+          }
+          case 'control': await call(argStr); break;
+          case 'open': openPage(argStr); break;
+          default:
+            cout(`  unknown command '${cmd}' — type help`, '#f00');
+        }
+      } catch (e) {
+        cout(`  ERROR: ${e.message}`, '#f00');
+      }
+    }
+
+    cmdInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') runCommand();
+      else if (e.key === 'ArrowUp') { if (cmdHistIdx > 0) { cmdHistIdx--; cmdInput.value = cmdHistory[cmdHistIdx] || ''; } e.preventDefault(); }
+      else if (e.key === 'ArrowDown') { if (cmdHistIdx < cmdHistory.length) { cmdHistIdx++; cmdInput.value = cmdHistory[cmdHistIdx] || ''; } e.preventDefault(); }
+    });
 
     // ═══════════════════════════════════════════════════════════════
     // INIT
@@ -1085,6 +1420,21 @@
       setInterval(health, 5000);
     }
     init();
+
+    // ── garage nav scrollspy: light the diode of the visible section ──
+    (function () {
+      const links = [...document.querySelectorAll('.garage-nav a')];
+      const secs = links.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+      if (!secs.length) return;
+      const io = new IntersectionObserver(entries => {
+        entries.forEach(e => {
+          if (e.isIntersecting) {
+            links.forEach(a => a.classList.toggle('lit', a.getAttribute('href') === '#' + e.target.id));
+          }
+        });
+      }, { rootMargin: '-30% 0px -60% 0px' });
+      secs.forEach(s => io.observe(s));
+    })();
   </script>
 </body>
 </html>

@@ -359,7 +359,7 @@ async def execute_swarm_task(objective: str, context: str) -> Dict[str, Any]:
     # Cloud config - prefer Director Manager model if available
     if DIRECTOR_MANAGER_AVAILABLE and DIRECTOR_CLOUD_ENABLED:
         cloud_model = os.getenv("FoveAI_MODEL_DIRECTOR_ID", "deepseek-v4-pro:1m").strip()
-        cloud_host = os.getenv("LUMAX_DIRECTOR_BASE_URL", "https://ollama.com/v1").strip().rstrip("/")
+        cloud_host = os.getenv("FOVEAI_DIRECTOR_BASE_URL", "https://ollama.com/v1").strip().rstrip("/")
     else:
         cloud_model = os.getenv("FoveAI_CLOUD_MODEL_CODER", os.getenv("FoveAI_REPERTOIRE_MODEL_CODER", "qwen3.5:397b")).strip()
         cloud_host = os.getenv("FoveAI_CLOUD_BASE_URL", local_host).strip().rstrip("/")

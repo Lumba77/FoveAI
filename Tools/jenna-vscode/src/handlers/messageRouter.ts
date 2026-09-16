@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as cp from 'child_process';
 import { FoveatedClient, PersonaId, PERSONAS } from '../memory/foveatedClient';
 import { SessionLogger } from '../bonding/sessionLogger';
 import { JennaStatusBar } from '../statusBar';
@@ -228,6 +229,7 @@ export class MessageRouter {
         this._post({ type: 'speaker_state', enabled: vscode.workspace.getConfiguration('jenna').get<boolean>('speakerEnabled', true) });
         await this._syncXrlFromProxy();
         await this._status.push();
+        await this._pushDiffStats();
         if (this._history.value.length === 0) {
           await this._sessions.loadLatest();
         }
@@ -260,6 +262,63 @@ export class MessageRouter {
       case 'reveal_workspace':
         vscode.commands.executeCommand('workbench.view.explorer');
         break;
+      case 'list_workspaces': {
+        const folders = (vscode.workspace.workspaceFolders || []).map(f => ({ name: f.name, path: f.uri.fsPath }));
+        const wsFile = vscode.workspace.workspaceFile?.fsPath;
+        const seen = new Set<string>(folders.map(f => f.path));
+        const files: { name: string; path: string }[] = [];
+        const scanDirs = new Set<string>();
+        for (const f of vscode.workspace.workspaceFolders || []) scanDirs.add(path.dirname(f.uri.fsPath));
+        if (wsFile) scanDirs.add(path.dirname(wsFile));
+        scanDirs.add(require('os').homedir());
+        for (const dir of scanDirs) {
+          try {
+            for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+              if (e.isFile() && e.name.endsWith('.code-workspace')) {
+                const p = path.join(dir, e.name);
+                if (!seen.has(p)) { seen.add(p); files.push({ name: e.name, path: p }); }
+              }
+            }
+          } catch {}
+        }
+        this._post({ type: 'workspace_list', folders, workspaceFile: wsFile || null, files });
+        break;
+      }
+      case 'browse_workspace': {
+        const picked = await vscode.window.showOpenDialog({
+          canSelectFolders: true,
+          canSelectFiles: true,
+          canSelectMany: false,
+          openLabel: 'Open Workspace',
+          filters: { 'Workspace / Folder': ['code-workspace', '*'] },
+        });
+        if (picked && picked[0]) vscode.commands.executeCommand('vscode.openFolder', picked[0]);
+        break;
+      }
+      case 'open_workspace':
+        if (typeof msg.path === 'string' && msg.path) {
+          vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(msg.path));
+        }
+        break;
+      case 'list_projects': {
+        const projects: { name: string; path: string }[] = [];
+        for (const f of vscode.workspace.workspaceFolders || []) {
+          try {
+            for (const e of fs.readdirSync(f.uri.fsPath, { withFileTypes: true })) {
+              if (e.isDirectory() && !e.name.startsWith('.') && e.name !== 'node_modules') {
+                projects.push({ name: `${f.name}/${e.name}`, path: path.join(f.uri.fsPath, e.name) });
+              }
+            }
+          } catch {}
+        }
+        this._post({ type: 'project_list', projects });
+        break;
+      }
+      case 'reveal_path':
+        if (typeof msg.path === 'string' && msg.path) {
+          vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(msg.path));
+        }
+        break;
       case 'reveal_problems':
         vscode.commands.executeCommand('workbench.actions.view.problems');
         break;
@@ -272,6 +331,27 @@ export class MessageRouter {
       case 'switch_model': await vscode.commands.executeCommand('jenna.switchModel'); break;
       case 'reload_webview': await vscode.commands.executeCommand('jenna.reloadWebview'); break;
       case 'toggle_status': await vscode.commands.executeCommand('jenna.toggleStatus'); break;
+      case 'alarm_fired': vscode.window.showInformationMessage(`⏰ Jenna alarm — ${typeof msg.time === 'string' ? msg.time : ''}`); break;
+
+      case 'get_diff_stats': await this._pushDiffStats(); break;
+      case 'accept_changes': {
+        await this._git(['add', '-A']);
+        this._post({ type: 'status_update', status: { online: true, loading: false, message: 'Changes accepted — all staged' } });
+        await this._pushDiffStats();
+        break;
+      }
+      case 'reject_changes': {
+        const pick = await vscode.window.showWarningMessage(
+          'Discard ALL uncommitted changes in this workspace? This cannot be undone.',
+          { modal: true }, 'Discard Changes');
+        if (pick === 'Discard Changes') {
+          await this._git(['restore', '--staged', '.']);
+          await this._git(['restore', '.']);
+          this._post({ type: 'status_update', status: { online: true, loading: false, message: 'Changes discarded' } });
+          await this._pushDiffStats();
+        }
+        break;
+      }
 
       case 'list_mcp_servers': {
         const home = require('os').homedir();
@@ -304,6 +384,34 @@ export class MessageRouter {
         break;
       }
     }
+  }
+
+  private _git(args: string[]): Promise<string> {
+    return new Promise((resolve) => {
+      const cwd = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (!cwd) return resolve('');
+      cp.execFile('git', args, { cwd }, (err, stdout) => resolve(err ? '' : stdout));
+    });
+  }
+
+  private async _pushDiffStats(): Promise<void> {
+    let files = 0, added = 0, removed = 0;
+    const numstat = await this._git(['diff', '--numstat', 'HEAD']);
+    for (const line of numstat.split('\n')) {
+      const m = line.match(/^(\d+|-)\t(\d+|-)\t/);
+      if (m) {
+        files++;
+        if (m[1] !== '-') added += parseInt(m[1], 10);
+        if (m[2] !== '-') removed += parseInt(m[2], 10);
+      }
+    }
+    // Untracked files (and all changes when repo has no HEAD yet)
+    const status = await this._git(['status', '--porcelain']);
+    for (const line of status.split('\n')) {
+      if (line.startsWith('??')) files++;
+      else if (line.trim() && !numstat.trim()) files++;
+    }
+    this._post({ type: 'diff_stats', files, added, removed });
   }
 }
 

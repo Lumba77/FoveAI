@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "lumax-memory": {
+    "foveai-memory": {
       "autoApprove": [
         "get_memory",
         "search_memory",
@@ -16,24 +16,58 @@
         "list_indexed",
         "summarize_context",
         "compress_search_results",
-        "check_local_llm",
-        "start_middleman"
+        "check_local_llm"
       ],
       "timeout": 60,
-      "command": ".venv/Scripts/python.exe",
+      "command": "/home/lumba/FoveAI/.venv/bin/python",
       "args": [
-        "backend/Memory/lumax_mcp_server.py"
+        "-B",
+        "/home/lumba/FoveAI/Backend/Memory/foveai_mcp_server.py"
       ],
       "env": {
-        "LUMAX_ROOT": "C:/Users/danie/program/LUMAX",
-        "LOCAL_LLM_BASE": "http://localhost:8888/v1",
-        "LOCAL_LLM_MODEL": "qwen3.5-2b-abliterated",
-        "LOCAL_LLM_GPU_OFFLOAD": "0.2",
-        "LOCAL_LLM_TIMEOUT": "60",
-        "LUMAX_MCP_CONTEXT": "true"
+        "FoveAI_REPO_ROOT": "/home/lumba/FoveAI",
+        "FOVEAI_MCP_CONTEXT": "0",
+        "FOVEAI_MCP_MAX_CONTEXT_TOKENS": "800"
       },
       "type": "stdio",
-      "disabled": true,
+      "disabled": false,
+      "alwaysAllow": []
+    },
+    "foveated-memory": {
+      "autoApprove": [
+        "memory_save",
+        "memory_recall",
+        "memory_recent",
+        "memory_summary",
+        "memory_stats",
+        "foveai_status",
+        "foveai_models",
+        "foveai_sessions"
+      ],
+      "timeout": 60,
+      "command": "node",
+      "args": [
+        "/home/lumba/FoveAI/foveated-memory/mcp-server.js"
+      ],
+      "env": {
+        "FM_PROXY_URL": "http://127.0.0.1:8400"
+      },
+      "type": "stdio",
+      "disabled": false,
+      "alwaysAllow": []
+    },
+    "nvidia-nim": {
+      "autoApprove": [
+        "nvidia_list_models"
+      ],
+      "timeout": 120,
+      "command": "/home/lumba/FoveAI/.venv/bin/python",
+      "args": [
+        "-B",
+        "/home/lumba/FoveAI/Tools/nvidia-mcp/server.py"
+      ],
+      "type": "stdio",
+      "disabled": false,
       "alwaysAllow": []
     },
     "tokenslayer": {
@@ -51,7 +85,7 @@
         "Forge/scratch/TokenSlayer/mcp-server/build/index.js"
       ],
       "env": {
-        "LUMAX_ROOT": "C:/Users/danie/program/LUMAX"
+        "LUMAX_ROOT": "/home/lumba/FoveAI"
       },
       "type": "stdio",
       "disabled": false,

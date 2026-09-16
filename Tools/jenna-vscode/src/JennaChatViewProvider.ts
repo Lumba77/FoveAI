@@ -147,6 +147,11 @@ export class JennaChatViewProvider implements vscode.WebviewViewProvider {
     return '<!DOCTYPE html><html><body style="background:#0a0a12;color:#e2e8f0;font-family:sans-serif;padding:20px;"><h2 style="color:#a78bfa">Jenna</h2><p>WebView template not found.</p></body></html>';
   }
 
+  public openStats(): void {
+    this._view?.show?.(true);
+    this._post({ type: 'open_stats' });
+  }
+
   private _post(msg: Record<string, unknown>): void {
     this._view?.webview.postMessage(msg);
   }

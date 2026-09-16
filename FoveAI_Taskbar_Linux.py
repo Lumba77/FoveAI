@@ -620,7 +620,7 @@ def select_persona_model(icon, item, model_key: str):
 
     try:
         set_env_key("XRLF_MODEL_LOCAL_ID", m["id"])
-        set_env_key("LUMAX_MODEL_ACTIVE_ID", m["id"])
+        set_env_key("FOVEAI_MODEL_ACTIVE_ID", m["id"])
         set_env_key("FOVEAI_MAIN_MODEL", m["id"])
     except Exception:
         pass
@@ -631,6 +631,7 @@ def select_persona_model(icon, item, model_key: str):
     try:
         env = os.environ.copy()
         env["XRLF_REPO_ENABLED"] = "true"
+        env["GGML_CUDA_NO_VMM"] = "1"
         subprocess.Popen(
             [VENV_PYTHON, os.path.join(FOVEAI_DIR, "run_xrlf.py"),
              "--model", xrlf_model,
@@ -714,21 +715,11 @@ def get_hardware_telemetry() -> Tuple[float, float, float, Image.Image, str]:
 
 
 def launch_corner_companion(icon, item):
-    notify(icon, "Launching Corner Companion HUD...", "FoveAI HUD")
-    top_bar_path = os.path.join(FOVEAI_DIR, "Tools", "lumax_top_bar", "lumax_top_bar.py")
-    if os.path.exists(top_bar_path):
-        subprocess.Popen([VENV_PYTHON, top_bar_path, "--quick-controls"], cwd=FOVEAI_DIR)
-    else:
-        notify(icon, "Corner companion script not found", "FoveAI HUD")
+    notify(icon, "Corner Companion archived (was Windows-only)", "FoveAI HUD")
 
 
 def launch_topbar(icon, item):
-    notify(icon, "Launching FoveAI TopBar...", "FoveAI TopBar")
-    top_bar_path = os.path.join(FOVEAI_DIR, "Tools", "lumax_top_bar", "lumax_top_bar.py")
-    if os.path.exists(top_bar_path):
-        subprocess.Popen([VENV_PYTHON, top_bar_path, "--mode=topbar"], cwd=FOVEAI_DIR)
-    else:
-        notify(icon, "TopBar script not found", "FoveAI TopBar")
+    notify(icon, "TopBar archived (was Windows-only)", "FoveAI TopBar")
 
 
 def launch_multigate(icon, item):
@@ -900,7 +891,7 @@ def switch_frontend(icon, item, ui_type: str):
     notify(icon, f"Switching frontend to {label}...", "FoveAI Frontend")
     try:
         set_env_key("XRLF_FRONTEND_UI_PRESET", ui_type)
-        set_env_key("LUMAX_FRONTEND_UI", ui_type)
+        set_env_key("FOVEAI_FRONTEND_UI", ui_type)
         notify(icon, f"Frontend set to {label}", "FoveAI Frontend")
         _refresh_menu(icon)
     except Exception as e:
@@ -979,12 +970,7 @@ def start_foveai_super_terminal(icon, item):
 
 
 def launch_desktop_vessel(icon, item):
-    notify(icon, "Launching Native 3D Desktop Vessel...", "FoveAI Desktop Vessel")
-    vessel_path = os.path.join(FOVEAI_DIR, "Tools", "lumax_desktop_vessel.py")
-    if os.path.exists(vessel_path):
-        subprocess.Popen([VENV_PYTHON, vessel_path], cwd=FOVEAI_DIR)
-    else:
-        notify(icon, f"Desktop vessel script not found: {vessel_path}", "FoveAI Desktop Vessel")
+    notify(icon, "Desktop Vessel archived (was Windows-only)", "FoveAI Desktop Vessel")
 
 
 # ─── Menu Refresh ───────────────────────────────────────────────────
@@ -1349,7 +1335,7 @@ def build_menu() -> pystray.Menu:
 
     # Model selectors
     curr_persona_id = env.get(
-        "LUMAX_MODEL_ACTIVE_ID",
+        "FOVEAI_MODEL_ACTIVE_ID",
         env.get("FOVEAI_MAIN_MODEL", "gemma-4-e2b-multimodal-v1.0.xrlf"),
     )
     curr_router_id = env.get("FOVEAI_OMNI_ROUTER_MODEL", "foveai-omni-router-v2.xrlf")
@@ -1474,10 +1460,7 @@ def build_menu() -> pystray.Menu:
             pystray.MenuItem(f"{tag_media} Media Proxy (:8402)", show_status_info),
         )),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("🎙️ Corner Companion HUD (Bottom-Right)", launch_corner_companion),
-        pystray.MenuItem("🖼️ Native 3D Desktop Vessel", launch_desktop_vessel),
-        pystray.MenuItem("📊 Desktop TopBar (Top Edge)", launch_topbar),
-        pystray.MenuItem("🌐 Multigate WebUI Portal", launch_multigate),
+        pystray.MenuItem(" Multigate WebUI Portal", launch_multigate),
         pystray.MenuItem("⚙️ Open Settings Panel", open_settings_panel),
         pystray.MenuItem("🎨 SoftLayer Modules (Hot-Reloadable)", pystray.Menu(
             pystray.MenuItem("📦 Reload All Modules", reload_softlayer_modules),

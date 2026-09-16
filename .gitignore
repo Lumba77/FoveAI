@@ -324,3 +324,7 @@ CLAUDE.md
 AGENT.md
 .cursorrules
 .windsurfrules
+.dna.md
+.ssh/
+.env.bak*
+client_quest/Packages/com.meta.xr.sdk.interaction-205.0.0.tgz

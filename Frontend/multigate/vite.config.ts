@@ -152,6 +152,14 @@ export default defineConfig(({ mode }) => {
       host: true,
       allowedHosts: true,
       cors: true,
+      // VITE_HMR_MODE: 'tunnel' → HMR over wss://<page-host>:443 (rides the
+      // cloudflared tunnel back to this port — needed for xarel.net access).
+      // 'off' disables HMR. Unset → default local HMR.
+      hmr: env.VITE_HMR_MODE === 'tunnel'
+        ? { protocol: 'wss' as const, clientPort: 443 }
+        : env.VITE_HMR_MODE === 'off'
+          ? false
+          : true,
       proxy: {
         // All API traffic → unified proxy on :8400 (HTTP + WS)
         // 8400 proxies chat to XRLF :8402, memory to :8407, TTS to :8406, etc.
@@ -197,6 +205,12 @@ export default defineConfig(({ mode }) => {
         // The CF tunnel routes apex hostnames to this port; these entries let
         // the settings panel + full API work through the tunnel with no ports.
         '/settings.html': {
+          target: 'http://127.0.0.1:8401',
+          changeOrigin: true
+        },
+        // settings.html's stylesheet must come from :8401 too — without this
+        // it falls through to the SPA index.html and the panel renders unstyled
+        '/settings.css': {
           target: 'http://127.0.0.1:8401',
           changeOrigin: true
         },

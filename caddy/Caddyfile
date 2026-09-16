@@ -1,0 +1,44 @@
+# /etc/caddy/Caddyfile — FoveAI xarel.net reverse proxy
+# Multigate (:5177) is the single frontend — serves XR features when XR client detected
+# Routes Cloudflare (80/443) to local FoveAI services.
+
+xarel.net {
+	# FoveAI backend API (XRLF Runtime :8402)
+	handle /api/* {
+		reverse_proxy localhost:8402
+	}
+
+	# WebSocket IPC (:8403)
+	handle /ws/* {
+		reverse_proxy localhost:8403
+	}
+
+	# Memory Dashboard (:8401)
+	handle /dashboard/* {
+		reverse_proxy localhost:8401
+	}
+
+	# Foveated Memory Proxy (:8400)
+	handle /memory/* {
+		reverse_proxy localhost:8400
+	}
+
+	# Ignition control (:8409)
+	handle /ignition/* {
+		reverse_proxy localhost:8409
+	}
+
+	# APK download server (:8888)
+	handle /apk/* {
+		rewrite * /AliceVR.apk
+		reverse_proxy localhost:8888
+	}
+
+	# Default: Multigate (serves XR features when XR client detected)
+	handle {
+		reverse_proxy localhost:5177
+	}
+}
+
+# SSH subdomain — DNS-only in Cloudflare (grey cloud), not proxied here
+# ssh.xarel.net → 83.185.41.152:22 directly

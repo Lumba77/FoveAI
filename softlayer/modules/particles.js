@@ -8,15 +8,9 @@
 // Types: "snow", "rain", "leaves", "petals", "fireflies", "dust", "bubbles", "sparkles"
 
 function particles_onLoad() {
-    // Default: autumn leaves, gentle
-    FoveAI.particles.enable("leaves", true);
-    FoveAI.particles.setDensity("leaves", 0.4);
-
-    // Some ambient dust for atmosphere
-    FoveAI.particles.enable("dust", true);
-    FoveAI.particles.setDensity("dust", 0.1);
-
-    FoveAI.log("particles module loaded — autumn leaves drifting");
+    // Sterile default: nothing enabled. Seasons/presets are opt-in via
+    // particles_setSeason() or FoveAI.particles.enable() — never on by default.
+    FoveAI.log("particles module loaded — dormant (no default particles)");
 }
 
 // ── Seasonal presets ──

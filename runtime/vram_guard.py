@@ -32,6 +32,35 @@ class VRAMGuardrail:
     def __init__(self, lock_dir: Path = LOCK_DIR):
         self.lock_dir = lock_dir
         self.lock_dir.mkdir(parents=True, exist_ok=True)
+        self._cleanup_stale_notices()
+
+    def _cleanup_stale_notices(self):
+        """Remove eviction notices addressed to dead PIDs — they accumulate
+        across restarts and can unload a reused PID's model by accident."""
+        try:
+            for f in self.lock_dir.glob("evict_*.json"):
+                try:
+                    pid = int(f.stem.split("_", 1)[1])
+                except (ValueError, IndexError):
+                    f.unlink(missing_ok=True)
+                    continue
+                if not self._pid_exists(pid):
+                    f.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+    @staticmethod
+    def _friendly_model_name(model_path: str) -> str:
+        """Extracted artifacts are all named 'core.gguf' inside
+        '<model>.xrlf.cache/' — use the parent dir so logs/notices show the
+        real model name instead of a meaningless 'core.gguf'."""
+        name = Path(model_path).name
+        if name == "core.gguf":
+            parent = Path(model_path).parent.name
+            if parent.endswith(".xrlf.cache"):
+                return parent[: -len(".cache")]
+            return parent or name
+        return name
 
     def _lock_file(self, role: str) -> Path:
         return self.lock_dir / f"{role}_model.lock"
@@ -146,7 +175,7 @@ class VRAMGuardrail:
         """
         active = self.is_active(role)
         current_pid = os.getpid()
-        requested_model_name = Path(model_path).name
+        requested_model_name = self._friendly_model_name(model_path)
 
         if active and active.get("pid") != current_pid:
             old_name = active.get("model", "unknown")
@@ -235,7 +264,7 @@ class VRAMGuardrail:
         lock_data = {
             "role": role,
             "pid": current_pid,
-            "model": Path(model_path).name,
+            "model": requested_model_name,
             "path": str(model_path),
             "size_gb": round(size_gb, 2),
             "kv_cache_gb": round(kv_cache_gb, 2),
@@ -259,6 +288,10 @@ class VRAMGuardrail:
         old_pid = active.get("pid")
         old_name = active.get("model", "unknown")
         if not old_pid:
+            return
+        if not self._pid_exists(old_pid):
+            # Lock holder is already dead — just drop the stale lock, no notices.
+            self._lock_file(role).unlink(missing_ok=True)
             return
 
         eviction_notice = {

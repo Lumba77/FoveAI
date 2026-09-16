@@ -215,12 +215,29 @@ def create_app(runtime: XRLFRuntime) -> "FastAPI":
         if getattr(runtime, "load_state", "idle") == "loading":
             raise HTTPException(status_code=409, detail="Model load already in progress")
 
+        # Resolve and validate BEFORE unloading — a bad path must not kill the
+        # currently loaded model.
+        import os as _os
+        if not _os.path.exists(str(model_path)):
+            alt = _os.path.join("xrl_encoded", str(model_path))
+            if _os.path.exists(alt):
+                model_path = alt
+            else:
+                return {"status": "error", "loaded": runtime.loaded,
+                        "error": f"model file not found: {model_path}"}
+
+        # Report loading through the whole unload+load window so /health and
+        # pollers see 'loading' (also blocks a concurrent /load via the 409).
+        runtime.load_state = "loading"
+        runtime.load_error = None
+
         # Unload current model first if loaded
         if runtime.loaded:
             try:
                 await asyncio.to_thread(runtime.close)
             except Exception as e:
                 print(f"  ⚠️ Error during unload: {e}")
+            runtime.load_state = "loading"  # close() resets to 'idle' — re-assert
 
         # Reconfigure runtime with new model path and load
         try:

@@ -34,7 +34,6 @@
     "**/outputs/**",
     "**/Nursery/**"
   ],
-  "diagnosticMode": "openFilesOnly",
   "typeCheckingMode": "basic",
   "useLibraryCodeForTypes": true
 }

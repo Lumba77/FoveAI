@@ -124,15 +124,10 @@ namespace FoveAI.XR
                 gameObject.AddComponent<FoveAI.Audio.QuestMicrophoneVAD>();
             }
 
-            // Auto-display chat panel in front of user on startup
-            Invoke(nameof(ShowInitialChatPanel), 1.5f);
-        }
-
-        private void ShowInitialChatPanel()
-        {
-            if (_chatPanel != null)
+            // Attach CleanSceneBoot — hides all panels at boot, manages panel toggles
+            if (GetComponent<FoveAI.XR.CleanSceneBoot>() == null)
             {
-                SetChatVisible(true);
+                gameObject.AddComponent<FoveAI.XR.CleanSceneBoot>();
             }
         }
 
@@ -140,32 +135,28 @@ namespace FoveAI.XR
         private GameObject _rightControllerObj;
         private InputDevice _leftDevice;
         private InputDevice _rightDevice;
-        private GameObject _chatPanel;
-        private bool _leftTogglePressed;
 
         private void FindChatPanel()
         {
+            // Ensure ChatCanvas has BoxCollider so XR ray interactors can hit it for 3D interaction
             var transforms = FindObjectsByType<Transform>(FindObjectsInactive.Include, FindObjectsSortMode.None);
             foreach (var candidate in transforms)
             {
                 if (candidate.name != "ChatCanvas" || !candidate.gameObject.scene.IsValid()) continue;
-                _chatPanel = candidate.gameObject;
-                var oldToggle = _chatPanel.GetComponent<FoveAI.UI.XRPanelToggle>();
+                var chatPanel = candidate.gameObject;
+                var oldToggle = chatPanel.GetComponent<FoveAI.UI.XRPanelToggle>();
                 if (oldToggle != null) oldToggle.enabled = false;
 
-                // Ensure ChatCanvas has BoxCollider so XR ray interactors can hit it for 3D interaction
-                var rect = _chatPanel.GetComponent<RectTransform>();
-                var col = _chatPanel.GetComponent<BoxCollider>() ?? _chatPanel.AddComponent<BoxCollider>();
+                var rect = chatPanel.GetComponent<RectTransform>();
+                var col = chatPanel.GetComponent<BoxCollider>() ?? chatPanel.AddComponent<BoxCollider>();
                 if (rect != null)
                 {
                     col.size = new Vector3(Mathf.Max(rect.rect.width, 2f), Mathf.Max(rect.rect.height, 1.5f), 0.05f);
                 }
 
-                _chatPanel.SetActive(false);
-                QuestDebugOverlay.Log("[XRRigFixer] Chat panel ready — press left X or Y");
+                QuestDebugOverlay.Log("[XRRigFixer] Chat panel collider ready");
                 return;
             }
-            QuestDebugOverlay.LogWarning("[XRRigFixer] ChatCanvas not found");
         }
 
         private void CreateControllerAnchor(string name, InputDeviceCharacteristics characteristics)
@@ -186,6 +177,17 @@ namespace FoveAI.XR
                 wand.hand = XRHapticWand.WandHand.Right;
             }
 
+            // Add a forward-pointing ray pointer for 3D/avatar interaction
+            // This ensures the ray points standard forward from the controller
+            var rayPointer = obj.GetComponent<XRControllerRayPointer>();
+            if (rayPointer == null)
+            {
+                rayPointer = obj.AddComponent<XRControllerRayPointer>();
+                rayPointer.hand = characteristics.HasFlag(InputDeviceCharacteristics.Left)
+                    ? XRControllerRayPointer.ControllerHand.Left
+                    : XRControllerRayPointer.ControllerHand.Right;
+            }
+
             // Ensure XR IDE HUD exists in scene
             if (FindAnyObjectByType<FoveAI.UI.XRIDEHud>() == null)
             {
@@ -193,7 +195,7 @@ namespace FoveAI.XR
                 hudObj.AddComponent<FoveAI.UI.XRIDEHud>();
             }
 
-            QuestDebugOverlay.Log($"[XRRigFixer] Created {name} anchor (XRI ray interactor will be attached)");
+            QuestDebugOverlay.Log($"[XRRigFixer] Created {name} anchor with forward ray pointer");
         }
 
         private void Update()
@@ -215,64 +217,6 @@ namespace FoveAI.XR
             // Update controller positions
             UpdateControllerPose(_leftDevice, _leftControllerObj);
             UpdateControllerPose(_rightDevice, _rightControllerObj);
-            UpdateChatToggle();
-        }
-
-        private void UpdateChatToggle()
-        {
-            if (_chatPanel == null) return;
-
-            // 1. Check InputDevices (Left Menu button or secondary)
-            bool menuPressed = false;
-            if (_leftDevice.isValid)
-            {
-                if (_leftDevice.TryGetFeatureValue(CommonUsages.menuButton, out bool menu) && menu) menuPressed = true;
-            }
-
-            // 2. Check OVRInput fallback (Left Menu / Start button, or thumbstick click)
-            if (OVRInput.GetDown(OVRInput.Button.Start) || OVRInput.GetDown(OVRInput.RawButton.Start))
-            {
-                menuPressed = true;
-            }
-
-            if (menuPressed && !_leftTogglePressed)
-            {
-                SetChatVisible(!_chatPanel.activeSelf);
-            }
-            _leftTogglePressed = menuPressed;
-        }
-
-        private void SetChatVisible(bool visible)
-        {
-            if (!visible)
-            {
-                _chatPanel.SetActive(false);
-                FoveAI.UI.XRIDEHud.FlashNotification("Chat Panel Hidden (Left Menu to reopen)", 2f);
-                return;
-            }
-
-            var cam = Camera.main;
-            if (cam != null)
-            {
-                Vector3 forward = cam.transform.forward;
-                forward.y = 0f;
-                if (forward.sqrMagnitude < 0.001f) forward = Vector3.forward;
-                forward.Normalize();
-                Vector3 right = cam.transform.right;
-                right.y = 0f;
-                right.Normalize();
-
-                // Position panel 1.2m away, offset 35 deg to the left (leaving center completely open for Alice)
-                Vector3 panelPosition = cam.transform.position + forward * 1.2f - right * 0.75f + Vector3.up * 0.05f;
-                _chatPanel.transform.position = panelPosition;
-                _chatPanel.transform.rotation = Quaternion.LookRotation(
-                    (panelPosition - cam.transform.position).normalized, Vector3.up);
-            }
-
-            _chatPanel.SetActive(true);
-            FoveAI.UI.XRIDEHud.FlashNotification("Chat Panel Opened", 2f);
-            var ui = _chatPanel.GetComponent<FoveAI.UI.SpatialUIManager>();
-            if (ui != null) ui.ActivateInput();
         }
 
         private void UpdateControllerPose(InputDevice device, GameObject controllerObj)

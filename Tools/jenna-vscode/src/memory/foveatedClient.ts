@@ -211,12 +211,24 @@ export class FoveatedClient {
       ...(opts.sessionId ? { 'x-session-id': opts.sessionId } : {})
     };
 
+    // Inactivity timeout: reasoning models (e.g. NVIDIA thinking models) can
+    // pause for minutes between chunks. Abort only after silence, not on a
+    // fixed total — a healthy stream keeps bumping the timer.
+    const INACTIVITY_MS = 180000;
+    const abortCtl = new AbortController();
+    let idleTimer = setTimeout(() => abortCtl.abort(), INACTIVITY_MS);
+    const bumpIdle = () => {
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => abortCtl.abort(), INACTIVITY_MS);
+    };
+
     const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(120000)
+      signal: abortCtl.signal
     });
+    bumpIdle();
 
     if (!response.ok) {
       throw new Error(`Foveated proxy error ${response.status}: ${await response.text()}`);
@@ -224,6 +236,7 @@ export class FoveatedClient {
 
     if (!opts.stream) {
       const data = await response.json() as {choices: Array<{message: {content: string}}>};
+      clearTimeout(idleTimer);
       this._lastLatency = Date.now() - t0;
       yield data.choices[0]?.message?.content ?? '';
       return;
@@ -234,31 +247,36 @@ export class FoveatedClient {
     const decoder = new TextDecoder();
     let buffer = '';
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value && value.length) bumpIdle();
+        buffer += decoder.decode(value, { stream: true });
 
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
 
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const payload = line.slice(6).trim();
-        if (payload === '[DONE]') {
-          this._lastLatency = Date.now() - t0;
-          return;
-        }
-        try {
-          const chunk = JSON.parse(payload) as {
-            choices: Array<{ delta?: { content?: string } }>;
-          };
-          const text = chunk.choices[0]?.delta?.content;
-          if (text) yield text;
-        } catch {
-          // malformed chunk — skip
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6).trim();
+          if (payload === '[DONE]') {
+            this._lastLatency = Date.now() - t0;
+            return;
+          }
+          try {
+            const chunk = JSON.parse(payload) as {
+              choices: Array<{ delta?: { content?: string } }>;
+            };
+            const text = chunk.choices[0]?.delta?.content;
+            if (text) yield text;
+          } catch {
+            // malformed chunk — skip
+          }
         }
       }
+    } finally {
+      clearTimeout(idleTimer);
     }
 
     this._lastLatency = Date.now() - t0;

@@ -1,0 +1,15 @@
+[Unit]
+Description=Cloudflare Tunnel (xarel.net → FoveAI)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lumba
+ExecStart=/usr/bin/cloudflared tunnel run --config /home/lumba/.cloudflared/config.yml foveai
+Restart=always
+RestartSec=10
+Environment=HOME=/home/lumba
+
+[Install]
+WantedBy=multi-user.target

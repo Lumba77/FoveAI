@@ -5118,10 +5118,10 @@ async def _run_director_healing(
     try:
         async with httpx.AsyncClient(timeout=300.0) as client:
             response = await client.post(
-                f"{os.getenv('LUMAX_DIRECTOR_BASE_URL', 'https://ollama.com/v1').rstrip('/')}/chat/completions",
-                headers=_cloud_headers(os.getenv("LUMAX_DIRECTOR_API_KEY", os.getenv("LUMAX_REPERTOIRE_OLLAMA_API_KEY", ""))),
+                f"{os.getenv('FOVEAI_DIRECTOR_BASE_URL', 'https://ollama.com/v1').rstrip('/')}/chat/completions",
+                headers=_cloud_headers(os.getenv("FOVEAI_DIRECTOR_API_KEY", os.getenv("FOVEAI_REPERTOIRE_OLLAMA_API_KEY", ""))),
                 json={
-                    "model": os.getenv("LUMAX_DIRECTOR_MODEL", "deepseek-v4-pro:1m"),
+                    "model": os.getenv("FOVEAI_DIRECTOR_MODEL", "deepseek-v4-pro:1m"),
                     "messages": [
                         {"role": "system", "content": DIRECTOR_SYSTEM_PROMPT.replace("feature indexing", "service healing and diagnostics")},
                         {"role": "user", "content": user_prompt}
@@ -5270,8 +5270,8 @@ async def get_director_status(_auth: None = Depends(require_webui_login)):
         "available": DIRECTOR_MANAGER_AVAILABLE,
         "cloud_enabled": DIRECTOR_CLOUD_ENABLED,
         "auto_apply_default": DIRECTOR_AUTO_APPLY,
-        "model": os.getenv("LUMAX_DIRECTOR_MODEL", "deepseek-v4-pro:1m"),
-        "base_url": os.getenv("LUMAX_DIRECTOR_BASE_URL", "https://ollama.com/v1"),
+        "model": os.getenv("FOVEAI_DIRECTOR_MODEL", "deepseek-v4-pro:1m"),
+        "base_url": os.getenv("FOVEAI_DIRECTOR_BASE_URL", "https://ollama.com/v1"),
     }
 
 

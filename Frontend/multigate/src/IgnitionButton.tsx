@@ -105,8 +105,8 @@ export default function IgnitionButton() {
       disabled={!isClickable && state === 'up'}
       style={{
         position: 'fixed',
-        bottom: '20px',
-        right: '20px',
+        bottom: '110px',   // clear of the composer's send-ball socket
+        right: '24px',
         width: '64px',
         height: '64px',
         borderRadius: '50%',
