@@ -26,7 +26,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any
 
 from context_stripper import ContextStripper, estimate_tokens
 
@@ -34,6 +34,7 @@ logger = logging.getLogger("forge.smart_context")
 
 
 # ── Configuration ───────────────────────────────────────────────────────
+
 
 class ContextConfig:
     """Central tunable budget. Override via env vars at startup."""
@@ -45,14 +46,16 @@ class ContextConfig:
     WARN_THRESHOLD: float = 0.75  # 75% of target
 
     # Hard trigger thresholds per tier (fraction of target)
-    TIER_2_FRAC: float = 0.90   # summarize when >= 90% of target
-    TIER_3_FRAC: float = 1.20   # truncate when >= 120% of target
-    TIER_4_FRAC: float = 1.60   # full checkpoint when >= 160% of target
+    TIER_2_FRAC: float = 0.90  # summarize when >= 90% of target
+    TIER_3_FRAC: float = 1.20  # truncate when >= 120% of target
+    TIER_4_FRAC: float = 1.60  # full checkpoint when >= 160% of target
 
     # NEW: Tier 3 target is now 30k (was ~9k — far too aggressive).
     # A 70k context gets cut to ~30k instead of ~9k, preserving much more
     # working history while still staying under typical 32k-128k limits.
-    TIER_3_TARGET_TOKENS: int = int(os.environ.get("FoveAI_SMARTCTX_TIER3_TARGET", "30000"))
+    TIER_3_TARGET_TOKENS: int = int(
+        os.environ.get("FoveAI_SMARTCTX_TIER3_TARGET", "30000")
+    )
 
     # Tier 4 collapses to ~15% of current size
     TIER_4_KEEP_FRAC: float = 0.15
@@ -76,6 +79,7 @@ class CuttingTier(Enum):
 
 class CuttingAction:
     """String constants returned in ContextRecommendation.action."""
+
     PASS = "pass"
     CUT_TIER_1 = "cut_tier_1_strip"
     CUT_TIER_2 = "cut_tier_2_summarize"
@@ -85,6 +89,7 @@ class CuttingAction:
 
 
 # ── Data structures ─────────────────────────────────────────────────────
+
 
 @dataclass
 class ContextRecommendation:
@@ -109,18 +114,21 @@ class SessionState:
     turns_since_burst: int = 999
     burst_mode: BurstMode = field(default_factory=BurstMode)
     quality: float = 1.0
-    stripper: ContextStripper = field(default_factory=lambda: ContextStripper(
-        preserve_last=ContextConfig.PRESERVE_LAST
-    ))
+    stripper: ContextStripper = field(
+        default_factory=lambda: ContextStripper(
+            preserve_last=ContextConfig.PRESERVE_LAST
+        )
+    )
 
 
 # ── Manager ─────────────────────────────────────────────────────────────
+
 
 class SmartContextManager:
     """Stateful, async-safe manager of per-session context budgets."""
 
     def __init__(self) -> None:
-        self._sessions: Dict[str, SessionState] = {}
+        self._sessions: dict[str, SessionState] = {}
         self._lock = asyncio.Lock()
         self._running = False
 
@@ -147,7 +155,7 @@ class SmartContextManager:
             self._sessions[session_id] = st
         return st
 
-    def _estimate_total(self, messages: List[Dict]) -> int:
+    def _estimate_total(self, messages: list[dict]) -> int:
         return sum(estimate_tokens(str(m.get("content", ""))) for m in messages)
 
     def _determine_tier(self, current: int, target: int) -> CuttingTier:
@@ -161,7 +169,9 @@ class SmartContextManager:
             return CuttingTier.TIER_1_STRIP_NOISE
         return CuttingTier.NONE
 
-    def _burst_rec(self, state: SessionState, active: bool, triggered: bool) -> ContextRecommendation:
+    def _burst_rec(
+        self, state: SessionState, active: bool, triggered: bool
+    ) -> ContextRecommendation:
         if active:
             state.burst_mode.is_active = True
             state.burst_mode.turns_remaining = ContextConfig.BURST_WINDOW_TURNS
@@ -180,7 +190,7 @@ class SmartContextManager:
         self,
         session_id: str,
         token_count: int,
-        messages: List[Dict],
+        messages: list[dict],
     ) -> ContextRecommendation:
         """Inspect token usage and recommend a cutting action."""
         async with self._lock:
@@ -206,7 +216,10 @@ class SmartContextManager:
             tier = self._determine_tier(token_count, state.target_tokens)
 
             # Low-quality + extreme excess → suggest restart
-            if state.quality < ContextConfig.QUALITY_THRESHOLD_LOW and token_count >= state.target_tokens * 0.90:
+            if (
+                state.quality < ContextConfig.QUALITY_THRESHOLD_LOW
+                and token_count >= state.target_tokens * 0.90
+            ):
                 return ContextRecommendation(
                     action=CuttingAction.RESTART,
                     tier=CuttingTier.TIER_4_FULL_CHECKPOINT,
@@ -252,15 +265,15 @@ class SmartContextManager:
     async def apply_cutting_strategy(
         self,
         session_id: str,
-        messages: List[Dict],
-    ) -> Tuple[List[Dict], Dict[str, Any]]:
+        messages: list[dict],
+    ) -> tuple[list[dict], dict[str, Any]]:
         """Apply the most aggressive needed cutting strategy to the messages."""
         async with self._lock:
             state = self._get_state(session_id)
             current = self._estimate_total(messages)
             tier = self._determine_tier(current, state.target_tokens)
 
-            meta: Dict[str, Any] = {
+            meta: dict[str, Any] = {
                 "tier": tier.name,
                 "tokens_before": current,
                 "tokens_after": current,
@@ -284,12 +297,16 @@ class SmartContextManager:
                 action = CuttingAction.CUT_TIER_2
 
             elif tier == CuttingTier.TIER_3_TRUNCATE_HISTORY:
-                processed = self._truncate_to_target(processed, ContextConfig.TIER_3_TARGET_TOKENS, state)
+                processed = self._truncate_to_target(
+                    processed, ContextConfig.TIER_3_TARGET_TOKENS, state
+                )
                 action = CuttingAction.CUT_TIER_3
 
             elif tier == CuttingTier.TIER_4_FULL_CHECKPOINT:
                 keep = int(current * ContextConfig.TIER_4_KEEP_FRAC)
-                processed = self._truncate_to_target(processed, max(keep, 2000), state, checkpoint=True)
+                processed = self._truncate_to_target(
+                    processed, max(keep, 2000), state, checkpoint=True
+                )
                 action = CuttingAction.CUT_TIER_4
 
             else:
@@ -300,20 +317,25 @@ class SmartContextManager:
             meta["action"] = action
             logger.info(
                 "SmartContext cut session=%s tier=%s %d→%d tokens",
-                session_id, tier.name, current, final,
+                session_id,
+                tier.name,
+                current,
+                final,
             )
             return processed, meta
 
     # ── cutting strategies ─────────────────────────────────────────────
 
-    def _summarize_old_turns(self, messages: List[Dict], state: SessionState) -> List[Dict]:
+    def _summarize_old_turns(
+        self, messages: list[dict], state: SessionState
+    ) -> list[dict]:
         """Tier 2: replace old user/assistant pairs with compact summary markers."""
         preserve = ContextConfig.PRESERVE_LAST
         total = len(messages)
         if total <= preserve:
             return messages
 
-        out: List[Dict] = []
+        out: list[dict] = []
         keep_from = total - preserve
         for i, msg in enumerate(messages):
             if i >= keep_from:
@@ -323,7 +345,9 @@ class SmartContextManager:
             content = str(msg.get("content", ""))
             if role in ("user", "assistant") and len(content) > 400:
                 nm = dict(msg)
-                nm["content"] = f"[ctx-summary] {content[:200]}... ({len(content)} chars folded)"
+                nm["content"] = (
+                    f"[ctx-summary] {content[:200]}... ({len(content)} chars folded)"
+                )
                 out.append(nm)
             else:
                 out.append(msg)
@@ -331,11 +355,11 @@ class SmartContextManager:
 
     def _truncate_to_target(
         self,
-        messages: List[Dict],
+        messages: list[dict],
         target_tokens: int,
         state: SessionState,
         checkpoint: bool = False,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Tier 3/4: keep system + last N turns, truncate middle to fit target."""
         if not messages:
             return messages
@@ -352,7 +376,7 @@ class SmartContextManager:
         candidate = non_system[:-preserve]
 
         # Greedy fill from the most recent side of the candidate pool
-        kept_middle: List[Dict] = []
+        kept_middle: list[dict] = []
         running = sum(estimate_tokens(str(m.get("content", ""))) for m in system_msgs)
         running += sum(estimate_tokens(str(m.get("content", ""))) for m in preserved)
 

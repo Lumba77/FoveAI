@@ -50,7 +50,7 @@ export default defineConfig({
     },
     proxy: {
       '/ws/soul': {
-        target: 'ws://127.0.0.1:8000',
+        target: 'ws://127.0.0.1:8405',
         ws: true,
       },
       '/v1': {
@@ -71,34 +71,34 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api\/creative/, ''),
       },
       '/monetize': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8405',
       },
       '/api/nav': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8405',
       },
       '/compagent': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8405',
       },
       '/api/presence': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8405',
       },
       '/api/mouth': {
-        target: 'http://127.0.0.1:8004',
+        target: 'http://127.0.0.1:8406',
         rewrite: (path) => path.replace(/^\/api\/mouth/, ''),
       },
       '/api/kokoro': {
-        target: 'http://127.0.0.1:8006',
+        target: 'http://127.0.0.1:8406',
         rewrite: (path) => path.replace(/^\/api\/kokoro/, ''),
       },
       '/api/proxy/soul': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8405',
         rewrite: (path) => path.replace(/^\/api\/proxy\/soul/, ''),
       },
       '/api/thought_stream': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8405',
       },
       '/api/agent': {
-        target: 'http://127.0.0.1:8000',
+        target: 'http://127.0.0.1:8405',
       },
       // All other /api/* routes go through xr_app.py (port 8101) for proxy services
       '/api': {

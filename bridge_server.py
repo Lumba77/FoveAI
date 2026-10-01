@@ -3,16 +3,15 @@ bridge_server.py — minimal OpenAI-compatible server for a raw .gguf model.
 Used as a fallback when the XRLF bundled core is not chat-coherent.
 """
 
+import argparse
 import json
 import time
 import uuid
-import argparse
-from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
 from llama_cpp import Llama
+from pydantic import BaseModel, Field
 
 
 class ChatMessage(BaseModel):
@@ -22,14 +21,14 @@ class ChatMessage(BaseModel):
 
 class ChatCompletionRequest(BaseModel):
     model: str
-    messages: List[ChatMessage]
+    messages: list[ChatMessage]
     max_tokens: int = Field(default=1024, ge=1)
     temperature: float = Field(default=0.7, ge=0.0, le=2.0)
     stream: bool = False
 
 
 app = FastAPI(title="GGUF Bridge")
-llm: Optional[Llama] = None
+llm: Llama | None = None
 model_id = "foveai-omni-router"
 
 
@@ -37,12 +36,14 @@ model_id = "foveai-omni-router"
 def list_models():
     return {
         "object": "list",
-        "data": [{
-            "id": model_id,
-            "object": "model",
-            "created": int(time.time()),
-            "owned_by": "foveai-bridge",
-        }],
+        "data": [
+            {
+                "id": model_id,
+                "object": "model",
+                "created": int(time.time()),
+                "owned_by": "foveai-bridge",
+            }
+        ],
     }
 
 
@@ -51,7 +52,7 @@ def health():
     return {"status": "ok", "model": model_id, "loaded": llm is not None}
 
 
-def _to_dicts(messages: List[ChatMessage]) -> List[Dict[str, str]]:
+def _to_dicts(messages: list[ChatMessage]) -> list[dict[str, str]]:
     return [{"role": m.role, "content": m.content} for m in messages]
 
 
@@ -69,7 +70,9 @@ def _stream_response(payload: ChatCompletionRequest):
             "object": "chat.completion.chunk",
             "created": int(time.time()),
             "model": payload.model,
-            "choices": [{"index": 0, "delta": {"content": delta}, "finish_reason": None}],
+            "choices": [
+                {"index": 0, "delta": {"content": delta}, "finish_reason": None}
+            ],
         }
         yield f"data: {json.dumps(data)}\n\n"
     yield "data: [DONE]\n\n"
@@ -81,7 +84,9 @@ def chat_completions(payload: ChatCompletionRequest, request: Request):
         return {"error": "model not loaded"}, 503
 
     if payload.stream:
-        return StreamingResponse(_stream_response(payload), media_type="text/event-stream")
+        return StreamingResponse(
+            _stream_response(payload), media_type="text/event-stream"
+        )
 
     result = llm.create_chat_completion(
         messages=_to_dicts(payload.messages),
@@ -95,12 +100,16 @@ def chat_completions(payload: ChatCompletionRequest, request: Request):
         "object": "chat.completion",
         "created": int(time.time()),
         "model": payload.model,
-        "choices": [{
-            "index": 0,
-            "message": {"role": "assistant", "content": content},
-            "finish_reason": result["choices"][0].get("finish_reason", "stop"),
-        }],
-        "usage": result.get("usage", {"prompt_tokens": -1, "completion_tokens": -1, "total_tokens": -1}),
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": result["choices"][0].get("finish_reason", "stop"),
+            }
+        ],
+        "usage": result.get(
+            "usage", {"prompt_tokens": -1, "completion_tokens": -1, "total_tokens": -1}
+        ),
     }
 
 
@@ -124,8 +133,11 @@ def main():
     print("GGUF loaded. Starting server on port", args.port, flush=True)
 
     import uvicorn
+
     try:
-        uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="info", access_log=True)
+        uvicorn.run(
+            app, host="127.0.0.1", port=args.port, log_level="info", access_log=True
+        )
     except Exception as e:
         print("Uvicorn crashed:", e, flush=True)
         raise

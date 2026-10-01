@@ -1,0 +1,70 @@
+[Setting] Failed to auto-load qwen4b-concise-v1.0: Command failed: lms load qwen4b-concise-v1.0 --identifier qwen4b-concise-v1.0 -y
+Waking up LM Studio service...
+Error: Timed out waiting for LM Studio daemon to start.
+Error: Failed to start or connect to local LM Studio API server.
+
+[Setting] Failed to auto-load lumax-plumax-omni-router-v2: Command failed: lms load lumax-plumax-omni-router-v2 --identifier lumax-plumax-omni-router-v2 -y
+Waking up LM Studio service...
+Error: Timed out waiting for LM Studio daemon to start.
+Error: Failed to start or connect to local LM Studio API server.
+
+[MembraneBridge] Failed to build HUD: Cannot access 'rawMessages' before initialization
+[MembraneBridge] Failed to build HUD: Cannot access 'rawMessages' before initialization
+[QualityGuard] ⚠️ Response flagged: score=45 issues=Response too short (2 chars, min 10),Possible truncation: Mid-word cutoff
+[EcologicalWorker] Title generation failed for 884ae1b3: request to http://127.0.0.1:8402/v1/chat/completions failed, reason: read ECONNRESET
+[EcologicalWorker] Title generation failed for c17b9c33: request to http://127.0.0.1:8402/v1/chat/completions failed, reason: connect ECONNREFUSED 127.0.0.1:8402
+[MembraneBridge] Failed to build HUD: Cannot access 'rawMessages' before initialization
+[QualityGuard] ⚠️ Response flagged: score=45 issues=Response too short (1 chars, min 10),Possible truncation: Mid-word cutoff
+[Setting] Failed to auto-load lumax-plumax-omni-router-v2: Command failed: lms load lumax-plumax-omni-router-v2 --identifier lumax-plumax-omni-router-v2 -y
+Waking up LM Studio service...
+Error: Timed out waiting for LM Studio daemon to start.
+Error: Failed to start or connect to local LM Studio API server.
+
+[Setting] Failed to auto-load qwen4b-concise-v1.0: Command failed: lms load qwen4b-concise-v1.0 --identifier qwen4b-concise-v1.0 -y
+Waking up LM Studio service...
+Error: Timed out waiting for LM Studio daemon to start.
+Error: Failed to start or connect to local LM Studio API server.
+
+[ModelProfile] ⚠️ No profile for 'auto' — add to memory_data/model-profiles.json. Using current settings.
+[MembraneBridge] Failed to build HUD: Cannot access 'rawMessages' before initialization
+[Setting] Failed to auto-load qwen4b-concise-v1.0: Command failed: lms load qwen4b-concise-v1.0 --identifier qwen4b-concise-v1.0 -y
+Waking up LM Studio service...
+Error: Timed out waiting for LM Studio daemon to start.
+Error: Failed to start or connect to local LM Studio API server.
+
+[Setting] Failed to auto-load lumax-plumax-omni-router-v2: Command failed: lms load lumax-plumax-omni-router-v2 --identifier lumax-plumax-omni-router-v2 -y
+Waking up LM Studio service...
+Error: Timed out waiting for LM Studio daemon to start.
+Error: Failed to start or connect to local LM Studio API server.
+
+[Voice/STT] Soul/Whisper unavailable: request to http://127.0.0.1:8000/api/soul/stt failed, reason: connect ECONNREFUSED 127.0.0.1:8000
+[Voice/STT] ❌ All STT backends failed
+[ModelProfile] ⚠️ No profile for 'slim-summary-tiny-tool' — add to memory_data/model-profiles.json. Using current settings.
+[MembraneBridge] Failed to build HUD: Cannot access 'rawMessages' before initialization
+[EcologicalWorker] Title generation failed for c17b9c33: request to http://127.0.0.1:8402/v1/chat/completions failed, reason: read ECONNRESET
+[EcologicalWorker] Title generation failed for 79674089: request to http://127.0.0.1:8402/v1/chat/completions failed, reason: connect ECONNREFUSED 127.0.0.1:8402
+[EcologicalWorker] Title generation failed for 884ae1b3: request to http://127.0.0.1:8402/v1/chat/completions failed, reason: connect ECONNREFUSED 127.0.0.1:8402
+[EcologicalWorker] Title generation failed for c17b9c33: request to http://127.0.0.1:8402/v1/chat/completions failed, reason: connect ECONNREFUSED 127.0.0.1:8402
+[Setting] Failed to auto-load qwen4b-concise-v1.0: Command failed: lms load qwen4b-concise-v1.0 --identifier qwen4b-concise-v1.0 -y
+Waking up LM Studio service...
+Error: Timed out waiting for LM Studio daemon to start.
+Error: Failed to start or connect to local LM Studio API server.
+
+[Setting] Failed to auto-load lumax-plumax-omni-router-v2: Command failed: lms load lumax-plumax-omni-router-v2 --identifier lumax-plumax-omni-router-v2 -y
+Waking up LM Studio service...
+Error: Timed out waiting for LM Studio daemon to start.
+Error: Failed to start or connect to local LM Studio API server.
+
+[Voice/STT] Soul/Whisper unavailable: request to http://127.0.0.1:8000/api/soul/stt failed, reason: connect ECONNREFUSED 127.0.0.1:8000
+[Voice/STT] ❌ All STT backends failed
+[ModelProfile] ⚠️ No profile for 'auto' — add to memory_data/model-profiles.json. Using current settings.
+[MembraneBridge] Failed to build HUD: Cannot access 'rawMessages' before initialization
+[Voice/STT] Soul/Whisper unavailable: request to http://127.0.0.1:8000/api/soul/stt failed, reason: connect ECONNREFUSED 127.0.0.1:8000
+[Voice/STT] ❌ All STT backends failed
+[EcologicalWorker] Title generation failed for 79674089: request to http://127.0.0.1:8402/v1/chat/completions failed, reason: read ECONNRESET
+[EcologicalWorker] Title generation failed for 884ae1b3: request to http://127.0.0.1:8402/v1/chat/completions failed, reason: connect ECONNREFUSED 127.0.0.1:8402
+[EcologicalWorker] Title generation failed for c17b9c33: request to http://127.0.0.1:8402/v1/chat/completions failed, reason: connect ECONNREFUSED 127.0.0.1:8402
+[EcologicalWorker] Title generation failed for c17b9c33: request to http://127.0.0.1:8402/v1/chat/completions failed, reason: connect ECONNREFUSED 127.0.0.1:8402
+[EcologicalWorker] Title generation failed for 79674089: request to http://127.0.0.1:8402/v1/chat/completions failed, reason: connect ECONNREFUSED 127.0.0.1:8402
+[EcologicalWorker] Title generation failed for 884ae1b3: request to http://127.0.0.1:8402/v1/chat/completions failed, reason: connect ECONNREFUSED 127.0.0.1:8402
+[EcologicalWorker] Title generation failed for c17b9c33: request to http://127.0.0.1:8402/v1/chat/completions failed, reason: connect ECONNREFUSED 127.0.0.1:8402

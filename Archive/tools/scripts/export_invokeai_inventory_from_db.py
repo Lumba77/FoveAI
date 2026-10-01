@@ -21,8 +21,7 @@ import os
 import sqlite3
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-
+from typing import Any
 
 CSV_FIELDS = [
     "id",
@@ -62,7 +61,7 @@ def _resolve_model_path(models_root: str, path_field: str) -> str:
     return _norm(os.path.join(models_root, raw_os))
 
 
-def _default_models_root() -> Optional[str]:
+def _default_models_root() -> str | None:
     for key in ("FoveAI_INVOKEAI_MODELS_HOST", "FoveAI_INVOKEAI_MODELS_ROOT"):
         v = os.getenv(key, "").strip()
         if v and os.path.isdir(_norm(v)):
@@ -81,7 +80,9 @@ def _default_db(models_root: str) -> str:
     return str(parent / "databases" / "invokeai.db")
 
 
-def _legacy_model_config_rows(conn: sqlite3.Connection) -> List[Tuple[str, Dict[str, Any]]]:
+def _legacy_model_config_rows(
+    conn: sqlite3.Connection,
+) -> list[tuple[str, dict[str, Any]]]:
     """InvokeAI 3.x-style flat table, if present."""
     cur = conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='model_config'"
@@ -101,9 +102,9 @@ def _legacy_model_config_rows(conn: sqlite3.Connection) -> List[Tuple[str, Dict[
     return rows
 
 
-def _modern_models_rows(conn: sqlite3.Connection) -> List[Tuple[str, Dict[str, Any]]]:
+def _modern_models_rows(conn: sqlite3.Connection) -> list[tuple[str, dict[str, Any]]]:
     cur = conn.execute("SELECT id, config FROM models")
-    out: List[Tuple[str, Dict[str, Any]]] = []
+    out: list[tuple[str, dict[str, Any]]] = []
     for mid, cfg_json in cur.fetchall():
         try:
             cfg = json.loads(cfg_json)
@@ -113,9 +114,11 @@ def _modern_models_rows(conn: sqlite3.Connection) -> List[Tuple[str, Dict[str, A
     return out
 
 
-def export_rows(models_root: str, rows: List[Tuple[str, Dict[str, Any]]]) -> List[Dict[str, str]]:
+def export_rows(
+    models_root: str, rows: list[tuple[str, dict[str, Any]]]
+) -> list[dict[str, str]]:
     mr = _norm(models_root)
-    out: List[Dict[str, str]] = []
+    out: list[dict[str, str]] = []
     for mid, cfg in rows:
         path_field = str(cfg.get("path") or "").strip()
         resolved = _resolve_model_path(mr, path_field)
@@ -134,7 +137,9 @@ def export_rows(models_root: str, rows: List[Tuple[str, Dict[str, Any]]]) -> Lis
             else:
                 rel_models = ""
 
-        on_disk = bool(resolved) and (os.path.isfile(resolved) or os.path.isdir(resolved))
+        on_disk = bool(resolved) and (
+            os.path.isfile(resolved) or os.path.isdir(resolved)
+        )
         name = str(cfg.get("name") or mid).strip()
         desc = str(cfg.get("description") or "").strip()
         out.append(
@@ -156,7 +161,9 @@ def export_rows(models_root: str, rows: List[Tuple[str, Dict[str, Any]]]) -> Lis
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Export InvokeAI models table to Lumax inventory CSV.")
+    ap = argparse.ArgumentParser(
+        description="Export InvokeAI models table to Lumax inventory CSV."
+    )
     ap.add_argument(
         "--models-root",
         default="",
@@ -175,9 +182,14 @@ def main() -> int:
     )
     args = ap.parse_args()
 
-    models_root = _norm(args.models_root) if args.models_root.strip() else _default_models_root()
+    models_root = (
+        _norm(args.models_root) if args.models_root.strip() else _default_models_root()
+    )
     if not models_root or not os.path.isdir(models_root):
-        print("Could not resolve InvokeAI models directory. Set --models-root or FoveAI_INVOKEAI_MODELS_HOST.", file=sys.stderr)
+        print(
+            "Could not resolve InvokeAI models directory. Set --models-root or FoveAI_INVOKEAI_MODELS_HOST.",
+            file=sys.stderr,
+        )
         return 2
 
     db_path = _norm(args.db) if args.db.strip() else _default_db(models_root)
@@ -186,7 +198,11 @@ def main() -> int:
         return 2
 
     repo_root = Path(__file__).resolve().parent.parent
-    out_path = Path(_norm(args.out)) if args.out.strip() else repo_root / "tools" / "invokeai_models_inventory.csv"
+    out_path = (
+        Path(_norm(args.out))
+        if args.out.strip()
+        else repo_root / "tools" / "invokeai_models_inventory.csv"
+    )
 
     conn = sqlite3.connect(db_path)
     try:

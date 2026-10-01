@@ -24,7 +24,7 @@ import logging
 import os
 import platform
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger("avatar_profile_store")
 
@@ -33,7 +33,9 @@ APP_DIR_NAME = "Lumax-lite"
 
 
 def _is_container() -> bool:
-    return os.path.exists("/.dockerenv") or os.getenv("FoveAI_IN_CONTAINER", "").strip().lower() in (
+    return os.path.exists("/.dockerenv") or os.getenv(
+        "FoveAI_IN_CONTAINER", ""
+    ).strip().lower() in (
         "1",
         "true",
         "yes",
@@ -66,7 +68,7 @@ def resolved_profile_path() -> Path:
     return default_user_data_dir() / DEFAULT_FILE_NAME
 
 
-def _read_json_file(path: Path) -> Dict[str, Any]:
+def _read_json_file(path: Path) -> dict[str, Any]:
     if not path.is_file():
         return {}
     try:
@@ -88,7 +90,7 @@ def _sanitize_gender(g: str) -> str:
     return s[:48] if s else ""
 
 
-def _pick_str(file_data: Dict[str, Any], key: str) -> Optional[str]:
+def _pick_str(file_data: dict[str, Any], key: str) -> str | None:
     if key not in file_data:
         return None
     raw = file_data.get(key)
@@ -98,7 +100,7 @@ def _pick_str(file_data: Dict[str, Any], key: str) -> Optional[str]:
     return s if s else None
 
 
-def load_merged_identity() -> Tuple[str, str, Path, Dict[str, Any]]:
+def load_merged_identity() -> tuple[str, str, Path, dict[str, Any]]:
     """Return (identity_name, identity_gender, path, file_dict).
 
     Precedence per field: non-empty value in avatar_profile.json wins if the file exists;
@@ -122,7 +124,9 @@ def load_merged_identity() -> Tuple[str, str, Path, Dict[str, Any]]:
     return _sanitize_display_name(name), _sanitize_gender(gender), path, file_data
 
 
-def default_profile_document(identity_name: str, identity_gender: str) -> Dict[str, Any]:
+def default_profile_document(
+    identity_name: str, identity_gender: str
+) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "identity_name": _sanitize_display_name(identity_name),

@@ -7,13 +7,15 @@ Lightweight HTTP server that:
 
 Runs alongside the WebSocket IPC server on port 8402.
 """
+
 import asyncio
 import logging
 import re
-import os
-from aiohttp import web, ClientSession
+
+from aiohttp import ClientSession, web
 
 logger = logging.getLogger("FoveAI.MediaProxy")
+
 
 class MediaProxyServer:
     """HTTP proxy for VR browser media streaming."""
@@ -39,12 +41,18 @@ class MediaProxyServer:
         site = web.TCPSite(runner, self.host, self.port)
         try:
             await site.start()
-            logger.info(f"[MediaProxy] ✅ HTTP server listening on http://{self.host}:{self.port}")
+            logger.info(
+                f"[MediaProxy] ✅ HTTP server listening on http://{self.host}:{self.port}"
+            )
             print(f"  [MediaProxy] ✅ HTTP media proxy on :{self.port}")
             await asyncio.Future()  # run forever
         except OSError as e:
-            if "address already in use" in str(e).lower() or getattr(e, 'errno', None) in (10048, 98):
-                logger.info(f"[MediaProxy] ⚡ Port :{self.port} already in use — adopting")
+            if "address already in use" in str(e).lower() or getattr(
+                e, "errno", None
+            ) in (10048, 98):
+                logger.info(
+                    f"[MediaProxy] ⚡ Port :{self.port} already in use — adopting"
+                )
                 print(f"  [MediaProxy] ⚡ Port :{self.port} already bound — adopting")
                 await asyncio.Future()
             else:
@@ -56,7 +64,10 @@ class MediaProxyServer:
         return web.json_response({"status": "ok", "service": "FoveAI Media Proxy"})
 
     async def _index(self, request: web.Request) -> web.Response:
-        return web.Response(text="FoveAI Media Proxy — endpoints: /api/youtube/stream, /api/web/fetch, /api/audio/stream", content_type="text/plain")
+        return web.Response(
+            text="FoveAI Media Proxy — endpoints: /api/youtube/stream, /api/web/fetch, /api/audio/stream",
+            content_type="text/plain",
+        )
 
     async def _youtube_info(self, request: web.Request) -> web.Response:
         """Get YouTube video metadata without downloading."""
@@ -71,16 +82,20 @@ class MediaProxyServer:
                 async with session.get(oembed_url, timeout=10) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        return web.json_response({
-                            "video_id": video_id,
-                            "title": data.get("title", ""),
-                            "author": data.get("author_name", ""),
-                            "thumbnail": data.get("thumbnail_url", ""),
-                        })
+                        return web.json_response(
+                            {
+                                "video_id": video_id,
+                                "title": data.get("title", ""),
+                                "author": data.get("author_name", ""),
+                                "thumbnail": data.get("thumbnail_url", ""),
+                            }
+                        )
         except Exception as e:
             logger.warning(f"[MediaProxy] YouTube info failed: {e}")
 
-        return web.json_response({"video_id": video_id, "error": "Could not fetch info"}, status=502)
+        return web.json_response(
+            {"video_id": video_id, "error": "Could not fetch info"}, status=502
+        )
 
     async def _youtube_stream(self, request: web.Request) -> web.StreamResponse:
         """
@@ -94,6 +109,7 @@ class MediaProxyServer:
         # Try yt-dlp for direct stream extraction
         try:
             import yt_dlp
+
             ydl_opts = {
                 "format": "best[ext=mp4][height<=720]/best[height<=720]/best",
                 "quiet": True,
@@ -101,7 +117,9 @@ class MediaProxyServer:
                 "skip_download": True,
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+                info = ydl.extract_info(
+                    f"https://www.youtube.com/watch?v={video_id}", download=False
+                )
                 if info and "url" in info:
                     stream_url = info["url"]
                     title = info.get("title", "Unknown")
@@ -109,16 +127,21 @@ class MediaProxyServer:
                     # Redirect to direct stream URL
                     return web.HTTPFound(stream_url)
         except ImportError:
-            logger.warning("[MediaProxy] yt-dlp not installed — install with: pip install yt-dlp")
+            logger.warning(
+                "[MediaProxy] yt-dlp not installed — install with: pip install yt-dlp"
+            )
         except Exception as e:
             logger.error(f"[MediaProxy] YouTube extraction failed: {e}")
 
         # Fallback: return embed page info
-        return web.json_response({
-            "error": "Direct stream extraction failed. Install yt-dlp: pip install yt-dlp",
-            "video_id": video_id,
-            "embed_url": f"https://www.youtube.com/embed/{video_id}",
-        }, status=502)
+        return web.json_response(
+            {
+                "error": "Direct stream extraction failed. Install yt-dlp: pip install yt-dlp",
+                "video_id": video_id,
+                "embed_url": f"https://www.youtube.com/embed/{video_id}",
+            },
+            status=502,
+        )
 
     async def _web_fetch(self, request: web.Request) -> web.Response:
         """
@@ -139,15 +162,27 @@ class MediaProxyServer:
             async with ClientSession(headers=headers) as session:
                 async with session.get(url, timeout=15, allow_redirects=True) as resp:
                     if resp.status != 200:
-                        return web.json_response({"error": f"HTTP {resp.status}"}, status=502)
+                        return web.json_response(
+                            {"error": f"HTTP {resp.status}"}, status=502
+                        )
 
                     html = await resp.text()
                     final_url = str(resp.url)
 
                     # Strip script and style blocks
-                    html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.IGNORECASE | re.DOTALL)
-                    html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.IGNORECASE | re.DOTALL)
-                    html = re.sub(r'<!--.*?-->', '', html, flags=re.DOTALL)
+                    html = re.sub(
+                        r"<script[^>]*>.*?</script>",
+                        "",
+                        html,
+                        flags=re.IGNORECASE | re.DOTALL,
+                    )
+                    html = re.sub(
+                        r"<style[^>]*>.*?</style>",
+                        "",
+                        html,
+                        flags=re.IGNORECASE | re.DOTALL,
+                    )
+                    html = re.sub(r"<!--.*?-->", "", html, flags=re.DOTALL)
 
                     # Truncate if too large
                     if len(html) > 50000:
@@ -156,7 +191,7 @@ class MediaProxyServer:
                     return web.Response(
                         text=html,
                         content_type="text/html",
-                        headers={"X-Final-URL": final_url}
+                        headers={"X-Final-URL": final_url},
                     )
         except asyncio.TimeoutError:
             return web.json_response({"error": "Request timed out"}, status=504)
@@ -180,7 +215,9 @@ class MediaProxyServer:
             async with ClientSession(headers=headers) as session:
                 async with session.get(url, timeout=30) as resp:
                     if resp.status != 200:
-                        return web.json_response({"error": f"HTTP {resp.status}"}, status=502)
+                        return web.json_response(
+                            {"error": f"HTTP {resp.status}"}, status=502
+                        )
 
                     stream = web.StreamResponse()
                     stream.content_type = resp.content_type or "audio/mpeg"

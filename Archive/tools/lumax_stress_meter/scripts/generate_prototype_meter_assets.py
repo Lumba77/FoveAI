@@ -49,7 +49,9 @@ def cell_rects() -> list[tuple[int, int, int, int]]:
     return rects
 
 
-def _lerp(a: tuple[int, int, int], b: tuple[int, int, int], t: float) -> tuple[int, int, int]:
+def _lerp(
+    a: tuple[int, int, int], b: tuple[int, int, int], t: float
+) -> tuple[int, int, int]:
     t = max(0.0, min(1.0, t))
     return (
         int(a[0] + (b[0] - a[0]) * t),
@@ -112,8 +114,12 @@ def main() -> None:
     rgb = Image.new("RGB", (W, H), (32, 36, 44))
     chrome = Image.merge("RGBA", (*rgb.split(), alpha))
     odraw = ImageDraw.Draw(chrome)
-    odraw.rounded_rectangle((2, 2, W - 3, H - 3), radius=10, outline=(88, 96, 108, 255), width=2)
-    odraw.line([(int(W * 0.12), 5), (int(W * 0.5), 12)], fill=(255, 255, 255, 50), width=2)
+    odraw.rounded_rectangle(
+        (2, 2, W - 3, H - 3), radius=10, outline=(88, 96, 108, 255), width=2
+    )
+    odraw.line(
+        [(int(W * 0.12), 5), (int(W * 0.5), 12)], fill=(255, 255, 255, 50), width=2
+    )
     chrome.save(OUT_DIR / "02_chrome_frame.png", optimize=True)
 
     # --- ① Mist ---

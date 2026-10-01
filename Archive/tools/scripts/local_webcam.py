@@ -22,17 +22,12 @@ The Quest's WebcamWindowGazing can point to:
 import argparse
 import asyncio
 import base64
-import io
 import json
-import os
-import sys
 import threading
 import time
-from pathlib import Path
 
 import cv2
-import numpy as np
-from aiohttp import web, ClientSession
+from aiohttp import web
 
 # ── Config ──────────────────────────────────────────────────────────────────
 
@@ -44,6 +39,7 @@ FRAME_INTERVAL = 0.1  # 10 FPS for webcam
 WEATHER_INTERVAL = 600  # 10 minutes
 
 # ── Webcam capture ──────────────────────────────────────────────────────────
+
 
 class WebcamCapture:
     """Threaded webcam capture — always has the latest frame ready."""
@@ -67,13 +63,19 @@ class WebcamCapture:
             # Try default
             self._cap = cv2.VideoCapture(0)
             if not self._cap.isOpened():
-                print("[Webcam] No camera available — running weather-only mode", flush=True)
+                print(
+                    "[Webcam] No camera available — running weather-only mode",
+                    flush=True,
+                )
                 self._cap = None
                 return
 
         self._running = True
         threading.Thread(target=self._capture_loop, daemon=True).start()
-        print(f"[Webcam] Camera {self.camera_index} started ({self.width}x{self.height})", flush=True)
+        print(
+            f"[Webcam] Camera {self.camera_index} started ({self.width}x{self.height})",
+            flush=True,
+        )
 
     def _capture_loop(self):
         while self._running and self._cap:
@@ -83,7 +85,7 @@ class WebcamCapture:
                 continue
 
             # Encode as JPEG
-            _, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
+            _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
             with self._lock:
                 self._latest_frame = buf.tobytes()
             time.sleep(FRAME_INTERVAL)
@@ -97,7 +99,9 @@ class WebcamCapture:
         if self._cap:
             self._cap.release()
 
+
 # ── Weather fetcher ─────────────────────────────────────────────────────────
+
 
 class WeatherFetcher:
     """Fetches real weather data and caches it."""
@@ -117,6 +121,7 @@ class WeatherFetcher:
         # Fetch fresh
         try:
             import urllib.request
+
             url = WEATHER_API.format(city=self.city)
             req = urllib.request.Request(url, headers={"User-Agent": "FoveAI/1.0"})
             with urllib.request.urlopen(req, timeout=10) as resp:
@@ -129,7 +134,9 @@ class WeatherFetcher:
                 "temp_c": int(current.get("temp_C", 0)),
                 "feels_like_c": int(current.get("FeelsLikeC", 0)),
                 "humidity": int(current.get("humidity", 0)),
-                "description": current.get("weatherDesc", [{}])[0].get("value", "unknown"),
+                "description": current.get("weatherDesc", [{}])[0].get(
+                    "value", "unknown"
+                ),
                 "wind_kmph": int(current.get("windspeedKmph", 0)),
                 "wind_dir": current.get("winddir16Point", "N"),
                 "visibility": int(current.get("visibility", 0)),
@@ -149,7 +156,9 @@ class WeatherFetcher:
                 weather["season"] = "spring"
             elif any(w in desc for w in ["sunny", "hot", "clear", "warm", "heat"]):
                 weather["season"] = "summer"
-            elif any(w in desc for w in ["leaf", "autumn", "fall", "mist", "fog", "cool"]):
+            elif any(
+                w in desc for w in ["leaf", "autumn", "fall", "mist", "fog", "cool"]
+            ):
                 weather["season"] = "autumn"
             else:
                 # Fallback: month-based
@@ -167,7 +176,10 @@ class WeatherFetcher:
                 self._cache = weather
                 self._last_fetch = time.time()
 
-            print(f"[Weather] {self.city}: {weather['temp_c']}°C, {weather['description']}, season={weather['season']}", flush=True)
+            print(
+                f"[Weather] {self.city}: {weather['temp_c']}°C, {weather['description']}, season={weather['season']}",
+                flush=True,
+            )
             return weather
 
         except Exception as e:
@@ -184,11 +196,13 @@ class WeatherFetcher:
                 "fetched_at": time.time(),
             }
 
+
 # ── Server ──────────────────────────────────────────────────────────────────
 
 webcam: WebcamCapture | None = None
 weather: WeatherFetcher | None = None
 ws_clients: set = set()
+
 
 async def handle_webcam_frame(request):
     """Return latest webcam frame as JPEG."""
@@ -199,8 +213,12 @@ async def handle_webcam_frame(request):
     if frame is None:
         return web.Response(text="No frame available", status=503)
 
-    return web.Response(body=frame, content_type="image/jpeg",
-                        headers={"Access-Control-Allow-Origin": "*"})
+    return web.Response(
+        body=frame,
+        content_type="image/jpeg",
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
+
 
 async def handle_webcam_stream(request):
     """MJPEG stream for continuous video."""
@@ -217,19 +235,23 @@ async def handle_webcam_stream(request):
         while True:
             frame = webcam.get_frame() if webcam else None
             if frame:
-                await response.write(b"--frame\r\n"
-                                     b"Content-Type: image/jpeg\r\n\r\n" + frame + b"\r\n")
+                await response.write(
+                    b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
+                )
             await asyncio.sleep(FRAME_INTERVAL)
     except (ConnectionResetError, asyncio.CancelledError):
         pass
     return response
 
+
 async def handle_weather(request):
     """Return current weather as JSON."""
     if weather is None:
         return web.json_response({"error": "Weather not initialized"}, status=503)
-    return web.json_response(weather.get_weather(),
-                             headers={"Access-Control-Allow-Origin": "*"})
+    return web.json_response(
+        weather.get_weather(), headers={"Access-Control-Allow-Origin": "*"}
+    )
+
 
 async def handle_ws(request):
     """WebSocket endpoint for pushing weather + webcam to Quest."""
@@ -247,7 +269,9 @@ async def handle_ws(request):
                 data = json.loads(msg.data)
                 if data.get("type") == "get_weather":
                     if weather:
-                        await ws.send_json({"type": "weather", "data": weather.get_weather()})
+                        await ws.send_json(
+                            {"type": "weather", "data": weather.get_weather()}
+                        )
                 elif data.get("type") == "get_webcam_frame":
                     frame = webcam.get_frame() if webcam else None
                     if frame:
@@ -258,6 +282,7 @@ async def handle_ws(request):
     finally:
         ws_clients.discard(ws)
     return ws
+
 
 async def weather_broadcast_loop():
     """Periodically broadcast weather updates to all WS clients."""
@@ -274,6 +299,7 @@ async def weather_broadcast_loop():
                     dead.add(ws)
             ws_clients -= dead
 
+
 async def main():
     global webcam, weather
 
@@ -284,7 +310,8 @@ async def main():
     parser.add_argument("--no-webcam", action="store_true", help="Weather only")
     args = parser.parse_args()
 
-    print(f"""
+    print(
+        f"""
   ╔══════════════════════════════════════════════════╗
   ║  FoveAI Local Webcam + Weather Streamer          ║
   ╠══════════════════════════════════════════════════╣
@@ -294,7 +321,9 @@ async def main():
   ║  WS:      ws://0.0.0.0:{args.port}/ws                      ║
   ║  City: {args.city:<43s} ║
   ╚══════════════════════════════════════════════════╝
-    """, flush=True)
+    """,
+        flush=True,
+    )
 
     # Initialize
     if not args.no_webcam:
@@ -320,11 +349,15 @@ async def main():
     await site.start()
 
     print(f"  [Server] Listening on :{args.port}", flush=True)
-    print(f"  [Quest] Point WebcamWindowGazing to http://<PC_IP>:{args.port}/webcam/frame", flush=True)
+    print(
+        f"  [Quest] Point WebcamWindowGazing to http://<PC_IP>:{args.port}/webcam/frame",
+        flush=True,
+    )
 
     # Keep running
     while True:
         await asyncio.sleep(1)
+
 
 if __name__ == "__main__":
     try:

@@ -30,6 +30,7 @@ export class MessageRouter {
   private _status: StatusPusher;
   private _sessions: SessionManager;
   private _chat: ChatHandler;
+  private _client: FoveatedClient;
 
   constructor(
     client: FoveatedClient,
@@ -42,7 +43,15 @@ export class MessageRouter {
     private _audio?: AudioManager,
   ) {
     const onChat = (text: string, tasks?: any[]) => this._chat.handleChat(text, tasks);
-    
+    this._client = client;
+
+    // Restore persisted selections so XRL level and persona survive reloads.
+    const cfgXrl = vscode.workspace.getConfiguration('foveai').get<number>('xrlLevel');
+    if (typeof cfgXrl === 'number' && cfgXrl >= 0 && cfgXrl <= 5) this._xrlLevel = cfgXrl;
+    const personaInsp = vscode.workspace.getConfiguration('FoveAI').inspect<string>('persona');
+    const savedPersona = personaInsp?.workspaceFolderValue ?? personaInsp?.workspaceValue ?? personaInsp?.globalValue;
+    this._activePersona = (savedPersona && PERSONAS[savedPersona as PersonaId]) ? savedPersona as PersonaId : 'plan';
+
     this._analyzer = new ContextAnalyzer((t) => onChat(t));
     this._editor = new EditApplicator(this._post);
     this._status = new StatusPusher(client, statusBar, workspaceId, () => this._xrlLevel, this._post);
@@ -220,6 +229,19 @@ export class MessageRouter {
         break;
       }
       case 'cancel_recording': this._audio?.cancelRecording(); this._post({ type: 'recording_state', recording: false }); break;
+      case 'tts_speak': {
+        if (typeof msg.text !== 'string' || !msg.text) break;
+        const result = await this._client.speak(msg.text, typeof msg.voice === 'string' ? msg.voice : undefined);
+        this._post(result
+          ? { type: 'tts_audio', audio_base64: result.audio.toString('base64'), contentType: result.contentType }
+          : { type: 'tts_audio', audio_base64: null });
+        break;
+      }
+      case 'get_tts_voices': {
+        const voices = await this._client.getTtsVoices();
+        this._post({ type: 'tts_voices', data: voices });
+        break;
+      }
       case 'set_input_mode':
         if (this._audio) this._audio.micMode = msg.mode === 'ptt' ? 'ptt' : 'continuous';
         break;

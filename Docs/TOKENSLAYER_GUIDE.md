@@ -292,15 +292,18 @@ node Forge/scratch/TokenSlayer/standalone/tokenslayer.js myfile.py | clip
 ```python
 import subprocess
 
+
 def skeletonize(filepath):
     result = subprocess.run(
-        ['node', 'Forge/scratch/TokenSlayer/standalone/tokenslayer.js', filepath],
-        capture_output=True, text=True
+        ["node", "Forge/scratch/TokenSlayer/standalone/tokenslayer.js", filepath],
+        capture_output=True,
+        text=True,
     )
     return result.stdout
 
+
 # Before sending code context to Gemini:
-context = skeletonize('src/main.py')  # 85% smaller
+context = skeletonize("src/main.py")  # 85% smaller
 ```
 
 ### For Antigravity CLI

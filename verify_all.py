@@ -1,6 +1,7 @@
 """FoveAI Consolidation - Final End-to-End Verification"""
-import urllib.request
+
 import json
+import urllib.request
 
 print("=== Final End-to-End Verification ===\n")
 
@@ -18,7 +19,9 @@ print("\n[2] XRLF Proxy (8400):")
 try:
     with urllib.request.urlopen("http://127.0.0.1:8400/health", timeout=5) as r:
         h = json.loads(r.read().decode())
-        print(f"  Status: {h.get('status')}  |  Mode: {h.get('mode')}  |  Session: {h.get('session')}")
+        print(
+            f"  Status: {h.get('status')}  |  Mode: {h.get('mode')}  |  Session: {h.get('session')}"
+        )
 except Exception as e:
     print(f"  ERROR: {e}")
 
@@ -54,8 +57,15 @@ except Exception as e:
 # 5. Proxy API - compressor setting
 print("\n[5] API Setting (compressor):")
 try:
-    data = json.dumps({"key": "XRLF_COMPRESSOR_MODEL", "val": "qwen3-0.6b-summarizer"}).encode()
-    req = urllib.request.Request("http://127.0.0.1:8400/api/setting", data=data, headers={"Content-Type": "application/json"}, method="POST")
+    data = json.dumps(
+        {"key": "XRLF_COMPRESSOR_MODEL", "val": "qwen3-0.6b-summarizer"}
+    ).encode()
+    req = urllib.request.Request(
+        "http://127.0.0.1:8400/api/setting",
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
     with urllib.request.urlopen(req, timeout=5) as r:
         s = json.loads(r.read().decode())
         print(f"  Response: {s}")

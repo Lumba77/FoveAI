@@ -16,7 +16,7 @@ from __future__ import annotations
 import csv
 import os
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 _DEFAULT_TYPES_UPSCALE = frozenset({"spandrel_image_to_image"})
 
@@ -59,7 +59,7 @@ def _norm_path(p: str) -> str:
 
 
 def _resolve_row_checkpoint_path(
-    row: Dict[str, str],
+    row: dict[str, str],
     invoke_root: str,
     *,
     expect_dir: bool = False,
@@ -67,9 +67,11 @@ def _resolve_row_checkpoint_path(
     """Prefer path under FoveAI_INVOKEAI_MODELS_ROOT + relative path; then path_absolute."""
     rel = (row.get("path_relative_models") or "").strip()
     abs_csv = (row.get("path_absolute") or "").strip()
-    candidates: List[str] = []
+    candidates: list[str] = []
     if invoke_root and rel:
-        rel_clean = rel.replace("\\\\", os.sep).replace("\\", os.sep).replace("/", os.sep)
+        rel_clean = (
+            rel.replace("\\\\", os.sep).replace("\\", os.sep).replace("/", os.sep)
+        )
         candidates.append(_norm_path(os.path.join(invoke_root, rel_clean)))
     if abs_csv:
         candidates.append(_norm_path(abs_csv))
@@ -87,10 +89,10 @@ def _resolve_row_checkpoint_path(
     return ""
 
 
-def _read_csv_rows(csv_path: str) -> List[Dict[str, str]]:
+def _read_csv_rows(csv_path: str) -> list[dict[str, str]]:
     if not csv_path or not os.path.isfile(csv_path):
         return []
-    rows: List[Dict[str, str]] = []
+    rows: list[dict[str, str]] = []
     with open(csv_path, "r", encoding="utf-8", newline="") as f:
         r = csv.DictReader(f)
         for row in r:
@@ -99,18 +101,21 @@ def _read_csv_rows(csv_path: str) -> List[Dict[str, str]]:
 
 
 def merge_invoke_upscalers_from_csv(
-    base_upscalers: List[Dict[str, Any]],
+    base_upscalers: list[dict[str, Any]],
     creative_dir: str,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Append Spandrel upscalers from inventory CSV as catalog-shaped dicts."""
-    csv_path = _norm_path(os.getenv("FoveAI_INVOKEAI_MODELS_CSV", "").strip() or _default_csv_path(creative_dir))
+    csv_path = _norm_path(
+        os.getenv("FoveAI_INVOKEAI_MODELS_CSV", "").strip()
+        or _default_csv_path(creative_dir)
+    )
     invoke_root = effective_invoke_models_root()
     rows = _read_csv_rows(csv_path)
     if not rows:
         return list(base_upscalers)
 
     seen: set[str] = {str(u.get("id") or "") for u in base_upscalers}
-    out: List[Dict[str, Any]] = list(base_upscalers)
+    out: list[dict[str, Any]] = list(base_upscalers)
 
     for row in rows:
         mtype = (row.get("type") or "").strip()
@@ -126,7 +131,7 @@ def merge_invoke_upscalers_from_csv(
         resolved = _resolve_row_checkpoint_path(row, invoke_root, expect_dir=False)
         if not resolved or not os.path.isfile(resolved):
             continue
-        ent: Dict[str, Any] = {
+        ent: dict[str, Any] = {
             "id": eid,
             "name": name,
             "backend": "spandrel",
@@ -145,9 +150,9 @@ def merge_invoke_upscalers_from_csv(
 
 
 def merge_invoke_controlnets_from_csv(
-    base_controlnets: List[Dict[str, Any]],
+    base_controlnets: list[dict[str, Any]],
     creative_dir: str,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     Optional: add SD1.x ControlNet diffusers folders from CSV (same schema as foveai_imagen_catalog).
     Skips entries whose resolved path is not a directory or duplicates an existing id.
@@ -155,14 +160,17 @@ def merge_invoke_controlnets_from_csv(
     if not merge_invoke_controlnets_enabled():
         return list(base_controlnets)
 
-    csv_path = _norm_path(os.getenv("FoveAI_INVOKEAI_MODELS_CSV", "").strip() or _default_csv_path(creative_dir))
+    csv_path = _norm_path(
+        os.getenv("FoveAI_INVOKEAI_MODELS_CSV", "").strip()
+        or _default_csv_path(creative_dir)
+    )
     invoke_root = effective_invoke_models_root()
     rows = _read_csv_rows(csv_path)
     if not rows:
         return list(base_controlnets)
 
     seen: set[str] = {str(c.get("id") or "") for c in base_controlnets}
-    out: List[Dict[str, Any]] = list(base_controlnets)
+    out: list[dict[str, Any]] = list(base_controlnets)
 
     for row in rows:
         mtype = (row.get("type") or "").strip()
@@ -184,7 +192,7 @@ def merge_invoke_controlnets_from_csv(
         fmt = (row.get("format") or "").strip().lower()
         if fmt != "diffusers":
             continue
-        ent: Dict[str, Any] = {
+        ent: dict[str, Any] = {
             "id": eid,
             "name": name,
             "base": "sd-1",
@@ -192,7 +200,8 @@ def merge_invoke_controlnets_from_csv(
             "path": resolved,
             "path_is_relative_to_imagen_root": False,
             "preprocessor_default": "canny",
-            "description": (row.get("description") or "").strip() or "Imported from InvokeAI inventory CSV.",
+            "description": (row.get("description") or "").strip()
+            or "Imported from InvokeAI inventory CSV.",
             "source": "invokeai_inventory_csv",
         }
         out.append(ent)

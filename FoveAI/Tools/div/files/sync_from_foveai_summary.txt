@@ -1,0 +1,5 @@
+﻿sync_newer_from_lumax 2026-04-07T23:08:06.4851202+02:00
+OldRoot=C:\Users\lumba\Program\Lumax
+NewRoot=C:\Users\lumba\Program\Lumax_current
+Scanned=1420 Copied=0 Skipped=1420 Failed=0
+

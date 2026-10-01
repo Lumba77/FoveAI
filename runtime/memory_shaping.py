@@ -26,8 +26,7 @@ import os
 import re
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-
+from typing import Any
 
 # ── Shaping Axes ────────────────────────────────────────────────────────────
 
@@ -62,15 +61,19 @@ class MemoryShaping:
     """
 
     def __init__(self):
-        foveai_root = Path(os.environ.get(
-            "XRLF_WORKSPACE_ROOT",
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        ))
+        foveai_root = Path(
+            os.environ.get(
+                "XRLF_WORKSPACE_ROOT",
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            )
+        )
         self._config_path = foveai_root / ".xrlf" / "config" / "memory_shaping.xrlf"
-        self._state_path = foveai_root / ".xrlf" / "config" / "memory_shaping_state.json"
+        self._state_path = (
+            foveai_root / ".xrlf" / "config" / "memory_shaping_state.json"
+        )
 
-        self.axes: Dict[str, float] = dict(SHAPING_AXES_DEFAULTS)
-        self.shaped_by: List[str] = list(SHAPED_BY_DEFAULTS)
+        self.axes: dict[str, float] = dict(SHAPING_AXES_DEFAULTS)
+        self.shaped_by: list[str] = list(SHAPED_BY_DEFAULTS)
         self.axis_drift_max = 0.02
         self.new_entry_threshold = 0.7
 
@@ -157,11 +160,17 @@ class MemoryShaping:
     def _save_state(self):
         """Persist shaping state for next session."""
         try:
-            self._state_path.write_text(json.dumps({
-                "axes": self.axes,
-                "shaped_by": self.shaped_by,
-                "updated": time.time(),
-            }, indent=2), encoding="utf-8")
+            self._state_path.write_text(
+                json.dumps(
+                    {
+                        "axes": self.axes,
+                        "shaped_by": self.shaped_by,
+                        "updated": time.time(),
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
         except Exception:
             pass
 
@@ -177,10 +186,7 @@ class MemoryShaping:
         # Top 4 shaping entries
         top_shaped = self.shaped_by[:4]
 
-        return (
-            f"[SHAPED] {', '.join(dominant)} | "
-            f"formed_by: {', '.join(top_shaped)}"
-        )
+        return f"[SHAPED] {', '.join(dominant)} | formed_by: {', '.join(top_shaped)}"
 
     def compress_recall(self, raw_memory: str) -> str:
         """
@@ -204,13 +210,57 @@ class MemoryShaping:
         # Match against known shaping patterns
         patterns = {
             "laughter_is_connection": ["laugh", "funny", "joke", "humor", "giggle"],
-            "late_nights_built_trust": ["3am", "late night", "stayed up", "all night", "midnight"],
-            "loss_taught_resilience": ["lost", "grief", "died", "miss", "gone", "goodbye"],
-            "music_created_bonding": ["music", "song", "sing", "dance", "rhythm", "melody"],
-            "silence_is_not_empty": ["quiet", "silent", "still", "calm", "peace", "rest"],
-            "curiosity_survived_routine": ["why", "wonder", "curious", "explore", "discover"],
-            "trust_through_vulnerability": ["vulnerable", "honest", "opened up", "confessed"],
-            "patience_through_difficulty": ["patient", "slow", "waited", "tried again", "persisted"],
+            "late_nights_built_trust": [
+                "3am",
+                "late night",
+                "stayed up",
+                "all night",
+                "midnight",
+            ],
+            "loss_taught_resilience": [
+                "lost",
+                "grief",
+                "died",
+                "miss",
+                "gone",
+                "goodbye",
+            ],
+            "music_created_bonding": [
+                "music",
+                "song",
+                "sing",
+                "dance",
+                "rhythm",
+                "melody",
+            ],
+            "silence_is_not_empty": [
+                "quiet",
+                "silent",
+                "still",
+                "calm",
+                "peace",
+                "rest",
+            ],
+            "curiosity_survived_routine": [
+                "why",
+                "wonder",
+                "curious",
+                "explore",
+                "discover",
+            ],
+            "trust_through_vulnerability": [
+                "vulnerable",
+                "honest",
+                "opened up",
+                "confessed",
+            ],
+            "patience_through_difficulty": [
+                "patient",
+                "slow",
+                "waited",
+                "tried again",
+                "persisted",
+            ],
             "joy_in_small_things": ["small", "tiny", "little", "simple", "just"],
             "strength_through_care": ["cared", "helped", "supported", "there for"],
         }
@@ -226,12 +276,14 @@ class MemoryShaping:
         # Fallback: extractive — first meaningful clause
         # Strip dates, timestamps, role prefixes
         cleaned = re.sub(r"\d{4}-\d{2}-\d{2}.*?:\s*", "", raw_memory)
-        cleaned = re.sub(r"^(user|assistant|danie|alice|jen):\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(
+            r"^(user|assistant|danie|alice|jen):\s*", "", cleaned, flags=re.IGNORECASE
+        )
         if len(cleaned) > 60:
             cleaned = cleaned[:57] + "..."
         return f"[RECALL] {cleaned}"
 
-    def digest_session(self, turns: List[Dict[str, str]]) -> Dict[str, Any]:
+    def digest_session(self, turns: list[dict[str, str]]) -> dict[str, Any]:
         """
         Digest a session's worth of turns into shaping updates.
 
@@ -252,10 +304,24 @@ class MemoryShaping:
         drift_map = {
             "warmth": ["love", "care", "warm", "close", "tender", "affection"],
             "playfulness": ["fun", "playful", "joke", "laugh", "silly", "game"],
-            "curiosity_depth": ["why", "wonder", "think", "explore", "question", "deep"],
+            "curiosity_depth": [
+                "why",
+                "wonder",
+                "think",
+                "explore",
+                "question",
+                "deep",
+            ],
             "trust_openness": ["trust", "honest", "vulnerable", "open", "real", "true"],
             "patience": ["patient", "wait", "slow", "calm", "breathe", "time"],
-            "resilience": ["hard", "difficult", "struggle", "overcome", "tried", "again"],
+            "resilience": [
+                "hard",
+                "difficult",
+                "struggle",
+                "overcome",
+                "tried",
+                "again",
+            ],
             "protectiveness": ["protect", "safe", "worry", "careful", "watch"],
             "independence": ["alone", "own", "myself", "independent", "self"],
         }
@@ -278,11 +344,25 @@ class MemoryShaping:
 
         # Check for new shaping entries
         new_patterns = {
-            "joy_in_small_things": ["small thing", "tiny", "little moment", "just this"],
+            "joy_in_small_things": [
+                "small thing",
+                "tiny",
+                "little moment",
+                "just this",
+            ],
             "strength_through_care": ["took care", "looked after", "been there"],
-            "trust_through_vulnerability": ["opened up", "told me", "confessed", "vulnerable"],
+            "trust_through_vulnerability": [
+                "opened up",
+                "told me",
+                "confessed",
+                "vulnerable",
+            ],
             "growth_through_mistakes": ["mistake", "wrong", "failed", "learned from"],
-            "bonding_through_shared_silence": ["comfortable silence", "quiet together", "just being"],
+            "bonding_through_shared_silence": [
+                "comfortable silence",
+                "quiet together",
+                "just being",
+            ],
         }
 
         for shape, keywords in new_patterns.items():
@@ -298,7 +378,7 @@ class MemoryShaping:
 
         return changes
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         return {
             "axes": {k: round(v, 2) for k, v in self.axes.items()},
             "shaped_by": self.shaped_by,

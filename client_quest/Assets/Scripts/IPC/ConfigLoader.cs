@@ -10,7 +10,8 @@ namespace FoveAI.Config
     {
         public string serverIp = "192.168.8.100";
         public int wsPort = 8403;              // WebSocket IPC — chat, TTS, STT, motor, animation
-        public int httpPort = 8402;            // Soul/XRLF HTTP API (/v1/chat, /v1/audio, /api/environment)
+        public int httpPort = 8402;            // XRLF HTTP API (/v1/chat, /v1/audio, /api/camera, /api/web)
+        public int soulPort = 8405;            // Soul/Compagent API (/api/environment, /api/soul, persona, tasks)
         public int memoryPort = 8400;          // Memory proxy / backend HTTP
         public int chatRelayPort = 8407;       // 4-Way XR Chat Relay
         public string avatarModel = "Alicechan.vrm";

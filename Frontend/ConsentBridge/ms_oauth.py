@@ -1,12 +1,11 @@
 # FoveAI Microsoft Consent Bridge
 # Handles Microsoft Graph OAuth 2.0 consent, token refresh, and scoped data fetching.
 
-import os
 import json
+import os
 import time
-from pathlib import Path
-from typing import List, Dict, Optional
 from datetime import datetime, timedelta
+from pathlib import Path
 
 try:
     import requests
@@ -15,7 +14,9 @@ except ImportError:
 
 CLIENT_ID = os.getenv("FoveAI_MS_CLIENT_ID", "")
 CLIENT_SECRET = os.getenv("FoveAI_MS_CLIENT_SECRET", "")
-REDIRECT_URI = os.getenv("FoveAI_MS_REDIRECT_URI", "http://127.0.0.1:8765/microsoft/callback")
+REDIRECT_URI = os.getenv(
+    "FoveAI_MS_REDIRECT_URI", "http://127.0.0.1:8765/microsoft/callback"
+)
 TOKEN_FILE = os.getenv("FoveAI_MS_TOKEN_FILE", ".cache/ms_tokens.json")
 
 DEFAULT_SCOPES = [
@@ -26,6 +27,7 @@ DEFAULT_SCOPES = [
 ]
 
 DATA_DIR = Path(os.getenv("FoveAI_DATA_DIR", "Data/Consent"))
+
 
 class MicrosoftConsentBridge:
     def __init__(self, scopes=None):
@@ -79,7 +81,9 @@ class MicrosoftConsentBridge:
     def _refresh_if_needed(self) -> str:
         if not self.tokens:
             raise RuntimeError("No MS tokens. User must consent first.")
-        expires_at = self.tokens.get("obtained_at", 0) + self.tokens.get("expires_in", 3600)
+        expires_at = self.tokens.get("obtained_at", 0) + self.tokens.get(
+            "expires_in", 3600
+        )
         if time.time() > expires_at - 60:
             resp = requests.post(
                 "https://login.microsoftonline.com/common/oauth2/v2.0/token",
@@ -104,37 +108,59 @@ class MicrosoftConsentBridge:
     def _get(self, endpoint: str, params=None) -> dict:
         token = self._refresh_if_needed()
         url = f"https://graph.microsoft.com/v1.0{endpoint}"
-        resp = requests.get(url, headers={"Authorization": f"Bearer {token}"}, params=params, timeout=30)
+        resp = requests.get(
+            url, headers={"Authorization": f"Bearer {token}"}, params=params, timeout=30
+        )
         if resp.status_code == 401:
             self.tokens.pop("obtained_at", None)
             token = self._refresh_if_needed()
-            resp = requests.get(url, headers={"Authorization": f"Bearer {token}"}, params=params, timeout=30)
+            resp = requests.get(
+                url,
+                headers={"Authorization": f"Bearer {token}"},
+                params=params,
+                timeout=30,
+            )
         resp.raise_for_status()
         return resp.json()
 
     def get_profile(self) -> dict:
         return self._get("/me")
 
-    def get_contacts(self, max_results: int = 50) -> List[dict]:
-        data = self._get("/me/contacts", params={"$top": max_results, "$select": "displayName,emailAddresses"})
+    def get_contacts(self, max_results: int = 50) -> list[dict]:
+        data = self._get(
+            "/me/contacts",
+            params={"$top": max_results, "$select": "displayName,emailAddresses"},
+        )
         return data.get("value", [])
 
-    def get_calendar_events(self, days: int = 30) -> List[dict]:
+    def get_calendar_events(self, days: int = 30) -> list[dict]:
         now = datetime.utcnow()
         start = (now - timedelta(days=days)).isoformat() + "Z"
         end = (now + timedelta(days=days)).isoformat() + "Z"
         data = self._get(
             "/me/calendarview",
-            params={"startDateTime": start, "endDateTime": end, "$top": 100, "$select": "subject,start,end,location,importance"},
+            params={
+                "startDateTime": start,
+                "endDateTime": end,
+                "$top": 100,
+                "$select": "subject,start,end,location,importance",
+            },
         )
         return data.get("value", [])
 
-    def get_recent_emails(self, max_results: int = 50) -> List[dict]:
-        data = self._get("/me/messages", params={"$top": max_results, "$select": "subject,from,toRecipients,receivedDateTime,importance"})
+    def get_recent_emails(self, max_results: int = 50) -> list[dict]:
+        data = self._get(
+            "/me/messages",
+            params={
+                "$top": max_results,
+                "$select": "subject,from,toRecipients,receivedDateTime,importance",
+            },
+        )
         return data.get("value", [])
 
     def sync_to_memory(self, memory_base_url: str = "http://127.0.0.1:8002"):
         import requests as req
+
         payload = {
             "source": "microsoft_consent",
             "timestamp": time.time(),
@@ -144,13 +170,22 @@ class MicrosoftConsentBridge:
             "emails": self.get_recent_emails(max_results=20),
         }
         try:
-            r = req.post(f"{memory_base_url}/store", json={
-                "content": json.dumps(payload, ensure_ascii=False),
-                "role": "system",
-                "session_id": "microsoft_consent_sync",
-                "topics": ["user_profile", "calendar", "contacts", "email_metadata"],
-                "importance": 0.9,
-            }, timeout=30)
+            r = req.post(
+                f"{memory_base_url}/store",
+                json={
+                    "content": json.dumps(payload, ensure_ascii=False),
+                    "role": "system",
+                    "session_id": "microsoft_consent_sync",
+                    "topics": [
+                        "user_profile",
+                        "calendar",
+                        "contacts",
+                        "email_metadata",
+                    ],
+                    "importance": 0.9,
+                },
+                timeout=30,
+            )
             print(f"MS Memory sync: {r.status_code}")
         except Exception as e:
             print(f"MS Memory sync failed: {e}")
@@ -158,7 +193,10 @@ class MicrosoftConsentBridge:
         backup_dir = DATA_DIR / "microsoft"
         backup_dir.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        (backup_dir / f"sync_{ts}.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+        (backup_dir / f"sync_{ts}.json").write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False)
+        )
+
 
 if __name__ == "__main__":
     bridge = MicrosoftConsentBridge()

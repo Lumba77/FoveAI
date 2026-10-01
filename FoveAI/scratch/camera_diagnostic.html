@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LUMAX Camera Diagnostic</title>
+    <style>
+        body {
+            background: #02050a;
+            color: #e2e8f0;
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .container {
+            width: 100%;
+            max-width: 680px;
+            background: rgba(10, 17, 30, 0.7);
+            border: 2px solid #00f3ff;
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.2);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        h1 {
+            color: #00f3ff;
+            margin-top: 0;
+            letter-spacing: 2px;
+            font-size: 1.5rem;
+            text-transform: uppercase;
+        }
+        video {
+            width: 100%;
+            aspect-ratio: 16/9;
+            border-radius: 8px;
+            background: #000;
+            border: 1px solid #1e293b;
+            margin: 16px 0;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+        }
+        .status-box {
+            padding: 12px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            margin-top: 12px;
+            text-align: left;
+            background: #0b0f17;
+            border: 1px solid #1e293b;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .success { color: #39ff14; border-color: #39ff14; }
+        .error { color: #ff007f; border-color: #ff007f; }
+        .neutral { color: #00f3ff; }
+        button {
+            background: rgba(0, 243, 255, 0.15);
+            border: 1px solid #00f3ff;
+            color: #00f3ff;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-family: inherit;
+            letter-spacing: 1px;
+            transition: all 0.2s ease;
+            margin-top: 12px;
+        }
+        button:hover {
+            background: rgba(0, 243, 255, 0.3);
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>LUMAX Camera Diagnostic</h1>
+        <p>Testing browser compatibility & USB webcam connection...</p>
+        <video id="webcam-preview" autoplay playsinline muted></video>
+        <div id="status" class="status-box neutral">Ready to scan... Click below to trigger browser capture handshake.</div>
+        <button onclick="testCamera()">Test Webcam Access</button>
+    </div>
+
+    <script>
+        async function testCamera() {
+            const statusEl = document.getElementById('status');
+            const videoEl = document.getElementById('webcam-preview');
+            
+            statusEl.className = 'status-box neutral';
+            statusEl.innerHTML = '[...] Requesting browser media access...';
+            
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                statusEl.className = 'status-box error';
+                statusEl.innerHTML = '[FAILED] navigator.mediaDevices.getUserMedia is NOT supported in this browser.\nEnsure you are loading via HTTPS or localhost (Chrome requires secure context).';
+                return;
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 1280, height: 720, facingMode: "user" }
+                });
+                
+                videoEl.srcObject = stream;
+                
+                // Get active track info
+                const track = stream.getVideoTracks()[0];
+                const settings = track.getSettings();
+                const capabilities = typeof track.getCapabilities === 'function' ? track.getCapabilities() : {};
+                
+                statusEl.className = 'status-box success';
+                statusEl.innerHTML = `[SUCCESS] Webcam connected successfully!\n\n` +
+                                     `- Label: ${track.label}\n` +
+                                     `- Active Resolution: ${settings.width || 'unknown'}x${settings.height || 'unknown'} @ ${settings.frameRate || 'unknown'}fps\n` +
+                                     `- Aspect Ratio: ${settings.aspectRatio || 'unknown'}\n` +
+                                     `- Status: Active & streaming.`;
+                                     
+            } catch (err) {
+                statusEl.className = 'status-box error';
+                statusEl.innerHTML = `[FAILED] Media access request rejected.\n\n` +
+                                     `- Error Name: ${err.name}\n` +
+                                     `- Message: ${err.message}\n\n` +
+                                     `Common fixes:\n` +
+                                     `1. Make sure no other app (OBS, Zoom, Discord) is currently using the camera.\n` +
+                                     `2. Ensure you have granted Camera Permissions to the browser in Windows Settings.\n` +
+                                     `3. Quest 3: Open the site via https:// or localhost.`;
+            }
+        }
+    </script>
+</body>
+</html>

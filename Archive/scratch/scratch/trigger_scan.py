@@ -1,6 +1,5 @@
 import os
 import urllib.request
-import json
 
 ideas_file = r"C:\Users\lumba\Program\FoveAI\Data\monetizing\ideas_data\ideas.json"
 
@@ -17,7 +16,7 @@ try:
     print(f"Sending POST request to: {url}")
     with urllib.request.urlopen(req) as response:
         status = response.status
-        res_data = response.read().decode('utf-8')
+        res_data = response.read().decode("utf-8")
         print(f"Response status: {status}")
         print(f"Response data: {res_data}")
 except Exception as e:
@@ -26,7 +25,7 @@ except Exception as e:
 # Verify file was regenerated
 if os.path.exists(ideas_file):
     print("ideas.json successfully regenerated!")
-    with open(ideas_file, 'r', encoding='utf-8') as f:
+    with open(ideas_file, "r", encoding="utf-8") as f:
         print(f.read())
 else:
     print("ideas.json was NOT regenerated.")

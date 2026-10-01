@@ -1,0 +1,57 @@
+{
+  "name": "lumax-vibe-coder",
+  "version": "1.0.0",
+  "description": "LUMAX Vibe Coder — Standalone AI coding companion desktop app",
+  "author": "LUMAX Diamond Concordia",
+  "private": true,
+  "main": "dist/main/main.js",
+  "scripts": {
+    "dev": "concurrently \"npm run build:main -- --watch\" \"npm run build:renderer -- --watch\" \"electron .\"",
+    "build": "npm run build:main && npm run build:renderer",
+    "build:main": "esbuild src/main/main.ts --bundle --platform=node --target=node18 --external:electron --external:better-sqlite3 --outfile=dist/main/main.js --sourcemap",
+    "build:preload": "esbuild src/main/preload.ts --bundle --platform=node --target=node18 --external:electron --outfile=dist/main/preload.js --sourcemap",
+    "build:renderer": "esbuild src/renderer/renderer.ts --bundle --platform=browser --target=chrome112 --outfile=dist/renderer/renderer.js --sourcemap",
+    "build:all": "npm run build:main && npm run build:preload && npm run build:renderer",
+    "start": "electron .",
+    "package": "electron-builder --win",
+    "check": "tsc --noEmit",
+    "rebuild-natives": "electron-rebuild -f -w better-sqlite3"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.6.0",
+    "chokidar": "^3.6.0",
+    "glob": "^10.3.12"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.10",
+    "@types/node": "^20.0.0",
+    "concurrently": "^8.2.2",
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3",
+    "electron-rebuild": "^3.2.9",
+    "esbuild": "^0.21.5",
+    "typescript": "^5.4.5"
+  },
+  "build": {
+    "appId": "se.lumax.vibecoder",
+    "productName": "LUMAX Vibe Coder",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "src/renderer/index.html",
+      "src/renderer/chat.html",
+      "assets/**/*",
+      "node_modules/better-sqlite3/build/**/*"
+    ],
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "assets/lumax.ico"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**/*"
+    ]
+  }
+}

@@ -52,6 +52,7 @@ A minimal FastAPI service on port 8110 that:
 # Launched by sleipnir_launcher.js as Node 5 (MOTOR-CORTEX-8110)
 
 import sys, os
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi import FastAPI, HTTPException
@@ -62,19 +63,25 @@ import asyncio
 from sse_starlette.sse import EventSourceResponse
 
 app = FastAPI(title="LUMAX Motor Cortex")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"]
+)
+
 
 class MotorExecuteRequest(BaseModel):
     tool_name: str
     arguments: dict = {}
 
+
 @app.get("/health")
 async def health():
     return {"status": "online", "service": "motor_cortex", "port": 8110}
 
+
 @app.get("/motor/tools")
 async def get_tools():
     return {"tools": get_motor_tools_schema()}
+
 
 @app.post("/motor/execute")
 async def execute_motor(req: MotorExecuteRequest):
@@ -84,14 +91,18 @@ async def execute_motor(req: MotorExecuteRequest):
     sse_event = format_sse_motor_event(req.tool_name, req.arguments)
     return {"sse_event": sse_event, "tool": req.tool_name, "args": req.arguments}
 
+
 @app.get("/motor/stream")
 async def motor_stream():
     async def event_generator():
         yield {"event": "connected", "data": "Motor Cortex SSE stream active"}
+
     return EventSourceResponse(event_generator())
+
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="127.0.0.1", port=8110)
 ```
 

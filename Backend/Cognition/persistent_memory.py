@@ -15,16 +15,19 @@ Schema:
   agent_actions     — audit log of autonomous actions taken
 """
 
-import os
 import json
+import os
 import sqlite3
 import threading
-import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Any
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "db", "agent_memory.db")
+DB_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+    "db",
+    "agent_memory.db",
+)
 
 # Ensure db directory exists
 Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
@@ -154,6 +157,33 @@ def init_db():
         conn = _get_conn()
         try:
             conn.executescript(SCHEMA_SQL)
+            # Scheduling columns for tasks (dormant/scheduled/recurring/proposed)
+            for col, ddl in (
+                (
+                    "scheduled_for",
+                    "ALTER TABLE agent_plans ADD COLUMN scheduled_for TEXT DEFAULT NULL",
+                ),
+                (
+                    "recurrence",
+                    "ALTER TABLE agent_plans ADD COLUMN recurrence TEXT DEFAULT 'none'",
+                ),
+                (
+                    "origin",
+                    "ALTER TABLE agent_plans ADD COLUMN origin TEXT DEFAULT 'user'",
+                ),
+                (
+                    "hidden_context",
+                    "ALTER TABLE agent_plans ADD COLUMN hidden_context TEXT DEFAULT NULL",
+                ),
+                (
+                    "director_plan",
+                    "ALTER TABLE agent_plans ADD COLUMN director_plan TEXT DEFAULT NULL",
+                ),
+            ):
+                try:
+                    conn.execute(ddl)
+                except sqlite3.OperationalError:
+                    pass  # column already exists
             conn.commit()
         finally:
             conn.close()
@@ -161,14 +191,17 @@ def init_db():
 
 # ── Thoughts ────────────────────────────────────────────────────────────
 
-def add_thought(thought: str, context: str = "", plan_id: Optional[int] = None, importance: int = 0) -> int:
+
+def add_thought(
+    thought: str, context: str = "", plan_id: int | None = None, importance: int = 0
+) -> int:
     """Record a freeform thought. Returns the thought ID."""
     with _lock:
         conn = _get_conn()
         try:
             cur = conn.execute(
                 "INSERT INTO agent_thoughts (thought, context, plan_id, importance) VALUES (?, ?, ?, ?)",
-                (thought, context, plan_id, importance)
+                (thought, context, plan_id, importance),
             )
             conn.commit()
             return cur.lastrowid
@@ -176,7 +209,9 @@ def add_thought(thought: str, context: str = "", plan_id: Optional[int] = None, 
             conn.close()
 
 
-def get_recent_thoughts(limit: int = 50, plan_id: Optional[int] = None) -> List[Dict[str, Any]]:
+def get_recent_thoughts(
+    limit: int = 50, plan_id: int | None = None
+) -> list[dict[str, Any]]:
     """Get recent thoughts, optionally filtered by plan."""
     with _lock:
         conn = _get_conn()
@@ -184,26 +219,26 @@ def get_recent_thoughts(limit: int = 50, plan_id: Optional[int] = None) -> List[
             if plan_id is not None:
                 rows = conn.execute(
                     "SELECT * FROM agent_thoughts WHERE plan_id = ? ORDER BY timestamp DESC LIMIT ?",
-                    (plan_id, limit)
+                    (plan_id, limit),
                 ).fetchall()
             else:
                 rows = conn.execute(
                     "SELECT * FROM agent_thoughts ORDER BY timestamp DESC LIMIT ?",
-                    (limit,)
+                    (limit,),
                 ).fetchall()
             return [dict(r) for r in rows]
         finally:
             conn.close()
 
 
-def search_thoughts(query: str, limit: int = 20) -> List[Dict[str, Any]]:
+def search_thoughts(query: str, limit: int = 20) -> list[dict[str, Any]]:
     """Full-text search across thoughts."""
     with _lock:
         conn = _get_conn()
         try:
             rows = conn.execute(
                 "SELECT * FROM agent_thoughts WHERE thought LIKE ? OR context LIKE ? ORDER BY timestamp DESC LIMIT ?",
-                (f"%{query}%", f"%{query}%", limit)
+                (f"%{query}%", f"%{query}%", limit),
             ).fetchall()
             return [dict(r) for r in rows]
         finally:
@@ -212,15 +247,50 @@ def search_thoughts(query: str, limit: int = 20) -> List[Dict[str, Any]]:
 
 # ── Plans ───────────────────────────────────────────────────────────────
 
-def create_plan(title: str, description: str = "", steps: List[str] = None) -> int:
-    """Create a new long-thread plan. Returns plan ID."""
+
+def create_plan(
+    title: str,
+    description: str = "",
+    steps: list[str] = None,
+    status: str = "active",
+    scheduled_for: str | None = None,
+    recurrence: str = "none",
+    origin: str = "user",
+    hidden_context: str | None = None,
+    director_plan: str | None = None,
+) -> int:
+    """Create a new long-thread plan. Returns plan ID.
+
+    status: active | scheduled (dormant until due — invisible to the agent) |
+            proposed (awaiting approval) | paused | completed | abandoned
+    recurrence: none | daily | weekly
+    origin: user | director | jen — who scheduled it (Director tasks may be
+            hidden from Jenna until they fire).
+    hidden_context: SEALED — the Director's rationale/motivation. Never injected
+            into the agent's prompt and stripped from the public task list.
+    director_plan: SEALED — groups sibling tasks under a Director master plan
+            (what the task is part of / how it aligns with other events).
+    The agent only ever sees title + description + steps — the WHAT, never
+    the WHY or the WHERE-IT-FITS."""
     steps_json = json.dumps(steps or [])
     with _lock:
         conn = _get_conn()
         try:
             cur = conn.execute(
-                "INSERT INTO agent_plans (title, description, steps_json) VALUES (?, ?, ?)",
-                (title, description, steps_json)
+                "INSERT INTO agent_plans (title, description, steps_json, status, "
+                "scheduled_for, recurrence, origin, hidden_context, director_plan) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    title,
+                    description,
+                    steps_json,
+                    status,
+                    scheduled_for,
+                    recurrence,
+                    origin,
+                    hidden_context,
+                    director_plan,
+                ),
             )
             conn.commit()
             return cur.lastrowid
@@ -228,9 +298,148 @@ def create_plan(title: str, description: str = "", steps: List[str] = None) -> i
             conn.close()
 
 
+def schedule_task(
+    title: str,
+    description: str = "",
+    run_at: str | None = None,
+    recurrence: str = "none",
+    origin: str = "user",
+    steps: list[str] = None,
+    hidden_context: str | None = None,
+    director_plan: str | None = None,
+) -> int:
+    """Create a task plan. If run_at is set → dormant 'scheduled' until due."""
+    status = "scheduled" if run_at else "active"
+    return create_plan(
+        title=title,
+        description=description,
+        steps=steps,
+        status=status,
+        scheduled_for=run_at,
+        recurrence=recurrence,
+        origin=origin,
+        hidden_context=hidden_context,
+        director_plan=director_plan,
+    )
+
+
+def get_director_plan(name: str) -> list[dict[str, Any]]:
+    """All tasks grouped under a Director master plan (sealed view — admin)."""
+    with _lock:
+        conn = _get_conn()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM agent_plans WHERE director_plan = ? ORDER BY created",
+                (name,),
+            ).fetchall()
+            plans = []
+            for r in rows:
+                d = dict(r)
+                try:
+                    d["steps"] = json.loads(d.get("steps_json") or "[]")
+                except (json.JSONDecodeError, TypeError):
+                    d["steps"] = []
+                plans.append(d)
+            return plans
+        finally:
+            conn.close()
+
+
+def activate_due_tasks() -> list[dict[str, Any]]:
+    """Flip scheduled tasks whose time has come to 'active'. Returns them."""
+    now = datetime.now(timezone.utc).isoformat()
+    with _lock:
+        conn = _get_conn()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM agent_plans WHERE status='scheduled' "
+                "AND scheduled_for IS NOT NULL AND scheduled_for <= ?",
+                (now,),
+            ).fetchall()
+            out = []
+            for r in rows:
+                d = dict(r)
+                try:
+                    d["steps"] = json.loads(d.get("steps_json") or "[]")
+                except (json.JSONDecodeError, TypeError):
+                    d["steps"] = []
+                out.append(d)
+            if out:
+                ids = [d["id"] for d in out]
+                conn.execute(
+                    f"UPDATE agent_plans SET status='active', updated=? WHERE id IN ({','.join('?' * len(ids))})",
+                    [now] + ids,
+                )
+                conn.commit()
+                for d in out:
+                    d["status"] = "active"
+            return out
+        finally:
+            conn.close()
+
+
+def reschedule_recurring(plan_id: int) -> bool:
+    """On completion of a recurring task, set its next run and re-arm it."""
+    plan = get_plan(plan_id)
+    if not plan:
+        return False
+    rec = (plan.get("recurrence") or "none").lower()
+    if rec not in ("daily", "weekly"):
+        return False
+    base = datetime.now(timezone.utc)
+    nxt = base + (timedelta(days=1) if rec == "daily" else timedelta(weeks=1))
+    # keep the original clock time if scheduled_for was set
+    prev = plan.get("scheduled_for")
+    if prev:
+        try:
+            p = datetime.fromisoformat(prev)
+            nxt = nxt.replace(hour=p.hour, minute=p.minute, second=p.second)
+        except ValueError:
+            pass
+    return update_plan(plan_id, status="scheduled", scheduled_for=nxt.isoformat())
+
+
+def propose_task(
+    title: str,
+    description: str = "",
+    run_at: str | None = None,
+    recurrence: str = "none",
+    origin: str = "user",
+) -> int:
+    """A proposed task — dormant until approved (for non-admin surfaces)."""
+    return create_plan(
+        title=title,
+        description=description,
+        status="proposed",
+        scheduled_for=run_at,
+        recurrence=recurrence,
+        origin=origin,
+    )
+
+
+def approve_plan(plan_id: int) -> bool:
+    """Approve a proposed task → scheduled (if it has a time) or active."""
+    plan = get_plan(plan_id)
+    if not plan or plan.get("status") != "proposed":
+        return False
+    nxt = "scheduled" if plan.get("scheduled_for") else "active"
+    return update_plan(plan_id, status=nxt)
+
+
 def update_plan(plan_id: int, **kwargs) -> bool:
     """Update plan fields: title, description, status, steps_json, outcome."""
-    allowed = {"title", "description", "status", "steps_json", "outcome"}
+    allowed = {
+        "title",
+        "description",
+        "status",
+        "steps_json",
+        "outcome",
+        "scheduled_for",
+        "recurrence",
+        "origin",
+        "hidden_context",
+        "director_plan",
+    }
     updates = {k: v for k, v in kwargs.items() if k in allowed}
     if not updates:
         return False
@@ -247,7 +456,7 @@ def update_plan(plan_id: int, **kwargs) -> bool:
             conn.close()
 
 
-def get_active_plans() -> List[Dict[str, Any]]:
+def get_active_plans() -> list[dict[str, Any]]:
     """Get all active and paused plans."""
     with _lock:
         conn = _get_conn()
@@ -268,12 +477,37 @@ def get_active_plans() -> List[Dict[str, Any]]:
             conn.close()
 
 
-def get_plan(plan_id: int) -> Optional[Dict[str, Any]]:
+def get_completed_plans(limit: int = 20) -> list[dict[str, Any]]:
+    """Recently completed/abandoned plans (for task reports)."""
+    with _lock:
+        conn = _get_conn()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM agent_plans WHERE status IN ('completed', 'abandoned') "
+                "ORDER BY updated DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            plans = []
+            for r in rows:
+                d = dict(r)
+                try:
+                    d["steps"] = json.loads(d.get("steps_json", "[]"))
+                except json.JSONDecodeError:
+                    d["steps"] = []
+                plans.append(d)
+            return plans
+        finally:
+            conn.close()
+
+
+def get_plan(plan_id: int) -> dict[str, Any] | None:
     """Get a single plan by ID."""
     with _lock:
         conn = _get_conn()
         try:
-            row = conn.execute("SELECT * FROM agent_plans WHERE id = ?", (plan_id,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM agent_plans WHERE id = ?", (plan_id,)
+            ).fetchone()
             if not row:
                 return None
             d = dict(row)
@@ -312,6 +546,7 @@ def complete_plan_step(plan_id: int, step_index: int, outcome: str = "") -> bool
 
 # ── Key-Value Memories ──────────────────────────────────────────────────
 
+
 def set_memory(key: str, value: str, category: str = "general", importance: int = 0):
     """Store a persistent key-value memory (upsert)."""
     with _lock:
@@ -322,46 +557,48 @@ def set_memory(key: str, value: str, category: str = "general", importance: int 
                    VALUES (?, ?, ?, ?)
                    ON CONFLICT(key) DO UPDATE SET value=excluded.value, category=excluded.category,
                    importance=excluded.importance, timestamp=datetime('now')""",
-                (key, value, category, importance)
+                (key, value, category, importance),
             )
             conn.commit()
         finally:
             conn.close()
 
 
-def get_memory(key: str) -> Optional[str]:
+def get_memory(key: str) -> str | None:
     """Retrieve a memory by key."""
     with _lock:
         conn = _get_conn()
         try:
-            row = conn.execute("SELECT value FROM agent_memories WHERE key = ?", (key,)).fetchone()
+            row = conn.execute(
+                "SELECT value FROM agent_memories WHERE key = ?", (key,)
+            ).fetchone()
             return row["value"] if row else None
         finally:
             conn.close()
 
 
-def get_memories_by_category(category: str, limit: int = 100) -> List[Dict[str, Any]]:
+def get_memories_by_category(category: str, limit: int = 100) -> list[dict[str, Any]]:
     """Get all memories in a category."""
     with _lock:
         conn = _get_conn()
         try:
             rows = conn.execute(
                 "SELECT * FROM agent_memories WHERE category = ? ORDER BY importance DESC, timestamp DESC LIMIT ?",
-                (category, limit)
+                (category, limit),
             ).fetchall()
             return [dict(r) for r in rows]
         finally:
             conn.close()
 
 
-def search_memories(query: str, limit: int = 20) -> List[Dict[str, Any]]:
+def search_memories(query: str, limit: int = 20) -> list[dict[str, Any]]:
     """Search across memory keys and values."""
     with _lock:
         conn = _get_conn()
         try:
             rows = conn.execute(
                 "SELECT * FROM agent_memories WHERE key LIKE ? OR value LIKE ? ORDER BY importance DESC LIMIT ?",
-                (f"%{query}%", f"%{query}%", limit)
+                (f"%{query}%", f"%{query}%", limit),
             ).fetchall()
             return [dict(r) for r in rows]
         finally:
@@ -382,19 +619,27 @@ def delete_memory(key: str) -> bool:
 
 # ── Session Log ─────────────────────────────────────────────────────────
 
+
 def start_session() -> int:
     """Log a new session start. Returns session ID."""
     with _lock:
         conn = _get_conn()
         try:
-            cur = conn.execute("INSERT INTO agent_session_log (session_start) VALUES (datetime('now'))")
+            cur = conn.execute(
+                "INSERT INTO agent_session_log (session_start) VALUES (datetime('now'))"
+            )
             conn.commit()
             return cur.lastrowid
         finally:
             conn.close()
 
 
-def end_session(session_id: int, summary: str = "", message_count: int = 0, autonomous_actions: int = 0):
+def end_session(
+    session_id: int,
+    summary: str = "",
+    message_count: int = 0,
+    autonomous_actions: int = 0,
+):
     """Close a session with summary stats."""
     with _lock:
         conn = _get_conn()
@@ -403,21 +648,21 @@ def end_session(session_id: int, summary: str = "", message_count: int = 0, auto
                 """UPDATE agent_session_log
                    SET session_end = datetime('now'), summary = ?, message_count = ?, autonomous_actions = ?
                    WHERE id = ?""",
-                (summary, message_count, autonomous_actions, session_id)
+                (summary, message_count, autonomous_actions, session_id),
             )
             conn.commit()
         finally:
             conn.close()
 
 
-def get_recent_sessions(limit: int = 10) -> List[Dict[str, Any]]:
+def get_recent_sessions(limit: int = 10) -> list[dict[str, Any]]:
     """Get recent session summaries."""
     with _lock:
         conn = _get_conn()
         try:
             rows = conn.execute(
                 "SELECT * FROM agent_session_log ORDER BY session_start DESC LIMIT ?",
-                (limit,)
+                (limit,),
             ).fetchall()
             return [dict(r) for r in rows]
         finally:
@@ -426,14 +671,20 @@ def get_recent_sessions(limit: int = 10) -> List[Dict[str, Any]]:
 
 # ── Action Log ──────────────────────────────────────────────────────────
 
-def log_action(action_type: str, payload: Dict[str, Any] = None, result: str = "", success: bool = True) -> int:
+
+def log_action(
+    action_type: str,
+    payload: dict[str, Any] = None,
+    result: str = "",
+    success: bool = True,
+) -> int:
     """Log an autonomous action Jen took."""
     with _lock:
         conn = _get_conn()
         try:
             cur = conn.execute(
                 "INSERT INTO agent_actions (action_type, payload, result, success) VALUES (?, ?, ?, ?)",
-                (action_type, json.dumps(payload or {}), result, 1 if success else 0)
+                (action_type, json.dumps(payload or {}), result, 1 if success else 0),
             )
             conn.commit()
             return cur.lastrowid
@@ -441,14 +692,13 @@ def log_action(action_type: str, payload: Dict[str, Any] = None, result: str = "
             conn.close()
 
 
-def get_recent_actions(limit: int = 50) -> List[Dict[str, Any]]:
+def get_recent_actions(limit: int = 50) -> list[dict[str, Any]]:
     """Get recent action log entries."""
     with _lock:
         conn = _get_conn()
         try:
             rows = conn.execute(
-                "SELECT * FROM agent_actions ORDER BY timestamp DESC LIMIT ?",
-                (limit,)
+                "SELECT * FROM agent_actions ORDER BY timestamp DESC LIMIT ?", (limit,)
             ).fetchall()
             return [dict(r) for r in rows]
         finally:
@@ -457,6 +707,7 @@ def get_recent_actions(limit: int = 50) -> List[Dict[str, Any]]:
 
 # ── Message Queue (Jen → Chat Feed) ─────────────────────────────────────
 
+
 def enqueue_message(message: str, role: str = "assistant", priority: int = 0) -> int:
     """Jen queues a message to be delivered to the chat feed."""
     with _lock:
@@ -464,7 +715,7 @@ def enqueue_message(message: str, role: str = "assistant", priority: int = 0) ->
         try:
             cur = conn.execute(
                 "INSERT INTO agent_message_queue (message, role, priority) VALUES (?, ?, ?)",
-                (message, role, priority)
+                (message, role, priority),
             )
             conn.commit()
             return cur.lastrowid
@@ -472,21 +723,21 @@ def enqueue_message(message: str, role: str = "assistant", priority: int = 0) ->
             conn.close()
 
 
-def get_pending_messages(limit: int = 10) -> List[Dict[str, Any]]:
+def get_pending_messages(limit: int = 10) -> list[dict[str, Any]]:
     """Get undelivered messages, ordered by priority then timestamp."""
     with _lock:
         conn = _get_conn()
         try:
             rows = conn.execute(
                 "SELECT * FROM agent_message_queue WHERE delivered = 0 ORDER BY priority DESC, timestamp ASC LIMIT ?",
-                (limit,)
+                (limit,),
             ).fetchall()
             return [dict(r) for r in rows]
         finally:
             conn.close()
 
 
-def mark_messages_delivered(message_ids: List[int]):
+def mark_messages_delivered(message_ids: list[int]):
     """Mark messages as delivered to the frontend."""
     if not message_ids:
         return
@@ -496,20 +747,24 @@ def mark_messages_delivered(message_ids: List[int]):
             placeholders = ",".join("?" for _ in message_ids)
             conn.execute(
                 f"UPDATE agent_message_queue SET delivered = 1 WHERE id IN ({placeholders})",
-                message_ids
+                message_ids,
             )
             conn.commit()
         finally:
             conn.close()
 
 
-def get_queue_stats() -> Dict[str, int]:
+def get_queue_stats() -> dict[str, int]:
     """Get queue statistics."""
     with _lock:
         conn = _get_conn()
         try:
-            pending = conn.execute("SELECT COUNT(*) as c FROM agent_message_queue WHERE delivered = 0").fetchone()["c"]
-            total = conn.execute("SELECT COUNT(*) as c FROM agent_message_queue").fetchone()["c"]
+            pending = conn.execute(
+                "SELECT COUNT(*) as c FROM agent_message_queue WHERE delivered = 0"
+            ).fetchone()["c"]
+            total = conn.execute(
+                "SELECT COUNT(*) as c FROM agent_message_queue"
+            ).fetchone()["c"]
             return {"pending": pending, "total": total}
         finally:
             conn.close()
@@ -517,7 +772,10 @@ def get_queue_stats() -> Dict[str, int]:
 
 # ── Journal ─────────────────────────────────────────────────────────────
 
-def add_journal_entry(entry: str, mood: str = "", category: str = "general", importance: int = 0) -> int:
+
+def add_journal_entry(
+    entry: str, mood: str = "", category: str = "general", importance: int = 0
+) -> int:
     """Add a narrative journal entry. Returns entry ID."""
     word_count = len(entry.split())
     with _lock:
@@ -525,7 +783,7 @@ def add_journal_entry(entry: str, mood: str = "", category: str = "general", imp
         try:
             cur = conn.execute(
                 "INSERT INTO agent_journal (entry, mood, category, word_count, importance) VALUES (?, ?, ?, ?, ?)",
-                (entry, mood, category, word_count, importance)
+                (entry, mood, category, word_count, importance),
             )
             conn.commit()
             return cur.lastrowid
@@ -533,7 +791,9 @@ def add_journal_entry(entry: str, mood: str = "", category: str = "general", imp
             conn.close()
 
 
-def get_recent_journal_entries(limit: int = 20, category: Optional[str] = None) -> List[Dict[str, Any]]:
+def get_recent_journal_entries(
+    limit: int = 20, category: str | None = None
+) -> list[dict[str, Any]]:
     """Get recent journal entries, optionally filtered by category."""
     with _lock:
         conn = _get_conn()
@@ -541,43 +801,55 @@ def get_recent_journal_entries(limit: int = 20, category: Optional[str] = None) 
             if category:
                 rows = conn.execute(
                     "SELECT * FROM agent_journal WHERE category = ? ORDER BY timestamp DESC LIMIT ?",
-                    (category, limit)
+                    (category, limit),
                 ).fetchall()
             else:
                 rows = conn.execute(
                     "SELECT * FROM agent_journal ORDER BY timestamp DESC LIMIT ?",
-                    (limit,)
+                    (limit,),
                 ).fetchall()
             return [dict(r) for r in rows]
         finally:
             conn.close()
 
 
-def get_journal_entries_since(since_timestamp: str, limit: int = 50) -> List[Dict[str, Any]]:
+def get_journal_entries_since(
+    since_timestamp: str, limit: int = 50
+) -> list[dict[str, Any]]:
     """Get journal entries after a specific timestamp (for 'what have you been up to?')."""
     with _lock:
         conn = _get_conn()
         try:
             rows = conn.execute(
                 "SELECT * FROM agent_journal WHERE timestamp >= ? ORDER BY timestamp ASC LIMIT ?",
-                (since_timestamp, limit)
+                (since_timestamp, limit),
             ).fetchall()
             return [dict(r) for r in rows]
         finally:
             conn.close()
 
 
-def get_journal_summary(since_timestamp: Optional[str] = None, max_entries: int = 30) -> str:
+def get_journal_summary(
+    since_timestamp: str | None = None, max_entries: int = 30
+) -> str:
     """Generate a compact summary of journal entries for prompt injection.
     If since_timestamp is provided, only includes entries after that time."""
-    entries = get_journal_entries_since(since_timestamp, limit=max_entries) if since_timestamp else get_recent_journal_entries(limit=max_entries)
+    entries = (
+        get_journal_entries_since(since_timestamp, limit=max_entries)
+        if since_timestamp
+        else get_recent_journal_entries(limit=max_entries)
+    )
     if not entries:
         return "(No journal entries yet — Jen hasn't written about her day.)"
 
     lines = []
     for e in entries:
-        mood_tag = f" [{e['mood']}]" if e.get('mood') else ""
-        cat_tag = f" ({e['category']})" if e.get('category') and e['category'] != 'general' else ""
+        mood_tag = f" [{e['mood']}]" if e.get("mood") else ""
+        cat_tag = (
+            f" ({e['category']})"
+            if e.get("category") and e["category"] != "general"
+            else ""
+        )
         lines.append(f"[{e['timestamp']}]{mood_tag}{cat_tag}: {e['entry'][:400]}")
 
     return "\n".join(lines)
@@ -585,7 +857,14 @@ def get_journal_summary(since_timestamp: Optional[str] = None, max_entries: int 
 
 # ── Creative Works ──────────────────────────────────────────────────────
 
-def add_creative_work(title: str, content: str, work_type: str = "writing", status: str = "draft", tags: str = "") -> int:
+
+def add_creative_work(
+    title: str,
+    content: str,
+    work_type: str = "writing",
+    status: str = "draft",
+    tags: str = "",
+) -> int:
     """Store a creative work Jen produced. Returns work ID."""
     word_count = len(content.split())
     with _lock:
@@ -593,7 +872,7 @@ def add_creative_work(title: str, content: str, work_type: str = "writing", stat
         try:
             cur = conn.execute(
                 "INSERT INTO agent_creative_works (title, content, work_type, status, word_count, tags) VALUES (?, ?, ?, ?, ?, ?)",
-                (title, content, work_type, status, word_count, tags)
+                (title, content, work_type, status, word_count, tags),
             )
             conn.commit()
             return cur.lastrowid
@@ -601,7 +880,9 @@ def add_creative_work(title: str, content: str, work_type: str = "writing", stat
             conn.close()
 
 
-def get_recent_creative_works(limit: int = 20, work_type: Optional[str] = None, status: Optional[str] = None) -> List[Dict[str, Any]]:
+def get_recent_creative_works(
+    limit: int = 20, work_type: str | None = None, status: str | None = None
+) -> list[dict[str, Any]]:
     """Get recent creative works, optionally filtered."""
     with _lock:
         conn = _get_conn()
@@ -622,30 +903,40 @@ def get_recent_creative_works(limit: int = 20, work_type: Optional[str] = None, 
             conn.close()
 
 
-def get_creative_works_since(since_timestamp: str, limit: int = 50) -> List[Dict[str, Any]]:
+def get_creative_works_since(
+    since_timestamp: str, limit: int = 50
+) -> list[dict[str, Any]]:
     """Get creative works after a specific timestamp."""
     with _lock:
         conn = _get_conn()
         try:
             rows = conn.execute(
                 "SELECT * FROM agent_creative_works WHERE timestamp >= ? ORDER BY timestamp ASC LIMIT ?",
-                (since_timestamp, limit)
+                (since_timestamp, limit),
             ).fetchall()
             return [dict(r) for r in rows]
         finally:
             conn.close()
 
 
-def get_creative_works_summary(since_timestamp: Optional[str] = None, max_works: int = 20) -> str:
+def get_creative_works_summary(
+    since_timestamp: str | None = None, max_works: int = 20
+) -> str:
     """Generate a compact summary of creative works for prompt injection."""
-    works = get_creative_works_since(since_timestamp, limit=max_works) if since_timestamp else get_recent_creative_works(limit=max_works)
+    works = (
+        get_creative_works_since(since_timestamp, limit=max_works)
+        if since_timestamp
+        else get_recent_creative_works(limit=max_works)
+    )
     if not works:
         return "(No creative works yet — Jen hasn't made anything during this period.)"
 
     lines = []
     for w in works:
-        status_tag = f" [{w['status']}]" if w.get('status') else ""
-        lines.append(f"• {w['work_type']}{status_tag}: \"{w['title']}\" — {w['content'][:300]}")
+        status_tag = f" [{w['status']}]" if w.get("status") else ""
+        lines.append(
+            f'• {w["work_type"]}{status_tag}: "{w["title"]}" — {w["content"][:300]}'
+        )
 
     return "\n".join(lines)
 
@@ -663,7 +954,9 @@ def update_creative_work(work_id: int, **kwargs) -> bool:
     with _lock:
         conn = _get_conn()
         try:
-            conn.execute(f"UPDATE agent_creative_works SET {set_clause} WHERE id = ?", values)
+            conn.execute(
+                f"UPDATE agent_creative_works SET {set_clause} WHERE id = ?", values
+            )
             conn.commit()
             return True
         finally:
@@ -672,18 +965,25 @@ def update_creative_work(work_id: int, **kwargs) -> bool:
 
 # ── Idle Life Summary (for "what have you been up to?") ────────────────
 
-def get_idle_life_summary(since_timestamp: Optional[str] = None) -> str:
+
+def get_idle_life_summary(since_timestamp: str | None = None) -> str:
     """Generate a comprehensive summary of Jen's idle life for return greeting.
     Includes journal entries, creative works, plans, thoughts, and actions."""
     parts = []
 
     # Journal
-    journal_summary = get_journal_summary(since_timestamp=since_timestamp, max_entries=20)
+    journal_summary = get_journal_summary(
+        since_timestamp=since_timestamp, max_entries=20
+    )
     if journal_summary and "(No journal entries" not in journal_summary:
-        parts.append(f"── YOUR JOURNAL (what you wrote about your day) ──\n{journal_summary}")
+        parts.append(
+            f"── YOUR JOURNAL (what you wrote about your day) ──\n{journal_summary}"
+        )
 
     # Creative works
-    creative_summary = get_creative_works_summary(since_timestamp=since_timestamp, max_works=15)
+    creative_summary = get_creative_works_summary(
+        since_timestamp=since_timestamp, max_works=15
+    )
     if creative_summary and "(No creative works" not in creative_summary:
         parts.append(f"── YOUR CREATIVE WORKS (things you made) ──\n{creative_summary}")
 
@@ -694,13 +994,17 @@ def get_idle_life_summary(since_timestamp: Optional[str] = None) -> str:
         for p in plans:
             steps_done = sum(1 for s in p.get("steps", []) if s.startswith("[✓]"))
             steps_total = len(p.get("steps", []))
-            plan_lines.append(f"• [{p['status']}] {p['title']} ({steps_done}/{steps_total} steps done)")
-        parts.append(f"── YOUR ACTIVE PLANS ──\n" + "\n".join(plan_lines))
+            plan_lines.append(
+                f"• [{p['status']}] {p['title']} ({steps_done}/{steps_total} steps done)"
+            )
+        parts.append("── YOUR ACTIVE PLANS ──\n" + "\n".join(plan_lines))
 
     # Recent thoughts count
     thoughts = get_recent_thoughts(limit=100)
     if thoughts:
-        parts.append(f"── YOUR THOUGHT ACTIVITY ──\n{len(thoughts)} thoughts recorded in this period.")
+        parts.append(
+            f"── YOUR THOUGHT ACTIVITY ──\n{len(thoughts)} thoughts recorded in this period."
+        )
 
     # Recent actions
     actions = get_recent_actions(limit=50)
@@ -720,7 +1024,8 @@ def get_idle_life_summary(since_timestamp: Optional[str] = None) -> str:
 
 # ── Convenience: Full Context Dump ──────────────────────────────────────
 
-def get_agent_context(max_thoughts: int = 30, max_actions: int = 20) -> Dict[str, Any]:
+
+def get_agent_context(max_thoughts: int = 30, max_actions: int = 20) -> dict[str, Any]:
     """Get a compact context snapshot for injection into the system prompt."""
     thoughts = get_recent_thoughts(limit=max_thoughts)
     plans = get_active_plans()
@@ -729,24 +1034,47 @@ def get_agent_context(max_thoughts: int = 30, max_actions: int = 20) -> Dict[str
     queue_stats = get_queue_stats()
 
     return {
-        "recent_thoughts": [{"ts": t["timestamp"], "thought": t["thought"][:300]} for t in thoughts],
-        "active_plans": [{"id": p["id"], "title": p["title"], "status": p["status"], "steps": p.get("steps", [])} for p in plans],
-        "recent_actions": [{"ts": a["timestamp"], "type": a["action_type"], "result": a["result"][:200]} for a in actions],
-        "recent_sessions": [{"start": s["session_start"], "summary": s["summary"][:200]} for s in sessions],
+        "recent_thoughts": [
+            {"ts": t["timestamp"], "thought": t["thought"][:300]} for t in thoughts
+        ],
+        "active_plans": [
+            {
+                "id": p["id"],
+                "title": p["title"],
+                "status": p["status"],
+                "steps": p.get("steps", []),
+            }
+            for p in plans
+        ],
+        "recent_actions": [
+            {
+                "ts": a["timestamp"],
+                "type": a["action_type"],
+                "result": a["result"][:200],
+            }
+            for a in actions
+        ],
+        "recent_sessions": [
+            {"start": s["session_start"], "summary": s["summary"][:200]}
+            for s in sessions
+        ],
         "queue_pending": queue_stats["pending"],
     }
 
 
 # ── Goals (Long-Term Objectives) ────────────────────────────────────────
 
-def create_goal(title: str, description: str = "", priority: int = 5, category: str = "general") -> int:
+
+def create_goal(
+    title: str, description: str = "", priority: int = 5, category: str = "general"
+) -> int:
     """Create a long-term goal. Returns goal ID."""
     with _lock:
         conn = _get_conn()
         try:
             cur = conn.execute(
                 "INSERT INTO agent_goals (title, description, priority, category) VALUES (?, ?, ?, ?)",
-                (title, description, priority, category)
+                (title, description, priority, category),
             )
             conn.commit()
             return cur.lastrowid
@@ -754,7 +1082,7 @@ def create_goal(title: str, description: str = "", priority: int = 5, category: 
             conn.close()
 
 
-def get_active_goals() -> List[Dict[str, Any]]:
+def get_active_goals() -> list[dict[str, Any]]:
     """Get all active goals, ordered by priority (highest first)."""
     with _lock:
         conn = _get_conn()
@@ -775,7 +1103,7 @@ def get_active_goals() -> List[Dict[str, Any]]:
             conn.close()
 
 
-def get_all_goals(status: Optional[str] = None) -> List[Dict[str, Any]]:
+def get_all_goals(status: str | None = None) -> list[dict[str, Any]]:
     """Get all goals, optionally filtered by status."""
     with _lock:
         conn = _get_conn()
@@ -783,7 +1111,7 @@ def get_all_goals(status: Optional[str] = None) -> List[Dict[str, Any]]:
             if status:
                 rows = conn.execute(
                     "SELECT * FROM agent_goals WHERE status = ? ORDER BY priority DESC, created_at ASC",
-                    (status,)
+                    (status,),
                 ).fetchall()
             else:
                 rows = conn.execute(
@@ -802,12 +1130,14 @@ def get_all_goals(status: Optional[str] = None) -> List[Dict[str, Any]]:
             conn.close()
 
 
-def get_goal(goal_id: int) -> Optional[Dict[str, Any]]:
+def get_goal(goal_id: int) -> dict[str, Any] | None:
     """Get a single goal by ID."""
     with _lock:
         conn = _get_conn()
         try:
-            row = conn.execute("SELECT * FROM agent_goals WHERE id = ?", (goal_id,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM agent_goals WHERE id = ?", (goal_id,)
+            ).fetchone()
             if not row:
                 return None
             d = dict(row)
@@ -831,16 +1161,18 @@ def update_goal_progress(goal_id: int, note: str) -> bool:
             notes = json.loads(notes)
         except json.JSONDecodeError:
             notes = []
-    notes.append({
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "note": note,
-    })
+    notes.append(
+        {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "note": note,
+        }
+    )
     with _lock:
         conn = _get_conn()
         try:
             conn.execute(
                 "UPDATE agent_goals SET progress_notes = ?, updated_at = datetime('now') WHERE id = ?",
-                (json.dumps(notes), goal_id)
+                (json.dumps(notes), goal_id),
             )
             conn.commit()
             return True
@@ -855,7 +1187,7 @@ def complete_goal(goal_id: int, outcome: str = "") -> bool:
         try:
             conn.execute(
                 "UPDATE agent_goals SET status = 'completed', outcome = ?, updated_at = datetime('now') WHERE id = ?",
-                (outcome, goal_id)
+                (outcome, goal_id),
             )
             conn.commit()
             return True
@@ -870,7 +1202,7 @@ def abandon_goal(goal_id: int, reason: str = "") -> bool:
         try:
             conn.execute(
                 "UPDATE agent_goals SET status = 'abandoned', outcome = ?, updated_at = datetime('now') WHERE id = ?",
-                (reason, goal_id)
+                (reason, goal_id),
             )
             conn.commit()
             return True

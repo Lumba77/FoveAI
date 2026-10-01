@@ -4,6 +4,7 @@ Smoke test: ops auth -> imagine (/api/dream) + mouth TTS (chatterbox primary, pi
 Run from repo root with stack up:
   python tests/smoke_ops_imagine_tts.py
 """
+
 from __future__ import annotations
 
 import json
@@ -105,7 +106,9 @@ def main() -> int:
 
     print("--- Ensure chatterbox backend on mouth ---")
     try:
-        st, current = _json_request(opener, "GET", f"{OPS}/api/tts/backend", timeout=20.0)
+        st, current = _json_request(
+            opener, "GET", f"{OPS}/api/tts/backend", timeout=20.0
+        )
         print(f"current backend: {current}")
         st, switched = _json_request(
             opener,
@@ -140,7 +143,9 @@ def main() -> int:
         )
         b64 = str(dream.get("image_b64", ""))
         if st != 200 or dream.get("status") != "success" or len(b64) < 1000:
-            print(f"FAIL dream status={st} keys={list(dream.keys())} detail={dream.get('detail')}")
+            print(
+                f"FAIL dream status={st} keys={list(dream.keys())} detail={dream.get('detail')}"
+            )
             return 1
         print(f"OK dream image_b64 length={len(b64)}")
     except urllib.error.HTTPError as e:
@@ -210,4 +215,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

@@ -10,9 +10,15 @@ def _safe_none(reason: str) -> str:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Safe wrapper for local coder/runner output.")
-    parser.add_argument("--model", required=True, help="Model identifier for the local runner.")
-    parser.add_argument("--prompt", required=True, help="Prompt text (already includes constraints).")
+    parser = argparse.ArgumentParser(
+        description="Safe wrapper for local coder/runner output."
+    )
+    parser.add_argument(
+        "--model", required=True, help="Model identifier for the local runner."
+    )
+    parser.add_argument(
+        "--prompt", required=True, help="Prompt text (already includes constraints)."
+    )
     args = parser.parse_args()
 
     runner_cmd = os.getenv("FoveAI_LOCAL_RUNNER_CMD", "runner").strip()
@@ -39,4 +45,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

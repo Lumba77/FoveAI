@@ -20,15 +20,15 @@ import asyncio
 import json
 import os
 import sys
-from typing import Any, Dict
+from typing import Any
 
 import websockets
 
 # Color codes per speaker
-COLORS: Dict[str, str] = {
-    "user": "\033[97m",        # white
-    "jen": "\033[92m",         # green
-    "devin": "\033[94m",       # blue
+COLORS: dict[str, str] = {
+    "user": "\033[97m",  # white
+    "jen": "\033[92m",  # green
+    "devin": "\033[94m",  # blue
     "antigravity": "\033[93m",  # yellow/orange
 }
 RESET: str = "\033[0m"
@@ -41,7 +41,9 @@ async def chat_client(name: str, host: str, port: int) -> None:
 
     try:
         async with websockets.connect(uri) as ws:
-            print(f"{DIM}[Chat] Connected! Type a message and press Enter. Ctrl+C to quit.{RESET}")
+            print(
+                f"{DIM}[Chat] Connected! Type a message and press Enter. Ctrl+C to quit.{RESET}"
+            )
             print(f"{DIM}[Chat] ---{RESET}")
 
             # Task to read stdin and send messages
@@ -52,7 +54,7 @@ async def chat_client(name: str, host: str, port: int) -> None:
                     text = text.strip()
                     if not text:
                         continue
-                    msg: Dict[str, Any] = {
+                    msg: dict[str, Any] = {
                         "type": "chat",
                         "from": name,
                         "text": text,
@@ -64,7 +66,7 @@ async def chat_client(name: str, host: str, port: int) -> None:
                 while True:
                     raw: str = await ws.recv()
                     try:
-                        data: Dict[str, Any] = json.loads(raw)
+                        data: dict[str, Any] = json.loads(raw)
                     except json.JSONDecodeError:
                         continue
 
@@ -86,7 +88,7 @@ async def chat_client(name: str, host: str, port: int) -> None:
         sys.exit(1)
 
 
-def _print_message(msg: Dict[str, Any]) -> None:
+def _print_message(msg: dict[str, Any]) -> None:
     speaker: str = msg.get("from", "unknown")
     text: str = msg.get("text", "")
     timestamp: str = msg.get("time", "")
@@ -97,10 +99,23 @@ def _print_message(msg: Dict[str, Any]) -> None:
 
 
 def main() -> int:
-    parser: argparse.ArgumentParser = argparse.ArgumentParser(description="FoveAI 4-Way Chat Client")
-    parser.add_argument("--name", required=True, help="Your name in the chat (user, devin, antigravity, jen)")
-    parser.add_argument("--host", default="127.0.0.1", help="Relay host (default: 127.0.0.1)")
-    parser.add_argument("--port", type=int, default=int(os.getenv("FOVEAI_BACKEND_PORT_CHAT", 8407)), help="Relay port")
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        description="FoveAI 4-Way Chat Client"
+    )
+    parser.add_argument(
+        "--name",
+        required=True,
+        help="Your name in the chat (user, devin, antigravity, jen)",
+    )
+    parser.add_argument(
+        "--host", default="127.0.0.1", help="Relay host (default: 127.0.0.1)"
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.getenv("FOVEAI_BACKEND_PORT_CHAT", 8407)),
+        help="Relay port",
+    )
     args: argparse.Namespace = parser.parse_args()
 
     try:

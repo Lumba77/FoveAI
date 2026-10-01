@@ -1,10 +1,15 @@
-import httpx
 import asyncio
+
+import httpx
+
 
 async def test_tts():
     url = "http://localhost:8002/tts"
-    payload = {"text": "System check. My voice is now active and ready.", "voice": "female"}
-    
+    payload = {
+        "text": "System check. My voice is now active and ready.",
+        "voice": "female",
+    }
+
     print(f"Testing TTS at {url}...")
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
@@ -17,6 +22,7 @@ async def test_tts():
                 print(f"Failure. Received only {len(resp.content)} bytes.")
     except Exception as e:
         print(f"TTS Test Failed: {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(test_tts())

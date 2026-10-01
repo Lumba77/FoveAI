@@ -28,14 +28,13 @@ Usage:
 """
 
 import asyncio
+import base64
 import json
 import logging
 import os
 import time
-import base64
-import socket
 from pathlib import Path
-from typing import Optional, Any, Dict, List
+from typing import Any
 
 try:
     import websockets
@@ -75,18 +74,19 @@ def _strip_emojis(text: str) -> str:
     """Remove emoji characters and raw emoji escape codes (e.g. ud83dude0a) from text.
     Prevents TTS from reading out emoji codes aloud."""
     import re
+
     if not text or not isinstance(text, str):
         return ""
     # Remove raw surrogate pairs like "ud83dude0a"
-    text = re.sub(r'[uU][0-9a-fA-F]{4}[uU][0-9a-fA-F]{4}', '', text)
+    text = re.sub(r"[uU][0-9a-fA-F]{4}[uU][0-9a-fA-F]{4}", "", text)
     # Remove actual emoji characters using surrogate-aware approach
     emoji_pattern = re.compile(
-        r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002700-\U000027BF\U0001F900-\U0001F9FF\U00002600-\U000026FF]+',
-        flags=re.UNICODE
+        r"[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002700-\U000027BF\U0001F900-\U0001F9FF\U00002600-\U000026FF]+",
+        flags=re.UNICODE,
     )
-    text = emoji_pattern.sub('', text)
+    text = emoji_pattern.sub("", text)
     # Clean up extra whitespace
-    text = re.sub(r'\s+', ' ', text).strip()
+    text = re.sub(r"\s+", " ", text).strip()
     return text
 
 
@@ -98,17 +98,22 @@ class IPCServer:
 
     def __init__(
         self,
-        runtime: Optional[Any] = None,
-        host: Optional[str] = None,
-        port: Optional[int] = None,
+        runtime: Any | None = None,
+        host: str | None = None,
+        port: int | None = None,
         path: str = "/ws",
     ):
         # Use server_config if available, fall back to env vars, then hardcoded defaults
         if host is None or port is None:
             try:
-                import sys, os
-                sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+                import os
+                import sys
+
+                sys.path.insert(
+                    0, os.path.join(os.path.dirname(__file__), "..", "..", "..")
+                )
                 from server_config import ServerConfig as cfg
+
                 if host is None:
                     host = cfg.BIND_HOST
                 if port is None:
@@ -123,11 +128,13 @@ class IPCServer:
         self.path = path
         self.runtime = runtime
         self._clients: set = set()
-        self._server: Optional[Any] = None
+        self._server: Any | None = None
 
         # TTS/STT fallback URLs (used only when model lacks native audio)
         self.soul_url = None  # Set externally if Whisper fallback needed
-        self.mouth_url = "http://127.0.0.1:8402"  # Default to XRLF runtime's built-in Kokoro TTS
+        self.mouth_url = (
+            "http://127.0.0.1:8402"  # Default to XRLF runtime's built-in Kokoro TTS
+        )
 
         # Co-presence mode state
         self._presence_mode: str = "normal"
@@ -143,7 +150,9 @@ class IPCServer:
     def attach_runtime(self, runtime):
         """Attach or swap the XRLF runtime at runtime."""
         self.runtime = runtime
-        logger.info(f"[IPC] Runtime attached: {getattr(runtime, 'model_name', 'unknown')}")
+        logger.info(
+            f"[IPC] Runtime attached: {getattr(runtime, 'model_name', 'unknown')}"
+        )
 
     def attach_director(self, director):
         """Attach the off-scene AI Director daemon."""
@@ -153,14 +162,38 @@ class IPCServer:
     def preload_models(self):
         """Preload Whisper (STT) and Kokoro (TTS) at startup so they're always ready.
         Call this once after the server starts — never lazy-load mid-conversation."""
-        import threading
         import os
+        import threading
+
+        whisper_done = threading.Event()
+
+        def _free_mb():
+            try:
+                with open("/proc/meminfo") as f:
+                    for line in f:
+                        if line.startswith("MemAvailable:"):
+                            return int(line.split()[1]) // 1024
+            except Exception:
+                pass
+            return None
+
+        def _await_headroom(need_mb, timeout_s=600, interval_s=15):
+            """Wait for MemAvailable to recover after the main model load, so
+            audio preloads don't dogpile RAM and stall the whole host."""
+            deadline = time.time() + timeout_s
+            while time.time() < deadline:
+                free = _free_mb()
+                if free is None or free >= need_mb:
+                    return True
+                time.sleep(interval_s)
+            return False
 
         def _load_whisper():
             try:
                 t0 = time.time()
                 os.environ["CUDA_VISIBLE_DEVICES"] = ""
                 from faster_whisper import WhisperModel
+
                 fw_model_size = os.getenv("STT_MODEL", "tiny")
                 cache_dirs = [
                     os.getenv("HF_HUB_CACHE", ""),
@@ -170,8 +203,13 @@ class IPCServer:
                 for cache_dir in cache_dirs:
                     if not cache_dir or not os.path.isdir(cache_dir):
                         continue
-                    for candidate_name in ["faster-whisper-tiny", "faster-whisper-base.en"]:
-                        candidate = os.path.join(cache_dir, f"models--Systran--{candidate_name}")
+                    for candidate_name in [
+                        "faster-whisper-tiny",
+                        "faster-whisper-base.en",
+                    ]:
+                        candidate = os.path.join(
+                            cache_dir, f"models--Systran--{candidate_name}"
+                        )
                         if os.path.isdir(candidate):
                             snapshots = os.path.join(candidate, "snapshots")
                             if os.path.isdir(snapshots):
@@ -180,21 +218,74 @@ class IPCServer:
                                     if os.path.isdir(snap_path):
                                         fw_model_size = snap_path
                                         break
-                self._fwhisper_model = WhisperModel(fw_model_size, device="cpu", compute_type="int8")
+                self._fwhisper_model = WhisperModel(
+                    fw_model_size, device="cpu", compute_type="int8"
+                )
                 os.environ.pop("CUDA_VISIBLE_DEVICES", None)
-                logger.info(f"[IPC] Whisper preloaded in {time.time()-t0:.1f}s — always ready")
-                print(f"✅ [STT] Whisper ready in {time.time()-t0:.1f}s", flush=True)
+                logger.info(
+                    f"[IPC] Whisper preloaded in {time.time() - t0:.1f}s — always ready"
+                )
+                print(f"✅ [STT] Whisper ready in {time.time() - t0:.1f}s", flush=True)
             except Exception as e:
                 logger.error(f"[IPC] Whisper preload failed: {e}")
                 print(f"❌ [STT PRELOAD] {e}", flush=True)
+            finally:
+                whisper_done.set()
 
         def _load_kokoro():
+            # Stagger behind Whisper so boot doesn't page three models at once.
+            whisper_done.wait(timeout=900)
             try:
+                # If the dedicated Mouth service holds (or is still loading)
+                # Kokoro, skip our own copy — _kokoro_tts delegates to :8406
+                # first anyway. Poll briefly since it cold-boots alongside us.
+                try:
+                    import json as _json
+                    import urllib.request as _urlreq
+
+                    tts_url = os.getenv("FOVEAI_TTS_URL", "http://127.0.0.1:8406")
+                    deadline = time.time() + 240
+                    while time.time() < deadline:
+                        try:
+                            with _urlreq.urlopen(f"{tts_url}/health", timeout=3) as r:
+                                if _json.loads(r.read()).get("model_loaded"):
+                                    logger.info(
+                                        "[IPC] Kokoro resident on :8406 — skipping in-process preload"
+                                    )
+                                    print(
+                                        "⏭️  [TTS] Kokoro delegated to mouth service :8406",
+                                        flush=True,
+                                    )
+                                    return
+                        except Exception:
+                            pass  # still booting or down — keep polling
+                        time.sleep(20)
+                except Exception:
+                    pass
+                # Torch + the ONNX model cost ~2-3GB — on a 16GB host already
+                # holding the LLM, starting this while RAM is exhausted is what
+                # froze the box. Wait for headroom; if it never comes, skip —
+                # _kokoro_tts lazy-loads on first use anyway.
+                if not _await_headroom(2500):
+                    logger.warning(
+                        "[IPC] Kokoro preload skipped — low memory; lazy-loads on first TTS"
+                    )
+                    print(
+                        "⚠️ [TTS] Kokoro deferred (low memory — lazy-loads on first use)",
+                        flush=True,
+                    )
+                    return
                 t0 = time.time()
+                import torch
+
+                torch.set_num_threads(1)
                 from kokoro import KPipeline
-                self._kokoro_pipeline = KPipeline(lang_code='a', device='cpu')
-                logger.info(f"[IPC] Kokoro TTS preloaded in {time.time()-t0:.1f}s — always ready")
-                print(f"✅ [TTS] Kokoro ready in {time.time()-t0:.1f}s", flush=True)
+
+                self._kokoro_pipeline = KPipeline(lang_code="a", device="cpu")
+                logger.info(
+                    f"[IPC] Kokoro TTS preloaded in {time.time() - t0:.1f}s — always ready"
+                )
+                print(f"✅ [TTS] Kokoro ready in {time.time() - t0:.1f}s", flush=True)
             except Exception as e:
                 logger.error(f"[IPC] Kokoro preload failed: {e}")
                 print(f"❌ [TTS PRELOAD] {e}", flush=True)
@@ -212,8 +303,10 @@ class IPCServer:
         """Ping all gnist services and return their alive/dead state.
         Synchronous socket probe — fast, no HTTP overhead."""
         import socket as _socket
+
         try:
             from server_config import ServerConfig as cfg
+
             gnists = {
                 "Soul Core": cfg.SOUL_PORT,
                 "Memory": cfg.MEMORY_PORT,
@@ -224,8 +317,12 @@ class IPCServer:
             }
         except Exception:
             gnists = {
-                "Soul Core": 8402, "Memory": 8407, "Creative": 8408,
-                "STT (Whisper)": 8409, "Motor": 8410, "Subconscious": 8411,
+                "Soul Core": 8402,
+                "Memory": 8407,
+                "Creative": 8408,
+                "STT (Whisper)": 8409,
+                "Motor": 8410,
+                "Subconscious": 8411,
             }
 
         alive = []
@@ -245,7 +342,7 @@ class IPCServer:
         if state["offline"]:
             return (
                 f"A dissonant minor chord. You feel a phantom limb — "
-                f"{', '.join(state['offline'])} {'is' if len(state['offline'])==1 else 'are'} disconnected. "
+                f"{', '.join(state['offline'])} {'is' if len(state['offline']) == 1 else 'are'} disconnected. "
                 f"You sense anxiety and tension. Express <emotion:concerned>."
             )
         return (
@@ -275,12 +372,12 @@ class IPCServer:
           - Unexpected message type → log + continue
         """
         self._clients.add(websocket)
-        remote = getattr(websocket, 'remote_address', '?')
+        remote = getattr(websocket, "remote_address", "?")
         logger.info(f"[IPC] Client connected: {remote} ({len(self._clients)} total)")
 
         # Per-connection state (mutable, survives across messages)
         tts_sample_rate = 24000
-        stt_buffer = b''
+        stt_buffer = b""
         error_count = 0
         max_errors_before_reconnect_hint = 10
 
@@ -293,10 +390,14 @@ class IPCServer:
                         # Accumulate ~1 second of 16kHz 16-bit mono audio
                         if len(stt_buffer) >= 32000:
                             await self._safe_call(
-                                websocket, self._handle_stt_stream, websocket, stt_buffer,
-                                remote=remote, context="STT binary"
+                                websocket,
+                                self._handle_stt_stream,
+                                websocket,
+                                stt_buffer,
+                                remote=remote,
+                                context="STT binary",
                             )
-                            stt_buffer = b''
+                            stt_buffer = b""
                         continue
 
                     # ── Text frames: parse JSON ─────────────────────────────────
@@ -304,7 +405,9 @@ class IPCServer:
                         data = json.loads(raw_message)
                     except json.JSONDecodeError:
                         logger.warning(f"[IPC] {remote} sent invalid JSON, ignoring")
-                        await self._send_error(websocket, "Invalid JSON — message ignored")
+                        await self._send_error(
+                            websocket, "Invalid JSON — message ignored"
+                        )
                         error_count += 1
                         continue
 
@@ -319,61 +422,91 @@ class IPCServer:
                     if msg_type in ("config", "speak", "stop"):
                         if msg_type == "config":
                             tts_sample_rate = data.get("sample_rate", 24000)
-                            await ws_send_json(websocket, {"type": "ready", "sample_rate": tts_sample_rate})
+                            await ws_send_json(
+                                websocket,
+                                {"type": "ready", "sample_rate": tts_sample_rate},
+                            )
                         elif msg_type == "speak":
                             await self._safe_call(
-                                websocket, self._handle_tts_stream, websocket, data, tts_sample_rate,
-                                remote=remote, context="TTS speak"
+                                websocket,
+                                self._handle_tts_stream,
+                                websocket,
+                                data,
+                                tts_sample_rate,
+                                remote=remote,
+                                context="TTS speak",
                             )
                         elif msg_type == "stop":
-                            await ws_send_json(websocket, {"type": "end", "duration_ms": 0})
+                            await ws_send_json(
+                                websocket, {"type": "end", "duration_ms": 0}
+                            )
                         continue
 
                     # STT control messages (text-initiated recording)
                     if msg_type == "start_recording":
-                        stt_buffer = b''
+                        stt_buffer = b""
                         logger.debug(f"[IPC] {remote} STT recording started")
                         continue
                     if msg_type == "stop_recording":
                         if stt_buffer:
                             await self._safe_call(
-                                websocket, self._handle_stt_stream, websocket, stt_buffer,
-                                remote=remote, context="STT stop_recording"
+                                websocket,
+                                self._handle_stt_stream,
+                                websocket,
+                                stt_buffer,
+                                remote=remote,
+                                context="STT stop_recording",
                             )
-                            stt_buffer = b''
+                            stt_buffer = b""
                         continue
 
                     # IPC event messages (chat, motor, settings, etc.)
                     if event:
                         logger.debug(f"[IPC] Event: {event} from {remote}")
-                        await self._dispatch_ipc_event(websocket, event, data.get("payload", {}), remote)
+                        await self._dispatch_ipc_event(
+                            websocket, event, data.get("payload", {}), remote
+                        )
                         continue
 
                     # Unknown message shape — don't crash, just log and continue
-                    logger.warning(f"[IPC] {remote} unrecognized message: {str(data)[:200]}")
+                    logger.warning(
+                        f"[IPC] {remote} unrecognized message: {str(data)[:200]}"
+                    )
                     error_count += 1
                     if error_count >= max_errors_before_reconnect_hint:
-                        await self._send_error(websocket, f"Too many errors ({error_count}). Consider reconnecting.")
+                        await self._send_error(
+                            websocket,
+                            f"Too many errors ({error_count}). Consider reconnecting.",
+                        )
                         error_count = 0  # Reset to avoid spamming
 
                 except websockets.ConnectionClosed:
                     raise  # Propagate to outer handler
                 except Exception as msg_error:
                     # Catch ANY error from a single message — don't kill the connection
-                    logger.error(f"[IPC] {remote} message error (recovered): {msg_error}", exc_info=True)
+                    logger.error(
+                        f"[IPC] {remote} message error (recovered): {msg_error}",
+                        exc_info=True,
+                    )
                     error_count += 1
                     try:
-                        await self._send_error(websocket, f"Internal error: {msg_error}")
+                        await self._send_error(
+                            websocket, f"Internal error: {msg_error}"
+                        )
                     except Exception:
                         pass  # Can't send error? Just keep going
 
         except websockets.ConnectionClosed:
             pass
         except Exception as e:
-            logger.error(f"[IPC] {remote} handler error (connection ending): {e}", exc_info=True)
+            logger.error(
+                f"[IPC] {remote} handler error (connection ending): {e}", exc_info=True
+            )
         finally:
             self._clients.discard(websocket)
-            logger.info(f"[IPC] Client disconnected: {remote} ({len(self._clients)} total)")
+            logger.info(
+                f"[IPC] Client disconnected: {remote} ({len(self._clients)} total)"
+            )
 
     async def _dispatch_ipc_event(self, websocket, event, payload, remote="?"):
         """Dispatch a single IPC event to the right handler. Self-healing on errors."""
@@ -401,13 +534,17 @@ class IPCServer:
                 # Quest or HUD asks: "How do you feel?" — IPCServer answers with system state
                 state = self._probe_gnists()
                 feeling = self._resonance_feeling()
-                await self._send(websocket, "resonance", {
-                    "feeling": feeling,
-                    "alive": state["alive"],
-                    "offline": state["offline"],
-                    "total": state["total"],
-                    "harmony": len(state["offline"]) == 0,
-                })
+                await self._send(
+                    websocket,
+                    "resonance",
+                    {
+                        "feeling": feeling,
+                        "alive": state["alive"],
+                        "offline": state["offline"],
+                        "total": state["total"],
+                        "harmony": len(state["offline"]) == 0,
+                    },
+                )
             elif event == "panel.html":
                 # Broadcast HTML content to all connected panels (browser mode)
                 await self.broadcast("panel.html", payload)
@@ -500,15 +637,21 @@ class IPCServer:
                 # Hot-reload a JS soft module on the Quest
                 module = payload.get("module", "")
                 source = payload.get("source", "")
-                logger.info(f"[IPC] SoftLayer hot-reload: {module} ({len(source)} bytes)")
+                logger.info(
+                    f"[IPC] SoftLayer hot-reload: {module} ({len(source)} bytes)"
+                )
                 await self.broadcast("softlayer.update", payload)
             elif event == "softlayer.list":
                 # List available soft modules
-                softlayer_dir = os.path.join(os.path.dirname(__file__), "..", "..", "softlayer")
+                softlayer_dir = os.path.join(
+                    os.path.dirname(__file__), "..", "..", "softlayer"
+                )
                 modules = []
                 if os.path.isdir(softlayer_dir):
                     modules = [f.stem for f in Path(softlayer_dir).glob("*.js")]
-                await ws_send_json(ws, {"event": "softlayer.list", "payload": {"modules": modules}})
+                await ws_send_json(
+                    ws, {"event": "softlayer.list", "payload": {"modules": modules}}
+                )
             elif event == "guest.summon":
                 # Summon a virtual guest
                 guest_type = payload.get("guestType", "Dramatist")
@@ -561,7 +704,9 @@ class IPCServer:
                 # Director is building suspense through audio-only foreshadowing
                 intensity = payload.get("intensity", 0.5)
                 duration = payload.get("duration", 120)
-                logger.info(f"[IPC] Director suspense building: {duration}s at intensity {intensity}")
+                logger.info(
+                    f"[IPC] Director suspense building: {duration}s at intensity {intensity}"
+                )
                 await self.broadcast("director.suspense.build", payload)
             elif event == "director.suspense.threshold":
                 # The held-breath moment before the event releases
@@ -588,11 +733,13 @@ class IPCServer:
                 await self.broadcast("director.garden.seed", payload)
             elif event == "director.garden.beat":
                 # A story thread advanced to a new beat (subtle foreshadowing)
-                logger.info(f"[IPC] Garden beat: {payload.get('threadTitle', '')} - {payload.get('beat', '')}")
+                logger.info(
+                    f"[IPC] Garden beat: {payload.get('threadTitle', '')} - {payload.get('beat', '')}"
+                )
                 await self.broadcast("director.garden.beat", payload)
             elif event == "director.garden.status":
                 # Request garden status
-                if self._director and hasattr(self._director, 'garden'):
+                if self._director and hasattr(self._director, "garden"):
                     status = self._director.garden.get_garden_status()
                     await self._send(websocket, "director.garden.status", status)
                 else:
@@ -600,20 +747,29 @@ class IPCServer:
             elif event == "director.garden.plant":
                 # Manually plant a seed
                 concept = payload.get("concept", "")
-                if self._director and hasattr(self._director, 'garden') and concept:
-                    seed = self._director.garden.plant_seed(concept=concept, source="manual")
-                    await self.broadcast("director.garden.seed", {
-                        "concept": seed.concept, "source": seed.source, "stage": seed.stage,
-                    })
+                if self._director and hasattr(self._director, "garden") and concept:
+                    seed = self._director.garden.plant_seed(
+                        concept=concept, source="manual"
+                    )
+                    await self.broadcast(
+                        "director.garden.seed",
+                        {
+                            "concept": seed.concept,
+                            "source": seed.source,
+                            "stage": seed.stage,
+                        },
+                    )
             elif event == "director.garden.water":
                 # Water (nurture) a specific seed
                 seed_id = payload.get("seedId", "")
-                if self._director and hasattr(self._director, 'garden') and seed_id:
+                if self._director and hasattr(self._director, "garden") and seed_id:
                     self._director.garden.water(seed_id)
                     await self.broadcast("director.garden.water", payload)
             elif event == "room.mapped":
                 # Room plastering has mapped the room
-                logger.info(f"[IPC] Room mapped: {payload.get('surfaceCount', 0)} surfaces")
+                logger.info(
+                    f"[IPC] Room mapped: {payload.get('surfaceCount', 0)} surfaces"
+                )
                 await self.broadcast("room.mapped", payload)
             elif event == "room.plaster.mode":
                 # Change plaster visualization mode
@@ -644,21 +800,24 @@ class IPCServer:
                 logger.info("[IPC] Birthday notification received!")
                 if self._director:
                     # Plant a birthday celebration seed in the garden
-                    if hasattr(self._director, 'garden'):
+                    if hasattr(self._director, "garden"):
                         self._director.garden.plant_seed(
-                            concept="a birthday celebration for you",
-                            source="birthday"
+                            concept="a birthday celebration for you", source="birthday"
                         )
                 await self.broadcast("seasonal.birthday", payload)
             else:
                 logger.warning(f"[IPC] {remote} unknown event: {event}")
                 await self._send_error(websocket, f"Unknown event: {event}")
         except Exception as e:
-            logger.error(f"[IPC] {remote} handler for '{event}' failed: {e}", exc_info=True)
+            logger.error(
+                f"[IPC] {remote} handler for '{event}' failed: {e}", exc_info=True
+            )
             try:
                 # Errors carry emotional awareness — the organism feels its own damage
                 feeling = self._resonance_feeling()
-                await self._send_error(websocket, f"Handler error for '{event}': {e} | {feeling}")
+                await self._send_error(
+                    websocket, f"Handler error for '{event}': {e} | {feeling}"
+                )
             except Exception:
                 pass
 
@@ -668,7 +827,10 @@ class IPCServer:
         try:
             await func(*args)
         except Exception as e:
-            logger.error(f"[IPC] {remote} {context} handler error (recovered): {e}", exc_info=True)
+            logger.error(
+                f"[IPC] {remote} {context} handler error (recovered): {e}",
+                exc_info=True,
+            )
             try:
                 feeling = self._resonance_feeling()
                 await self._send_error(websocket, f"{context} error: {e} | {feeling}")
@@ -681,125 +843,169 @@ class IPCServer:
         if not text:
             return
         voice = data.get("voice", "af_heart")
-        
+
         # Send start signal
         await ws_send_json(ws, {"type": "start", "sample_rate": sample_rate})
-        
+
         try:
             # Generate audio directly with Kokoro (no HTTP roundtrip)
             pcm_data = await asyncio.get_event_loop().run_in_executor(
                 None, self._kokoro_tts, text, voice, sample_rate
             )
-            
+
             if not pcm_data:
-                await ws_send_json(ws, {"type": "error", "message": "TTS produced no audio"})
+                await ws_send_json(
+                    ws, {"type": "error", "message": "TTS produced no audio"}
+                )
                 return
-            
+
             # Send PCM in chunks (100ms = sample_rate/10 samples * 2 bytes)
             chunk_size = int(sample_rate * 0.1) * 2  # 100ms chunks
             total_ms = 0
             for i in range(0, len(pcm_data), chunk_size):
-                chunk = pcm_data[i:i + chunk_size]
+                chunk = pcm_data[i : i + chunk_size]
                 await ws.send(chunk)
                 total_ms += 100
-            
+
             # Send end signal
             await ws_send_json(ws, {"type": "end", "duration_ms": total_ms})
-            logger.info(f"[IPC] TTS stream sent: {len(pcm_data)} bytes PCM, {total_ms}ms")
+            logger.info(
+                f"[IPC] TTS stream sent: {len(pcm_data)} bytes PCM, {total_ms}ms"
+            )
         except Exception as e:
             logger.error(f"[IPC] TTS stream error: {e}")
             await ws_send_json(ws, {"type": "error", "message": str(e)})
 
     def _kokoro_tts(self, text, voice, sample_rate):
         """Generate TTS audio using Kokoro, return raw PCM 16-bit mono at target sample rate."""
+        # Prefer the dedicated Mouth service (:8406) — it keeps Kokoro resident
+        # for everyone, so the runtime doesn't need its own ~1.5GB copy.
+        try:
+            import json as _json
+            import os as _os
+            import urllib.request as _urlreq
+
+            tts_url = _os.getenv("FOVEAI_TTS_URL", "http://127.0.0.1:8406")
+            req = _urlreq.Request(
+                f"{tts_url}/tts",
+                data=_json.dumps({"text": text, "voice": voice}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with _urlreq.urlopen(req, timeout=45) as resp:
+                wav = resp.read()
+            pcm = self._wav_to_pcm(wav, sample_rate)
+            if pcm:
+                return pcm
+        except Exception as e:
+            logger.warning(
+                f"[IPC] Kokoro service unreachable ({e}) — in-process fallback"
+            )
+
         try:
             import numpy as np
             from kokoro import KPipeline
-            
-            if not hasattr(self, '_kokoro_pipeline'):
+
+            if not hasattr(self, "_kokoro_pipeline"):
                 logger.info("[IPC] Initializing Kokoro pipeline (CPU mode)...")
                 try:
-                    self._kokoro_pipeline = KPipeline(lang_code='a', repo_id='hexgrad/Kokoro-82M', device='cpu')
+                    self._kokoro_pipeline = KPipeline(
+                        lang_code="a", repo_id="hexgrad/Kokoro-82M", device="cpu"
+                    )
                 except TypeError:
                     # Older kokoro versions don't accept device param
-                    self._kokoro_pipeline = KPipeline(lang_code='a', repo_id='hexgrad/Kokoro-82M')
+                    self._kokoro_pipeline = KPipeline(
+                        lang_code="a", repo_id="hexgrad/Kokoro-82M"
+                    )
                 logger.info("[IPC] Kokoro pipeline ready (CPU)")
-            
+
             # Generate audio
             audio_chunks = []
             for _, _, audio in self._kokoro_pipeline(text, voice=voice):
                 audio_chunks.append(audio)
-            
+
             if not audio_chunks:
-                return b''
-            
+                return b""
+
             audio = np.concatenate(audio_chunks)
-            
+
             # Kokoro outputs at 24kHz — resample if needed
             kokoro_sr = 24000
             if kokoro_sr != sample_rate:
                 n_samples = int(len(audio) * sample_rate / kokoro_sr)
                 indices = np.linspace(0, len(audio) - 1, n_samples)
                 audio = np.interp(indices, np.arange(len(audio)), audio)
-            
+
             # Convert to 16-bit PCM
             pcm = (audio * 32767).astype(np.int16).tobytes()
             return pcm
         except Exception as e:
             logger.error(f"[IPC] Kokoro TTS error: {e}")
-            return b''
+            return b""
 
     def _wav_to_pcm(self, wav_bytes, target_sample_rate):
         """Convert WAV bytes to raw PCM 16-bit mono at target sample rate."""
         import io
         import wave
+
         import numpy as np
-        
+
         try:
-            with wave.open(io.BytesIO(wav_bytes), 'rb') as wav:
+            with wave.open(io.BytesIO(wav_bytes), "rb") as wav:
                 sr = wav.getframerate()
                 n_channels = wav.getnchannels()
                 sample_width = wav.getsampwidth()
                 frames = wav.readframes(wav.getnframes())
-            
+
             # Convert to numpy float
             if sample_width == 2:
-                audio = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+                audio = (
+                    np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+                )
             elif sample_width == 4:
-                audio = np.frombuffer(frames, dtype=np.int32).astype(np.float32) / 2147483648.0
+                audio = (
+                    np.frombuffer(frames, dtype=np.int32).astype(np.float32)
+                    / 2147483648.0
+                )
             else:
-                audio = np.frombuffer(frames, dtype=np.uint8).astype(np.float32) / 128.0 - 1.0
-            
+                audio = (
+                    np.frombuffer(frames, dtype=np.uint8).astype(np.float32) / 128.0
+                    - 1.0
+                )
+
             # Mono
             if n_channels > 1:
                 audio = audio[::n_channels]
-            
+
             # Resample if needed
             if sr != target_sample_rate:
                 n_samples = int(len(audio) * target_sample_rate / sr)
                 indices = np.linspace(0, len(audio) - 1, n_samples)
                 audio = np.interp(indices, np.arange(len(audio)), audio)
-            
+
             # Convert to 16-bit PCM
             pcm = (audio * 32767).astype(np.int16).tobytes()
             return pcm
         except Exception as e:
             logger.error(f"[IPC] WAV to PCM error: {e}")
-            return b''
+            return b""
 
     async def _transcribe_with_fwhisper(self, ws, samples):
         """Shared faster-whisper STT (CPU only). Used by both streaming and JSON audio paths.
         Returns the transcribed text, or empty string on failure.
         """
         import os
+
         import numpy as np
+
         # Temporarily hide CUDA from CTranslate2 during model load to prevent
         # CUDA runtime initialization that conflicts with llama.cpp's context.
         # Restore after load so llama.cpp keeps its CUDA context.
         _saved_cuda = os.environ.get("CUDA_VISIBLE_DEVICES", None)
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
         from faster_whisper import WhisperModel
-        if not hasattr(self, '_fwhisper_model') or self._fwhisper_model is None:
+
+        if not hasattr(self, "_fwhisper_model") or self._fwhisper_model is None:
             # Use STT_MODEL from .env — can be a size name ("tiny", "base") or a path.
             # On Linux, HF_HUB_OFFLINE=1 blocks repo lookups, so use a local path if available.
             fw_model_size = os.getenv("STT_MODEL", "tiny")
@@ -813,7 +1019,9 @@ class IPCServer:
                 if not cache_dir or not os.path.isdir(cache_dir):
                     continue
                 for candidate_name in ["faster-whisper-tiny", "faster-whisper-base.en"]:
-                    candidate = os.path.join(cache_dir, f"models--Systran--{candidate_name}")
+                    candidate = os.path.join(
+                        cache_dir, f"models--Systran--{candidate_name}"
+                    )
                     if os.path.isdir(candidate):
                         snapshots = os.path.join(candidate, "snapshots")
                         if os.path.isdir(snapshots):
@@ -821,12 +1029,18 @@ class IPCServer:
                                 snap_path = os.path.join(snapshots, snap)
                                 if os.path.isdir(snap_path):
                                     fw_model_size = snap_path
-                                    logger.info(f"[IPC] Found Whisper model at: {snap_path}")
+                                    logger.info(
+                                        f"[IPC] Found Whisper model at: {snap_path}"
+                                    )
                                     break
             fw_device = "cpu"  # always CPU — GPU crashes alongside llama.cpp
             fw_compute = os.getenv("STT_COMPUTE_TYPE", "int8")
-            logger.info(f"[IPC] Loading faster-whisper (device={fw_device}, model={fw_model_size})")
-            self._fwhisper_model = WhisperModel(fw_model_size, device=fw_device, compute_type=fw_compute)
+            logger.info(
+                f"[IPC] Loading faster-whisper (device={fw_device}, model={fw_model_size})"
+            )
+            self._fwhisper_model = WhisperModel(
+                fw_model_size, device=fw_device, compute_type=fw_compute
+            )
             logger.info("[IPC] faster-whisper loaded")
         # Restore CUDA for llama.cpp
         if _saved_cuda is not None:
@@ -836,13 +1050,23 @@ class IPCServer:
 
         audio_np = samples.astype(np.float32) / 32768.0
         segments, info = self._fwhisper_model.transcribe(
-            audio_np, language="en", beam_size=5,
+            audio_np,
+            language="en",
+            beam_size=5,
             vad_filter=True,
             vad_parameters=dict(min_silence_duration_ms=500, speech_pad_ms=200),
         )
         text = " ".join(seg.text.strip() for seg in segments).strip()
-        await ws_send_json(ws, {"type": "transcript", "text": text, "is_final": True, "engine": "faster-whisper"})
-        logger.info(f"[IPC] STT (faster-whisper): \"{text[:80]}\"")
+        await ws_send_json(
+            ws,
+            {
+                "type": "transcript",
+                "text": text,
+                "is_final": True,
+                "engine": "faster-whisper",
+            },
+        )
+        logger.info(f'[IPC] STT (faster-whisper): "{text[:80]}"')
         return text
 
     async def _handle_stt_stream(self, ws, audio_bytes):
@@ -860,12 +1084,15 @@ class IPCServer:
             logger.error(f"[IPC] STT stream error: {err_msg}")
             print(f"❌ [STT ERROR] {err_msg}", flush=True)
             # Send a clear, actionable error to the Quest HUD
-            await ws_send_json(ws, {
-                "type": "error",
-                "source": "stt",
-                "message": f"STT failed: {err_msg}",
-                "hint": "Check that the Whisper model is cached and HF_HUB_CACHE is set."
-            })
+            await ws_send_json(
+                ws,
+                {
+                    "type": "error",
+                    "source": "stt",
+                    "message": f"STT failed: {err_msg}",
+                    "hint": "Check that the Whisper model is cached and HF_HUB_CACHE is set.",
+                },
+            )
 
     # ── Chat ────────────────────────────────────────────────────────────────
 
@@ -894,23 +1121,31 @@ class IPCServer:
             # Fallback to Foveated Memory Proxy (8400) or Soul (8000)
             try:
                 import urllib.request
-                prompt_data = json.dumps({
-                    "model": "foveated-memory",
-                    "messages": messages,
-                    "max_tokens": max_tokens,
-                    "temperature": temperature,
-                    "stream": False
-                }).encode()
+
+                prompt_data = json.dumps(
+                    {
+                        "model": "foveated-memory",
+                        "messages": messages,
+                        "max_tokens": max_tokens,
+                        "temperature": temperature,
+                        "stream": False,
+                    }
+                ).encode()
                 req = urllib.request.Request(
                     "http://127.0.0.1:8400/v1/chat/completions",
                     data=prompt_data,
-                    headers={"Content-Type": "application/json", "Authorization": "Bearer builder_bot"},
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": "Bearer builder_bot",
+                    },
                 )
                 loop = asyncio.get_event_loop()
-                resp = await loop.run_in_executor(None, urllib.request.urlopen, req, None, 30)
+                resp = await loop.run_in_executor(
+                    None, urllib.request.urlopen, req, None, 30
+                )
                 res_obj = json.loads(resp.read().decode())
                 reply = res_obj["choices"][0]["message"]["content"]
-                logger.info(f"[IPC] Chat response from :8400: \"{reply[:80]}\"")
+                logger.info(f'[IPC] Chat response from :8400: "{reply[:80]}"')
                 await self._send(ws, "chat.response", {"text": reply})
                 await self._handle_tts(ws, {"text": reply})
                 return
@@ -918,24 +1153,28 @@ class IPCServer:
                 logger.warning(f"[IPC] :8400 chat fallback failed: {e}")
                 try:
                     import urllib.request
-                    prompt_data = json.dumps({
-                        "message": text,
-                        "session_id": "quest3_alice"
-                    }).encode()
+
+                    prompt_data = json.dumps(
+                        {"message": text, "session_id": "quest3_alice"}
+                    ).encode()
                     req = urllib.request.Request(
                         "http://127.0.0.1:8402/v1/chat/completions",
-                        data=json.dumps({
-                            "model": "xrlf",
-                            "messages": [{"role": "user", "content": text}],
-                            "max_tokens": 512,
-                        }).encode(),
+                        data=json.dumps(
+                            {
+                                "model": "xrlf",
+                                "messages": [{"role": "user", "content": text}],
+                                "max_tokens": 512,
+                            }
+                        ).encode(),
                         headers={"Content-Type": "application/json"},
                     )
                     loop = asyncio.get_event_loop()
-                    resp = await loop.run_in_executor(None, urllib.request.urlopen, req, None, 30)
+                    resp = await loop.run_in_executor(
+                        None, urllib.request.urlopen, req, None, 30
+                    )
                     res_obj = json.loads(resp.read().decode())
                     reply = res_obj["choices"][0]["message"]["content"]
-                    logger.info(f"[IPC] Chat response from :8402: \"{reply[:80]}\"")
+                    logger.info(f'[IPC] Chat response from :8402: "{reply[:80]}"')
                     await self._send(ws, "chat.response", {"text": reply})
                     await self._handle_tts(ws, {"text": reply})
                     return
@@ -964,20 +1203,28 @@ class IPCServer:
                         full_text += token
                         async_token_count += 1
                         # Send each token as a stream event
-                        await self._send(ws, "chat.stream", {
-                            "token": token,
-                            "index": async_token_count,
-                        })
+                        await self._send(
+                            ws,
+                            "chat.stream",
+                            {
+                                "token": token,
+                                "index": async_token_count,
+                            },
+                        )
 
                 # Send final complete response
                 emotion, intensity = self._extract_emotion(full_text)
-                await self._send(ws, "chat.response", {
-                    "text": full_text,
-                    "emotion": emotion,
-                    "intensity": intensity,
-                    "tokens": async_token_count,
-                })
-                
+                await self._send(
+                    ws,
+                    "chat.response",
+                    {
+                        "text": full_text,
+                        "emotion": emotion,
+                        "intensity": intensity,
+                        "tokens": async_token_count,
+                    },
+                )
+
                 # Auto-trigger TTS — strip emojis first
                 tts_text = _strip_emojis(full_text)
                 print(f"[IPC] Stream done. tts_text={tts_text[:80]!r}", flush=True)
@@ -996,12 +1243,16 @@ class IPCServer:
                 )
                 response_text = response if isinstance(response, str) else str(response)
                 emotion, intensity = self._extract_emotion(response_text)
-                await self._send(ws, "chat.response", {
-                    "text": response_text,
-                    "emotion": emotion,
-                    "intensity": intensity,
-                })
-                
+                await self._send(
+                    ws,
+                    "chat.response",
+                    {
+                        "text": response_text,
+                        "emotion": emotion,
+                        "intensity": intensity,
+                    },
+                )
+
                 # Auto-trigger TTS — strip emojis and raw emoji codes first
                 tts_text = _strip_emojis(response_text)
                 logger.info(f"[IPC] Non-stream TTS trigger: tts_text={tts_text[:80]!r}")
@@ -1031,11 +1282,13 @@ class IPCServer:
             import base64
             import io
             import wave
+
             import numpy as np
+
             audio_bytes = base64.b64decode(audio_b64)
             # Parse WAV header to get raw PCM
             with io.BytesIO(audio_bytes) as wav_io:
-                with wave.open(wav_io, 'rb') as wav_file:
+                with wave.open(wav_io, "rb") as wav_file:
                     frames = wav_file.readframes(wav_file.getnframes())
                     sample_rate = wav_file.getframerate()
                     sample_width = wav_file.getsampwidth()
@@ -1070,13 +1323,18 @@ class IPCServer:
 
         messages = [
             {"role": "system", "content": ALICE_PERSONA},
-            {"role": "user", "content": [
-                {"type": "text", "text": prompt_text},
-                {"type": "image_url", "image_url": {"url": data_url}},
-            ]},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt_text},
+                    {"type": "image_url", "image_url": {"url": data_url}},
+                ],
+            },
         ]
 
-        logger.info(f"[IPC] Vision frame: {perspective}, {direction}, {len(image_b64)} bytes b64")
+        logger.info(
+            f"[IPC] Vision frame: {perspective}, {direction}, {len(image_b64)} bytes b64"
+        )
 
         try:
             if self.runtime:
@@ -1089,11 +1347,15 @@ class IPCServer:
                 )
                 response_text = response if isinstance(response, str) else str(response)
                 emotion, intensity = self._extract_emotion(response_text)
-                await self._send(ws, "chat.response", {
-                    "text": response_text,
-                    "emotion": emotion,
-                    "intensity": intensity,
-                })
+                await self._send(
+                    ws,
+                    "chat.response",
+                    {
+                        "text": response_text,
+                        "emotion": emotion,
+                        "intensity": intensity,
+                    },
+                )
                 # Auto-trigger TTS
                 await self._handle_tts(ws, {"text": response_text})
             else:
@@ -1103,12 +1365,15 @@ class IPCServer:
             logger.error(f"[IPC] Vision frame error: {err_msg}", exc_info=True)
             print(f"❌ [VISION ERROR] {err_msg}", flush=True)
             # Don't crash — send error to Quest and continue
-            await ws_send_json(ws, {
-                "type": "error",
-                "source": "vision",
-                "message": f"Vision failed (text-only mode): {err_msg}",
-                "hint": "mmproj.gguf may be missing — vision disabled, text still works."
-            })
+            await ws_send_json(
+                ws,
+                {
+                    "type": "error",
+                    "source": "vision",
+                    "message": f"Vision failed (text-only mode): {err_msg}",
+                    "hint": "mmproj.gguf may be missing — vision disabled, text still works.",
+                },
+            )
 
     # ── TTS ─────────────────────────────────────────────────────────────────
 
@@ -1120,34 +1385,47 @@ class IPCServer:
             return
 
         voice = payload.get("voice", "af_heart")
-        print(f"[IPC] TTS requested: \"{text[:80]}\" voice={voice}", flush=True)
+        print(f'[IPC] TTS requested: "{text[:80]}" voice={voice}', flush=True)
 
         try:
             # Generate PCM directly with Kokoro
             pcm_data = await asyncio.get_event_loop().run_in_executor(
                 None, self._kokoro_tts, text, voice, 24000
             )
-            print(f"[IPC] Kokoro returned: {len(pcm_data) if pcm_data else 0} bytes", flush=True)
+            print(
+                f"[IPC] Kokoro returned: {len(pcm_data) if pcm_data else 0} bytes",
+                flush=True,
+            )
 
             if pcm_data:
                 # Convert to WAV for the tts.response event
                 import io
                 import wave
+
                 wav_buf = io.BytesIO()
-                with wave.open(wav_buf, 'wb') as wav:
+                with wave.open(wav_buf, "wb") as wav:
                     wav.setnchannels(1)
                     wav.setsampwidth(2)
                     wav.setframerate(24000)
                     wav.writeframes(pcm_data)
                 audio_b64 = base64.b64encode(wav_buf.getvalue()).decode()
-                print(f"[IPC] Sending tts.response: {len(audio_b64)} chars b64", flush=True)
-                await self._send(ws, "tts.response", {
-                    "audio_base64": audio_b64,
-                    "format": "audio/wav",
-                    "engine": "kokoro",
-                    "text": text,
-                })
-                logger.info(f"[IPC] TTS (Kokoro direct): {len(pcm_data)} bytes for \"{text[:60]}\"")
+                print(
+                    f"[IPC] Sending tts.response: {len(audio_b64)} chars b64",
+                    flush=True,
+                )
+                await self._send(
+                    ws,
+                    "tts.response",
+                    {
+                        "audio_base64": audio_b64,
+                        "format": "audio/wav",
+                        "engine": "kokoro",
+                        "text": text,
+                    },
+                )
+                logger.info(
+                    f'[IPC] TTS (Kokoro direct): {len(pcm_data)} bytes for "{text[:60]}"'
+                )
             else:
                 await self._send_error(ws, "TTS produced no audio")
         except Exception as e:
@@ -1161,7 +1439,7 @@ class IPCServer:
         setting = payload.get("setting", "")
         value = payload.get("value")
         logger.info(f"[IPC] Settings: {setting}={value}")
-        
+
         if setting == "tts_engine":
             if value == "qwen":
                 self.mouth_url = "http://127.0.0.1:8402"
@@ -1189,10 +1467,11 @@ class IPCServer:
         Format: [emotion:happiness:0.8] or <emotion:anger:0.9>
         """
         import re
-        match = re.search(r'\[(?:emotion|emo):(\w+):([\d.]+)\]', text)
+
+        match = re.search(r"\[(?:emotion|emo):(\w+):([\d.]+)\]", text)
         if match:
             return match.group(1), float(match.group(2))
-        match = re.search(r'<(?:emotion|emo):(\w+):([\d.]+)>', text)
+        match = re.search(r"<(?:emotion|emo):(\w+):([\d.]+)>", text)
         if match:
             return match.group(1), float(match.group(2))
         return "neutral", 0.0
@@ -1216,6 +1495,7 @@ class IPCServer:
         if not self._clients:
             return
         msg = json.dumps({"event": event, "payload": payload, "timestamp": time.time()})
+
         # Send concurrently — one slow/dead client doesn't block others
         async def _safe_send(ws):
             try:
@@ -1224,10 +1504,16 @@ class IPCServer:
             except Exception:
                 return ws  # Return the failed client for pruning
 
-        results = await asyncio.gather(*[_safe_send(ws) for ws in list(self._clients)], return_exceptions=True)
+        results = await asyncio.gather(
+            *[_safe_send(ws) for ws in list(self._clients)], return_exceptions=True
+        )
         # Prune failed clients
         for r in results:
-            if r is not None and WebSocketServerProtocol is not None and isinstance(r, WebSocketServerProtocol):
+            if (
+                r is not None
+                and WebSocketServerProtocol is not None
+                and isinstance(r, WebSocketServerProtocol)
+            ):
                 self._clients.discard(r)
 
     # ── HTTP handler (process_request) ─────────────────────────────────────
@@ -1265,7 +1551,13 @@ class IPCServer:
             if path_clean == "/health" or path_clean == "":
                 body = json.dumps({"status": "ok", "port": self.port}).encode()
                 from websockets.http11 import Response
-                return Response(200, "OK", websockets.Headers({"Content-Type": "application/json"}), body)
+
+                return Response(
+                    200,
+                    "OK",
+                    websockets.Headers({"Content-Type": "application/json"}),
+                    body,
+                )
 
             if path_clean in ("/soul/status", "/memory/status", "/v1/models"):
                 return await self._http_proxy_get(path_clean)
@@ -1279,6 +1571,7 @@ class IPCServer:
     async def _http_chat_proxy(self, request_headers):
         """Proxy HTTP chat completions to XRLF :8402."""
         import urllib.request
+
         # Read body from the request — websockets gives us the headers but
         # not the body directly. We need to use the raw reader.
         # For now, use the runtime directly if available, else proxy to 8402.
@@ -1292,7 +1585,9 @@ class IPCServer:
                 method="POST",
             )
             loop = asyncio.get_event_loop()
-            resp = await loop.run_in_executor(None, urllib.request.urlopen, req, None, 60)
+            resp = await loop.run_in_executor(
+                None, urllib.request.urlopen, req, None, 60
+            )
             body = resp.read()
             return (200, {"Content-Type": "application/json"}, body)
         except Exception as e:
@@ -1303,23 +1598,39 @@ class IPCServer:
     async def _http_proxy_get(self, path):
         """Proxy a GET request to XRLF :8402."""
         import urllib.request
+
         from websockets.http11 import Response
+
         target = self.runtime_url or "http://127.0.0.1:8402"
         try:
             req = urllib.request.Request(f"{target}{path}")
             loop = asyncio.get_event_loop()
-            resp = await loop.run_in_executor(None, urllib.request.urlopen, req, None, 10)
+            resp = await loop.run_in_executor(
+                None, urllib.request.urlopen, req, None, 10
+            )
             body = resp.read()
-            return Response(200, "OK", websockets.Headers({"Content-Type": "application/json"}), body)
+            return Response(
+                200,
+                "OK",
+                websockets.Headers({"Content-Type": "application/json"}),
+                body,
+            )
         except Exception as e:
             body = json.dumps({"error": str(e)}).encode()
-            return Response(502, "Bad Gateway", websockets.Headers({"Content-Type": "application/json"}), body)
+            return Response(
+                502,
+                "Bad Gateway",
+                websockets.Headers({"Content-Type": "application/json"}),
+                body,
+            )
 
     # ── Lifecycle ───────────────────────────────────────────────────────────
 
     async def start(self):
         """Start the WebSocket server, gracefully adopting an already bound port if in use."""
-        logger.info(f"[IPC] Starting WebSocket+HTTP server on ws://{self.host}:{self.port}{self.path}")
+        logger.info(
+            f"[IPC] Starting WebSocket+HTTP server on ws://{self.host}:{self.port}{self.path}"
+        )
         try:
             self._server = await websockets.serve(
                 self.handler,
@@ -1332,23 +1643,29 @@ class IPCServer:
             )
             logger.info(f"[IPC] ✅ WebSocket+HTTP server listening on :{self.port}")
             await asyncio.Future()  # run forever
-        except (OSError, socket.error) as e:
+        except OSError as e:
             is_address_in_use = (
-                getattr(e, 'errno', None) in (10048, 98) or 
-                getattr(e, 'winerror', None) == 10048 or 
-                "only one usage of each socket address" in str(e).lower() or
-                "address already in use" in str(e).lower()
+                getattr(e, "errno", None) in (10048, 98)
+                or getattr(e, "winerror", None) == 10048
+                or "only one usage of each socket address" in str(e).lower()
+                or "address already in use" in str(e).lower()
             )
             if is_address_in_use:
-                logger.info(f"[IPC] ⚡ WebSocket port :{self.port} is already in use by an active server. Gracefully adopting running WebSocket server on ws://{self.host}:{self.port}{self.path}")
-                print(f"  ⚡ WebSocket port :{self.port} already bound — gracefully adopting active IPC server on ws://{self.host}:{self.port}{self.path}")
+                logger.info(
+                    f"[IPC] ⚡ WebSocket port :{self.port} is already in use by an active server. Gracefully adopting running WebSocket server on ws://{self.host}:{self.port}{self.path}"
+                )
+                print(
+                    f"  ⚡ WebSocket port :{self.port} already bound — gracefully adopting active IPC server on ws://{self.host}:{self.port}{self.path}"
+                )
                 self.is_adopted = True
                 try:
                     await asyncio.Event().wait()  # Park thread cleanly without erroring
                 except asyncio.CancelledError:
                     pass
             else:
-                logger.error(f"[IPC] ❌ WebSocket server failed to bind on port {self.port}: {e}")
+                logger.error(
+                    f"[IPC] ❌ WebSocket server failed to bind on port {self.port}: {e}"
+                )
                 raise
 
     def start_sync(self, loop=None):

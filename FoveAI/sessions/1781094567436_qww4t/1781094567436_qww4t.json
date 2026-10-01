@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "session_id": "1781094567436_qww4t",
+  "source": "cli",
+  "pid": 3524,
+  "started_at": "2026-06-10T12:29:27.622Z",
+  "ended_at": "2026-06-10T12:29:28.445Z",
+  "exit_code": 1,
+  "status": "failed",
+  "interactive": false,
+  "provider": "cline",
+  "model": "anthropic/claude-fable-5",
+  "cwd": "C:\\Users\\lumba\\Program\\LUMAX",
+  "workspace_root": "C:/Users/lumba/Program/LUMAX",
+  "team_name": "team-6pros",
+  "enable_tools": true,
+  "enable_spawn": true,
+  "enable_teams": true,
+  "prompt": "--history",
+  "metadata": {
+    "checkpoint": {
+      "latest": {
+        "ref": "7dd0333ecb00d07ef53c6a89d902dfc4582f68b1",
+        "createdAt": 1781094568149,
+        "runCount": 1,
+        "kind": "stash"
+      },
+      "history": [
+        {
+          "ref": "7dd0333ecb00d07ef53c6a89d902dfc4582f68b1",
+          "createdAt": 1781094568149,
+          "runCount": 1,
+          "kind": "stash"
+        }
+      ]
+    },
+    "title": "--history",
+    "totalCost": 0,
+    "aggregatedAgentsCost": 0,
+    "usage": {
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalCost": 0
+    },
+    "aggregateUsage": {
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "cacheReadTokens": 0,
+      "cacheWriteTokens": 0,
+      "totalCost": 0
+    }
+  },
+  "messages_path": "C:\\Users\\lumba\\Program\\LUMAX\\sessions\\1781094567436_qww4t\\1781094567436_qww4t.messages.json"
+}

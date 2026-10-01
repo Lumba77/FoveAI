@@ -1,21 +1,31 @@
-import subprocess, sys, os, time, json, urllib.request
+import json
+import os
+import subprocess
+import sys
+import time
+import urllib.request
 
 CWD = os.path.dirname(os.path.abspath(__file__))
 PORT = 8000
 OUT = os.path.join(CWD, "boot_test_result.txt")
 
+
 def main():
     lines = []
     # Kill port
     try:
-        out = subprocess.check_output("netstat -ano -p tcp", shell=True).decode(errors="ignore")
+        out = subprocess.check_output("netstat -ano -p tcp", shell=True).decode(
+            errors="ignore"
+        )
         for line in out.splitlines():
             if f":{PORT}" in line and "LISTENING" in line:
                 parts = line.split()
                 if len(parts) >= 5:
                     pid = parts[-1].strip()
                     if pid.isdigit():
-                        subprocess.run(f"taskkill /F /PID {pid}", shell=True, capture_output=True)
+                        subprocess.run(
+                            f"taskkill /F /PID {pid}", shell=True, capture_output=True
+                        )
     except Exception:
         pass
     time.sleep(0.5)
@@ -89,6 +99,7 @@ def main():
     result = "\n".join(lines)
     with open(OUT, "w", encoding="utf-8") as f:
         f.write(result)
+
 
 if __name__ == "__main__":
     main()

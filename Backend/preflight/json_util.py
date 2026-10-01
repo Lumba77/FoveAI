@@ -4,6 +4,7 @@ Human-edited playbook files (watchdog policy, unstable features, etc.).
 Uses JSON5 when the `json5` package is installed (// comments, trailing commas).
 Falls back to stdlib `json` if not (e.g. minimal dev env).
 """
+
 from __future__ import annotations
 
 import json

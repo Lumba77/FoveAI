@@ -1,5 +1,6 @@
-import os
 import json
+import os
+
 from llama_cpp import Llama
 
 # -----------------------------------------------------------
@@ -25,13 +26,10 @@ THREAD_PROMPTS = [
 # LAYER 0 — GGUF MODEL LOAD
 # -----------------------------------------------------------
 
+
 def load_gguf_model():
     print(f"=== Loading GGUF model from: {GGUF_MODEL_PATH} ===")
-    llm = Llama(
-        model_path=GGUF_MODEL_PATH,
-        n_ctx=4096,
-        n_gpu_layers=-1
-    )
+    llm = Llama(model_path=GGUF_MODEL_PATH, n_ctx=4096, n_gpu_layers=-1)
     print("=== GGUF model loaded ===\n")
     return llm
 
@@ -40,6 +38,7 @@ def load_gguf_model():
 # LAYER 1 — XRL THREADING (GGUF)
 # -----------------------------------------------------------
 
+
 def xrl_trace_threads_gguf(llm):
     print("=== XRL threading (GGUF): tracing semantic paths via logits/confidence ===")
 
@@ -47,12 +46,7 @@ def xrl_trace_threads_gguf(llm):
 
     for prompt in THREAD_PROMPTS:
         # echo=True returns prompt + completion tokens
-        result = llm(
-            prompt,
-            max_tokens=128,
-            echo=True,
-            temperature=0.7
-        )
+        result = llm(prompt, max_tokens=128, echo=True, temperature=0.7)
 
         # llama_cpp returns text; token IDs are internal
         text = result["choices"][0]["text"]
@@ -62,31 +56,31 @@ def xrl_trace_threads_gguf(llm):
 
         if logits_seq is None:
             # Fallback: text-only thread
-            threads.append({
-                "prompt": prompt,
-                "thread": {
-                    "text": text,
-                    "note": "logits not available; text-only thread"
+            threads.append(
+                {
+                    "prompt": prompt,
+                    "thread": {
+                        "text": text,
+                        "note": "logits not available; text-only thread",
+                    },
                 }
-            })
+            )
             continue
 
         confidence_path = []
         for step_idx, step_logits in enumerate(logits_seq):
             # step_logits: list/array of logits for vocab
             avg_strength = sum(abs(l) for l in step_logits) / len(step_logits)
-            confidence_path.append({
-                "step": step_idx,
-                "avg_logit_strength": avg_strength
-            })
+            confidence_path.append(
+                {"step": step_idx, "avg_logit_strength": avg_strength}
+            )
 
-        threads.append({
-            "prompt": prompt,
-            "thread": {
-                "text": text,
-                "confidence_path": confidence_path
+        threads.append(
+            {
+                "prompt": prompt,
+                "thread": {"text": text, "confidence_path": confidence_path},
             }
-        })
+        )
 
     threads_path = os.path.join(XRL_DIR, "threads_gguf.json")
     with open(threads_path, "w", encoding="utf-8") as f:
@@ -102,6 +96,7 @@ def xrl_trace_threads_gguf(llm):
 
 import math
 
+
 def xrl_principiate_gguf(threads):
     print("=== XRL principiation (GGUF): richer sequence-level principles ===")
 
@@ -115,27 +110,31 @@ def xrl_principiate_gguf(threads):
         confidence_path = thread.get("confidence_path", None)
 
         if not confidence_path:
-            principles.append({
-                "prompt": prompt,
-                "text_preview": text[:120],
-                "principle_strength": None,
-                "volatility": None,
-                "trend": None,
-                "role": "text_only_thread",
-                "note": "no confidence path available"
-            })
+            principles.append(
+                {
+                    "prompt": prompt,
+                    "text_preview": text[:120],
+                    "principle_strength": None,
+                    "volatility": None,
+                    "trend": None,
+                    "role": "text_only_thread",
+                    "note": "no confidence path available",
+                }
+            )
             continue
 
         strengths = [step["avg_logit_strength"] for step in confidence_path]
         if not strengths:
-            principles.append({
-                "prompt": prompt,
-                "text_preview": text[:120],
-                "principle_strength": None,
-                "volatility": None,
-                "trend": None,
-                "role": "empty_confidence_path"
-            })
+            principles.append(
+                {
+                    "prompt": prompt,
+                    "text_preview": text[:120],
+                    "principle_strength": None,
+                    "volatility": None,
+                    "trend": None,
+                    "role": "empty_confidence_path",
+                }
+            )
             continue
 
         # Core metrics
@@ -168,16 +167,18 @@ def xrl_principiate_gguf(threads):
         else:
             role = "mixed_confidence_sequence"
 
-        principles.append({
-            "prompt": prompt,
-            "text_preview": text[:160],
-            "principle_strength": avg_strength,
-            "volatility": volatility,
-            "trend": trend,
-            "role": role,
-            "early_strength": early_avg,
-            "late_strength": late_avg
-        })
+        principles.append(
+            {
+                "prompt": prompt,
+                "text_preview": text[:160],
+                "principle_strength": avg_strength,
+                "volatility": volatility,
+                "trend": trend,
+                "role": role,
+                "early_strength": early_avg,
+                "late_strength": late_avg,
+            }
+        )
 
     principles_path = os.path.join(XRL_DIR, "principles_gguf.json")
     with open(principles_path, "w", encoding="utf-8") as f:
@@ -186,17 +187,16 @@ def xrl_principiate_gguf(threads):
     print(f"=== GGUF XRL principles saved to {principles_path} ===\n")
     return principles
 
+
 #
 #  Semantic xrl graph
 #
 
+
 def xrl_semantic_graph_gguf(threads):
     print("=== XRL semantic graph (GGUF): extracting concept transitions ===")
 
-    graph = {
-        "nodes": {},
-        "edges": []
-    }
+    graph = {"nodes": {}, "edges": []}
 
     for t in threads:
         prompt = t["prompt"]
@@ -219,11 +219,7 @@ def xrl_semantic_graph_gguf(threads):
         # Node creation
         for idx, tok in enumerate(tokens):
             if tok not in graph["nodes"]:
-                graph["nodes"][tok] = {
-                    "count": 0,
-                    "strength_sum": 0.0,
-                    "prompts": []
-                }
+                graph["nodes"][tok] = {"count": 0, "strength_sum": 0.0, "prompts": []}
 
             graph["nodes"][tok]["count"] += 1
             graph["nodes"][tok]["strength_sum"] += avg_strength
@@ -234,11 +230,7 @@ def xrl_semantic_graph_gguf(threads):
             a = tokens[i]
             b = tokens[i + 1]
 
-            graph["edges"].append({
-                "from": a,
-                "to": b,
-                "strength": avg_strength
-            })
+            graph["edges"].append({"from": a, "to": b, "strength": avg_strength})
 
     # Normalize node weights
     for tok, info in graph["nodes"].items():
@@ -251,9 +243,11 @@ def xrl_semantic_graph_gguf(threads):
     print(f"=== GGUF semantic graph saved to {graph_path} ===\n")
     return graph
 
+
 #
 # Graph xrl clustering
 #
+
 
 def xrl_graph_clustering_gguf(graph):
     print("=== XRL graph clustering (GGUF): grouping semantic nodes ===")
@@ -275,12 +269,14 @@ def xrl_graph_clustering_gguf(graph):
         if bucket not in clusters:
             clusters[bucket] = []
 
-        clusters[bucket].append({
-            "token": tok,
-            "importance": imp,
-            "count": info["count"],
-            "prompts": info["prompts"]
-        })
+        clusters[bucket].append(
+            {
+                "token": tok,
+                "importance": imp,
+                "count": info["count"],
+                "prompts": info["prompts"],
+            }
+        )
 
     cluster_path = os.path.join(XRL_DIR, "semantic_clusters_gguf.json")
     with open(cluster_path, "w", encoding="utf-8") as f:
@@ -289,9 +285,11 @@ def xrl_graph_clustering_gguf(graph):
     print(f"=== GGUF semantic clusters saved to {cluster_path} ===\n")
     return clusters
 
+
 #
 # graph xrl expansion
 #
+
 
 def xrl_graph_expansion_gguf(clusters):
     print("=== XRL graph expansion (GGUF): generating new prompts ===")
@@ -307,15 +305,17 @@ def xrl_graph_expansion_gguf(clusters):
             continue
 
         # Generate new prompts based on cluster tokens
-        expansions.append({
-            "cluster": cluster_name,
-            "tokens": token_list,
-            "generated_prompts": [
-                f"Explain the relationship between {token_list[0]} and {token_list[1]}.",
-                f"Describe how {token_list[0]} influences {token_list[2]}.",
-                f"What is the role of {token_list[1]} in {token_list[2]}?"
-            ]
-        })
+        expansions.append(
+            {
+                "cluster": cluster_name,
+                "tokens": token_list,
+                "generated_prompts": [
+                    f"Explain the relationship between {token_list[0]} and {token_list[1]}.",
+                    f"Describe how {token_list[0]} influences {token_list[2]}.",
+                    f"What is the role of {token_list[1]} in {token_list[2]}?",
+                ],
+            }
+        )
 
     expansion_path = os.path.join(XRL_DIR, "semantic_expansion_gguf.json")
     with open(expansion_path, "w", encoding="utf-8") as f:
@@ -324,33 +324,32 @@ def xrl_graph_expansion_gguf(clusters):
     print(f"=== GGUF semantic expansions saved to {expansion_path} ===\n")
     return expansions
 
+
 #
 # Graph xrl export
 #
 
+
 def xrl_graph_export_gguf(graph):
     print("=== XRL graph export (GGUF): preparing visualization format ===")
 
-    export = {
-        "nodes": [],
-        "edges": []
-    }
+    export = {"nodes": [], "edges": []}
 
     # Convert nodes
     for tok, info in graph["nodes"].items():
-        export["nodes"].append({
-            "id": tok,
-            "importance": info.get("importance", 0),
-            "count": info.get("count", 0)
-        })
+        export["nodes"].append(
+            {
+                "id": tok,
+                "importance": info.get("importance", 0),
+                "count": info.get("count", 0),
+            }
+        )
 
     # Convert edges
     for edge in graph["edges"]:
-        export["edges"].append({
-            "from": edge["from"],
-            "to": edge["to"],
-            "weight": edge["strength"]
-        })
+        export["edges"].append(
+            {"from": edge["from"], "to": edge["to"], "weight": edge["strength"]}
+        )
 
     export_path = os.path.join(XRL_DIR, "semantic_graph_export_gguf.json")
     with open(export_path, "w", encoding="utf-8") as f:
@@ -359,9 +358,11 @@ def xrl_graph_export_gguf(graph):
     print(f"=== GGUF semantic graph export saved to {export_path} ===\n")
     return export
 
+
 # -----------------------------------------------------------
 # MAIN PIPELINE
 # -----------------------------------------------------------
+
 
 def main():
     llm = load_gguf_model()
@@ -374,7 +375,6 @@ def main():
     expansions = xrl_graph_expansion_gguf(clusters)
     export = xrl_graph_export_gguf(graph)
 
-
     meta = {
         "model_path": GGUF_MODEL_PATH,
         "threads_file": "threads_gguf.json",
@@ -383,7 +383,7 @@ def main():
         "semantic_clusters_file": "semantic_clusters_gguf.json",
         "semantic_expansion_file": "semantic_expansion_gguf.json",
         "semantic_export_file": "semantic_graph_export_gguf.json",
-        "thread_prompts": THREAD_PROMPTS
+        "thread_prompts": THREAD_PROMPTS,
     }
 
     meta_path = os.path.join(XRL_DIR, "meta_gguf.json")

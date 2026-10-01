@@ -2,6 +2,7 @@
 """
 foveai_embers: periodic POST to soul /internal/slow_burn/tick (no GPU).
 """
+
 import logging
 import os
 import sys

@@ -1,0 +1,33 @@
+{
+  "spawner": {
+    "enabled": false,
+    "bin_path": "C:\\Users\\danie\\AppData\\Local\\Microsoft\\WinGet\\Packages\\ggml.llamacpp_Microsoft.Winget.Source_8wekyb3d8bbwe\\llama-server.exe",
+    "model_path": "C:\\Users\\danie\\program\\LUMAX\\Tools\\XRLF-1.0-source\\gemma-12b-moq-xrl.xrlf",
+    "draft_model_path": "",
+    "port": 7272,
+    "context_size": 8192
+  },
+  "proxy_port": 8400,
+  "upstream_url": "https://ollama.com/v1",
+  "workspace_id": "default",
+  "workspace_mode": "personal",
+  "identity_name": "Jenna (Jennifer Forbee)",
+  "user_name": "Daniel",
+  "ring_token_budget": 400,
+  "fovea_message_count": 6,
+  "anonymize_on_write": false,
+  "recall_max_results": 5,
+  "recall_token_budget_per_injection": 80,
+  "xrl_compression_levels": [0, 1, 2, 3, 4, 5],
+  "ring_budgets": {
+    "0": 180,
+    "1": 80,
+    "2": 60,
+    "3": 40,
+    "4": 25,
+    "5": 15
+  },
+  "continuation_prompt": "[SYSTEM: Memory uncompressed. Please continue answering the user.]",
+  "log_level": "info",
+  "persist_path": "./memory_data"
+}

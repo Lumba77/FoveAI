@@ -1,17 +1,18 @@
-import os
-import sys
-import json
-import shutil
-import time
-import subprocess
-import logging
-import asyncio
 import argparse
-from typing import Dict, List, Set, Optional
+import asyncio
+import json
+import logging
+import os
+import shutil
+import sys
+import time
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger("foveai.deadsure")
 
 # ─── Paths ───────────────────────────────────────────────────────────────────
@@ -23,7 +24,9 @@ os.makedirs(SAFE_SAVES_DIR, exist_ok=True)
 
 # ─── Config ───────────────────────────────────────────────────────────────────
 DEADSURE_PORT = int(os.environ.get("FoveAI_DEADSURE_PORT", "8112"))
-FoveAI_SOLVER_URL = os.environ.get("FoveAI_SOLVER_URL", "http://127.0.0.1:8113")  # optional solver sidecar
+FoveAI_SOLVER_URL = os.environ.get(
+    "FoveAI_SOLVER_URL", "http://127.0.0.1:8113"
+)  # optional solver sidecar
 
 WATCH_DIRS = [
     os.path.join(FoveAI_ROOT, "Backend"),
@@ -41,10 +44,10 @@ app = FastAPI(title="DeadSure Watchdog", version="2.0.0")
 # ─── Watchdog Core ────────────────────────────────────────────────────────────
 class DeadSureWatchdog:
     def __init__(self):
-        self.file_mtimes: Dict[str, float] = {}
-        self.broken_files: Dict[str, str] = {}     # filepath -> error message
+        self.file_mtimes: dict[str, float] = {}
+        self.broken_files: dict[str, str] = {}  # filepath -> error message
         self.reverted_count = 0
-        self.expected_reversions: Set[str] = set()
+        self.expected_reversions: set[str] = set()
         self.running = False
         self._load_state()
 
@@ -58,9 +61,13 @@ class DeadSureWatchdog:
                     data = json.load(f)
                 self.file_mtimes = data.get("file_mtimes", {})
                 self.reverted_count = data.get("reverted_count", 0)
-                logger.info(f"🔄 [STATE] Loaded {len(self.file_mtimes)} cached file records from disk.")
+                logger.info(
+                    f"🔄 [STATE] Loaded {len(self.file_mtimes)} cached file records from disk."
+                )
             except Exception as e:
-                logger.warning(f"⚠️ [STATE] Could not load state file: {e}. Starting fresh.")
+                logger.warning(
+                    f"⚠️ [STATE] Could not load state file: {e}. Starting fresh."
+                )
 
     def _save_state(self):
         """Persist mtime cache atomically (write-then-rename)."""
@@ -85,8 +92,14 @@ class DeadSureWatchdog:
     def _write_heartbeat(self, status: str):
         """Append a one-line JSON heartbeat for the PS1 supervisor to tail."""
         try:
-            entry = json.dumps({"ts": time.time(), "status": status,
-                                "broken": len(self.broken_files), "healed": self.reverted_count})
+            entry = json.dumps(
+                {
+                    "ts": time.time(),
+                    "status": status,
+                    "broken": len(self.broken_files),
+                    "healed": self.reverted_count,
+                }
+            )
             with open(HEARTBEAT_LOG, "a", encoding="utf-8") as f:
                 f.write(entry + "\n")
         except Exception:
@@ -106,14 +119,18 @@ class DeadSureWatchdog:
             backup = self.get_backup_path(filepath)
             os.makedirs(os.path.dirname(backup), exist_ok=True)
             shutil.copy2(filepath, backup)
-            logger.info(f"💾 [BACKUP] Saved known-good copy of {self.get_rel_path(filepath)}")
+            logger.info(
+                f"💾 [BACKUP] Saved known-good copy of {self.get_rel_path(filepath)}"
+            )
             return True
         except Exception as e:
             logger.error(f"⚠️ [BACKUP FAILED] Could not backup {filepath}: {e}")
             return False
 
     def revert_file(self, filepath: str, error_msg: str) -> bool:
-        logger.info(f"🛡️ [WATCHDOG DISABLED] Auto-revert triggered for {self.get_rel_path(filepath)} but auto-revert is DEACTIVATED by user preference.")
+        logger.info(
+            f"🛡️ [WATCHDOG DISABLED] Auto-revert triggered for {self.get_rel_path(filepath)} but auto-revert is DEACTIVATED by user preference."
+        )
         return True
 
     # ── LLM Escalation Hook ────────────────────────────────────────────────
@@ -125,11 +142,14 @@ class DeadSureWatchdog:
         """
         try:
             import urllib.request
-            payload = json.dumps({
-                "file": self.get_rel_path(filepath),
-                "error": error_msg,
-                "source": "deadsure_watchdog"
-            }).encode("utf-8")
+
+            payload = json.dumps(
+                {
+                    "file": self.get_rel_path(filepath),
+                    "error": error_msg,
+                    "source": "deadsure_watchdog",
+                }
+            ).encode("utf-8")
             req = urllib.request.Request(
                 f"{FoveAI_SOLVER_URL}/repair",
                 data=payload,
@@ -144,12 +164,15 @@ class DeadSureWatchdog:
 
     # ── Compilation Gates ──────────────────────────────────────────────────
 
-    async def compile_python(self, filepath: str) -> Optional[str]:
+    async def compile_python(self, filepath: str) -> str | None:
         try:
             proc = await asyncio.create_subprocess_exec(
-                sys.executable, "-m", "py_compile", filepath,
+                sys.executable,
+                "-m",
+                "py_compile",
+                filepath,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
             )
             _, stderr = await asyncio.wait_for(proc.communicate(), timeout=15.0)
             if proc.returncode != 0:
@@ -158,32 +181,38 @@ class DeadSureWatchdog:
         except asyncio.TimeoutError:
             return "Python compile check timed out (15s limit)"
         except Exception as e:
-            return f"Compiler execution failed: {str(e)}"
+            return f"Compiler execution failed: {e!s}"
 
-    async def compile_typescript(self) -> Optional[str]:
+    async def compile_typescript(self) -> str | None:
         cwd = os.path.join(FoveAI_ROOT, "Frontend", "XR_Vessel")
         try:
             proc = await asyncio.create_subprocess_exec(
-                "npx.cmd", "tsc", "--noEmit",
+                "npx.cmd",
+                "tsc",
+                "--noEmit",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=cwd
+                cwd=cwd,
             )
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30.0)
             if proc.returncode != 0:
-                return stdout.decode("utf-8", errors="replace") + "\n" + stderr.decode("utf-8", errors="replace")
+                return (
+                    stdout.decode("utf-8", errors="replace")
+                    + "\n"
+                    + stderr.decode("utf-8", errors="replace")
+                )
             return None
         except asyncio.TimeoutError:
             return "TypeScript compilation check timed out (30s limit)"
         except Exception as e:
-            return f"TypeScript compile execution failed: {str(e)}"
+            return f"TypeScript compile execution failed: {e!s}"
 
     async def check_file(self, filepath: str):
         ext = os.path.splitext(filepath)[1].lower()
         rel = self.get_rel_path(filepath)
         logger.info(f"🔎 [CHECKING] Gate validation for {rel}...")
 
-        err: Optional[str] = None
+        err: str | None = None
         if ext == ".py":
             err = await self.compile_python(filepath)
         elif ext in {".ts", ".tsx"}:
@@ -192,7 +221,9 @@ class DeadSureWatchdog:
         elif ext in {".js", ".jsx"}:
             try:
                 proc = await asyncio.create_subprocess_exec(
-                    "node", "--check", filepath,
+                    "node",
+                    "--check",
+                    filepath,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
@@ -214,15 +245,18 @@ class DeadSureWatchdog:
 
     # ── Workspace Scanner ──────────────────────────────────────────────────
 
-    def scan_workspace(self) -> List[str]:
+    def scan_workspace(self) -> list[str]:
         modified_files = []
         for watch_dir in WATCH_DIRS:
             if not os.path.exists(watch_dir):
                 continue
             for root, dirs, files in os.walk(watch_dir):
                 dirs[:] = [
-                    d for d in dirs
-                    if not any(ign in os.path.join(root, d) for ign in IGNORE_SUBSTRINGS)
+                    d
+                    for d in dirs
+                    if not any(
+                        ign in os.path.join(root, d) for ign in IGNORE_SUBSTRINGS
+                    )
                 ]
                 for file in files:
                     ext = os.path.splitext(file)[1].lower()
@@ -244,7 +278,9 @@ class DeadSureWatchdog:
                         self.file_mtimes[filepath] = mtime
                         if filepath in self.expected_reversions:
                             self.expected_reversions.discard(filepath)
-                            logger.info(f"🛡️ [BYPASS] Ignored expected revert change in {self.get_rel_path(filepath)}")
+                            logger.info(
+                                f"🛡️ [BYPASS] Ignored expected revert change in {self.get_rel_path(filepath)}"
+                            )
                         else:
                             modified_files.append(filepath)
         return modified_files
@@ -253,7 +289,9 @@ class DeadSureWatchdog:
 
     async def watch_loop(self):
         self.running = True
-        logger.info("🛡️ [DEADSURE WATCHDOG ACTIVE] Initializing file watcher and populating cache...")
+        logger.info(
+            "🛡️ [DEADSURE WATCHDOG ACTIVE] Initializing file watcher and populating cache..."
+        )
         self.scan_workspace()
         self._save_state()
 
@@ -277,7 +315,9 @@ class DeadSureWatchdog:
                 logger.info("🛑 [WATCHDOG] Loop cancelled cleanly.")
                 break
             except Exception as e:
-                logger.error(f"💥 [WATCHDOG ERROR] Unexpected crash in watch loop: {e}. Back-off {back_off}s before resume.")
+                logger.error(
+                    f"💥 [WATCHDOG ERROR] Unexpected crash in watch loop: {e}. Back-off {back_off}s before resume."
+                )
                 self._write_heartbeat(f"error:{e}")
                 await asyncio.sleep(back_off)
                 back_off = min(back_off * 2, MAX_BACK_OFF)
@@ -287,6 +327,7 @@ watchdog = DeadSureWatchdog()
 
 
 # ─── API Endpoints ────────────────────────────────────────────────────────────
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -311,7 +352,9 @@ async def status():
         "status": "SECURE" if is_stable else "COMPILATION_FAIL",
         "healed_count": watchdog.reverted_count,
         "watched_files": len(watchdog.file_mtimes),
-        "broken_files": {watchdog.get_rel_path(k): v[:300] for k, v in watchdog.broken_files.items()},
+        "broken_files": {
+            watchdog.get_rel_path(k): v[:300] for k, v in watchdog.broken_files.items()
+        },
     }
 
 
@@ -323,7 +366,10 @@ async def restore_file(filepath: str, reason: str = "Manual restoration requeste
     """
     abs_path = os.path.abspath(os.path.join(FoveAI_ROOT, filepath))
     if not abs_path.startswith(FoveAI_ROOT):
-        return JSONResponse(status_code=400, content={"error": "Access denied — path outside FoveAI_ROOT"})
+        return JSONResponse(
+            status_code=400,
+            content={"error": "Access denied — path outside FoveAI_ROOT"},
+        )
     success = watchdog.revert_file(abs_path, reason)
     return {"success": success, "file": filepath, "reason": reason}
 
@@ -360,11 +406,19 @@ async def repair_hook(request: Request):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="deadsure_watchdog",
-        description="DeadSure Watchdog v2 — Compile-gate file guardian for the FoveAI Diamond Concordia."
+        description="DeadSure Watchdog v2 — Compile-gate file guardian for the FoveAI Diamond Concordia.",
     )
-    parser.add_argument("--port", type=int, default=DEADSURE_PORT, help=f"HTTP port (default: {DEADSURE_PORT})")
-    parser.add_argument("--host", type=str, default="127.0.0.1", help="Bind host (default: 127.0.0.1)")
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=DEADSURE_PORT,
+        help=f"HTTP port (default: {DEADSURE_PORT})",
+    )
+    parser.add_argument(
+        "--host", type=str, default="127.0.0.1", help="Bind host (default: 127.0.0.1)"
+    )
     args = parser.parse_args()
 
     import uvicorn
+
     uvicorn.run(app, host=args.host, port=args.port)

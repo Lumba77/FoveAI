@@ -66,10 +66,8 @@ def _category_from_h2_title(title: str) -> str:
 
 def _split_table_row(line: str) -> list[str]:
     line = line.strip()
-    if line.startswith("|"):
-        line = line[1:]
-    if line.endswith("|"):
-        line = line[:-1]
+    line = line.removeprefix("|")
+    line = line.removesuffix("|")
     return [c.strip() for c in line.split("|")]
 
 
@@ -283,7 +281,9 @@ def parse_feature_inventory_markdown(content: str) -> dict[str, Any]:
                 )
             )
 
-    categories = [{"id": k, "label": v} for k, v in _CATEGORY_LABELS.items() if k != "other"]
+    categories = [
+        {"id": k, "label": v} for k, v in _CATEGORY_LABELS.items() if k != "other"
+    ]
     categories.append({"id": "other", "label": "Other"})
 
     return {
@@ -304,4 +304,8 @@ if __name__ == "__main__":
         print("missing:", p, file=sys.stderr)
         sys.exit(1)
     out = parse_feature_inventory_markdown(p.read_text(encoding="utf-8"))
-    print(json.dumps({"segments": len(out["segments"]), "flat_rows": len(out["flat_rows"])}))
+    print(
+        json.dumps(
+            {"segments": len(out["segments"]), "flat_rows": len(out["flat_rows"])}
+        )
+    )

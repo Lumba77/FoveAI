@@ -1,0 +1,36 @@
+XRLF.3.FORMATTING.SPEC.START
+
+This file enforces the formatting rules defined in the root XRLF.CONTRACT.XRLF.
+All agents must validate against these rules before any commit.
+
+RULES:
+  SectionHeadings:
+    - One blank line before each section heading.
+    - No blank line after a section heading.
+
+  PrincipleBlocks:
+    - Format: PRINCIPLE_X (Name): followed by indented text.
+    - No blank line between headline and text.
+    - One blank line after each principle block.
+
+  Paragraphs:
+    - Indented by two spaces.
+    - Maximum one blank line of separation.
+
+  Lists:
+    - Items begin with "-".
+    - Indented by four spaces.
+    - Nested lists prohibited.
+    - One blank line after each list block.
+
+  LineIntegrity:
+    - No trailing spaces.
+    - No tabs; only spaces.
+    - No additional blank lines beyond those defined.
+
+  Enforcement:
+    - Validate formatting before any transformation.
+    - Halt and repair if violations detected.
+    - No commit until fully compliant.
+
+XRLF.3.FORMATTING.SPEC.END

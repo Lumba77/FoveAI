@@ -24,6 +24,7 @@ set -euo pipefail
 FOVEAI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LUMAX_DIR="$(dirname "$FOVEAI_DIR")"
 VENV_PYTHON="$FOVEAI_DIR/.venv/bin/python"
+[ -x "$VENV_PYTHON" ] || VENV_PYTHON="$(which python3)"
 NODE_BIN="${NODE_BIN:-node}"
 
 # ─── Config ─────────────────────────────────────────────────────────
@@ -78,6 +79,9 @@ load_env() {
 
 load_env
 
+CREATIVE_PORT="${FOVEAI_CREATIVE_PORT:-8408}"
+CREATIVE_VENV="$FOVEAI_DIR/.venv/creative/bin/python"
+
 # ─── Actions ────────────────────────────────────────────────────────
 
 cmd_status() {
@@ -86,7 +90,7 @@ cmd_status() {
     echo "╚═══════════════════════════════════════════════╝"
     echo
 
-    for svc in "Backend:$BACKEND_PORT" "XRLF-Runtime:$XRLF_PORT" "WS-IPC:$XRLF_WS_PORT" "Dashboard:$DASHBOARD_PORT"; do
+    for svc in "Backend:$BACKEND_PORT" "XRLF-Runtime:$XRLF_PORT" "WS-IPC:$XRLF_WS_PORT" "Dashboard:$DASHBOARD_PORT" "Creative:$CREATIVE_PORT"; do
         name="${svc%%:*}"
         port="${svc##*:}"
         if port_alive "$port"; then
@@ -116,6 +120,7 @@ cmd_stop() {
     kill_port "$XRLF_WS_PORT"
     kill_port "$BACKEND_PORT"
     kill_port "$DASHBOARD_PORT"
+    kill_port "$CREATIVE_PORT"
     # Kill any stray run_xrlf processes
     pkill -f "run_xrlf.py" 2>/dev/null || true
     sleep 1
@@ -128,6 +133,7 @@ cmd_start() {
     [ "${1:-}" = "--light" ] && light_mode=true
 
     log "Igniting FoveAI fleet..."
+    "$VENV_PYTHON" "$FOVEAI_DIR/server_config.py" --refresh-network-config || warn "Network config refresh failed"
 
     # ── Zombie sweep ──
     log "Sweeping for zombie processes..."
@@ -214,6 +220,28 @@ cmd_start() {
         fi
     else
         log "Light mode — skipping XRLF Runtime (no model loaded)"
+    fi
+
+    # ── Node 3: Creative Service (:8408 — Dreamscape image gen) ──
+    if port_alive "$CREATIVE_PORT"; then
+        log "Creative Service already online (:$CREATIVE_PORT)"
+    elif [ -x "$CREATIVE_VENV" ] && [ -f "$FOVEAI_DIR/Backend/Creativity/creative_service.py" ]; then
+        log "Launching Creative Service (:$CREATIVE_PORT)..."
+        cd "$FOVEAI_DIR/Backend/Creativity"
+        nohup env FOVEAI_CREATIVE_PORT="$CREATIVE_PORT" FOVEAI_BIND_HOST=127.0.0.1 \
+            "$CREATIVE_VENV" creative_service.py >> /home/lumba/foveai_creative.log 2>&1 &
+        cd "$FOVEAI_DIR"
+        for i in $(seq 1 20); do
+            port_alive "$CREATIVE_PORT" && break
+            sleep 0.5
+        done
+        if port_alive "$CREATIVE_PORT"; then
+            log "  ✅ Creative Service online (:$CREATIVE_PORT)"
+        else
+            warn "  ⚠️  Creative Service did not bind :$CREATIVE_PORT — see /home/lumba/foveai_creative.log"
+        fi
+    else
+        warn "Creative Service skipped (no .venv/creative — run the Creativity setup)"
     fi
 
     # ── Summary ──

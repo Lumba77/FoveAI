@@ -1,0 +1,65 @@
+<xrlf:directive version="2.0" platform="google-antigravity" engine="vr-compagent-refactor">
+    
+    <metadata>
+        <title>COMPAGENT Streamlined vLLM Refactor (Antigravity Agent Rules)</title>
+        <target_workspace>Spatial Machine Local Workspace</target_workspace>
+        <protocol_version>XRLF-2.0</protocol_version>
+        <agent_harness>Antigravity Native Agent</agent_harness>
+    </metadata>
+
+    <resource_governance>
+        <thermal_policy>MEDIUM_THROTTLE</thermal_policy>
+        <max_concurrent_subagents>4</max_concurrent_subagents>
+        <cooldown_seconds>300</cooldown_seconds>
+        <execution_rules>
+            <rule>Run terminal commands sequentially to avoid high local CPU/GPU heat spikes.</rule>
+            <rule>Publish an Artifact summary after completing each major architectural phase.</rule>
+            <rule>Save useful refactoring pattern learned into the local knowledge base.</rule>
+        </execution_rules>
+    </resource_governance>
+
+    <subagent_delegation_matrix>
+        <subagent id="subagent-alpha" role="Architect & Directory Pruner">
+            <task>Deprecate legacy Docker containers and consolidate file layout into a single vLLM server root.</task>
+            <scope>docker-compose.yml, backend/main.py, config files</scope>
+        </subagent>
+
+        <subagent id="subagent-beta" role="Inference & Prompt Distiller">
+            <task>Collapse Reflexive, Reflective, and Director agent prompts into a unified AWQ quantized model wrapper.</task>
+            <scope>backend/services/llm_service.py, backend/prompts/</scope>
+        </subagent>
+
+        <subagent id="subagent-gamma" role="WebSocket & Transport Specialist">
+            <task>Replace REST HTTP base64 endpoints with high-speed bidirectional binary WebSocket streaming.</task>
+            <scope>backend/api/websocket.py, compagent_client.gd</scope>
+        </subagent>
+
+        <subagent id="subagent-delta" role="WebXR Loop Optimiser">
+            <task>Decouple avatar gestures and voice playback loop into background Web Workers.</task>
+            <scope>webxr/avatar_controller.js, webxr/voice_manager.js</scope>
+        </subagent>
+    </subagent_delegation_matrix>
+
+    <phase_graph>
+        <phase id="PHASE_1" name="Codebase Audit & Distillation Artifact">
+            <instruction>Audit legacy Python services and create an XRLF system prompt embedding spiritual and director logic.</instruction>
+            <verification>Artifact generated with zero missing system variables.</verification>
+        </phase>
+
+        <phase id="PHASE_2" name="vLLM Inference Core Migration">
+            <instruction>Deploy single vLLM server wrapper with AWQ quantization support and speculative decoding.</instruction>
+            <verification>Terminal test streams initial token in under 50ms.</verification>
+        </phase>
+
+        <phase id="PHASE_3" name="WebSocket Audio/Token Transport">
+            <instruction>Establish bi-directional streaming for WebXR inputs and outputs.</instruction>
+            <verification>WebSocket handles binary audio streaming without frame lag.</verification>
+        </phase>
+
+        <phase id="PHASE_4" name="WebXR Frontend Optimisation">
+            <instruction>Offload avatar micro-animations and gesture tag parsing to async Web Workers.</instruction>
+            <verification>WebXR maintains stable frame rates (72-90 FPS).</verification>
+        </phase>
+    </phase_graph>
+
+</xrlf:directive>

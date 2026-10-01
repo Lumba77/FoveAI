@@ -45,6 +45,8 @@
 
 'use strict';
 
+const { withLocalUpstream } = require('./local-upstream-queue');
+
 // ── Preservation Strategy Determination ─────────────────────────────────────
 
 /**
@@ -282,7 +284,7 @@ Importance guide:
 JSON:`;
 
     try {
-        const res = await fetch(`${llmUrl}/chat/completions`, {
+        const res = await withLocalUpstream(() => fetch(`${llmUrl}/chat/completions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -296,7 +298,7 @@ JSON:`;
                 stream: false
             }),
             signal: AbortSignal.timeout(8000)
-        });
+        }));
 
         if (!res.ok) return null;
         const data = await res.json();
@@ -370,7 +372,7 @@ Focus on what matters most for the query "${zoomContext}".
 JSON:`;
 
     try {
-        const res = await fetch(`${llmUrl}/chat/completions`, {
+        const res = await withLocalUpstream(() => fetch(`${llmUrl}/chat/completions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -384,7 +386,7 @@ JSON:`;
                 stream: false
             }),
             signal: AbortSignal.timeout(15000)
-        });
+        }));
 
         if (!res.ok) throw new Error('LLM unavailable');
         const data = await res.json();

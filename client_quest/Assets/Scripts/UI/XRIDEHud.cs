@@ -128,7 +128,7 @@ namespace FoveAI.UI
             _statusText = statusObj.AddComponent<TextMesh>();
             _statusText.fontSize = 28;
             _statusText.color = new Color(0.8f, 0.9f, 0.8f);
-            _statusText.text = "SOUL: 8402 | MEMORY: 8400 | WEBSOCKET: 8403 | CHAT: 8407";
+            _statusText.text = "SOUL: 8405 | MEMORY: 8400 | WEBSOCKET: 8403 | CHAT: 8407";
 
             // Controls Cheatsheet Line (Bottom)
             var controlsObj = new GameObject("ControlsText");
@@ -219,7 +219,7 @@ namespace FoveAI.UI
             // Central WebSocket & Core status (8400 Cycle of Interaction)
             bool wsOk = _wsClient != null && _wsClient.IsConnected;
             string wsStatus = wsOk ? "ONLINE" : "CONNECTING...";
-            int soulPort = FoveAI.Config.ConfigLoader.Settings != null ? FoveAI.Config.ConfigLoader.Settings.httpPort : 8402;
+            int soulPort = FoveAI.Config.ConfigLoader.Settings != null ? FoveAI.Config.ConfigLoader.Settings.soulPort : 8405;
             int ipcPort = FoveAI.Config.ConfigLoader.Settings != null ? FoveAI.Config.ConfigLoader.Settings.wsPort : 8403;
             _statusText.text = $"SOUL:{soulPort} | MEMORY:8400 | WEBSOCKET:{ipcPort} [{wsStatus}]";
             _statusText.color = wsOk ? Color.white : new Color(1f, 0.7f, 0.2f);

@@ -1,0 +1,1 @@
+(self, status_code: 'int', reason_phrase: 'str', headers: 'Headers', body: 'bytes' = b'', _exception: 'Exception | None' = None) -> None

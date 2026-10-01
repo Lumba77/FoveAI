@@ -10,16 +10,15 @@ Validates:
 """
 
 import unittest
+
 from builder.probes.benchmark_suite import (
-    _extract_answer,
-    _extract_mcq,
-    _extract_numeric,
-    _is_correct,
-    generate_test_image_b64,
-    generate_test_audio_b64,
     ApiResponder,
-    run_coherence_track,
     StubResponder,
+    _extract_answer,
+    _is_correct,
+    generate_test_audio_b64,
+    generate_test_image_b64,
+    run_coherence_track,
 )
 
 
@@ -45,17 +44,39 @@ class TestBenchmarkHardening(unittest.TestCase):
 
     def test_numeric_explicit_declarations(self):
         """Model explicitly declares answer with various standard delimiters."""
-        self.assertEqual(_extract_answer("Work: 60 * 2.5. #### 150", expected="150"), "150")
-        self.assertTrue(_is_correct(_extract_answer("Work: 60 * 2.5. #### 150", expected="150"), "150"))
+        self.assertEqual(
+            _extract_answer("Work: 60 * 2.5. #### 150", expected="150"), "150"
+        )
+        self.assertTrue(
+            _is_correct(
+                _extract_answer("Work: 60 * 2.5. #### 150", expected="150"), "150"
+            )
+        )
 
-        self.assertEqual(_extract_answer("The result is \\boxed{84}", expected="84"), "84")
-        self.assertTrue(_is_correct(_extract_answer("The result is \\boxed{84}", expected="84"), "84"))
+        self.assertEqual(
+            _extract_answer("The result is \\boxed{84}", expected="84"), "84"
+        )
+        self.assertTrue(
+            _is_correct(
+                _extract_answer("The result is \\boxed{84}", expected="84"), "84"
+            )
+        )
 
-        self.assertEqual(_extract_answer("Therefore, the final answer is $120.", expected="120"), "120")
-        self.assertTrue(_is_correct(_extract_answer("Therefore, the final answer is $120.", expected="120"), "120"))
+        self.assertEqual(
+            _extract_answer("Therefore, the final answer is $120.", expected="120"),
+            "120",
+        )
+        self.assertTrue(
+            _is_correct(
+                _extract_answer("Therefore, the final answer is $120.", expected="120"),
+                "120",
+            )
+        )
 
         self.assertEqual(_extract_answer("Total fare: $7.00.", expected="7.00"), "7.00")
-        self.assertTrue(_is_correct(_extract_answer("Total fare: $7.00.", expected="7.00"), "7.00"))
+        self.assertTrue(
+            _is_correct(_extract_answer("Total fare: $7.00.", expected="7.00"), "7.00")
+        )
 
     def test_numeric_multi_number_set(self):
         """Validates multi-number answers like '18 and 19'."""
@@ -93,7 +114,9 @@ class TestBenchmarkHardening(unittest.TestCase):
 
     def test_mcq_no_english_article_false_positive(self):
         """Sentences starting with 'A' or containing 'a' must not trigger choice 'A'."""
-        text = "A store has several items in stock, but I am unable to solve this problem."
+        text = (
+            "A store has several items in stock, but I am unable to solve this problem."
+        )
         predicted = _extract_answer(text, expected="C")
         self.assertNotEqual(predicted, "A")
         self.assertFalse(_is_correct(predicted, "C"))

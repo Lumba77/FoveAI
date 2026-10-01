@@ -32,6 +32,10 @@ public class BuildAPKBatch
         // Enable Meta Quest Session feature via reflection
         EnableMetaQuestSessionFeature();
 
+        // Regenerate the FoveAI scene from scratch (headless scene creation)
+        Debug.Log("[BuildAPKBatch] Generating FoveAI scene via AutoSceneBuilder...");
+        FoveAI.Editor.AutoSceneBuilder.BuildScene();
+
         // Wire all 17 experiences, HUD, and game systems into the scene before building
         Debug.Log("[BuildAPKBatch] Auto-wiring all 17 experiences and HUD into FoveAI scene...");
         FoveAI.Editor.AutoWireExperiences.WireAll();

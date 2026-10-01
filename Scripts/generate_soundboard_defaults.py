@@ -5,28 +5,36 @@ formant filtering, harmonic stacking, and reverb.
 
 Output: frontend/XR_Vessel/public/soundboard/*.wav
 """
-import wave
-import struct
+
 import math
 import os
 import random
+import struct
+import wave
 
-OUTPUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                          'Frontend', 'XR_Vessel', 'public', 'soundboard')
+OUTPUT_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "Frontend",
+    "XR_Vessel",
+    "public",
+    "soundboard",
+)
 
 SAMPLE_RATE = 44100
+
 
 def generate_wav(filename, samples):
     """Write a list of float samples (-1.0 to 1.0) to a 16-bit WAV file."""
     filepath = os.path.join(OUTPUT_DIR, filename)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    with wave.open(filepath, 'w') as wf:
+    with wave.open(filepath, "w") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
         wf.setframerate(SAMPLE_RATE)
         for s in samples:
             clamped = max(-1.0, min(1.0, s))
-            wf.writeframes(struct.pack('<h', int(clamped * 32767)))
+            wf.writeframes(struct.pack("<h", int(clamped * 32767)))
+
 
 def envelope(n, attack=0.01, decay=0.05, sustain_level=0.7, release=0.1):
     """ADSR envelope over n samples."""
@@ -47,6 +55,7 @@ def envelope(n, attack=0.01, decay=0.05, sustain_level=0.7, release=0.1):
         env.append(0)
     return env[:n]
 
+
 def reverb(samples, decay=0.3, delays_ms=(37, 53, 79, 113, 157)):
     """Simple multi-tap echo reverb for spatial depth."""
     result = list(samples)
@@ -62,6 +71,7 @@ def reverb(samples, decay=0.3, delays_ms=(37, 53, 79, 113, 157)):
         result = [s / peak * 0.9 for s in result]
     return result
 
+
 def smooth_noise(duration_sec, amplitude=0.3, cutoff_freq=800):
     """Low-pass filtered noise (simulated via overlapping random walks)."""
     n = int(SAMPLE_RATE * duration_sec)
@@ -76,7 +86,16 @@ def smooth_noise(duration_sec, amplitude=0.3, cutoff_freq=800):
     peak = max(abs(s) for s in filtered) if filtered else 1.0
     return [amplitude * s / peak for s in filtered]
 
-def fm_synth(freq, duration_sec, mod_ratio=2.0, mod_depth=50, amplitude=0.6, attack=0.01, release=0.1):
+
+def fm_synth(
+    freq,
+    duration_sec,
+    mod_ratio=2.0,
+    mod_depth=50,
+    amplitude=0.6,
+    attack=0.01,
+    release=0.1,
+):
     """FM synthesis — creates rich, dynamic tones."""
     n = int(SAMPLE_RATE * duration_sec)
     env = envelope(n, attack=attack, release=release, sustain_level=0.8)
@@ -87,6 +106,7 @@ def fm_synth(freq, duration_sec, mod_ratio=2.0, mod_depth=50, amplitude=0.6, att
         carrier = math.sin(2 * math.pi * (freq + modulator) * t)
         samples.append(amplitude * env[i] * carrier)
     return samples
+
 
 def formant_voice(f0, duration_sec, formants, amplitude=0.5, attack=0.02, release=0.08):
     """Generate a vocal-like sound using formant synthesis.
@@ -105,7 +125,9 @@ def formant_voice(f0, duration_sec, formants, amplitude=0.5, attack=0.02, releas
         voiced = 0
         for f_freq, f_bw, f_amp in formants:
             # Resonance filter approximation
-            resonance = f_amp * math.exp(-((f_freq - f_freq) ** 2) / (2 * (f_bw / 2) ** 2))
+            resonance = f_amp * math.exp(
+                -((f_freq - f_freq) ** 2) / (2 * (f_bw / 2) ** 2)
+            )
             # Filter the glottal source through formant
             formant_signal = resonance * math.sin(2 * math.pi * f_freq * t)
             voiced += formant_signal
@@ -113,7 +135,9 @@ def formant_voice(f0, duration_sec, formants, amplitude=0.5, attack=0.02, releas
         samples.append(amplitude * env[i] * (voiced + glottal * 0.2))
     return samples
 
+
 # ===================== SOUND DEFINITIONS =====================
+
 
 def gasp_subtle():
     """Quick inward gasp — shaped breath with formant coloring and reverb."""
@@ -138,6 +162,7 @@ def gasp_subtle():
         pitch_drop = 0.1 * env * math.sin(2 * math.pi * (500 - 200 * t) * t)
         samples.append(breath + formant1 + formant2 + pitch_drop)
     return reverb(samples, decay=0.2, delays_ms=(23, 47, 71))
+
 
 def laugh_soft():
     """Soft chuckle — warm vocal bursts with FM color and room reverb."""
@@ -167,6 +192,7 @@ def laugh_soft():
         samples.append(val)
     return reverb(samples, decay=0.25, delays_ms=(30, 55, 89))
 
+
 def sigh_content():
     """Content sigh — warm descending breath with vocal resonance and reverb."""
     n = int(SAMPLE_RATE * 0.9)
@@ -190,6 +216,7 @@ def sigh_content():
         breath = 0.12 * env * (random.random() * 2 - 1) * math.exp(-t * 1.5)
         samples.append(glottal + f1 + f2 + breath)
     return reverb(samples, decay=0.35, delays_ms=(40, 67, 97, 130))
+
 
 def hmm_thoughtful():
     """Thoughtful hmm — nasal hum with formants, vibrato, and reverb."""
@@ -216,6 +243,7 @@ def hmm_thoughtful():
         samples.append(fund + nasal1 + nasal2 + nasal3 + warmth)
     return reverb(samples, decay=0.3, delays_ms=(33, 61, 97))
 
+
 def oh_realization():
     """Sudden realization — rising pitch with harmonic sparkle and reverb."""
     n = int(SAMPLE_RATE * 0.35)
@@ -235,14 +263,17 @@ def oh_realization():
         freq = 350 + 400 * (t / 0.35)
         glottal = 0.45 * env * math.sin(2 * math.pi * freq * t)
         # "oh" formants
-        f1 = 0.2 * env * math.sin(2 * math.pi * 500 * t)   # F1 ~500
-        f2 = 0.15 * env * math.sin(2 * math.pi * 900 * t)   # F2 ~900
+        f1 = 0.2 * env * math.sin(2 * math.pi * 500 * t)  # F1 ~500
+        f2 = 0.15 * env * math.sin(2 * math.pi * 900 * t)  # F2 ~900
         # Surprise sparkle — high harmonic
         sparkle = 0.08 * env * math.sin(2 * math.pi * 2400 * t) * math.exp(-t * 8)
         # Quick breath attack
-        breath = 0.15 * (random.random() * 2 - 1) * max(0, 1 - t * 50) if t < 0.02 else 0
+        breath = (
+            0.15 * (random.random() * 2 - 1) * max(0, 1 - t * 50) if t < 0.02 else 0
+        )
         samples.append(glottal + f1 + f2 + sparkle + breath)
     return reverb(samples, decay=0.3, delays_ms=(27, 47, 73))
+
 
 def throat_clear():
     """Brief throat clear — noise burst with resonant cavity tone and reverb."""
@@ -270,7 +301,8 @@ def throat_clear():
     # Extend with silence to 0.4s for reverb tail
     while len(samples) < int(SAMPLE_RATE * 0.4):
         samples.append(0)
-    return reverb(samples[:int(SAMPLE_RATE * 0.4)], decay=0.2, delays_ms=(15, 31, 53))
+    return reverb(samples[: int(SAMPLE_RATE * 0.4)], decay=0.2, delays_ms=(15, 31, 53))
+
 
 def chuckle_warm():
     """Warm chuckle — three voiced bursts with FM warmth and room reverb."""
@@ -297,6 +329,7 @@ def chuckle_warm():
         samples.append(val)
     return reverb(samples, decay=0.25, delays_ms=(35, 63, 97))
 
+
 def mhm_affirming():
     """Affirming mhm — double-pitched nasal hum with formants and reverb."""
     n = int(SAMPLE_RATE * 0.45)
@@ -318,13 +351,14 @@ def mhm_affirming():
             env = max(0, (0.45 - t) / 0.07) ** 0.5
         # Nasal "m" formants
         fund = 0.35 * env * math.sin(2 * math.pi * 120 * t)  # Low fundamental
-        nasal1 = 0.2 * env * math.sin(2 * math.pi * 280 * t)   # 2nd harmonic
+        nasal1 = 0.2 * env * math.sin(2 * math.pi * 280 * t)  # 2nd harmonic
         nasal2 = 0.12 * env * math.sin(2 * math.pi * 400 * t)  # 3rd harmonic
         nasal3 = 0.06 * env * math.sin(2 * math.pi * 600 * t)  # 5th harmonic
         # Subtle vibrato for warmth
         vibrato = 0.02 * env * math.sin(2 * math.pi * 4 * t)
         samples.append(fund + nasal1 + nasal2 + nasal3 + vibrato)
     return reverb(samples, decay=0.3, delays_ms=(37, 67, 103))
+
 
 def windchime_subtle():
     """Ethereal windchime — layered sine tones with decay and spatial reverb."""
@@ -342,13 +376,25 @@ def windchime_subtle():
             dt = t - ct
             if dt > 0:
                 # Long exponential decay with slow modulation
-                env = ca * math.exp(-dt * 3.5) * (1 + 0.08 * math.sin(2 * math.pi * 2.5 * dt))
+                env = (
+                    ca
+                    * math.exp(-dt * 3.5)
+                    * (1 + 0.08 * math.sin(2 * math.pi * 2.5 * dt))
+                )
                 # Fundamental + shimmer harmonics
                 fundamental = env * math.sin(2 * math.pi * cf * dt)
                 harmonic2 = 0.3 * env * math.sin(2 * math.pi * cf * 2.0 * dt)
-                harmonic3 = 0.1 * env * math.sin(2 * math.pi * cf * 3.01 * dt)  # Slight detune for shimmer
+                harmonic3 = (
+                    0.1 * env * math.sin(2 * math.pi * cf * 3.01 * dt)
+                )  # Slight detune for shimmer
                 # Slight vibrato from wind
-                vibrato = 0.05 * env * math.sin(2 * math.pi * (cf + 3 * math.sin(2 * math.pi * 1.5 * dt)) * dt)
+                vibrato = (
+                    0.05
+                    * env
+                    * math.sin(
+                        2 * math.pi * (cf + 3 * math.sin(2 * math.pi * 1.5 * dt)) * dt
+                    )
+                )
                 val += fundamental + harmonic2 + harmonic3 + vibrato
         # Very gentle wind noise throughout
         if t < 1.2:
@@ -358,24 +404,27 @@ def windchime_subtle():
         samples.append(val)
     return reverb(samples, decay=0.45, delays_ms=(47, 79, 127, 173, 223))
 
-if __name__ == '__main__':
-    print(f'Generating rich soundboard WAVs in {OUTPUT_DIR}...')
-    generate_wav('gasp_subtle.wav', gasp_subtle())
-    print('  ✓ gasp_subtle.wav — shaped breath + formant resonance + reverb')
-    generate_wav('laugh_soft.wav', laugh_soft())
-    print('  ✓ laugh_soft.wav — warm vocal bursts + FM shimmer + reverb')
-    generate_wav('sigh_content.wav', sigh_content())
-    print('  ✓ sigh_content.wav — descending breath + vocal formants + reverb')
-    generate_wav('hmm_thoughtful.wav', hmm_thoughtful())
-    print('  ✓ hmm_thoughtful.wav — nasal hum + harmonics + vibrato + reverb')
-    generate_wav('oh_realization.wav', oh_realization())
-    print('  ✓ oh_realization.wav — rising pitch + sparkle harmonics + reverb')
-    generate_wav('throat_clear.wav', throat_clear())
-    print('  ✓ throat_clear.wav — resonant cavity + shaped noise + reverb')
-    generate_wav('chuckle_warm.wav', chuckle_warm())
-    print('  ✓ chuckle_warm.wav — warm FM bursts + formants + reverb')
-    generate_wav('mhm_affirming.wav', mhm_affirming())
-    print('  ✓ mhm_affirming.wav — nasal double-hump + harmonics + reverb')
-    generate_wav('windchime_subtle.wav', windchime_subtle())
-    print('  ✓ windchime_subtle.wav — pentatonic chimes + shimmer + wind noise + reverb')
-    print('All 9 rich soundboard WAVs generated!')
+
+if __name__ == "__main__":
+    print(f"Generating rich soundboard WAVs in {OUTPUT_DIR}...")
+    generate_wav("gasp_subtle.wav", gasp_subtle())
+    print("  ✓ gasp_subtle.wav — shaped breath + formant resonance + reverb")
+    generate_wav("laugh_soft.wav", laugh_soft())
+    print("  ✓ laugh_soft.wav — warm vocal bursts + FM shimmer + reverb")
+    generate_wav("sigh_content.wav", sigh_content())
+    print("  ✓ sigh_content.wav — descending breath + vocal formants + reverb")
+    generate_wav("hmm_thoughtful.wav", hmm_thoughtful())
+    print("  ✓ hmm_thoughtful.wav — nasal hum + harmonics + vibrato + reverb")
+    generate_wav("oh_realization.wav", oh_realization())
+    print("  ✓ oh_realization.wav — rising pitch + sparkle harmonics + reverb")
+    generate_wav("throat_clear.wav", throat_clear())
+    print("  ✓ throat_clear.wav — resonant cavity + shaped noise + reverb")
+    generate_wav("chuckle_warm.wav", chuckle_warm())
+    print("  ✓ chuckle_warm.wav — warm FM bursts + formants + reverb")
+    generate_wav("mhm_affirming.wav", mhm_affirming())
+    print("  ✓ mhm_affirming.wav — nasal double-hump + harmonics + reverb")
+    generate_wav("windchime_subtle.wav", windchime_subtle())
+    print(
+        "  ✓ windchime_subtle.wav — pentatonic chimes + shimmer + wind noise + reverb"
+    )
+    print("All 9 rich soundboard WAVs generated!")

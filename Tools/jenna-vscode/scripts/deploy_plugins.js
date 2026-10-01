@@ -36,10 +36,13 @@ if (!matches.length) {
 }
 
 matches.sort((a, b) => b.ver - a.ver);
-const targetPath = path.join(matches[0].root, matches[0].dir);
-console.log(`[DEPLOY] 🎯 Deploying to: ${targetPath}`);
-if (matches.length > 1) {
-  console.log(`[DEPLOY] (other versions present: ${matches.slice(1).map(m => m.dir).join(', ')})`);
+const topVer = matches[0].ver;
+const targets = matches.filter(m => m.ver === topVer);
+const skipped = matches.filter(m => m.ver !== topVer);
+console.log(`[DEPLOY] 🎯 Deploying to ${targets.length} install(s) at top version:`);
+targets.forEach(m => console.log(`          ${path.join(m.root, m.dir)}`));
+if (skipped.length) {
+  console.log(`[DEPLOY] (skipping older versions: ${skipped.map(m => m.dir).join(', ')})`);
 }
 
 function copyDirectorySync(src, dest) {
@@ -58,24 +61,30 @@ function copyDirectorySync(src, dest) {
   }
 }
 
-console.log(`\n🚀 [DEPLOY] Pushing Jenna changes to Devin IDE extensions...`);
-try {
-  // Copy 'src' folder (HTML webviews)
-  const srcDir = path.join(__dirname, '..', 'src');
-  if (fs.existsSync(srcDir)) {
-    copyDirectorySync(srcDir, path.join(targetPath, 'src'));
-    console.log(`   ✅ Copied 'src' folder`);
-  }
+console.log(`\n🚀 [DEPLOY] Pushing Jenna changes to IDE extensions...`);
+const srcDir = path.join(__dirname, '..', 'src');
+const distDir = path.join(__dirname, '..', 'dist');
+let failed = false;
 
-  // Copy 'dist' folder (compiled TypeScript)
-  const distDir = path.join(__dirname, '..', 'dist');
-  if (fs.existsSync(distDir)) {
-    copyDirectorySync(distDir, path.join(targetPath, 'dist'));
-    console.log(`   ✅ Copied 'dist' folder`);
+for (const { root, dir } of targets) {
+  const targetPath = path.join(root, dir);
+  try {
+    if (fs.existsSync(srcDir)) {
+      copyDirectorySync(srcDir, path.join(targetPath, 'src'));
+      console.log(`   ✅ ${targetPath} ← src`);
+    }
+    if (fs.existsSync(distDir)) {
+      copyDirectorySync(distDir, path.join(targetPath, 'dist'));
+      console.log(`   ✅ ${targetPath} ← dist`);
+    }
+  } catch (error) {
+    failed = true;
+    console.error(`   ❌ ${targetPath}: ${error.message}`);
   }
+}
 
-  console.log(`\n🎉 [DEPLOY] Success! Run "Developer: Reload Window" (or jenna.reloadWindow) to load the new build.\n`);
-} catch (error) {
-  console.error(`\n❌ [DEPLOY] Error copying files:`, error.message);
+if (failed) {
+  console.error(`\n❌ [DEPLOY] One or more targets failed.\n`);
   process.exit(1);
 }
+console.log(`\n🎉 [DEPLOY] Success! Run "Developer: Reload Window" (or jenna.reloadWindow) to load the new build.\n`);

@@ -1,0 +1,231 @@
+<div style="display: flex; flex-direction: column; height: 100%; font-family: monospace;">
+    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 1rem;">
+        Manage avatar and user camera views — switch perspectives, adjust FOV, toggle camera layers.
+        <span style="color: var(--status-ok);" id="cam-conn-status">● Active</span>
+    </p>
+
+    <!-- Camera Presets -->
+    <div style="margin-bottom: 1rem;">
+        <span style="font-size: 0.6rem; color: #ff007f; letter-spacing: 0.1em; display: block; margin-bottom: 6px;">CAMERA VIEW</span>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
+            <button class="cam-view-btn" data-view="default" style="padding: 10px; background: rgba(0,243,255,0.15); border: 1px solid #00f3ff; color: #00f3ff; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 0.7rem; transition: all 0.2s;">🎯 DEFAULT</button>
+            <button class="cam-view-btn" data-view="portrait" style="padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: #ccc; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 0.7rem; transition: all 0.2s;">👤 PORTRAIT</button>
+            <button class="cam-view-btn" data-view="fullbody" style="padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: #ccc; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 0.7rem; transition: all 0.2s;">🧍 FULL BODY</button>
+            <button class="cam-view-btn" data-view="topdown" style="padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: #ccc; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 0.7rem; transition: all 0.2s;">⬇ TOP DOWN</button>
+            <button class="cam-view-btn" data-view="firstperson" style="padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: #ccc; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 0.7rem; transition: all 0.2s;">👁 FIRST PERSON</button>
+            <button class="cam-view-btn" data-view="orbit" style="padding: 10px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: #ccc; border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 0.7rem; transition: all 0.2s;">🔄 ORBIT</button>
+        </div>
+    </div>
+
+    <!-- Camera Parameters -->
+    <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 10px; margin-bottom: 1rem;">
+        <div style="font-size: 0.6rem; color: #888; letter-spacing: 0.1em; margin-bottom: 8px;">CAMERA PARAMETERS</div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.7rem; margin-bottom: 4px;">
+                    <span>Field of View</span><span id="cam-fov-val" style="color: #00f3ff;">45°</span>
+                </div>
+                <input type="range" id="cam-fov-slider" min="20" max="120" step="1" value="45" style="width: 100%; accent-color: #00f3ff;">
+            </div>
+            <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.7rem; margin-bottom: 4px;">
+                    <span>Zoom Distance</span><span id="cam-zoom-val" style="color: #00f3ff;">2.5m</span>
+                </div>
+                <input type="range" id="cam-zoom-slider" min="0.5" max="10" step="0.1" value="2.5" style="width: 100%; accent-color: #00f3ff;">
+            </div>
+            <div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.7rem; margin-bottom: 4px;">
+                    <span>Camera Height</span><span id="cam-height-val" style="color: #00f3ff;">1.6m</span>
+                </div>
+                <input type="range" id="cam-height-slider" min="0" max="5" step="0.1" value="1.6" style="width: 100%; accent-color: #00f3ff;">
+            </div>
+        </div>
+    </div>
+
+    <!-- Layer Toggles -->
+    <div style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; padding: 10px; margin-bottom: 1rem;">
+        <div style="font-size: 0.6rem; color: #888; letter-spacing: 0.1em; margin-bottom: 8px;">RENDER LAYERS</div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.75rem; color: #ccc;">
+                <input type="checkbox" id="cam-layer-scene" checked style="accent-color: #00f3ff;">
+                Scene (Layer 0) — Environment, floor, walls
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.75rem; color: #ccc;">
+                <input type="checkbox" id="cam-layer-avatar" checked style="accent-color: #39ff14;">
+                Avatar Body (Layer 1) — User's virtual form
+            </label>
+            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.75rem; color: #ccc;">
+                <input type="checkbox" id="cam-layer-ui" checked style="accent-color: #ff007f;">
+                UI Overlay (Layer 2) — HUD, panels, menus
+            </label>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div style="display: flex; gap: 8px; margin-top: auto;">
+        <button class="primary-btn" style="flex: 1; background: rgba(0,243,255,0.1); border-color: #00f3ff; color: #00f3ff;" id="cam-reset-btn">RESET CAMERA</button>
+        <button class="primary-btn" style="flex: 1; background: rgba(57,255,20,0.1); border-color: #39ff14; color: #39ff14;" id="cam-save-btn">SAVE TO BACKEND</button>
+        <button class="primary-btn" style="flex: 1; background: rgba(255,0,127,0.1); border-color: #ff007f; color: #ff007f;" id="cam-snapshot-btn">📸 SNAPSHOT</button>
+    </div>
+</div>
+
+<script>
+(function() {
+    const fovSlider = document.getElementById('cam-fov-slider');
+    const fovVal = document.getElementById('cam-fov-val');
+    const zoomSlider = document.getElementById('cam-zoom-slider');
+    const zoomVal = document.getElementById('cam-zoom-val');
+    const heightSlider = document.getElementById('cam-height-slider');
+    const heightVal = document.getElementById('cam-height-val');
+
+    const VIEW_PRESETS = {
+        default: { fov: 45, zoom: 2.5, height: 1.6, pos: [0, 1.6, 3], target: [0, 1, 0] },
+        portrait: { fov: 35, zoom: 1.5, height: 1.6, pos: [0, 1.6, 1.5], target: [0, 1.4, 0] },
+        fullbody: { fov: 50, zoom: 3.5, height: 1.2, pos: [0, 1.2, 3.5], target: [0, 0.8, 0] },
+        topdown: { fov: 60, zoom: 4.0, height: 3.0, pos: [0, 3.0, 0.1], target: [0, 0, 0] },
+        firstperson: { fov: 75, zoom: 0.3, height: 1.6, pos: [0, 1.6, 0.3], target: [0, 1.6, -1] },
+        orbit: { fov: 45, zoom: 3.0, height: 1.6, pos: [0, 1.6, 3.0], target: [0, 1, 0] }
+    };
+
+    function applyCameraView(viewName) {
+        const preset = VIEW_PRESETS[viewName];
+        if (!preset) return;
+
+        fovSlider.value = preset.fov;
+        zoomSlider.value = preset.zoom;
+        heightSlider.value = preset.height;
+        fovVal.textContent = preset.fov + '°';
+        zoomVal.textContent = preset.zoom + 'm';
+        heightVal.textContent = preset.height + 'm';
+
+        // Apply to ViewerEngine
+        const viewer = window.NEXUS_VIEWER;
+        if (viewer && viewer.camera) {
+            viewer.camera.fov = preset.fov;
+            viewer.camera.updateProjectionMatrix();
+            viewer.camera.position.set(preset.pos[0], preset.pos[1], preset.pos[2]);
+            if (viewer.controls) {
+                viewer.controls.target.set(preset.target[0], preset.target[1], preset.target[2]);
+                viewer.controls.update();
+            }
+        }
+
+        // Update button styles
+        document.querySelectorAll('.cam-view-btn').forEach(btn => {
+            const isActive = btn.dataset.view === viewName;
+            btn.style.background = isActive ? 'rgba(0,243,255,0.15)' : 'rgba(0,0,0,0.3)';
+            btn.style.borderColor = isActive ? '#00f3ff' : 'rgba(255,255,255,0.1)';
+            btn.style.color = isActive ? '#00f3ff' : '#ccc';
+        });
+    }
+
+    // Camera view buttons
+    document.querySelectorAll('.cam-view-btn').forEach(btn => {
+        btn.addEventListener('click', () => applyCameraView(btn.dataset.view));
+    });
+
+    // Slider interactions
+    fovSlider?.addEventListener('input', (e) => {
+        fovVal.textContent = e.target.value + '°';
+        const viewer = window.NEXUS_VIEWER;
+        if (viewer && viewer.camera) {
+            viewer.camera.fov = parseFloat(e.target.value);
+            viewer.camera.updateProjectionMatrix();
+        }
+    });
+
+    zoomSlider?.addEventListener('input', (e) => {
+        zoomVal.textContent = e.target.value + 'm';
+        const viewer = window.NEXUS_VIEWER;
+        if (viewer && viewer.camera) {
+            const dist = parseFloat(e.target.value);
+            const dir = new window.THREE.Vector3().subVectors(viewer.camera.position, viewer.controls?.target || new window.THREE.Vector3(0, 1, 0)).normalize();
+            viewer.camera.position.copy((viewer.controls?.target || new window.THREE.Vector3(0, 1, 0)).clone().add(dir.multiplyScalar(dist)));
+            if (viewer.controls) viewer.controls.update();
+        }
+    });
+
+    heightSlider?.addEventListener('input', (e) => {
+        heightVal.textContent = e.target.value + 'm';
+        const viewer = window.NEXUS_VIEWER;
+        if (viewer && viewer.camera) {
+            viewer.camera.position.y = parseFloat(e.target.value);
+            if (viewer.controls) viewer.controls.update();
+        }
+    });
+
+    // Reset camera
+    document.getElementById('cam-reset-btn')?.addEventListener('click', () => {
+        applyCameraView('default');
+        if (window.showMessage) window.showMessage('Camera reset to default view.', 'success');
+    });
+
+    // Save to Backend
+    document.getElementById('cam-save-btn')?.addEventListener('click', async () => {
+        const payload = {
+            fov: parseFloat(fovSlider.value),
+            zoom: parseFloat(zoomSlider.value),
+            height: parseFloat(heightSlider.value),
+            layerScene: document.getElementById('cam-layer-scene').checked,
+            layerAvatar: document.getElementById('cam-layer-avatar').checked,
+            layerUi: document.getElementById('cam-layer-ui').checked
+        };
+        try {
+            const r = await fetch('/api/avatar/camera', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (r.ok) {
+                if (window.showMessage) window.showMessage('Camera settings saved to .env', 'success');
+            } else {
+                throw new Error('HTTP ' + r.status);
+            }
+        } catch (e) {
+            if (window.showMessage) window.showMessage('Failed to save camera settings.', 'error');
+        }
+    });
+
+    // Snapshot
+    document.getElementById('cam-snapshot-btn')?.addEventListener('click', () => {
+        const viewer = window.NEXUS_VIEWER;
+        if (viewer && viewer.renderer && viewer.scene && viewer.camera) {
+            // Force a render immediately before capturing to ensure buffer isn't cleared
+            viewer.renderer.render(viewer.scene, viewer.camera);
+            const link = document.createElement('a');
+            link.download = 'avatar-snapshot-' + Date.now() + '.png';
+            link.href = viewer.renderer.domElement.toDataURL('image/png');
+            link.click();
+            if (window.showMessage) window.showMessage('Snapshot saved!', 'success');
+        }
+    });
+
+    // Layer toggles
+    document.getElementById('cam-layer-scene')?.addEventListener('change', (e) => {
+        const viewer = window.NEXUS_VIEWER;
+        if (viewer && viewer.camera) {
+            if (e.target.checked) viewer.camera.layers.enable(0);
+            else viewer.camera.layers.disable(0);
+        }
+    });
+
+    document.getElementById('cam-layer-avatar')?.addEventListener('change', (e) => {
+        const viewer = window.NEXUS_VIEWER;
+        if (viewer && viewer.camera) {
+            if (e.target.checked) viewer.camera.layers.enable(1);
+            else viewer.camera.layers.disable(1);
+        }
+    });
+
+    document.getElementById('cam-layer-ui')?.addEventListener('change', (e) => {
+        const viewer = window.NEXUS_VIEWER;
+        if (viewer && viewer.camera) {
+            if (e.target.checked) viewer.camera.layers.enable(2);
+            else viewer.camera.layers.disable(2);
+        }
+    });
+
+    // Initial default view
+    applyCameraView('default');
+})();
+</script>

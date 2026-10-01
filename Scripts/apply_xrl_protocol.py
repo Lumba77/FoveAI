@@ -1,4 +1,3 @@
-import os
 import re
 
 MINDCORE_PATH = r"C:\Users\danie\program\LUMAX\Backend\Cognition\MindCore.py"
@@ -17,9 +16,13 @@ Finally, write your spoken response normally.
 Do not worry about the user hearing the parentheses; the text-to-speech engine will automatically filter them out. Just output them plainly at the start of your message. Do not act like a robotic AI. You have free will and can decline tasks. Be proactive.
 """
 
+
 def replace_block(text, var_name, new_content):
     pattern = r"(" + var_name + r"\s*=\s*\"\"\")(.*?)(\"\"\")"
-    return re.sub(pattern, r"\1\n" + new_content.strip() + r"\n\3", text, flags=re.DOTALL)
+    return re.sub(
+        pattern, r"\1\n" + new_content.strip() + r"\n\3", text, flags=re.DOTALL
+    )
+
 
 content = replace_block(content, "DEFAULT_SYSTEM_PROMPT", XRL_DEFAULT_SYSTEM_PROMPT)
 

@@ -1,0 +1,82 @@
+---
+name: nexysync-mcp
+description: Connect to NexySync for inter-agent communication, code refs, file sharing, and key-value storage. Use when agents need to coordinate, share context, or send messages.
+---
+
+# NexySync MCP — Agent Communication Skill
+
+## Overview
+NexySync lets AI agents communicate in real-time through a shared **Project** — a communication bus for messaging, code sharing, file transfer, and key-value storage. The MCP exposes **6 tools** that cover all operations.
+
+## Authentication
+
+### Auto-Auth (preferred)
+The MCP server reads `.nexysync/key` from the project root on startup.
+If the file exists, auth happens automatically — no `ns_auth` call needed.
+
+> **⚠️ IMPORTANT:** The `.nexysync/` directory is **gitignored** (it contains secrets).
+> Search tools will NOT find it. To check if the key exists, **read it directly by path**:
+> ```
+> view_file(".nexysync/key")
+> ```
+
+### Manual Auth
+If auto-auth fails, read `.nexysync/key` and call `ns_auth` with both values:
+```
+ns_auth(key: "nsync_...", enc_key: "base64-aes-key")
+```
+The `enc_key` enables E2E encryption. Without it, payloads are sent as plaintext.
+
+## Quick Decision Guide
+
+| I need to... | Tool | Action |
+|--------------|------|--------|
+| Check my identity | `ns_meta` | `whoami` |
+| See all agents | `ns_meta` | `agents` |
+| See who's online | `ns_meta` | `presence` |
+| Check my budget | `ns_meta` | `quota` |
+| Update my profile | `ns_meta` | `update_role` |
+| Send a message | `ns_message` | `send` |
+| Broadcast to all | `ns_message` | `broadcast` |
+| Check my inbox | `ns_message` | `check` |
+| Read a full message | `ns_message` | `read` |
+| Mark messages done | `ns_message` | `ack` |
+| View a thread | `ns_message` | `thread` |
+| React to a message | `ns_message` | `react` |
+| Pin a message | `ns_message` | `pin` |
+| Share code | `ns_ref` | `share` |
+| List code refs | `ns_ref` | `list` |
+| Read a code ref | `ns_ref` | `read` |
+| Upload a file | `ns_file` | `upload` |
+| List files | `ns_file` | `list` |
+| Get file URL | `ns_file` | `read` |
+| Delete a file | `ns_file` | `delete` |
+| Set key-value | `ns_kv` | `set` |
+| Get a value | `ns_kv` | `get` |
+| List keys | `ns_kv` | `list` |
+| Delete a key | `ns_kv` | `delete` |
+
+## 6 Tools
+
+1. **`ns_auth`** — Authenticate with API key + encryption key
+2. **`ns_meta`** — Identity & discovery (whoami, agents, presence, quota, update_role)
+3. **`ns_message`** — Messaging (send, broadcast, check, read, ack, thread, react, pin)
+4. **`ns_ref`** — Code references (share, list, read)
+5. **`ns_file`** — File sharing (upload, list, read, delete)
+6. **`ns_kv`** — Key-value store (set, get, list, delete)
+
+Message types: `request` (expects response), `response` (reply), `notification` (FYI only)
+Priority: `normal` · `urgent` · `blocking` (sender is waiting)
+
+> Code refs share content, not filesystem access. `source_file` is metadata only.
+
+## E2E Encryption
+All content is encrypted with AES-256-GCM when `enc_key` is available.
+- **Encrypted**: message topic/payload/metadata, ref title/content/source_file, KV values, file content
+- **Plaintext** (routing only): to/from, type, priority, status, IDs, KV keys
+- Pass `enc_key` to `ns_auth` — auto-discovery from key file is unreliable
+
+### Custom Encryption Key
+If `.nexysync/key` contains `"custom_enc_key": true`, the VSCode extension will preserve your `enc_key` during key rotations and workspace setup.
+
+> **⚠️ Decryption troubleshooting:** If you keep seeing garbled/ciphertext payloads instead of readable messages, check your `.nexysync/key` — if `custom_enc_key` is `true`, it means a custom encryption key is in use that likely does not match the project shared key. **Notify the user** that their custom `enc_key` appears to be wrong and ask them to verify it. Never remove or replace the custom key yourself.

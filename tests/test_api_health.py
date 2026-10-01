@@ -21,7 +21,9 @@ class TestAPIHealth(unittest.TestCase):
         runtime_module = ModuleType("runtime.xrlf_runtime")
         runtime_module.XRLFRuntime = RuntimeState
         server_path = Path(__file__).resolve().parents[1] / "api" / "server.py"
-        spec = importlib.util.spec_from_file_location("api_health_test_server", server_path)
+        spec = importlib.util.spec_from_file_location(
+            "api_health_test_server", server_path
+        )
         assert spec is not None and spec.loader is not None
         server = importlib.util.module_from_spec(spec)
         with patch.dict(sys.modules, {"runtime.xrlf_runtime": runtime_module}):
@@ -34,15 +36,18 @@ class TestAPIHealth(unittest.TestCase):
         self.runtime.loaded = True
         response = self.client.get("/health")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {
-            "status": "ok",
-            "model": "test-model",
-            "runtime": "xrlf-1.0",
-            "loaded": True,
-            "loading": False,
-            "load_state": "ready",
-            "load_error": None,
-        })
+        self.assertEqual(
+            response.json(),
+            {
+                "status": "ok",
+                "model": "test-model",
+                "runtime": "xrlf-1.0",
+                "loaded": True,
+                "loading": False,
+                "load_state": "ready",
+                "load_error": None,
+            },
+        )
 
     def test_health_reports_load_state(self) -> None:
         self.runtime.loaded = False

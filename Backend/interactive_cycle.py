@@ -1,8 +1,9 @@
-import os
 import asyncio
-from typing import Any, Dict
-from dotenv import load_dotenv
+import os
+from typing import Any
+
 import uvicorn
+from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 # Load the biological cycle port map from the local .env
@@ -29,43 +30,58 @@ app_sub_out: FastAPI = FastAPI(title="Subconscious OUT (State)")
 
 # --- HEALTH ENDPOINTS (all services) ---
 
+
 @app_sight.get("/health")
-async def health_sight() -> Dict[str, Any]:
+async def health_sight() -> dict[str, Any]:
     return {"status": "ok", "service": "sight", "port": PORT_SIGHT}
 
+
 @app_hearing.get("/health")
-async def health_hearing() -> Dict[str, Any]:
+async def health_hearing() -> dict[str, Any]:
     return {"status": "ok", "service": "hearing", "port": PORT_HEARING}
 
+
 @app_contemplation.get("/health")
-async def health_contemplation() -> Dict[str, Any]:
-    return {"status": "ok", "service": "contemplation", "port": PORT_CONTEMPLATION, "loaded": True}
+async def health_contemplation() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "service": "contemplation",
+        "port": PORT_CONTEMPLATION,
+        "loaded": True,
+    }
+
 
 @app_speech.get("/health")
-async def health_speech() -> Dict[str, Any]:
+async def health_speech() -> dict[str, Any]:
     return {"status": "ok", "service": "speech", "port": PORT_SPEECH}
 
+
 @app_body.get("/health")
-async def health_body() -> Dict[str, Any]:
+async def health_body() -> dict[str, Any]:
     return {"status": "ok", "service": "body", "port": PORT_BODY}
 
+
 @app_sub_in.get("/health")
-async def health_sub_in() -> Dict[str, Any]:
+async def health_sub_in() -> dict[str, Any]:
     return {"status": "ok", "service": "subconscious_in", "port": PORT_SUB_IN}
 
+
 @app_sub_out.get("/health")
-async def health_sub_out() -> Dict[str, Any]:
+async def health_sub_out() -> dict[str, Any]:
     return {"status": "ok", "service": "subconscious_out", "port": PORT_SUB_OUT}
+
 
 # --- BASE API (Port 8402 - Contemplation) ---
 @app_contemplation.get("/")
-async def root() -> Dict[str, str]:
+async def root() -> dict[str, str]:
     return {"status": "online", "identity": "XRLF_Omni_Model", "role": "Frontal Lobe"}
 
+
 @app_contemplation.post("/v1/chat/completions")
-async def chat_completions() -> Dict[str, str]:
+async def chat_completions() -> dict[str, str]:
     # This will hook directly into the .xrlf bundle logic
     return {"message": "OpenAI-compatible endpoint active. Awaiting XRLF core."}
+
 
 # --- SENSORY STREAMS (WebSockets) ---
 @app_sight.websocket("/ws")
@@ -79,6 +95,7 @@ async def ws_sight(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         print(f"[{PORT_SIGHT}] Optical Nerve disconnected.")
 
+
 @app_hearing.websocket("/ws")
 async def ws_hearing(websocket: WebSocket) -> None:
     await websocket.accept()
@@ -90,11 +107,13 @@ async def ws_hearing(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         print(f"[{PORT_HEARING}] Auditory Nerve disconnected.")
 
+
 @app_speech.websocket("/ws")
 async def ws_speech(websocket: WebSocket) -> None:
     await websocket.accept()
     print(f"[{PORT_SPEECH}] Vocal Cords connected to Quest.")
     # Stream TTS audio back to Quest here
+
 
 @app_body.websocket("/ws")
 async def ws_body(websocket: WebSocket) -> None:
@@ -102,13 +121,17 @@ async def ws_body(websocket: WebSocket) -> None:
     print(f"[{PORT_BODY}] Motor Cortex connected to Quest.")
     # Stream Blendshapes back to Quest here
 
+
 async def run_server(app: FastAPI, port: int) -> None:
-    config: uvicorn.Config = uvicorn.Config(app, host="0.0.0.0", port=port, log_level="warning")
+    config: uvicorn.Config = uvicorn.Config(
+        app, host="0.0.0.0", port=port, log_level="warning"
+    )
     server: uvicorn.Server = uvicorn.Server(config)
     await server.serve()
 
+
 async def ignite_interactive_cycle() -> None:
-    print(f"🦋 Igniting XRLF Interactive Cycle (One Model Philosophy)...")
+    print("🦋 Igniting XRLF Interactive Cycle (One Model Philosophy)...")
     print(f"👁️  SIGHT: {PORT_SIGHT}")
     print(f"👂 HEARING: {PORT_HEARING}")
     print(f"🧠 CONTEMPLATION: {PORT_CONTEMPLATION}")
@@ -125,8 +148,9 @@ async def ignite_interactive_cycle() -> None:
         run_server(app_speech, PORT_SPEECH),
         run_server(app_body, PORT_BODY),
         run_server(app_sub_in, PORT_SUB_IN),
-        run_server(app_sub_out, PORT_SUB_OUT)
+        run_server(app_sub_out, PORT_SUB_OUT),
     )
+
 
 if __name__ == "__main__":
     asyncio.run(ignite_interactive_cycle())

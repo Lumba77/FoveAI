@@ -25,21 +25,17 @@ import argparse
 import asyncio
 import base64
 import json
-import struct
 import sys
 import threading
 import time
-import wave
-import io
-from pathlib import Path
 
 import cv2
 import numpy as np
 import sounddevice as sd
 import websockets
 
-
 # ── Device selection ─────────────────────────────────────────────────────────
+
 
 def list_input_devices():
     """Print all available input devices and exit."""
@@ -75,7 +71,10 @@ def resolve_device(device_arg):
             print(f"  [ERR] Device index {idx} not found.", flush=True)
             sys.exit(1)
         if dev["max_input_channels"] <= 0:
-            print(f"  [ERR] Device {idx} ({dev['name']}) has no input channels.", flush=True)
+            print(
+                f"  [ERR] Device {idx} ({dev['name']}) has no input channels.",
+                flush=True,
+            )
             sys.exit(1)
         return idx
     except ValueError:
@@ -113,18 +112,19 @@ def device_name(device_index):
     except Exception:
         return str(device_index)
 
+
 # ── Config ──────────────────────────────────────────────────────────────────
 
 WS_URL = "ws://127.0.0.1:8403/ws"
-SAMPLE_RATE = 16000      # Whisper expects 16kHz
+SAMPLE_RATE = 16000  # Whisper expects 16kHz
 CHANNELS = 1
 DTYPE = "int16"
-CHUNK_DURATION = 0.5     # seconds per chunk
+CHUNK_DURATION = 0.5  # seconds per chunk
 CHUNK_SAMPLES = int(SAMPLE_RATE * CHUNK_DURATION)
 
 # VAD thresholds for continuous mode
 VAD_ENERGY_THRESHOLD = 500.0
-VAD_SILENCE_FRAMES = 8   # ~4 seconds of silence to stop
+VAD_SILENCE_FRAMES = 8  # ~4 seconds of silence to stop
 
 # TTS playback
 TTS_SAMPLE_RATE = 24000  # Kokoro outputs 24kHz
@@ -137,6 +137,7 @@ VISION_FRAME_WIDTH = 640
 VISION_FRAME_HEIGHT = 360
 
 # ── State ───────────────────────────────────────────────────────────────────
+
 
 class TalkState:
     def __init__(self):
@@ -156,9 +157,11 @@ class TalkState:
         self.continuous_vision = False
         self.last_vision_frame = 0.0
 
+
 state = TalkState()
 
 # ── Audio recording ─────────────────────────────────────────────────────────
+
 
 def audio_callback(indata: np.ndarray, frames: int, time_info, status):
     """Called by sounddevice for each audio chunk."""
@@ -183,7 +186,10 @@ def audio_callback(indata: np.ndarray, frames: int, time_info, status):
                             print("  [VAD] Silence — sending...", flush=True)
                             # Trigger send in the event loop
                             if state.loop:
-                                asyncio.run_coroutine_threadsafe(send_and_transcribe(), state.loop)
+                                asyncio.run_coroutine_threadsafe(
+                                    send_and_transcribe(), state.loop
+                                )
+
 
 def start_recording():
     """Start capturing audio."""
@@ -191,6 +197,7 @@ def start_recording():
         state.audio_buffer = []
         state.recording = True
     print("  [MIC] ● Recording... (release Meta+H to send)", flush=True)
+
 
 def stop_recording_and_send():
     """Stop capturing and send audio to Whisper via WebSocket."""
@@ -209,7 +216,9 @@ def stop_recording_and_send():
             send_audio_for_transcription(audio_data), state.loop
         )
 
+
 # ── WebSocket communication ─────────────────────────────────────────────────
+
 
 async def connect_ws():
     """Connect to the XRLF WebSocket server."""
@@ -222,6 +231,7 @@ async def connect_ws():
         print(f"  [WS] Connection failed: {e}", flush=True)
         state.connected = False
         return False
+
 
 async def send_audio_for_transcription(audio: np.ndarray):
     """Send raw PCM audio to the WS server for Whisper transcription."""
@@ -250,6 +260,7 @@ async def send_audio_for_transcription(audio: np.ndarray):
         print(f"  [WS] Send error: {e}", flush=True)
         state.connected = False
 
+
 async def send_and_transcribe():
     """Wrapper for VAD-triggered send."""
     with state.lock:
@@ -264,6 +275,7 @@ async def send_and_transcribe():
 
     print(f"  [VAD] Sending {duration:.1f}s to Alice...", flush=True)
     await send_audio_for_transcription(audio_data)
+
 
 async def listen_for_response():
     """Listen for chat response + TTS audio from the WebSocket."""
@@ -283,7 +295,10 @@ async def listen_for_response():
                 msg = json.loads(raw)
 
                 # Chat text response
-                if msg.get("event") == "chat.response" or msg.get("type") == "chat.response":
+                if (
+                    msg.get("event") == "chat.response"
+                    or msg.get("type") == "chat.response"
+                ):
                     text = msg.get("payload", {}).get("text", "") or msg.get("text", "")
                     if text:
                         print(f"\n  Alice: {text}\n", flush=True)
@@ -306,19 +321,26 @@ async def listen_for_response():
                     break
 
                 # STT transcription result
-                elif msg.get("event") == "stt.result" or msg.get("type") == "stt.result":
+                elif (
+                    msg.get("event") == "stt.result" or msg.get("type") == "stt.result"
+                ):
                     text = msg.get("payload", {}).get("text", "") or msg.get("text", "")
                     if text:
-                        print(f"  [STT] You said: \"{text}\"", flush=True)
+                        print(f'  [STT] You said: "{text}"', flush=True)
 
                 # Streaming token
-                elif msg.get("event") == "chat.token" or msg.get("type") == "chat.token":
-                    token = msg.get("payload", {}).get("text", "") or msg.get("text", "")
+                elif (
+                    msg.get("event") == "chat.token" or msg.get("type") == "chat.token"
+                ):
+                    token = msg.get("payload", {}).get("text", "") or msg.get(
+                        "text", ""
+                    )
                     print(token, end="", flush=True)
 
     except websockets.exceptions.ConnectionClosed:
         print("  [WS] Connection closed", flush=True)
         state.connected = False
+
 
 def play_tts_audio(pcm_bytes: bytes):
     """Play TTS audio through the default output device."""
@@ -328,9 +350,12 @@ def play_tts_audio(pcm_bytes: bytes):
             return
         # Kokoro outputs 24kHz 16-bit mono
         sd.play(samples, TTS_SAMPLE_RATE, device=sd.default.device[1])
-        print(f"  [TTS] Playing {len(samples)/TTS_SAMPLE_RATE:.1f}s audio", flush=True)
+        print(
+            f"  [TTS] Playing {len(samples) / TTS_SAMPLE_RATE:.1f}s audio", flush=True
+        )
     except Exception as e:
         print(f"  [TTS] Playback error: {e}", flush=True)
+
 
 def stop_playback():
     """Stop TTS playback."""
@@ -338,7 +363,9 @@ def stop_playback():
     state.speaking = False
     print("  [TTS] ■ Stopped", flush=True)
 
+
 # ── Vision (webcam → Alice) ─────────────────────────────────────────────────
+
 
 def init_webcam():
     """Initialize the webcam for vision capture."""
@@ -346,10 +373,14 @@ def init_webcam():
     state.cap.set(cv2.CAP_PROP_FRAME_WIDTH, VISION_FRAME_WIDTH)
     state.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, VISION_FRAME_HEIGHT)
     if state.cap.isOpened():
-        print(f"  [CAM] Webcam {WEBCAM_INDEX} ready ({VISION_FRAME_WIDTH}x{VISION_FRAME_HEIGHT})", flush=True)
+        print(
+            f"  [CAM] Webcam {WEBCAM_INDEX} ready ({VISION_FRAME_WIDTH}x{VISION_FRAME_HEIGHT})",
+            flush=True,
+        )
     else:
-        print(f"  [CAM] No webcam available — vision disabled", flush=True)
+        print("  [CAM] No webcam available — vision disabled", flush=True)
         state.cap = None
+
 
 def capture_webcam_frame() -> str | None:
     """Capture a single frame from the webcam, return as base64 JPEG."""
@@ -358,8 +389,11 @@ def capture_webcam_frame() -> str | None:
     ret, frame = state.cap.read()
     if not ret:
         return None
-    _, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, VISION_JPEG_QUALITY])
+    _, buf = cv2.imencode(
+        ".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, VISION_JPEG_QUALITY]
+    )
     return base64.b64encode(buf.tobytes()).decode()
+
 
 async def send_vision_frame():
     """Capture a webcam frame and send it to Alice as a vision.frame event."""
@@ -382,10 +416,14 @@ async def send_vision_frame():
         },
     }
     await state.ws.send(json.dumps(msg))
-    print(f"  [VISION] Frame sent to Alice ({len(b64)} bytes) — she's looking...", flush=True)
+    print(
+        f"  [VISION] Frame sent to Alice ({len(b64)} bytes) — she's looking...",
+        flush=True,
+    )
 
     # Listen for response
     await listen_for_response()
+
 
 def maybe_send_auto_vision():
     """In continuous vision mode, send a frame every VISION_FRAME_INTERVAL seconds."""
@@ -397,11 +435,14 @@ def maybe_send_auto_vision():
         if state.loop:
             asyncio.run_coroutine_threadsafe(send_vision_frame(), state.loop)
 
+
 # ── Hotkey handler ──────────────────────────────────────────────────────────
+
 
 def on_hotkey_press(key):
     """Handle hotkey presses."""
-    pass  # We use combo detection
+    # We use combo detection
+
 
 def setup_hotkeys():
     """Set up global hotkeys using pynput."""
@@ -414,43 +455,58 @@ def setup_hotkeys():
 
         # Meta+H — Push to talk
         if keyboard.Key.cmd in current_keys or keyboard.Key.cmd_l in current_keys:
-            if key == keyboard.KeyCode.from_char('h') or key == keyboard.KeyCode.from_char('H'):
+            if key == keyboard.KeyCode.from_char(
+                "h"
+            ) or key == keyboard.KeyCode.from_char("H"):
                 if not state.recording and not state.continuous:
                     start_recording()
 
         # Meta+J — Toggle continuous mode
         if keyboard.Key.cmd in current_keys or keyboard.Key.cmd_l in current_keys:
-            if key == keyboard.KeyCode.from_char('j') or key == keyboard.KeyCode.from_char('J'):
+            if key == keyboard.KeyCode.from_char(
+                "j"
+            ) or key == keyboard.KeyCode.from_char("J"):
                 state.continuous = not state.continuous
                 if state.continuous:
-                    print("\n  [MODE] ●● Continuous VAD mode ON — just talk\n", flush=True)
+                    print(
+                        "\n  [MODE] ●● Continuous VAD mode ON — just talk\n", flush=True
+                    )
                 else:
                     print("\n  [MODE] ○○ Continuous mode OFF\n", flush=True)
 
         # Meta+K — Stop playback
         if keyboard.Key.cmd in current_keys or keyboard.Key.cmd_l in current_keys:
-            if key == keyboard.KeyCode.from_char('k') or key == keyboard.KeyCode.from_char('K'):
+            if key == keyboard.KeyCode.from_char(
+                "k"
+            ) or key == keyboard.KeyCode.from_char("K"):
                 stop_playback()
 
         # Meta+V — Capture webcam frame → Alice sees
         if keyboard.Key.cmd in current_keys or keyboard.Key.cmd_l in current_keys:
-            if key == keyboard.KeyCode.from_char('v') or key == keyboard.KeyCode.from_char('V'):
+            if key == keyboard.KeyCode.from_char(
+                "v"
+            ) or key == keyboard.KeyCode.from_char("V"):
                 print("\n  [VISION] ● Capturing webcam frame for Alice...", flush=True)
                 if state.loop:
                     asyncio.run_coroutine_threadsafe(send_vision_frame(), state.loop)
 
         # Meta+B — Toggle continuous vision
         if keyboard.Key.cmd in current_keys or keyboard.Key.cmd_l in current_keys:
-            if key == keyboard.KeyCode.from_char('b') or key == keyboard.KeyCode.from_char('B'):
+            if key == keyboard.KeyCode.from_char(
+                "b"
+            ) or key == keyboard.KeyCode.from_char("B"):
                 state.continuous_vision = not state.continuous_vision
                 if state.continuous_vision:
-                    print(f"\n  [VISION] ●● Continuous vision ON — Alice sees every {VISION_FRAME_INTERVAL}s\n", flush=True)
+                    print(
+                        f"\n  [VISION] ●● Continuous vision ON — Alice sees every {VISION_FRAME_INTERVAL}s\n",
+                        flush=True,
+                    )
                 else:
                     print("\n  [VISION] ○○ Continuous vision OFF\n", flush=True)
 
         # Meta+1..5 — Switch webcam for vision
         if keyboard.Key.cmd in current_keys or keyboard.Key.cmd_l in current_keys:
-            if hasattr(key, 'char') and key.char and key.char in '12345':
+            if hasattr(key, "char") and key.char and key.char in "12345":
                 cam_id = int(key.char) - 1
                 global WEBCAM_INDEX
                 WEBCAM_INDEX = cam_id
@@ -461,7 +517,9 @@ def setup_hotkeys():
 
         # Meta+Q — Quit
         if keyboard.Key.cmd in current_keys or keyboard.Key.cmd_l in current_keys:
-            if key == keyboard.KeyCode.from_char('q') or key == keyboard.KeyCode.from_char('Q'):
+            if key == keyboard.KeyCode.from_char(
+                "q"
+            ) or key == keyboard.KeyCode.from_char("Q"):
                 print("\n  [EXIT] Quitting FoveAI Desktop Talk...", flush=True)
                 sd.stop()
                 if state.ws:
@@ -473,7 +531,9 @@ def setup_hotkeys():
         current_keys.discard(key)
 
         # Release Meta+H — stop and send
-        if key == keyboard.KeyCode.from_char('h') or key == keyboard.KeyCode.from_char('H'):
+        if key == keyboard.KeyCode.from_char("h") or key == keyboard.KeyCode.from_char(
+            "H"
+        ):
             if state.recording:
                 stop_recording_and_send()
 
@@ -481,15 +541,26 @@ def setup_hotkeys():
     listener.start()
     return listener
 
+
 # ── Main ────────────────────────────────────────────────────────────────────
 
+
 async def main():
-    parser = argparse.ArgumentParser(description="FoveAI Desktop Talk — talk & see Alice")
-    parser.add_argument("--device", type=str, default=None,
-                        help="Audio input device: index (e.g. 3) or name substring (e.g. 'AUSDOM'). "
-                             "Use --list-devices to see options. Default: system default input.")
-    parser.add_argument("--list-devices", action="store_true",
-                        help="List available audio input devices and exit.")
+    parser = argparse.ArgumentParser(
+        description="FoveAI Desktop Talk — talk & see Alice"
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help="Audio input device: index (e.g. 3) or name substring (e.g. 'AUSDOM'). "
+        "Use --list-devices to see options. Default: system default input.",
+    )
+    parser.add_argument(
+        "--list-devices",
+        action="store_true",
+        help="List available audio input devices and exit.",
+    )
     args = parser.parse_args()
 
     if args.list_devices:
@@ -498,7 +569,8 @@ async def main():
     # Resolve microphone device
     device_index = resolve_device(args.device)
 
-    print("""
+    print(
+        """
   ╔══════════════════════════════════════════════════╗
   ║     FoveAI Desktop Talk — Talk & See Alice        ║
   ╠══════════════════════════════════════════════════╣
@@ -510,7 +582,9 @@ async def main():
   ║  Meta+K  — Stop Alice's playback                ║
   ║  Meta+Q  — Quit                                  ║
   ╚══════════════════════════════════════════════════╝
-    """, flush=True)
+    """,
+        flush=True,
+    )
 
     state.loop = asyncio.get_event_loop()
 
@@ -530,7 +604,10 @@ async def main():
         callback=audio_callback,
     )
     stream.start()
-    print(f"  [MIC] Listening on {device_name(device_index)} ({SAMPLE_RATE}Hz)", flush=True)
+    print(
+        f"  [MIC] Listening on {device_name(device_index)} ({SAMPLE_RATE}Hz)",
+        flush=True,
+    )
 
     # Start hotkey listener
     listener = setup_hotkeys()
@@ -551,6 +628,7 @@ async def main():
         if state.ws:
             await state.ws.close()
         listener.stop()
+
 
 if __name__ == "__main__":
     try:

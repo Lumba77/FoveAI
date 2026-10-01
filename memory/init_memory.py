@@ -24,7 +24,6 @@ if str(ROOT) not in sys.path:
 
 from memory.membrane_engine import MembraneEngine, _default_ring_config
 
-
 # ── Ring seed data ─────────────────────────────────────────────────────────────
 
 RING_SEEDS = [
@@ -106,6 +105,7 @@ IDENTITY_KEYS = {
 
 # ── Initialiser ───────────────────────────────────────────────────────────────
 
+
 def initialise_rings(db_path: str, session_id: str) -> None:
     print("\n" + "=" * 62)
     print("  XRLF — Six-Ring Memory Initialiser")
@@ -138,6 +138,7 @@ def initialise_rings(db_path: str, session_id: str) -> None:
 
 
 # ── Verifier ──────────────────────────────────────────────────────────────────
+
 
 def verify_rings(db_path: str, session_id: str) -> bool:
     print("  Re-opening engine for persistence verification…")
@@ -189,9 +190,9 @@ def verify_rings(db_path: str, session_id: str) -> bool:
     print("  ├──────┴─────────────┴────────┴──────────────────────────────────┤")
 
     extra_checks = [
-        ("Identity table",  results["identity_table"]),
+        ("Identity table", results["identity_table"]),
         ("Semantic search", results["semantic_search"]),
-        ("Context weave",   results["context_weave"]),
+        ("Context weave", results["context_weave"]),
     ]
     for name, ok in extra_checks:
         icon = "✅" if ok else "❌"
@@ -211,18 +212,18 @@ def verify_rings(db_path: str, session_id: str) -> bool:
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
+
 def main():
     parser = argparse.ArgumentParser(description="XRLF Six-Ring Memory Initialiser")
     parser.add_argument("--session", default="default", help="Session ID")
     parser.add_argument(
         "--db",
-        default=str(
-            ROOT / "foveated-memory" / "memory_data" / "default" / "memory.db"
-        ),
+        default=str(ROOT / "foveated-memory" / "memory_data" / "default" / "memory.db"),
         help="Path to SQLite memory DB",
     )
     parser.add_argument(
-        "--reset", action="store_true",
+        "--reset",
+        action="store_true",
         help="Delete existing DB before initialising (fresh start)",
     )
     args = parser.parse_args()

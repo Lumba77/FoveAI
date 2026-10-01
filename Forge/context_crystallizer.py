@@ -28,18 +28,19 @@ ENV VARS:
 """
 
 import json
-import os
-import sys
-import re
 import logging
+import os
+import re
+import sys
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Any
 
 # Load .env from repo root
 _env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env")
 if os.path.isfile(_env_path):
     try:
         import dotenv
+
         dotenv.load_dotenv(_env_path, override=False)
     except ImportError:
         pass
@@ -116,7 +117,7 @@ def estimate_tokens(text: str) -> int:
     return max(1, len(str(text)) // 4)
 
 
-def _count_turns(messages: List[Dict]) -> int:
+def _count_turns(messages: list[dict]) -> int:
     """Count user/assistant turn pairs in a message array."""
     turns = 0
     for i in range(len(messages) - 1):
@@ -128,10 +129,10 @@ def _count_turns(messages: List[Dict]) -> int:
 
 
 def _split_messages_by_recency(
-    messages: List[Dict],
+    messages: list[dict],
     recent_turns: int = None,
     middle_turns: int = None,
-) -> Tuple[List[Dict], List[Dict], List[Dict]]:
+) -> tuple[list[dict], list[dict], list[dict]]:
     """Split message array into recent, middle, and old segments by turn count.
 
     Returns (recent_messages, middle_messages, old_messages).
@@ -168,13 +169,17 @@ def _split_messages_by_recency(
         middle_start_idx = remaining[0]
 
     recent = messages[recent_start_idx:]
-    middle = messages[middle_start_idx:recent_start_idx] if middle_start_idx < recent_start_idx else []
+    middle = (
+        messages[middle_start_idx:recent_start_idx]
+        if middle_start_idx < recent_start_idx
+        else []
+    )
     old = messages[:middle_start_idx] if middle_start_idx > 0 else []
 
     return recent, middle, old
 
 
-def _messages_to_text(messages: List[Dict], max_content_len: int = 500) -> str:
+def _messages_to_text(messages: list[dict], max_content_len: int = 500) -> str:
     """Convert message array to compact text, preserving role labels."""
     lines = []
     for msg in messages:
@@ -192,7 +197,9 @@ def _messages_to_text(messages: List[Dict], max_content_len: int = 500) -> str:
     return "\n".join(lines)
 
 
-def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 512) -> Optional[str]:
+def _call_llm(
+    system_prompt: str, user_prompt: str, max_tokens: int = 512
+) -> str | None:
     """Call local LLM and return response text, or None on failure."""
     import httpx
 
@@ -237,10 +244,10 @@ def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 512) -> Op
 
 
 def crystallize_messages(
-    messages: List[Dict],
+    messages: list[dict],
     recent_turns: int = None,
     middle_turns: int = None,
-) -> Optional[str]:
+) -> str | None:
     """Crystallize a message array with tiered temporal compression.
 
     Splits messages into recent/middle/old zones and applies:
@@ -273,7 +280,9 @@ def crystallize_messages(
     if recent_msgs:
         recent_text = _messages_to_text(recent_msgs, max_content_len=800)
         logger.info(f"  Recent: ~{estimate_tokens(recent_text)} tokens → light trim")
-        trimmed = _call_llm(RECENT_SYSTEM, RECENT_USER.format(segment=recent_text), max_tokens=1024)
+        trimmed = _call_llm(
+            RECENT_SYSTEM, RECENT_USER.format(segment=recent_text), max_tokens=1024
+        )
         if trimmed:
             parts.append(f"[RECENT — last {recent_turn_count} turns]\n{trimmed}")
         else:
@@ -284,17 +293,25 @@ def crystallize_messages(
     if middle_msgs:
         middle_text = _messages_to_text(middle_msgs, max_content_len=400)
         logger.info(f"  Middle: ~{estimate_tokens(middle_text)} tokens → condense")
-        condensed = _call_llm(MIDDLE_SYSTEM, MIDDLE_USER.format(segment=middle_text), max_tokens=768)
+        condensed = _call_llm(
+            MIDDLE_SYSTEM, MIDDLE_USER.format(segment=middle_text), max_tokens=768
+        )
         if condensed:
-            parts.append(f"[MIDDLE — turns {old_turn_count+1} to {old_turn_count+middle_turn_count}]\n{condensed}")
+            parts.append(
+                f"[MIDDLE — turns {old_turn_count + 1} to {old_turn_count + middle_turn_count}]\n{condensed}"
+            )
         else:
-            parts.append(f"[MIDDLE — turns {old_turn_count+1} to {old_turn_count+middle_turn_count}]\n{middle_text}")
+            parts.append(
+                f"[MIDDLE — turns {old_turn_count + 1} to {old_turn_count + middle_turn_count}]\n{middle_text}"
+            )
 
     # ── Tier 3: OLD — 90% compression ──
     if old_msgs:
         old_text = _messages_to_text(old_msgs, max_content_len=300)
         logger.info(f"  Old: ~{estimate_tokens(old_text)} tokens → principles only")
-        distilled = _call_llm(OLD_SYSTEM, OLD_USER.format(segment=old_text), max_tokens=384)
+        distilled = _call_llm(
+            OLD_SYSTEM, OLD_USER.format(segment=old_text), max_tokens=384
+        )
         if distilled:
             parts.append(f"[OLD — first {old_turn_count} turns]\n{distilled}")
         else:
@@ -314,7 +331,7 @@ def crystallize_text(
     mode: str = "light",
     model: str = None,
     base_url: str = None,
-) -> Optional[str]:
+) -> str | None:
     """Legacy single-pass crystallization. Prefer crystallize_messages() for tiered compression."""
     # For backward compatibility with old callers
     if mode == "full":
@@ -344,7 +361,7 @@ def crystallize_text(
         return f"[SESSION SUMMARY]\n{result}" if result else None
 
 
-def _format_full_crystal(crystal: Dict[str, Any]) -> str:
+def _format_full_crystal(crystal: dict[str, Any]) -> str:
     """Format a full crystal dict into a checkpoint string."""
     lines = ["[SESSION CRYSTAL]"]
     if prob := crystal.get("initial_problem"):
@@ -352,7 +369,9 @@ def _format_full_crystal(crystal: Dict[str, Any]) -> str:
     if attempts := crystal.get("attempts", []):
         lines.append("Attempts:")
         for a in attempts:
-            symbol = {"worked": "✓", "failed": "✗", "partial": "~"}.get(a.get("result", ""), "?")
+            symbol = {"worked": "✓", "failed": "✗", "partial": "~"}.get(
+                a.get("result", ""), "?"
+            )
             lines.append(f"  {symbol} {a.get('approach', '?')} — {a.get('detail', '')}")
     if res := crystal.get("resolution"):
         lines.append(f"Resolution: {res}")
@@ -382,19 +401,25 @@ def main():
         description="Context Crystallizer — Tiered temporal compression for coding sessions",
     )
     parser.add_argument(
-        "input", nargs="?",
+        "input",
+        nargs="?",
         help="Transcript file path (or read from stdin if omitted)",
     )
     parser.add_argument(
-        "--recent", type=int, default=RECENT_TURNS,
+        "--recent",
+        type=int,
+        default=RECENT_TURNS,
         help=f"Turns to treat as recent / 30%% compression (default: {RECENT_TURNS})",
     )
     parser.add_argument(
-        "--middle", type=int, default=MIDDLE_TURNS,
+        "--middle",
+        type=int,
+        default=MIDDLE_TURNS,
         help=f"Turns to treat as middle / 60%% compression (default: {MIDDLE_TURNS})",
     )
     parser.add_argument(
-        "--legacy", choices=["full", "light"],
+        "--legacy",
+        choices=["full", "light"],
         help="Use legacy single-pass mode instead of tiered compression",
     )
 
@@ -422,22 +447,32 @@ def main():
         current_role = None
         current_content = []
         for line in lines:
-            m = re.match(r"^(user|assistant|system|ai|human):\s*(.*)", line, re.IGNORECASE)
+            m = re.match(
+                r"^(user|assistant|system|ai|human):\s*(.*)", line, re.IGNORECASE
+            )
             if m:
                 if current_role and current_content:
-                    messages.append({"role": current_role, "content": "\n".join(current_content)})
-                current_role = "assistant" if m.group(1).lower() == "ai" else m.group(1).lower()
+                    messages.append(
+                        {"role": current_role, "content": "\n".join(current_content)}
+                    )
+                current_role = (
+                    "assistant" if m.group(1).lower() == "ai" else m.group(1).lower()
+                )
                 current_content = [m.group(2)]
             elif current_role:
                 current_content.append(line)
         if current_role and current_content:
-            messages.append({"role": current_role, "content": "\n".join(current_content)})
+            messages.append(
+                {"role": current_role, "content": "\n".join(current_content)}
+            )
 
         if not messages:
             # Fallback: treat whole transcript as one message
             messages = [{"role": "user", "content": transcript}]
 
-        result = crystallize_messages(messages, recent_turns=args.recent, middle_turns=args.middle)
+        result = crystallize_messages(
+            messages, recent_turns=args.recent, middle_turns=args.middle
+        )
 
     if result:
         print(result)

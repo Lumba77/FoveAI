@@ -3,11 +3,10 @@ Dataset Curator for Forge Nursery
 Scans local HF cache for downloaded datasets, validates formats,
 and prepares them for Unsloth fine-tuning.
 """
-import os
+
 import json
 import logging
-from pathlib import Path
-from typing import Optional
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +18,7 @@ HUB_DIR = os.path.join(HF_HUB, "hub")
 
 class DatasetInfo:
     """Metadata about a discovered dataset."""
+
     def __init__(self, name: str, local_path: str, format_hint: str = "unknown"):
         self.name = name
         self.local_path = local_path
@@ -139,13 +139,21 @@ def load_dataset_for_training(
 
                 try:
                     if ext.endswith(".parquet"):
-                        samples.extend(_read_parquet(fp, max_samples - len(samples), text_field))
+                        samples.extend(
+                            _read_parquet(fp, max_samples - len(samples), text_field)
+                        )
                     elif ext.endswith(".jsonl"):
-                        samples.extend(_read_jsonl(fp, max_samples - len(samples), text_field))
+                        samples.extend(
+                            _read_jsonl(fp, max_samples - len(samples), text_field)
+                        )
                     elif ext.endswith(".json") and not f.startswith("."):
-                        samples.extend(_read_json(fp, max_samples - len(samples), text_field))
+                        samples.extend(
+                            _read_json(fp, max_samples - len(samples), text_field)
+                        )
                     elif ext.endswith(".csv"):
-                        samples.extend(_read_csv(fp, max_samples - len(samples), text_field))
+                        samples.extend(
+                            _read_csv(fp, max_samples - len(samples), text_field)
+                        )
                 except Exception as e:
                     logger.debug(f"Skipping {fp}: {e}")
                     continue
@@ -164,6 +172,7 @@ def _read_parquet(path: str, limit: int, text_field: str) -> list[dict]:
     """Read parquet files into text samples."""
     try:
         import pyarrow.parquet as pq
+
         table = pq.read_table(path)
         df = table.to_pandas()
         samples = []
@@ -218,6 +227,7 @@ def _read_json(path: str, limit: int, text_field: str) -> list[dict]:
 def _read_csv(path: str, limit: int, text_field: str) -> list[dict]:
     """Read CSV files into text samples."""
     import csv
+
     samples = []
     with open(path, "r", encoding="utf-8", errors="replace") as fh:
         reader = csv.DictReader(fh)
@@ -230,7 +240,7 @@ def _read_csv(path: str, limit: int, text_field: str) -> list[dict]:
     return samples
 
 
-def _extract_text(obj: dict, preferred_field: str = "text") -> Optional[str]:
+def _extract_text(obj: dict, preferred_field: str = "text") -> str | None:
     """
     Extract text content from a dataset row, trying multiple common field names.
     Handles chat-formatted data (messages array), instruction/response pairs, etc.
@@ -256,7 +266,9 @@ def _extract_text(obj: dict, preferred_field: str = "text") -> Optional[str]:
         for turn in obj["conversations"]:
             for role in ("from", "value"):
                 if role in turn:
-                    parts.append(f"{turn.get('from', 'unknown')}: {turn.get('value', '')}")
+                    parts.append(
+                        f"{turn.get('from', 'unknown')}: {turn.get('value', '')}"
+                    )
         if parts:
             return "\n".join(parts)
 
@@ -296,7 +308,9 @@ if __name__ == "__main__":
     for ds in datasets:
         status = "✓" if ds.valid else "✗"
         print(f"  {status} {ds.name}")
-        print(f"    Format: {ds.format_hint}, Files: {ds.num_files}, Size: {ds.size_mb:.1f} MB")
+        print(
+            f"    Format: {ds.format_hint}, Files: {ds.num_files}, Size: {ds.size_mb:.1f} MB"
+        )
         if ds.error:
             print(f"    Error: {ds.error}")
     print()

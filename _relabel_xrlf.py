@@ -21,7 +21,7 @@ import sys
 
 # Mirror the schema constants
 MAGIC = b"XRLF"
-HEADER_STRUCT = struct.Struct("<4sHHHIH6s")   # 22 bytes
+HEADER_STRUCT = struct.Struct("<4sHHHIH6s")  # 22 bytes
 HEADER_SIZE = HEADER_STRUCT.size
 SECTION_ENTRY_STRUCT = struct.Struct("<HQQH")  # type(H) offset(Q) length(Q) flags(H)
 SECTION_ENTRY_SIZE = SECTION_ENTRY_STRUCT.size
@@ -32,17 +32,18 @@ def relabel(path: str, new_name: str):
         data = bytearray(f.read())
 
     # Parse header
-    magic, version, base_len, xrl_len, flags, section_count, _reserved = \
+    magic, version, base_len, xrl_len, flags, section_count, _reserved = (
         HEADER_STRUCT.unpack(data[:HEADER_SIZE])
+    )
 
     if magic != MAGIC:
         print(f"ERROR: Not an XRLF file (magic={magic!r})")
         sys.exit(1)
 
     cursor = HEADER_SIZE
-    old_base = data[cursor:cursor + base_len].decode("utf-8")
+    old_base = data[cursor : cursor + base_len].decode("utf-8")
     cursor += base_len
-    old_xrl = data[cursor:cursor + xrl_len].decode("utf-8")
+    old_xrl = data[cursor : cursor + xrl_len].decode("utf-8")
     cursor += xrl_len
     section_table_offset = cursor
 
@@ -82,11 +83,12 @@ def relabel(path: str, new_name: str):
     for i in range(section_count):
         entry_start = new_section_table_offset + i * SECTION_ENTRY_SIZE
         stype, offset, length, sflags = SECTION_ENTRY_STRUCT.unpack(
-            new_data[entry_start:entry_start + SECTION_ENTRY_SIZE]
+            new_data[entry_start : entry_start + SECTION_ENTRY_SIZE]
         )
         new_offset = offset + delta
-        new_data[entry_start:entry_start + SECTION_ENTRY_SIZE] = \
+        new_data[entry_start : entry_start + SECTION_ENTRY_SIZE] = (
             SECTION_ENTRY_STRUCT.pack(stype, new_offset, length, sflags)
+        )
 
     # ── 4. Write back ──────────────────────────────────────────────────────
     backup = path + ".bak"

@@ -1,4 +1,7 @@
 :root {
+  /* Dark UA scheme — makes native form popups (select dropdowns, scrollbars,
+     date pickers) render dark instead of inheriting the OS light theme. */
+  color-scheme: dark;
   /* FOVEAI CELESTIAL — astro-instrument × high-tech (see theme/foveai-celestial.css) */
   --bg-dark: #070b1d;
   --bg-panel: rgba(20, 26, 52, 0.55);

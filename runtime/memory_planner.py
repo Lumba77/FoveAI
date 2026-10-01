@@ -48,49 +48,49 @@ The planner is adaptive — it learns from usage patterns:
   - If context is growing, predict KV cache pressure and pre-emptively cap
 """
 
-import os
-import time
-import json
-import threading
 import subprocess
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-from dataclasses import dataclass, field
+import threading
+import time
+from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
 
 class MemoryTier(Enum):
     """Where a model currently lives."""
-    VRAM = "vram"       # GPU memory — fastest inference
-    RAM = "ram"         # System memory — warm standby, CPU inference
-    DISK = "disk"       # Unloaded — cold, needs reload
-    ACTIVE = "active"   # Currently being used (in VRAM + locked)
+
+    VRAM = "vram"  # GPU memory — fastest inference
+    RAM = "ram"  # System memory — warm standby, CPU inference
+    DISK = "disk"  # Unloaded — cold, needs reload
+    ACTIVE = "active"  # Currently being used (in VRAM + locked)
 
 
 class ModelPriority(Enum):
     """Priority for VRAM tiling — higher wins."""
-    CRITICAL = 100   # Main model during active generation
-    HIGH = 80        # Vision MMPROJ during vision request
-    NORMAL = 50      # Main model idle but recent
-    LOW = 30         # Helper models (router, summarizer)
+
+    CRITICAL = 100  # Main model during active generation
+    HIGH = 80  # Vision MMPROJ during vision request
+    NORMAL = 50  # Main model idle but recent
+    LOW = 30  # Helper models (router, summarizer)
     BACKGROUND = 10  # Whisper, Kokoro (always RAM)
 
 
 @dataclass
 class ModelTile:
     """A model's memory footprint and current placement."""
+
     name: str
-    size_vram_gb: float         # VRAM footprint when fully offloaded
-    size_ram_gb: float          # RAM footprint (weights only, no GPU offload)
-    kv_cache_gb: float = 0.0    # KV cache size (VRAM only)
+    size_vram_gb: float  # VRAM footprint when fully offloaded
+    size_ram_gb: float  # RAM footprint (weights only, no GPU offload)
+    kv_cache_gb: float = 0.0  # KV cache size (VRAM only)
     tier: MemoryTier = MemoryTier.DISK
     priority: ModelPriority = ModelPriority.NORMAL
-    last_used: float = 0.0      # timestamp of last access
-    use_count: int = 0          # how many times used
-    gpu_layers: int = -1        # -1 = all, 0 = none (RAM only)
+    last_used: float = 0.0  # timestamp of last access
+    use_count: int = 0  # how many times used
+    gpu_layers: int = -1  # -1 = all, 0 = none (RAM only)
     can_partial_offload: bool = True  # can split between VRAM and RAM
-    n_ctx: int = 4096           # context window (affects KV cache)
-    locked: bool = False        # if True, can't be evicted
+    n_ctx: int = 4096  # context window (affects KV cache)
+    locked: bool = False  # if True, can't be evicted
 
     @property
     def total_vram_gb(self) -> float:
@@ -100,7 +100,11 @@ class ModelTile:
         if self.tier == MemoryTier.RAM:
             return 0.0
         # VRAM or ACTIVE
-        offload_ratio = 1.0 if self.gpu_layers == -1 else self.gpu_layers / max(1, self._total_layers)
+        offload_ratio = (
+            1.0
+            if self.gpu_layers == -1
+            else self.gpu_layers / max(1, self._total_layers)
+        )
         return self.size_vram_gb * offload_ratio + self.kv_cache_gb
 
     @property
@@ -150,23 +154,23 @@ class MemoryPlanner:
         self.idle_demote_seconds = idle_demote_seconds
         self.verbose = verbose
 
-        self._tiles: Dict[str, ModelTile] = {}
+        self._tiles: dict[str, ModelTile] = {}
         self._lock = threading.RLock()
-        self._planner_thread: Optional[threading.Thread] = None
+        self._planner_thread: threading.Thread | None = None
         self._running = False
         self._last_workload: str = "idle"
-        self._workload_history: List[Tuple[float, str]] = []
+        self._workload_history: list[tuple[float, str]] = []
 
         # Adaptive learning
-        self._vision_frequency = 0.0    # rolling average of vision requests
-        self._chat_frequency = 0.0      # rolling average of chat requests
-        self._idle_frequency = 1.0      # rolling average of idle time
+        self._vision_frequency = 0.0  # rolling average of vision requests
+        self._chat_frequency = 0.0  # rolling average of chat requests
+        self._idle_frequency = 1.0  # rolling average of idle time
 
         # Callbacks for actual model operations
-        self._on_promote: Optional[callable] = None      # (name) → load to VRAM
-        self._on_demote: Optional[callable] = None       # (name) → offload to RAM
-        self._on_evict: Optional[callable] = None        # (name) → unload completely
-        self._on_retile: Optional[callable] = None       # (name, gpu_layers, n_ctx) → adjust
+        self._on_promote: callable | None = None  # (name) → load to VRAM
+        self._on_demote: callable | None = None  # (name) → offload to RAM
+        self._on_evict: callable | None = None  # (name) → unload completely
+        self._on_retile: callable | None = None  # (name, gpu_layers, n_ctx) → adjust
 
     # ── Registration ──────────────────────────────────────────────────────
 
@@ -194,8 +198,11 @@ class MemoryPlanner:
             )
             self._tiles[name] = tile
             if self.verbose:
-                print(f"  [Planner] Registered: {name} "
-                      f"(VRAM={size_vram_gb}GB, RAM={size_ram_gb}GB, KV={kv_cache_gb}GB)", flush=True)
+                print(
+                    f"  [Planner] Registered: {name} "
+                    f"(VRAM={size_vram_gb}GB, RAM={size_ram_gb}GB, KV={kv_cache_gb}GB)",
+                    flush=True,
+                )
             return tile
 
     def set_callbacks(
@@ -274,7 +281,7 @@ class MemoryPlanner:
 
     # ── Tiling logic ──────────────────────────────────────────────────────
 
-    def plan(self) -> Dict[str, Any]:
+    def plan(self) -> dict[str, Any]:
         """
         Run the tiling planner — decide what goes where.
 
@@ -282,7 +289,7 @@ class MemoryPlanner:
         """
         with self._lock:
             now = time.time()
-            actions: List[Dict[str, Any]] = []
+            actions: list[dict[str, Any]] = []
 
             # 1. Check for idle models that should be demoted
             for name, tile in self._tiles.items():
@@ -290,26 +297,40 @@ class MemoryPlanner:
                     continue
                 if tile.tier in (MemoryTier.VRAM, MemoryTier.ACTIVE):
                     idle_time = now - tile.last_used
-                    if idle_time > self.idle_demote_seconds and tile.priority.value < ModelPriority.CRITICAL.value:
-                        actions.append({
-                            "action": "demote",
-                            "model": name,
-                            "reason": f"idle {idle_time:.0f}s",
-                            "from": tile.tier.value,
-                            "to": MemoryTier.RAM.value,
-                        })
+                    if (
+                        idle_time > self.idle_demote_seconds
+                        and tile.priority.value < ModelPriority.CRITICAL.value
+                    ):
+                        actions.append(
+                            {
+                                "action": "demote",
+                                "model": name,
+                                "reason": f"idle {idle_time:.0f}s",
+                                "from": tile.tier.value,
+                                "to": MemoryTier.RAM.value,
+                            }
+                        )
 
             # 2. Calculate current VRAM usage
-            vram_used = sum(t.total_vram_gb for t in self._tiles.values()
-                           if t.tier in (MemoryTier.VRAM, MemoryTier.ACTIVE))
-            ram_used = sum(t.total_ram_gb for t in self._tiles.values()
-                          if t.tier != MemoryTier.DISK)
+            vram_used = sum(
+                t.total_vram_gb
+                for t in self._tiles.values()
+                if t.tier in (MemoryTier.VRAM, MemoryTier.ACTIVE)
+            )
+            ram_used = sum(
+                t.total_ram_gb
+                for t in self._tiles.values()
+                if t.tier != MemoryTier.DISK
+            )
 
             # 3. Check if we need to make room (VRAM pressure)
             if vram_used > self.vram_usable_gb:
                 # Find lowest-priority VRAM models to evict/demote
-                vram_models = [(name, t) for name, t in self._tiles.items()
-                              if t.tier in (MemoryTier.VRAM, MemoryTier.ACTIVE) and not t.locked]
+                vram_models = [
+                    (name, t)
+                    for name, t in self._tiles.items()
+                    if t.tier in (MemoryTier.VRAM, MemoryTier.ACTIVE) and not t.locked
+                ]
                 vram_models.sort(key=lambda x: x[1].priority.value)
 
                 for name, tile in vram_models:
@@ -319,80 +340,101 @@ class MemoryPlanner:
                         # Try partial offload first (retile with fewer GPU layers)
                         new_layers = max(0, tile.gpu_layers - 10)
                         if new_layers > 0:
-                            actions.append({
-                                "action": "retile",
-                                "model": name,
-                                "reason": f"VRAM pressure ({vram_used:.1f}GB > {self.vram_usable_gb}GB)",
-                                "gpu_layers": new_layers,
-                                "n_ctx": tile.n_ctx,
-                            })
+                            actions.append(
+                                {
+                                    "action": "retile",
+                                    "model": name,
+                                    "reason": f"VRAM pressure ({vram_used:.1f}GB > {self.vram_usable_gb}GB)",
+                                    "gpu_layers": new_layers,
+                                    "n_ctx": tile.n_ctx,
+                                }
+                            )
                             # Estimate savings
-                            vram_used -= tile.size_vram_gb * (10 / max(1, tile._total_layers))
+                            vram_used -= tile.size_vram_gb * (
+                                10 / max(1, tile._total_layers)
+                            )
                     else:
                         # Full demote
-                        actions.append({
-                            "action": "demote",
-                            "model": name,
-                            "reason": f"VRAM pressure ({vram_used:.1f}GB > {self.vram_usable_gb}GB)",
-                            "from": tile.tier.value,
-                            "to": MemoryTier.RAM.value,
-                        })
+                        actions.append(
+                            {
+                                "action": "demote",
+                                "model": name,
+                                "reason": f"VRAM pressure ({vram_used:.1f}GB > {self.vram_usable_gb}GB)",
+                                "from": tile.tier.value,
+                                "to": MemoryTier.RAM.value,
+                            }
+                        )
                         vram_used -= tile.total_vram_gb
 
             # 4. Check if we should promote models from RAM to VRAM
             # (when there's free VRAM and a model is needed)
             free_vram = self.vram_usable_gb - vram_used
             if free_vram > 0.5:  # at least 500MB free
-                ram_models = [(name, t) for name, t in self._tiles.items()
-                             if t.tier == MemoryTier.RAM and not t.locked]
+                ram_models = [
+                    (name, t)
+                    for name, t in self._tiles.items()
+                    if t.tier == MemoryTier.RAM and not t.locked
+                ]
                 ram_models.sort(key=lambda x: x[1].priority.value, reverse=True)
 
                 for name, tile in ram_models:
                     if free_vram < tile.size_vram_gb:
                         continue
                     if tile.priority.value >= ModelPriority.HIGH.value:
-                        actions.append({
-                            "action": "promote",
-                            "model": name,
-                            "reason": f"high priority + free VRAM ({free_vram:.1f}GB)",
-                            "from": MemoryTier.RAM.value,
-                            "to": MemoryTier.VRAM.value,
-                        })
+                        actions.append(
+                            {
+                                "action": "promote",
+                                "model": name,
+                                "reason": f"high priority + free VRAM ({free_vram:.1f}GB)",
+                                "from": MemoryTier.RAM.value,
+                                "to": MemoryTier.VRAM.value,
+                            }
+                        )
                         free_vram -= tile.size_vram_gb
 
             # 5. Check RAM pressure — evict to disk if RAM is full
             if ram_used > self.ram_usable_gb:
-                ram_models = [(name, t) for name, t in self._tiles.items()
-                             if t.tier == MemoryTier.RAM and not t.locked]
+                ram_models = [
+                    (name, t)
+                    for name, t in self._tiles.items()
+                    if t.tier == MemoryTier.RAM and not t.locked
+                ]
                 ram_models.sort(key=lambda x: x[1].priority.value)
 
                 for name, tile in ram_models:
                     if ram_used <= self.ram_usable_gb:
                         break
                     if tile.priority.value < ModelPriority.NORMAL.value:
-                        actions.append({
-                            "action": "evict",
-                            "model": name,
-                            "reason": f"RAM pressure ({ram_used:.1f}GB > {self.ram_usable_gb}GB)",
-                            "from": MemoryTier.RAM.value,
-                            "to": MemoryTier.DISK.value,
-                        })
+                        actions.append(
+                            {
+                                "action": "evict",
+                                "model": name,
+                                "reason": f"RAM pressure ({ram_used:.1f}GB > {self.ram_usable_gb}GB)",
+                                "from": MemoryTier.RAM.value,
+                                "to": MemoryTier.DISK.value,
+                            }
+                        )
                         ram_used -= tile.total_ram_gb
 
             # 6. Adaptive KV cache resizing
             for name, tile in self._tiles.items():
-                if tile.tier in (MemoryTier.VRAM, MemoryTier.ACTIVE) and tile.kv_cache_gb > 0.5:
+                if (
+                    tile.tier in (MemoryTier.VRAM, MemoryTier.ACTIVE)
+                    and tile.kv_cache_gb > 0.5
+                ):
                     # If VRAM is tight, suggest smaller context
                     if vram_used > self.vram_usable_gb * 0.85:
                         new_ctx = max(1024, tile.n_ctx // 2)
                         if new_ctx != tile.n_ctx:
-                            actions.append({
-                                "action": "retile",
-                                "model": name,
-                                "reason": "KV cache pressure — halving context",
-                                "gpu_layers": tile.gpu_layers,
-                                "n_ctx": new_ctx,
-                            })
+                            actions.append(
+                                {
+                                    "action": "retile",
+                                    "model": name,
+                                    "reason": "KV cache pressure — halving context",
+                                    "gpu_layers": tile.gpu_layers,
+                                    "n_ctx": new_ctx,
+                                }
+                            )
 
             plan = {
                 "timestamp": now,
@@ -415,7 +457,9 @@ class MemoryPlanner:
                         "ram_gb": round(t.total_ram_gb, 2),
                         "gpu_layers": t.gpu_layers,
                         "n_ctx": t.n_ctx,
-                        "last_used_ago_s": round(now - t.last_used, 0) if t.last_used else None,
+                        "last_used_ago_s": round(now - t.last_used, 0)
+                        if t.last_used
+                        else None,
                         "use_count": t.use_count,
                         "locked": t.locked,
                     }
@@ -425,7 +469,7 @@ class MemoryPlanner:
 
             return plan
 
-    def execute_plan(self, plan: Dict[str, Any]) -> List[str]:
+    def execute_plan(self, plan: dict[str, Any]) -> list[str]:
         """Execute the plan's actions via callbacks."""
         results = []
         for action in plan.get("actions", []):
@@ -452,13 +496,19 @@ class MemoryPlanner:
                     results.append(f"✕ Evicted {model} → Disk")
 
                 elif act == "retile" and self._on_retile:
-                    self._on_retile(model, action.get("gpu_layers", -1), action.get("n_ctx", 4096))
+                    self._on_retile(
+                        model, action.get("gpu_layers", -1), action.get("n_ctx", 4096)
+                    )
                     self._tiles[model].gpu_layers = action.get("gpu_layers", -1)
                     self._tiles[model].n_ctx = action.get("n_ctx", 4096)
-                    results.append(f"↔ Retiled {model} (layers={action.get('gpu_layers')}, ctx={action.get('n_ctx')})")
+                    results.append(
+                        f"↔ Retiled {model} (layers={action.get('gpu_layers')}, ctx={action.get('n_ctx')})"
+                    )
 
             except Exception as e:
-                results.append(f"⚠ {action.get('action')} {action.get('model')} failed: {e}")
+                results.append(
+                    f"⚠ {action.get('action')} {action.get('model')} failed: {e}"
+                )
 
         return results
 
@@ -469,11 +519,16 @@ class MemoryPlanner:
         if self._running:
             return
         self._running = True
-        self._planner_thread = threading.Thread(target=self._planner_loop, args=(interval,), daemon=True)
+        self._planner_thread = threading.Thread(
+            target=self._planner_loop, args=(interval,), daemon=True
+        )
         self._planner_thread.start()
         if self.verbose:
-            print(f"  [Planner] Started — interval={interval}s, "
-                  f"VRAM budget={self.vram_usable_gb}GB, RAM budget={self.ram_usable_gb}GB", flush=True)
+            print(
+                f"  [Planner] Started — interval={interval}s, "
+                f"VRAM budget={self.vram_usable_gb}GB, RAM budget={self.ram_usable_gb}GB",
+                flush=True,
+            )
 
     def stop(self):
         """Stop the background planner."""
@@ -509,7 +564,7 @@ class MemoryPlanner:
 
     # ── Querying ──────────────────────────────────────────────────────────
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         """Get current memory tiling status."""
         with self._lock:
             return self.plan()
@@ -536,13 +591,18 @@ class MemoryPlanner:
     # ── GPU sensing ───────────────────────────────────────────────────────
 
     @staticmethod
-    def sense_vram() -> Dict[str, float]:
+    def sense_vram() -> dict[str, float]:
         """Sense actual VRAM usage from nvidia-smi."""
         try:
             result = subprocess.run(
-                ["nvidia-smi", "--query-gpu=memory.total,memory.used,memory.free",
-                 "--format=csv,noheader,nounits"],
-                capture_output=True, text=True, timeout=5
+                [
+                    "nvidia-smi",
+                    "--query-gpu=memory.total,memory.used,memory.free",
+                    "--format=csv,noheader,nounits",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if result.returncode == 0:
                 parts = result.stdout.strip().split(", ")
@@ -556,7 +616,7 @@ class MemoryPlanner:
         return {"total_gb": 8.0, "used_gb": 0.0, "free_gb": 8.0}
 
     @staticmethod
-    def sense_ram() -> Dict[str, float]:
+    def sense_ram() -> dict[str, float]:
         """Sense actual RAM usage."""
         try:
             with open("/proc/meminfo") as f:
@@ -564,7 +624,13 @@ class MemoryPlanner:
             info = {}
             for line in lines:
                 parts = line.split()
-                if parts[0] in ("MemTotal:", "MemAvailable:", "MemFree:", "SwapTotal:", "SwapFree:"):
+                if parts[0] in (
+                    "MemTotal:",
+                    "MemAvailable:",
+                    "MemFree:",
+                    "SwapTotal:",
+                    "SwapFree:",
+                ):
                     info[parts[0].rstrip(":")] = int(parts[1]) / (1024 * 1024)  # to GB
             return {
                 "total_gb": info.get("MemTotal", 15.0),

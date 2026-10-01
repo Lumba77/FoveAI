@@ -22,43 +22,64 @@ __UNSLOTH_VERSIONING__
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from torch import Tensor
-import torch
-import torch.nn as nn
-from torch.nn import functional as F
-from unsloth_zoo.temporary_patches.common import torch_compile
-from typing import Any, List, Optional, Tuple, Union, Dict, Set, Callable
-from trl.trainer.ddpo_trainer import (Accelerator, Any, Callable, DDPOConfig, DDPOStableDiffusionPipeline, DDPOTrainer, Optional, Path, PerPromptStatTracker, ProjectConfiguration, PyTorchModelHubMixin, Union, defaultdict, futures, generate_model_card, get_comet_experiment_url, is_wandb_available, logger, logging, os, set_seed, textwrap, torch, warnings, Accelerator, Any, Callable, DDPOConfig, DDPOStableDiffusionPipeline, DDPOTrainer, Optional, PerPromptStatTracker, ProjectConfiguration, futures, logger, os, set_seed, torch, warnings)
-
-
-import os
-import math
-import logging
-from typing import *
-from dataclasses import dataclass, field
-from packaging.version import Version
-import torch
-import numpy as np
-from contextlib import nullcontext
-from torch.nn import functional as F
-import inspect
-from transformers import DataCollatorForSeq2Seq, DataCollatorForLanguageModeling as TransformersDataCollatorForLanguageModeling
-from transformers.training_args import ParallelMode
-from unsloth_zoo.device_type import DEVICE_TYPE, device_synchronize
-
 # Wrap trainer with padding to right and enable training mode
 import functools
-from types import MethodType
+import logging
+import math
+import os
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import *
+from typing import Any, Optional, Union
+
+import torch
+from transformers.training_args import ParallelMode
+from trl.trainer.ddpo_trainer import (
+    Accelerator,
+    Any,
+    Callable,
+    DDPOConfig,
+    DDPOStableDiffusionPipeline,
+    Optional,
+    Path,
+    PerPromptStatTracker,
+    ProjectConfiguration,
+    PyTorchModelHubMixin,
+    Union,
+    defaultdict,
+    futures,
+    generate_model_card,
+    get_comet_experiment_url,
+    is_wandb_available,
+    logger,
+    logging,
+    os,
+    set_seed,
+    textwrap,
+    torch,
+    warnings,
+)
+
 try:
-    from unsloth_zoo.gradient_checkpointing import reset_unsloth_gradient_checkpointing_buffers
+    from unsloth_zoo.gradient_checkpointing import (
+        reset_unsloth_gradient_checkpointing_buffers,
+    )
 except:
-    def reset_unsloth_gradient_checkpointing_buffers(): pass
+
+    def reset_unsloth_gradient_checkpointing_buffers():
+        pass
+
+
 # Canonical reset lives in unsloth.models._utils so the SFT auto-packing wrapper and the plain
 # Trainer loop can import the same helper; fall back to a no-op only if it can't be imported.
 try:
     from unsloth.models._utils import _unsloth_reset_stray_compile_cache
 except Exception:
-    def _unsloth_reset_stray_compile_cache(self): pass
+
+    def _unsloth_reset_stray_compile_cache(self):
+        pass
+
+
 def prepare_for_training_mode(f):
     @functools.wraps(f)
     def wrapper(self, *args, **kwargs):
@@ -72,14 +93,15 @@ def prepare_for_training_mode(f):
         # evaluate() / log() still work after train() completes.
         # HF's WandbCallback.setup() will call wandb.init() for the new run.
         # See: https://github.com/unslothai/unsloth/issues/3954
-        if getattr(self, '_unsloth_training_completed', False):
+        if getattr(self, "_unsloth_training_completed", False):
             try:
                 import wandb
+
                 if wandb.run is not None:
                     wandb.finish()
                     # Reset HF's WandbCallback so it calls wandb.init() for the new run
                     for cb in self.callback_handler.callbacks:
-                        if type(cb).__name__ == 'WandbCallback':
+                        if type(cb).__name__ == "WandbCallback":
                             cb._initialized = False
                             break
             except:
@@ -87,14 +109,14 @@ def prepare_for_training_mode(f):
         # Enable training mode
         _was_training = None
         # Get gradient checkpointing setting from training arguments
-        use_gc = getattr(self.args, 'gradient_checkpointing', True)
-        if hasattr(self, 'model') and hasattr(self.model, "training"):
+        use_gc = getattr(self.args, "gradient_checkpointing", True)
+        if hasattr(self, "model") and hasattr(self.model, "training"):
             _was_training = self.model.training
-        if hasattr(self, 'model') and hasattr(self.model, "for_training"):
+        if hasattr(self, "model") and hasattr(self.model, "for_training"):
             self.model.for_training(use_gradient_checkpointing=use_gc)
         output = f(self, *args, **kwargs)
         # Restore previous mode when possible
-        if hasattr(self, 'model') and hasattr(self.model, "for_inference"):
+        if hasattr(self, "model") and hasattr(self.model, "for_inference"):
             if _was_training is False:
                 self.model.for_inference()
             elif _was_training is True and hasattr(self.model, "for_training"):
@@ -108,18 +130,25 @@ def prepare_for_training_mode(f):
         # finish this W&B run before starting a new one
         self._unsloth_training_completed = True
         return output
+
     return wrapper
-pass
+
+
 
 torch_compile_options = {
-    "epilogue_fusion"   : True,
-    "max_autotune"      : False,
-    "shape_padding"     : True,
-    "trace.enabled"     : False,
-    "triton.cudagraphs" : False,
+    "epilogue_fusion": True,
+    "max_autotune": False,
+    "shape_padding": True,
+    "trace.enabled": False,
+    "triton.cudagraphs": False,
 }
 
-@torch.compile(dynamic = True, fullgraph = True, options = torch_compile_options,)
+
+@torch.compile(
+    dynamic=True,
+    fullgraph=True,
+    options=torch_compile_options,
+)
 def chunked_hidden_states_selective_log_softmax(
     hidden_states: torch.Tensor,
     lm_head: torch.Tensor,
@@ -147,51 +176,66 @@ def chunked_hidden_states_selective_log_softmax(
         if logit_scale_divide != 0.0:
             chunk_logits = chunk_logits / logit_scale_divide
         if logit_softcapping != 0.0:
-            chunk_logits = logit_softcapping * torch.tanh(chunk_logits / logit_softcapping)
+            chunk_logits = logit_softcapping * torch.tanh(
+                chunk_logits / logit_softcapping
+            )
 
         chunk_logits = chunk_logits.to(torch.float32)
 
         if temperature != 1.0:
             chunk_logits = chunk_logits / temperature
 
-        selected_logits = torch.gather(chunk_logits, dim=-1, index=chunk_index.unsqueeze(-1)).squeeze(-1)
+        selected_logits = torch.gather(
+            chunk_logits, dim=-1, index=chunk_index.unsqueeze(-1)
+        ).squeeze(-1)
         logsumexp_values = torch.logsumexp(chunk_logits, dim=-1)
         per_token_logps = selected_logits - logsumexp_values
         all_per_token_logps.append(per_token_logps)
 
     all_per_token_logps = torch.concat(all_per_token_logps)
 
-    all_per_token_logps = all_per_token_logps.reshape((hidden_states.shape[0], hidden_states.shape[1]))
+    all_per_token_logps = all_per_token_logps.reshape(
+        (hidden_states.shape[0], hidden_states.shape[1])
+    )
     return all_per_token_logps
 
-@torch.compile(dynamic = True, fullgraph = True, options = torch_compile_options,)
+
+@torch.compile(
+    dynamic=True,
+    fullgraph=True,
+    options=torch_compile_options,
+)
 def chunked_selective_log_softmax(
     logits,
     index,
     temperature: float = 1.0,
     chunks: int = 4,
 ):
-    chunked_logits = torch.chunk(logits.reshape(-1, logits.shape[-1]), chunks = chunks, dim = 0)
-    chunked_index  = torch.chunk(index.reshape(-1), chunks = chunks, dim = 0)
+    chunked_logits = torch.chunk(
+        logits.reshape(-1, logits.shape[-1]), chunks=chunks, dim=0
+    )
+    chunked_index = torch.chunk(index.reshape(-1), chunks=chunks, dim=0)
     all_per_token_logps = []
     # Per-chunk selective_log_softmax.
     for chunk_logits, chunk_index in zip(chunked_logits, chunked_index):
         chunk_logits = chunk_logits.to(torch.float32)
         if temperature != 1.0:
             chunk_logits = chunk_logits / temperature
-        selected_logits = torch.gather(chunk_logits, dim = -1, index = chunk_index.unsqueeze(-1)).squeeze(-1)
-        logsumexp_values = torch.logsumexp(chunk_logits, dim = -1)
+        selected_logits = torch.gather(
+            chunk_logits, dim=-1, index=chunk_index.unsqueeze(-1)
+        ).squeeze(-1)
+        logsumexp_values = torch.logsumexp(chunk_logits, dim=-1)
         per_token_logps = selected_logits - logsumexp_values
         all_per_token_logps.append(per_token_logps)
-    pass
     all_per_token_logps = torch.concat(all_per_token_logps)
-    all_per_token_logps = all_per_token_logps.reshape((logits.shape[0], logits.shape[1]))
+    all_per_token_logps = all_per_token_logps.reshape(
+        (logits.shape[0], logits.shape[1])
+    )
     return all_per_token_logps
 
+
 def calculate_pad_tokens_in_prompt(
-    input_ids: torch.Tensor,
-    logits_to_keep: int,
-    pad_token_id: int
+    input_ids: torch.Tensor, logits_to_keep: int, pad_token_id: int
 ) -> torch.Tensor:
     """Count left-padded tokens per sequence, e.g. [pad, pad, pad, cat] -> 3."""
     if logits_to_keep >= input_ids.shape[1]:
@@ -199,17 +243,18 @@ def calculate_pad_tokens_in_prompt(
 
     prompt_section = input_ids[:, :-logits_to_keep]
 
-    padding_mask = (prompt_section == pad_token_id)
+    padding_mask = prompt_section == pad_token_id
 
     pad_token_counts = padding_mask.sum(dim=1)
 
     return pad_token_counts
 
+
 def create_completion_attention_mask(
     completion_input_ids: torch.Tensor,
     left_pad_tokens_per_prompt: torch.Tensor,
     max_left_pad: int,
-    pad_token_id: int
+    pad_token_id: int,
 ) -> torch.Tensor:
     """Build a completion mask that zeros leading prompt and trailing pad tokens.
 
@@ -224,24 +269,24 @@ def create_completion_attention_mask(
     indices = torch.arange(completion_len, device=device).unsqueeze(0)
     shift_mask = indices >= num_tokens_to_mask.unsqueeze(1)
 
-    non_padding_mask = (completion_input_ids != pad_token_id)
+    non_padding_mask = completion_input_ids != pad_token_id
 
     final_mask = shift_mask & non_padding_mask
 
     return final_mask
 
+
 def left_pack_padding(tensor: torch.Tensor, pad_id: int) -> torch.Tensor:
     """Move all padding tokens in each sequence to the right."""
-    mask = (tensor != pad_id)
+    mask = tensor != pad_id
     # stable=True since the binary mask is unordered.
     sorted_indices = torch.argsort(mask, dim=1, descending=True, stable=True)
     packed_tensor = torch.gather(tensor, 1, sorted_indices)
     return packed_tensor
 
+
 def align_logprobs_with_mask(
-    logprob_tensor: torch.Tensor,
-    attention_mask: torch.Tensor,
-    pad_value: float = 0.0
+    logprob_tensor: torch.Tensor, attention_mask: torch.Tensor, pad_value: float = 0.0
 ) -> torch.Tensor:
     """Align a log probability tensor with a given attention mask."""
 
@@ -253,7 +298,7 @@ def align_logprobs_with_mask(
         attention_mask.shape,
         fill_value=pad_value,
         dtype=logprob_tensor.dtype,
-        device=device
+        device=device,
     )
 
     left_pad_counts = torch.argmax(attention_mask, dim=1)
@@ -262,7 +307,9 @@ def align_logprobs_with_mask(
     dest_indices = left_pad_counts.unsqueeze(1) + cols
 
     # Destination row indices, shape [batch_size, logprob_seq_len].
-    row_indices = torch.arange(batch_size, device=device).unsqueeze(1).expand_as(dest_indices)
+    row_indices = (
+        torch.arange(batch_size, device=device).unsqueeze(1).expand_as(dest_indices)
+    )
 
     # Keep only in-bounds destinations, then scatter via advanced indexing.
     valid_mask = dest_indices < mask_seq_len
@@ -272,6 +319,7 @@ def align_logprobs_with_mask(
     padded_logprobs[valid_rows, valid_cols] = valid_vals
 
     return padded_logprobs
+
 
 def align_completion_tool_mask(
     tool_mask: torch.Tensor,
@@ -294,13 +342,9 @@ def align_completion_tool_mask(
         )
     return completion_mask * aligned_tool_mask.to(dtype=completion_mask.dtype)
 
+
 def autotune_batch_and_chunks(
-    total_input_rows,
-    seq_len,
-    hidden_size,
-    vocab_size,
-    dtype_bytes=16,
-    multiplier=None
+    total_input_rows, seq_len, hidden_size, vocab_size, dtype_bytes=16, multiplier=None
 ):
     if multiplier is None:
         final_m = max(4, seq_len // 4096)
@@ -309,7 +353,7 @@ def autotune_batch_and_chunks(
 
     if torch.cuda.is_available():
         free_bytes, _ = torch.cuda.mem_get_info()
-        limit_gb = (free_bytes / (1024**3))*.80
+        limit_gb = (free_bytes / (1024**3)) * 0.80
     elif hasattr(torch, "xpu") and torch.xpu.is_available():
         # XPU: estimate free memory as total - reserved.
         total_mem = torch.xpu.get_device_properties(0).total_memory
@@ -322,11 +366,13 @@ def autotune_batch_and_chunks(
 
     bytes_to_gb = 1024**3
 
-    b_vals = torch.arange(total_input_rows, 0, -1, device='cpu', dtype=torch.float32)
+    b_vals = torch.arange(total_input_rows, 0, -1, device="cpu", dtype=torch.float32)
 
     hidden_gb = (b_vals * seq_len * hidden_size * dtype_bytes) / bytes_to_gb
 
-    base_logits = ((b_vals/total_input_rows) * b_vals * seq_len * vocab_size * dtype_bytes) / bytes_to_gb
+    base_logits = (
+        (b_vals / total_input_rows) * b_vals * seq_len * vocab_size * dtype_bytes
+    ) / bytes_to_gb
     logits_gb = base_logits / final_m
 
     total_mem_gb = hidden_gb + logits_gb
@@ -335,13 +381,14 @@ def autotune_batch_and_chunks(
     valid_indices = torch.nonzero(valid_mask, as_tuple=False)
 
     if valid_indices.shape[0] == 0:
-        #This means your GPU will OOM
+        # This means your GPU will OOM
         return 4, final_m
 
     best_idx = valid_indices[0].item()
     final_b = int(b_vals[best_idx].item())
 
     return final_b, final_m
+
 
 def sanitize_logprob(logprob):
     """Local port of trl.scripts.vllm_serve.sanitize_logprob.
@@ -353,10 +400,12 @@ def sanitize_logprob(logprob):
         )
         return None
     return value
+
+
 @dataclass
 class UnslothDDPOConfig(DDPOConfig):
     """
-    
+
     Configuration class for the [`DDPOTrainer`].
 
     Using [`~transformers.HfArgumentParser`] we can turn this class into
@@ -447,114 +496,124 @@ class UnslothDDPOConfig(DDPOConfig):
             Comma-separated list of prompts to use as negative examples.
         push_to_hub (`bool`, *optional*, defaults to `False`):
             Whether to push the final model checkpoint to the Hub.
-    
+
     """
+
     vllm_sampling_params: Optional[Any] = field(
-        default = None,
-        metadata = {'help': 'vLLM SamplingParams'},
+        default=None,
+        metadata={"help": "vLLM SamplingParams"},
     )
-    unsloth_num_chunks : Optional[int] = field(
-        default = -1,
-        metadata = {'help': 'Chunk size to reduce memory usage. -1 is most efficient.'},
+    unsloth_num_chunks: Optional[int] = field(
+        default=-1,
+        metadata={"help": "Chunk size to reduce memory usage. -1 is most efficient."},
     )
-    unsloth_logit_chunk_multiplier : Optional[int] = field(
-            default = None,
-            metadata = {'help': 'Multiplier for chunked logit computations.'},
-        )
-    unsloth_grpo_mini_batch : Optional[int] = field(
-        default = None,
-        metadata = {'help': 'Mini batch size for GRPO hidden state accumulation. Default is None unless user defines it.'},
+    unsloth_logit_chunk_multiplier: Optional[int] = field(
+        default=None,
+        metadata={"help": "Multiplier for chunked logit computations."},
     )
-    
+    unsloth_grpo_mini_batch: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "Mini batch size for GRPO hidden state accumulation. Default is None unless user defines it."
+        },
+    )
+
     def __init__(
         self,
-        exp_name = 'train_soundtrack_director',
-        run_name = '',
-        seed = 3407,
-        log_with = None,
-        tracker_project_name = 'trl',
-        logdir = 'logs',
-        num_epochs = 100,
-        save_freq = 1,
-        num_checkpoint_limit = 5,
-        mixed_precision = 'fp16',
-        allow_tf32 = True,
-        resume_from = '',
-        sample_num_steps = 50,
-        sample_eta = 1.0,
-        sample_guidance_scale = 5.0,
-        sample_batch_size = 1,
-        sample_num_batches_per_epoch = 2,
-        train_batch_size = 1,
-        train_use_8bit_adam = False,
-        train_learning_rate = 5e-05,
-        train_adam_beta1 = 0.9,
-        train_adam_beta2 = 0.999,
-        train_adam_weight_decay = 0.001,
-        train_adam_epsilon = 1e-08,
-        train_gradient_accumulation_steps = 2,
-        train_max_grad_norm = 1.0,
-        train_num_inner_epochs = 1,
-        train_cfg = True,
-        train_adv_clip_max = 5.0,
-        train_clip_range = 0.0001,
-        train_timestep_fraction = 1.0,
-        per_prompt_stat_tracking = False,
-        per_prompt_stat_tracking_buffer_size = 16,
-        per_prompt_stat_tracking_min_count = 16,
-        async_reward_computation = False,
-        max_workers = 2,
-        negative_prompts = '',
-        push_to_hub = False,
-        vllm_sampling_params = None,
-        unsloth_num_chunks = -1,
-        unsloth_logit_chunk_multiplier = None,
-        unsloth_grpo_mini_batch = None,
-        
+        exp_name="train_soundtrack_director",
+        run_name="",
+        seed=3407,
+        log_with=None,
+        tracker_project_name="trl",
+        logdir="logs",
+        num_epochs=100,
+        save_freq=1,
+        num_checkpoint_limit=5,
+        mixed_precision="fp16",
+        allow_tf32=True,
+        resume_from="",
+        sample_num_steps=50,
+        sample_eta=1.0,
+        sample_guidance_scale=5.0,
+        sample_batch_size=1,
+        sample_num_batches_per_epoch=2,
+        train_batch_size=1,
+        train_use_8bit_adam=False,
+        train_learning_rate=5e-05,
+        train_adam_beta1=0.9,
+        train_adam_beta2=0.999,
+        train_adam_weight_decay=0.001,
+        train_adam_epsilon=1e-08,
+        train_gradient_accumulation_steps=2,
+        train_max_grad_norm=1.0,
+        train_num_inner_epochs=1,
+        train_cfg=True,
+        train_adv_clip_max=5.0,
+        train_clip_range=0.0001,
+        train_timestep_fraction=1.0,
+        per_prompt_stat_tracking=False,
+        per_prompt_stat_tracking_buffer_size=16,
+        per_prompt_stat_tracking_min_count=16,
+        async_reward_computation=False,
+        max_workers=2,
+        negative_prompts="",
+        push_to_hub=False,
+        vllm_sampling_params=None,
+        unsloth_num_chunks=-1,
+        unsloth_logit_chunk_multiplier=None,
+        unsloth_grpo_mini_batch=None,
         **kwargs,
     ):
-        if learning_rate < 1e-7: print(f'Unsloth: Your learning rate of `{learning_rate}` is too small and less than 1e-7! Consider increasing it, otherwise gradient updates will be close to 0!')
-        if learning_rate > 1: print(f'Unsloth: Your learning rate of `{learning_rate}` is way too larger > 1! Consider decreasing it to 1e-1, otherwise gradient updates will explode!')
-        
+        if learning_rate < 1e-7:
+            print(
+                f"Unsloth: Your learning rate of `{learning_rate}` is too small and less than 1e-7! Consider increasing it, otherwise gradient updates will be close to 0!"
+            )
+        if learning_rate > 1:
+            print(
+                f"Unsloth: Your learning rate of `{learning_rate}` is way too larger > 1! Consider decreasing it to 1e-1, otherwise gradient updates will explode!"
+            )
+
         super().__init__(
-            exp_name = exp_name,
-            run_name = run_name,
-            seed = seed,
-            log_with = log_with,
-            tracker_project_name = tracker_project_name,
-            logdir = logdir,
-            num_epochs = num_epochs,
-            save_freq = save_freq,
-            num_checkpoint_limit = num_checkpoint_limit,
-            mixed_precision = mixed_precision,
-            allow_tf32 = allow_tf32,
-            resume_from = resume_from,
-            sample_num_steps = sample_num_steps,
-            sample_eta = sample_eta,
-            sample_guidance_scale = sample_guidance_scale,
-            sample_batch_size = sample_batch_size,
-            sample_num_batches_per_epoch = sample_num_batches_per_epoch,
-            train_batch_size = train_batch_size,
-            train_use_8bit_adam = train_use_8bit_adam,
-            train_learning_rate = train_learning_rate,
-            train_adam_beta1 = train_adam_beta1,
-            train_adam_beta2 = train_adam_beta2,
-            train_adam_weight_decay = train_adam_weight_decay,
-            train_adam_epsilon = train_adam_epsilon,
-            train_gradient_accumulation_steps = train_gradient_accumulation_steps,
-            train_max_grad_norm = train_max_grad_norm,
-            train_num_inner_epochs = train_num_inner_epochs,
-            train_cfg = train_cfg,
-            train_adv_clip_max = train_adv_clip_max,
-            train_clip_range = train_clip_range,
-            train_timestep_fraction = train_timestep_fraction,
-            per_prompt_stat_tracking = per_prompt_stat_tracking,
-            per_prompt_stat_tracking_buffer_size = per_prompt_stat_tracking_buffer_size,
-            per_prompt_stat_tracking_min_count = per_prompt_stat_tracking_min_count,
-            async_reward_computation = async_reward_computation,
-            max_workers = max_workers,
-            negative_prompts = negative_prompts,
-            push_to_hub = push_to_hub,**kwargs)
+            exp_name=exp_name,
+            run_name=run_name,
+            seed=seed,
+            log_with=log_with,
+            tracker_project_name=tracker_project_name,
+            logdir=logdir,
+            num_epochs=num_epochs,
+            save_freq=save_freq,
+            num_checkpoint_limit=num_checkpoint_limit,
+            mixed_precision=mixed_precision,
+            allow_tf32=allow_tf32,
+            resume_from=resume_from,
+            sample_num_steps=sample_num_steps,
+            sample_eta=sample_eta,
+            sample_guidance_scale=sample_guidance_scale,
+            sample_batch_size=sample_batch_size,
+            sample_num_batches_per_epoch=sample_num_batches_per_epoch,
+            train_batch_size=train_batch_size,
+            train_use_8bit_adam=train_use_8bit_adam,
+            train_learning_rate=train_learning_rate,
+            train_adam_beta1=train_adam_beta1,
+            train_adam_beta2=train_adam_beta2,
+            train_adam_weight_decay=train_adam_weight_decay,
+            train_adam_epsilon=train_adam_epsilon,
+            train_gradient_accumulation_steps=train_gradient_accumulation_steps,
+            train_max_grad_norm=train_max_grad_norm,
+            train_num_inner_epochs=train_num_inner_epochs,
+            train_cfg=train_cfg,
+            train_adv_clip_max=train_adv_clip_max,
+            train_clip_range=train_clip_range,
+            train_timestep_fraction=train_timestep_fraction,
+            per_prompt_stat_tracking=per_prompt_stat_tracking,
+            per_prompt_stat_tracking_buffer_size=per_prompt_stat_tracking_buffer_size,
+            per_prompt_stat_tracking_min_count=per_prompt_stat_tracking_min_count,
+            async_reward_computation=async_reward_computation,
+            max_workers=max_workers,
+            negative_prompts=negative_prompts,
+            push_to_hub=push_to_hub,
+            **kwargs,
+        )
         self.vllm_sampling_params = vllm_sampling_params
         self.unsloth_num_chunks = unsloth_num_chunks
         if unsloth_grpo_mini_batch is not None:
@@ -562,13 +621,13 @@ class UnslothDDPOConfig(DDPOConfig):
                 self.unsloth_grpo_mini_batch = unsloth_grpo_mini_batch
             else:
                 raise ValueError(
-                    f"Unsloth GRPO mini batch size needs to be less than or equal to the effective generation batch size, "
-                    f"which is self.per_device_train_batch_size * gradient_accumulation_steps."
+                    "Unsloth GRPO mini batch size needs to be less than or equal to the effective generation batch size, "
+                    "which is self.per_device_train_batch_size * gradient_accumulation_steps."
                 )
         self.unsloth_logit_chunk_multiplier = unsloth_logit_chunk_multiplier
-        
 
-pass
+
+
 
 class _UnslothDDPOTrainer(PyTorchModelHubMixin):
     """"""
@@ -598,7 +657,9 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
         accelerator_project_config = ProjectConfiguration(**self.config.project_kwargs)
 
         if self.config.resume_from:
-            self.config.resume_from = os.path.normpath(os.path.expanduser(self.config.resume_from))
+            self.config.resume_from = os.path.normpath(
+                os.path.expanduser(self.config.resume_from)
+            )
             if "checkpoint_" not in os.path.basename(self.config.resume_from):
                 # get the most recent checkpoint in this directory
                 checkpoints = list(
@@ -608,8 +669,12 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
                     )
                 )
                 if len(checkpoints) == 0:
-                    raise ValueError(f"No checkpoints found in {self.config.resume_from}")
-                checkpoint_numbers = sorted([int(x.split("_")[-1]) for x in checkpoints])
+                    raise ValueError(
+                        f"No checkpoints found in {self.config.resume_from}"
+                    )
+                checkpoint_numbers = sorted(
+                    [int(x.split("_")[-1]) for x in checkpoints]
+                )
                 self.config.resume_from = os.path.join(
                     self.config.resume_from,
                     f"checkpoint_{checkpoint_numbers[-1]}",
@@ -618,7 +683,9 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
                 accelerator_project_config.iteration = checkpoint_numbers[-1] + 1
 
         # number of timesteps within each trajectory to train on
-        self.num_train_timesteps = int(self.config.sample_num_steps * self.config.train_timestep_fraction)
+        self.num_train_timesteps = int(
+            self.config.sample_num_steps * self.config.train_timestep_fraction
+        )
 
         self.accelerator = Accelerator(
             log_with=self.config.log_with,
@@ -627,7 +694,8 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
             # we always accumulate gradients across timesteps; we want config.train.gradient_accumulation_steps to be the
             # number of *samples* we accumulate across, so we need to multiply by the number of training timesteps to get
             # the total number of optimizer steps to accumulate across.
-            gradient_accumulation_steps=self.config.train_gradient_accumulation_steps * self.num_train_timesteps,
+            gradient_accumulation_steps=self.config.train_gradient_accumulation_steps
+            * self.num_train_timesteps,
             **self.config.accelerator_kwargs,
         )
 
@@ -635,12 +703,16 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
         if not is_okay:
             raise ValueError(message)
 
-        is_using_tensorboard = config.log_with is not None and config.log_with == "tensorboard"
+        is_using_tensorboard = (
+            config.log_with is not None and config.log_with == "tensorboard"
+        )
 
         if self.accelerator.is_main_process:
             self.accelerator.init_trackers(
                 self.config.tracker_project_name,
-                config=dict(ddpo_trainer_config=config.to_dict()) if not is_using_tensorboard else config.to_dict(),
+                config=dict(ddpo_trainer_config=config.to_dict())
+                if not is_using_tensorboard
+                else config.to_dict(),
                 init_kwargs=self.config.tracker_kwargs,
             )
 
@@ -682,12 +754,16 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
             torch.backends.cuda.matmul.allow_tf32 = True
 
         self.optimizer = self._setup_optimizer(
-            trainable_layers.parameters() if not isinstance(trainable_layers, list) else trainable_layers
+            trainable_layers.parameters()
+            if not isinstance(trainable_layers, list)
+            else trainable_layers
         )
 
         self.neg_prompt_embed = self.sd_pipeline.text_encoder(
             self.sd_pipeline.tokenizer(
-                [""] if self.config.negative_prompts is None else self.config.negative_prompts,
+                [""]
+                if self.config.negative_prompts is None
+                else self.config.negative_prompts,
                 return_tensors="pt",
                 padding="max_length",
                 truncation=True,
@@ -706,10 +782,16 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
         self.autocast = self.sd_pipeline.autocast or self.accelerator.autocast
 
         if hasattr(self.sd_pipeline, "use_lora") and self.sd_pipeline.use_lora:
-            unet, self.optimizer = self.accelerator.prepare(trainable_layers, self.optimizer)
-            self.trainable_layers = list(filter(lambda p: p.requires_grad, unet.parameters()))
+            unet, self.optimizer = self.accelerator.prepare(
+                trainable_layers, self.optimizer
+            )
+            self.trainable_layers = list(
+                filter(lambda p: p.requires_grad, unet.parameters())
+            )
         else:
-            self.trainable_layers, self.optimizer = self.accelerator.prepare(trainable_layers, self.optimizer)
+            self.trainable_layers, self.optimizer = self.accelerator.prepare(
+                trainable_layers, self.optimizer
+            )
 
         if self.config.async_reward_computation:
             self.executor = futures.ThreadPoolExecutor(max_workers=config.max_workers)
@@ -725,7 +807,9 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
         if not is_async:
             rewards = []
             for images, prompts, prompt_metadata in prompt_image_pairs:
-                reward, reward_metadata = self.reward_fn(images, prompts, prompt_metadata)
+                reward, reward_metadata = self.reward_fn(
+                    images, prompts, prompt_metadata
+                )
                 rewards.append(
                     (
                         torch.as_tensor(reward, device=self.accelerator.device),
@@ -733,9 +817,14 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
                     )
                 )
         else:
-            rewards = self.executor.map(lambda x: self.reward_fn(*x), prompt_image_pairs)
+            rewards = self.executor.map(
+                lambda x: self.reward_fn(*x), prompt_image_pairs
+            )
             rewards = [
-                (torch.as_tensor(reward.result(), device=self.accelerator.device), reward_metadata.result())
+                (
+                    torch.as_tensor(reward.result(), device=self.accelerator.device),
+                    reward_metadata.result(),
+                )
                 for reward, reward_metadata in rewards
             ]
 
@@ -774,7 +863,9 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
             image_data.extend([rewards[i], rewards_metadata[i]])
 
         if self.image_samples_callback is not None:
-            self.image_samples_callback(prompt_image_data, global_step, self.accelerator.trackers[0])
+            self.image_samples_callback(
+                prompt_image_data, global_step, self.accelerator.trackers[0]
+            )
 
         rewards = torch.cat(rewards)
         rewards = self.accelerator.gather(rewards).cpu().numpy()
@@ -792,7 +883,9 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
         if self.config.per_prompt_stat_tracking:
             # gather the prompts across processes
             prompt_ids = self.accelerator.gather(samples["prompt_ids"]).cpu().numpy()
-            prompts = self.sd_pipeline.tokenizer.batch_decode(prompt_ids, skip_special_tokens=True)
+            prompts = self.sd_pipeline.tokenizer.batch_decode(
+                prompt_ids, skip_special_tokens=True
+            )
             advantages = self.stat_tracker.update(prompts, rewards)
         else:
             advantages = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
@@ -816,39 +909,57 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
             # shuffle along time dimension independently for each sample
             # still trying to understand the code below
             perms = torch.stack(
-                [torch.randperm(num_timesteps, device=self.accelerator.device) for _ in range(total_batch_size)]
+                [
+                    torch.randperm(num_timesteps, device=self.accelerator.device)
+                    for _ in range(total_batch_size)
+                ]
             )
 
             for key in ["timesteps", "latents", "next_latents", "log_probs"]:
                 samples[key] = samples[key][
-                    torch.arange(total_batch_size, device=self.accelerator.device)[:, None],
+                    torch.arange(total_batch_size, device=self.accelerator.device)[
+                        :, None
+                    ],
                     perms,
                 ]
 
             original_keys = samples.keys()
             original_values = samples.values()
             # rebatch them as user defined train_batch_size is different from sample_batch_size
-            reshaped_values = [v.reshape(-1, self.config.train_batch_size, *v.shape[1:]) for v in original_values]
+            reshaped_values = [
+                v.reshape(-1, self.config.train_batch_size, *v.shape[1:])
+                for v in original_values
+            ]
 
             # Transpose the list of original values
             transposed_values = zip(*reshaped_values)
             # Create new dictionaries for each row of transposed values
-            samples_batched = [dict(zip(original_keys, row_values)) for row_values in transposed_values]
+            samples_batched = [
+                dict(zip(original_keys, row_values)) for row_values in transposed_values
+            ]
 
             self.sd_pipeline.unet.train()
-            global_step = self._train_batched_samples(inner_epoch, epoch, global_step, samples_batched)
+            global_step = self._train_batched_samples(
+                inner_epoch, epoch, global_step, samples_batched
+            )
             # ensure optimization step at the end of the inner epoch
             if not self.accelerator.sync_gradients:
                 raise ValueError(
                     "Optimization step should have been performed by this point. Please check calculated gradient accumulation settings."
                 )
 
-        if epoch != 0 and epoch % self.config.save_freq == 0 and self.accelerator.is_main_process:
+        if (
+            epoch != 0
+            and epoch % self.config.save_freq == 0
+            and self.accelerator.is_main_process
+        ):
             self.accelerator.save_state()
 
         return global_step
 
-    def calculate_loss(self, latents, timesteps, next_latents, log_probs, advantages, embeds):
+    def calculate_loss(
+        self, latents, timesteps, next_latents, log_probs, advantages, embeds
+    ):
         """
         Calculate the loss for a batch of an unpacked sample
 
@@ -912,7 +1023,9 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
 
         approx_kl = 0.5 * torch.mean((log_prob - log_probs) ** 2)
 
-        clipfrac = torch.mean((torch.abs(ratio - 1.0) > self.config.train_clip_range).float())
+        clipfrac = torch.mean(
+            (torch.abs(ratio - 1.0) > self.config.train_clip_range).float()
+        )
 
         return loss, approx_kl, clipfrac
 
@@ -972,7 +1085,9 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
         sample_neg_prompt_embeds = self.neg_prompt_embed.repeat(batch_size, 1, 1)
 
         for _ in range(iterations):
-            prompts, prompt_metadata = zip(*[self.prompt_fn() for _ in range(batch_size)])
+            prompts, prompt_metadata = zip(
+                *[self.prompt_fn() for _ in range(batch_size)]
+            )
 
             prompt_ids = self.sd_pipeline.tokenizer(
                 prompts,
@@ -999,15 +1114,21 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
 
             latents = torch.stack(latents, dim=1)  # (batch_size, num_steps + 1, ...)
             log_probs = torch.stack(log_probs, dim=1)  # (batch_size, num_steps, 1)
-            timesteps = self.sd_pipeline.scheduler.timesteps.repeat(batch_size, 1)  # (batch_size, num_steps)
+            timesteps = self.sd_pipeline.scheduler.timesteps.repeat(
+                batch_size, 1
+            )  # (batch_size, num_steps)
 
             samples.append(
                 {
                     "prompt_ids": prompt_ids,
                     "prompt_embeds": prompt_embeds,
                     "timesteps": timesteps,
-                    "latents": latents[:, :-1],  # each entry is the latent before timestep t
-                    "next_latents": latents[:, 1:],  # each entry is the latent after timestep t
+                    "latents": latents[
+                        :, :-1
+                    ],  # each entry is the latent before timestep t
+                    "next_latents": latents[
+                        :, 1:
+                    ],  # each entry is the latent after timestep t
                     "log_probs": log_probs,
                     "negative_prompt_embeds": sample_neg_prompt_embeds,
                 }
@@ -1037,7 +1158,9 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
         for _i, sample in enumerate(batched_samples):
             if self.config.train_cfg:
                 # concat negative prompts to sample prompts to avoid two forward passes
-                embeds = torch.cat([sample["negative_prompt_embeds"], sample["prompt_embeds"]])
+                embeds = torch.cat(
+                    [sample["negative_prompt_embeds"], sample["prompt_embeds"]]
+                )
             else:
                 embeds = sample["prompt_embeds"]
 
@@ -1079,7 +1202,9 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
 
     def _config_check(self) -> tuple[bool, str]:
         samples_per_epoch = (
-            self.config.sample_batch_size * self.accelerator.num_processes * self.config.sample_num_batches_per_epoch
+            self.config.sample_batch_size
+            * self.accelerator.num_processes
+            * self.config.sample_num_batches_per_epoch
         )
         total_train_batch_size = (
             self.config.train_batch_size
@@ -1147,7 +1272,9 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
         if not self.is_world_process_zero():
             return
 
-        if hasattr(self.model.config, "_name_or_path") and not os.path.isdir(self.model.config._name_or_path):
+        if hasattr(self.model.config, "_name_or_path") and not os.path.isdir(
+            self.model.config._name_or_path
+        ):
             base_model = self.model.config._name_or_path
         else:
             base_model = None
@@ -1185,7 +1312,9 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
             hub_model_id=self.hub_model_id,
             dataset_name=dataset_name,
             tags=tags,
-            wandb_url=wandb.run.url if is_wandb_available() and wandb.run is not None else None,
+            wandb_url=wandb.run.url
+            if is_wandb_available() and wandb.run is not None
+            else None,
             comet_url=get_comet_experiment_url(),
             trainer_name="DDPO",
             trainer_citation=citation,
@@ -1194,9 +1323,11 @@ class _UnslothDDPOTrainer(PyTorchModelHubMixin):
         )
 
         model_card.save(os.path.join(self.args.output_dir, "README.md"))
+
+
 class UnslothDDPOTrainer(_UnslothDDPOTrainer):
     """
-    
+
     The DDPOTrainer uses Deep Diffusion Policy Optimization to optimise diffusion models. Note, this trainer is heavily
     inspired by the work here: https://github.com/kvablack/ddpo-pytorch As of now only Stable Diffusion based pipelines
     are supported
@@ -1209,47 +1340,60 @@ class UnslothDDPOTrainer(_UnslothDDPOTrainer):
         prompt_function (`Callable[[], tuple[str, Any]]`): Function to generate prompts to guide model
         sd_pipeline ([`DDPOStableDiffusionPipeline`]): Stable Diffusion pipeline to be used for training.
         image_samples_hook (`Optional[Callable[[Any, Any, Any], Any]]`): Hook to be called to log images.
-    
+
     """
+
     def __init__(
         self,
         config,
         reward_function,
         prompt_function,
         sd_pipeline,
-        image_samples_hook = None,
-        **kwargs
+        image_samples_hook=None,
+        **kwargs,
     ):
-        if args is None: args = UnslothDDPOConfig()
+        if args is None:
+            args = UnslothDDPOConfig()
         other_metrics = []
-        
+
         from unsloth_zoo.logging_utils import PatchRLStatistics
-        PatchRLStatistics('ddpo_trainer', other_metrics)
-        
+
+        PatchRLStatistics("ddpo_trainer", other_metrics)
+
         # [TODO] Fix up DataParallel multiplying batch sizes
         # [TODO] DDP works, but DP seems to not work? [TODO]
-        if getattr(args, "parallel_mode", None) == ParallelMode.NOT_DISTRIBUTED and args.n_gpu > 1:
+        if (
+            getattr(args, "parallel_mode", None) == ParallelMode.NOT_DISTRIBUTED
+            and args.n_gpu > 1
+        ):
             if getattr(args, "_n_gpu", 1) != 1:
                 args._n_gpu = 1
         if "model" in locals() and hasattr(model, "for_training"):
-            model.for_training(use_gradient_checkpointing=getattr(args, 'gradient_checkpointing', True))
+            model.for_training(
+                use_gradient_checkpointing=getattr(args, "gradient_checkpointing", True)
+            )
         super().__init__(
-            config = config,
-            reward_function = reward_function,
-            prompt_function = prompt_function,
-            sd_pipeline = sd_pipeline,
-            image_samples_hook = image_samples_hook,**kwargs)
+            config=config,
+            reward_function=reward_function,
+            prompt_function=prompt_function,
+            sd_pipeline=sd_pipeline,
+            image_samples_hook=image_samples_hook,
+            **kwargs,
+        )
         if "model" in locals() and hasattr(model, "for_inference"):
             model.for_inference()
-        
-pass
+
+
 
 
 if hasattr(logger, "addFilter"):
     import logging
-    class HideLoggingMessage(logging.Filter):
-        def __init__(self, text): self.text = text
-        def filter(self, x): return not (self.text in x.getMessage())
-    pass
-    logger.addFilter(HideLoggingMessage("`use_cache=True`"))
 
+    class HideLoggingMessage(logging.Filter):
+        def __init__(self, text):
+            self.text = text
+
+        def filter(self, x):
+            return not (self.text in x.getMessage())
+
+    logger.addFilter(HideLoggingMessage("`use_cache=True`"))

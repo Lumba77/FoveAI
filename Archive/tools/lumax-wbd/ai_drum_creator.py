@@ -1,5 +1,6 @@
-import requests
 import json
+
+import requests
 
 LLM_URL = "http://127.0.0.1:8400/v1/chat/completions"
 
@@ -28,8 +29,9 @@ MIDI_MAP = {
     55: "Splash Cymbal",
     56: "Cowbell",
     57: "Crash Cymbal 2",
-    58: "Vibraslap"
+    58: "Vibraslap",
 }
+
 
 def get_creative_mapping(gesture_profile, recent_gestures_count):
     """
@@ -57,31 +59,37 @@ Provide your response strictly in the following JSON format without any markdown
             LLM_URL,
             headers={
                 "Content-Type": "application/json",
-                "Authorization": "Bearer builder_bot"
+                "Authorization": "Bearer builder_bot",
             },
             json={
-                "model": "local-model", 
+                "model": "local-model",
                 "messages": [
-                    {"role": "system", "content": "You are a creative drumming AI co-creator."},
-                    {"role": "user", "content": prompt}
+                    {
+                        "role": "system",
+                        "content": "You are a creative drumming AI co-creator.",
+                    },
+                    {"role": "user", "content": prompt},
                 ],
                 "temperature": 0.7,
-                "response_format": {"type": "json_object"}
+                "response_format": {"type": "json_object"},
             },
-            timeout=10
+            timeout=10,
         )
-        
+
         if response.status_code == 200:
             data = response.json()
             content = data["choices"][0]["message"]["content"]
             result = json.loads(content)
             return result
         else:
-            print(f"[AI Co-Creator] Failed to reach LLM. Status: {response.status_code}")
+            print(
+                f"[AI Co-Creator] Failed to reach LLM. Status: {response.status_code}"
+            )
             return None
     except Exception as e:
         print(f"[AI Co-Creator] Exception contacting LLM: {e}")
         return None
+
 
 if __name__ == "__main__":
     test_profile = "- Tracker: Left Knee\n- Speed: Very Fast\n- Depth: Large\n- Shape: Sharp Bounce"

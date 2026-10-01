@@ -25,7 +25,6 @@ import time
 import wave
 import zlib
 from pathlib import Path
-from typing import List, Optional
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -33,8 +32,8 @@ if str(REPO_ROOT) not in sys.path:
 
 from tools.mm_hooks import BaseHook, MMHookRegistry
 
-
 # ── Synthetic asset generators ────────────────────────────────────────────────
+
 
 def make_png_bytes(width: int = 4, height: int = 4) -> bytes:
     """Generate a minimal valid RGB PNG in-memory (no PIL required)."""
@@ -62,11 +61,15 @@ def make_png_bytes(width: int = 4, height: int = 4) -> bytes:
     return b"\x89PNG\r\n\x1a\n" + ihdr + idat + iend
 
 
-def make_wav_bytes(duration_s: float = 0.5, freq_hz: float = 440.0, sample_rate: int = 22050) -> bytes:
+def make_wav_bytes(
+    duration_s: float = 0.5, freq_hz: float = 440.0, sample_rate: int = 22050
+) -> bytes:
     """Generate a 440 Hz sine-wave WAV (no dependencies)."""
     n = int(duration_s * sample_rate)
     frames = b"".join(
-        struct.pack("<h", int(32767 * math.sin(2 * math.pi * freq_hz * i / sample_rate)))
+        struct.pack(
+            "<h", int(32767 * math.sin(2 * math.pi * freq_hz * i / sample_rate))
+        )
         for i in range(n)
     )
     bio = io.BytesIO()
@@ -81,14 +84,27 @@ def make_wav_bytes(duration_s: float = 0.5, freq_hz: float = 440.0, sample_rate:
 def make_video_frames() -> list:
     """Return a stub video frame descriptor list."""
     return [
-        {"frame": 0, "timestamp_ms": 0,   "description": "Blue background — XRLF logo fades in"},
-        {"frame": 1, "timestamp_ms": 33,  "description": "Text 'XRLF v1.0' appears centre screen"},
-        {"frame": 2, "timestamp_ms": 66,  "description": "Neural network diagram renders"},
+        {
+            "frame": 0,
+            "timestamp_ms": 0,
+            "description": "Blue background — XRLF logo fades in",
+        },
+        {
+            "frame": 1,
+            "timestamp_ms": 33,
+            "description": "Text 'XRLF v1.0' appears centre screen",
+        },
+        {
+            "frame": 2,
+            "timestamp_ms": 66,
+            "description": "Neural network diagram renders",
+        },
         {"frame": 3, "timestamp_ms": 100, "description": "End card with build info"},
     ]
 
 
 # ── Test result container ─────────────────────────────────────────────────────
+
 
 class HookResult:
     def __init__(self, name: str):
@@ -97,7 +113,7 @@ class HookResult:
         self.schema_valid: bool = False
         self.notes: str = ""
         self.elapsed_ms: float = 0.0
-        self.event: Optional[dict] = None
+        self.event: dict | None = None
 
 
 def _run(name: str, fn) -> HookResult:
@@ -112,6 +128,7 @@ def _run(name: str, fn) -> HookResult:
 
 
 # ── Individual tests ──────────────────────────────────────────────────────────
+
 
 def test_tts(registry: MMHookRegistry, verbose: bool) -> HookResult:
     def inner(r: HookResult):
@@ -129,6 +146,7 @@ def test_tts(registry: MMHookRegistry, verbose: bool) -> HookResult:
             r.notes = "no event emitted"
         if verbose and r.event:
             print(f"\n    [TTS] {r.event}")
+
     return _run("TTS (text→audio)", inner)
 
 
@@ -146,6 +164,7 @@ def test_image_gen(registry: MMHookRegistry, verbose: bool) -> HookResult:
             r.notes = "no event emitted"
         if verbose and r.event:
             print(f"\n    [ImageGen] {r.event}")
+
     return _run("Image Gen (text→image)", inner)
 
 
@@ -163,6 +182,7 @@ def test_audio_gen(registry: MMHookRegistry, verbose: bool) -> HookResult:
             r.notes = "no event emitted"
         if verbose and r.event:
             print(f"\n    [AudioGen] {r.event}")
+
     return _run("Audio Gen (text→sound)", inner)
 
 
@@ -173,11 +193,17 @@ def test_png_payload(verbose: bool) -> HookResult:
         r.fired = True
         r.schema_valid = valid
         r.notes = f"{len(png)} B  sig={'✅' if valid else '❌'}"
-        r.event = {"hook": "image_payload", "status": "ok" if valid else "error",
-                   "payload": {"format": "png", "bytes": len(png)},
-                   "output": None, "schema_version": 1, "message": "synthetic 4×4 PNG"}
+        r.event = {
+            "hook": "image_payload",
+            "status": "ok" if valid else "error",
+            "payload": {"format": "png", "bytes": len(png)},
+            "output": None,
+            "schema_version": 1,
+            "message": "synthetic 4×4 PNG",
+        }
         if verbose:
             print(f"\n    [PNG] first 16 bytes: {png[:16].hex()}")
+
     return _run("Synthetic PNG payload", inner)
 
 
@@ -188,11 +214,17 @@ def test_wav_payload(verbose: bool) -> HookResult:
         r.fired = True
         r.schema_valid = valid
         r.notes = f"{len(wav)} B  sig={'✅' if valid else '❌'}"
-        r.event = {"hook": "audio_payload", "status": "ok" if valid else "error",
-                   "payload": {"format": "wav", "bytes": len(wav), "duration_s": 0.5},
-                   "output": None, "schema_version": 1, "message": "440 Hz sine WAV"}
+        r.event = {
+            "hook": "audio_payload",
+            "status": "ok" if valid else "error",
+            "payload": {"format": "wav", "bytes": len(wav), "duration_s": 0.5},
+            "output": None,
+            "schema_version": 1,
+            "message": "440 Hz sine WAV",
+        }
         if verbose:
             print(f"\n    [WAV] first 12 bytes: {wav[:12].hex()}")
+
     return _run("Synthetic WAV payload", inner)
 
 
@@ -207,17 +239,24 @@ def test_video_stub(verbose: bool) -> HookResult:
         r.fired = True
         r.schema_valid = valid
         r.notes = f"{len(frames)} frames  schema={'✅' if valid else '❌'}"
-        r.event = {"hook": "video_stub", "status": "ok" if valid else "error",
-                   "payload": {"frame_count": len(frames)},
-                   "output": None, "schema_version": 1, "message": "4-frame video stub"}
+        r.event = {
+            "hook": "video_stub",
+            "status": "ok" if valid else "error",
+            "payload": {"frame_count": len(frames)},
+            "output": None,
+            "schema_version": 1,
+            "message": "4-frame video stub",
+        }
         if verbose:
             print(f"\n    [Video] frames: {frames}")
+
     return _run("Video frame stub", inner)
 
 
 # ── Reporter ──────────────────────────────────────────────────────────────────
 
-def print_report(results: List[HookResult]) -> bool:
+
+def print_report(results: list[HookResult]) -> bool:
     print()
     W = 72
     print("  " + "─" * W)
@@ -228,7 +267,7 @@ def print_report(results: List[HookResult]) -> bool:
 
     all_fired = True
     for r in results:
-        fire_icon   = "✅" if r.fired else "❌"
+        fire_icon = "✅" if r.fired else "❌"
         schema_icon = "✅" if r.schema_valid else "⚠️ "
         note = r.notes[:18]
         name = r.name[:30]
@@ -248,12 +287,13 @@ def print_report(results: List[HookResult]) -> bool:
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
+
 def main():
     ap = argparse.ArgumentParser(description="XRLF Multimodal Hook Validator")
-    ap.add_argument("--tts",     action="store_true")
-    ap.add_argument("--vision",  action="store_true")
-    ap.add_argument("--audio",   action="store_true")
-    ap.add_argument("--video",   action="store_true")
+    ap.add_argument("--tts", action="store_true")
+    ap.add_argument("--vision", action="store_true")
+    ap.add_argument("--audio", action="store_true")
+    ap.add_argument("--video", action="store_true")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
 
@@ -263,15 +303,17 @@ def main():
     print("  XRLF — Multimodal Hook Smoke Test")
     print("=" * 74)
 
-    registry = MMHookRegistry({
-        "external_hooks": {
-            "tts":       {"enabled": True, "engine": "auto"},
-            "image_gen": {"enabled": False},
-            "audio_gen": {"enabled": False},
+    registry = MMHookRegistry(
+        {
+            "external_hooks": {
+                "tts": {"enabled": True, "engine": "auto"},
+                "image_gen": {"enabled": False},
+                "audio_gen": {"enabled": False},
+            }
         }
-    })
+    )
 
-    results: List[HookResult] = []
+    results: list[HookResult] = []
 
     if run_all or args.tts:
         results.append(test_tts(registry, args.verbose))

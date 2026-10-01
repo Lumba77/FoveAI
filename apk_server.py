@@ -3,6 +3,7 @@
 APK download server with Range request support.
 Serves AliceVR.apk on port 8888 with resume capability.
 """
+
 import http.server
 import os
 import socketserver
@@ -10,6 +11,7 @@ import socketserver
 PORT = 8888
 DIRECTORY = "/home/lumba/FoveAI/client_quest"
 APK_FILE = "AliceVR.apk"
+
 
 class RangeRequestHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -67,8 +69,9 @@ class RangeRequestHandler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         pass  # Silent
 
+
 if __name__ == "__main__":
-    import socket
+
     # Allow quick restart
     socketserver.TCPServer.allow_reuse_address = True
     with socketserver.TCPServer(("0.0.0.0", PORT), RangeRequestHandler) as httpd:

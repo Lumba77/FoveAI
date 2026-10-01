@@ -9,15 +9,36 @@ This engine handles the multimodal chat template for llama.cpp.
 
 import os
 import sys
-import json
-import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Union
+from typing import Any
 
-# ── llama-cpp-python import (with helpful error if not installed) ──────────────
+# ── Preload in-venv CUDA libraries if present ───────────────────────────────────
+_repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_cu_lib = os.path.join(
+    _repo_root,
+    ".venv",
+    "lib",
+    f"python{sys.version_info.major}.{sys.version_info.minor}",
+    "site-packages",
+    "nvidia",
+    "cu13",
+    "lib",
+)
+if os.path.isdir(_cu_lib):
+    import ctypes
+
+    for _so in ["libcudart.so", "libcublasLt.so", "libcublas.so"]:
+        _p = os.path.join(_cu_lib, _so)
+        if os.path.exists(_p):
+            try:
+                ctypes.CDLL(_p, mode=ctypes.RTLD_GLOBAL)
+            except Exception:
+                pass
 
 try:
     from llama_cpp import Llama, LlamaGrammar
+
     _LLAMA_AVAILABLE = True
 except ImportError:
     _LLAMA_AVAILABLE = False
@@ -51,13 +72,13 @@ class LlamaEngine:
     def __init__(
         self,
         gguf_path: str,
-        n_gpu_layers: int = -1,      # -1 = offload all layers
+        n_gpu_layers: int = -1,  # -1 = offload all layers
         n_ctx: int = 8192,
-        n_threads: Optional[int] = None,
+        n_threads: int | None = None,
         verbose: bool = False,
         flash_attn: bool = True,
-        mmproj_path: Optional[str] = None,
-        draft_model_path: Optional[str] = None,
+        mmproj_path: str | None = None,
+        draft_model_path: str | None = None,
     ):
         if not _LLAMA_AVAILABLE:
             raise RuntimeError(LLAMA_INSTALL_HINT)
@@ -70,12 +91,11 @@ class LlamaEngine:
         self.flash_attn = flash_attn
         self.mmproj_path = mmproj_path
         self.draft_model_path = draft_model_path
-        self._llm: Optional[Llama] = None
-        self._draft_llm: Optional[Any] = None
+        self._llm: Llama | None = None
+        self._draft_llm: Any | None = None
         self._mtp_active: bool = False
         self.status_message: str = ""
         self.loaded = False
-
 
     def load(self) -> "LlamaEngine":
         if self.loaded:
@@ -85,17 +105,20 @@ class LlamaEngine:
             raise FileNotFoundError(f"GGUF not found: {self.gguf_path}")
 
         print(f"  Loading GGUF: {self.gguf_path}")
-        print(f"    n_ctx={self.n_ctx}  gpu_layers={self.n_gpu_layers}  threads={self.n_threads}")
+        print(
+            f"    n_ctx={self.n_ctx}  gpu_layers={self.n_gpu_layers}  threads={self.n_threads}"
+        )
 
         # ── VRAM & Concurrency Guardrail (8GB Ceiling) ──
         try:
             from runtime.vram_guard import guardrail
+
             ok, safe_layers, msg = guardrail.acquire_slot(
                 role="main",
                 model_path=self.gguf_path,
                 requested_layers=self.n_gpu_layers,
                 total_model_layers=40,
-                n_ctx=self.n_ctx
+                n_ctx=self.n_ctx,
             )
             if not ok:
                 raise RuntimeError(msg)
@@ -116,11 +139,17 @@ class LlamaEngine:
             n_batch=128,
             # use_mmap=False removed for Linux stability/performance
         )
+        # Flash Attention — accelerated prompt processing when requested
+        if self.flash_attn and os.getenv("FOVEAI_FLASH_ATTN", "1") == "1":
+            kwargs["flash_attn"] = True
+        self._flash_attn_active = bool(kwargs.get("flash_attn"))
+
         # KV cache quantization — requires flash_attn, which Gemma 4 can't use
         # (mismatched V embedding sizes across layers). Left here for non-Gemma models.
         kv_quant = os.getenv("FOVEAI_KV_QUANT", "f16")
         if kv_quant and kv_quant != "f16":
             import llama_cpp
+
             type_map = {
                 "q8_0": llama_cpp.GGML_TYPE_Q8_0,
                 "q4_0": llama_cpp.GGML_TYPE_Q4_0,
@@ -130,16 +159,15 @@ class LlamaEngine:
             }
             if kv_quant in type_map:
                 # V cache quantization requires flash_attn — skip if FA is off
-                fa_enabled = kwargs.get("flash_attn", False)
-                if fa_enabled:
+                if self._flash_attn_active:
                     kwargs["type_k"] = type_map[kv_quant]
                     kwargs["type_v"] = type_map[kv_quant]
                     print(f"    KV cache quantized: {kv_quant}")
                 else:
-                    print(f"    KV quantization {kv_quant} skipped — requires flash_attn (disabled for this model)")
-        # Flash Attention — accelerated prompt processing when requested
-        if self.flash_attn and os.getenv("FOVEAI_FLASH_ATTN", "1") == "1":
-            kwargs["flash_attn"] = True
+                    print(
+                        f"    KV quantization {kv_quant} skipped — requires flash_attn (disabled for this model)"
+                    )
+        self._kv_quant = kv_quant if kwargs.get("type_k") is not None else "f16"
 
         # Multimodal Chat Handler
         if self.mmproj_path and Path(self.mmproj_path).exists():
@@ -149,33 +177,43 @@ class LlamaEngine:
             # The manual <start_of_turn>/<end_of_turn> template in _format_messages
             # is confirmed working. Skip chat_handler — multimodal images can be
             # passed via the manual template when needed.
-            print("    Skipping chat_handler — using manual Gemma template (avoids zero-token hang)")
+            print(
+                "    Skipping chat_handler — using manual Gemma template (avoids zero-token hang)"
+            )
 
         from llama_cpp import Llama, llama_cpp
+
         # ── MTP / Speculative Decoding ──────────────────────────────────────────
         # The 12B XRLF packs an MTP (Multi-Token Prediction) head, not a standalone
         # draft LLM. MTP layers are embedded in the main GGUF (667 tensors for a
         # 48-block model). We activate them via load_mtp=True on the model params.
         # If the draft file is a full LLM instead, we fall back to classic
         # LlamaDraftModel speculative decoding on CPU.
-        use_spec = os.environ.get("XRLF_SPECULATIVE_DECODING", "false").lower().strip() in ("true", "1", "on")
+        use_spec = os.environ.get(
+            "XRLF_SPECULATIVE_DECODING", "false"
+        ).lower().strip() in ("true", "1", "on")
         if use_spec and self.draft_model_path and Path(self.draft_model_path).exists():
-            print(f"  Speculative decoding enabled (draft: {Path(self.draft_model_path).name})")
+            print(
+                f"  Speculative decoding enabled (draft: {Path(self.draft_model_path).name})"
+            )
             try:
                 # Detect MTP head vs full draft model by tensor count.
                 # MTP heads have <80 tensors; full models have 100+.
                 import struct as _struct
-                with open(self.draft_model_path, 'rb') as _df:
+
+                with open(self.draft_model_path, "rb") as _df:
                     _df.read(4)  # magic
                     _df.read(4)  # version
-                    _draft_tensors: int = _struct.unpack('<Q', _df.read(8))[0]
+                    _draft_tensors: int = _struct.unpack("<Q", _df.read(8))[0]
 
                 if _draft_tensors < 80:
                     # MTP head — activate native MTP layers in the main GGUF.
                     # Llama() doesn't expose load_mtp, so we monkey-patch the
                     # default-params factory to set load_mtp=True before the
                     # model is constructed.
-                    print(f"    Draft has {_draft_tensors} tensors → MTP head. Activating native load_mtp.")
+                    print(
+                        f"    Draft has {_draft_tensors} tensors → MTP head. Activating native load_mtp."
+                    )
                     _orig_default_params = llama_cpp.llama_model_default_params
 
                     def _mtp_default_params():
@@ -187,9 +225,11 @@ class LlamaEngine:
                     self._mtp_active = True
                 else:
                     # Full draft model — classic speculative decoding on CPU.
-                    print(f"    Draft has {_draft_tensors} tensors → full model. Using LlamaDraftModel on CPU.")
-                    from llama_cpp.llama_speculative import LlamaDraftModel
+                    print(
+                        f"    Draft has {_draft_tensors} tensors → full model. Using LlamaDraftModel on CPU."
+                    )
                     import numpy as np
+                    from llama_cpp.llama_speculative import LlamaDraftModel
 
                     class GGUFDraftModel(LlamaDraftModel):
                         def __init__(self, draft_llm, num_pred_tokens=3):
@@ -214,12 +254,13 @@ class LlamaEngine:
                     draft_layers = 0
                     try:
                         from runtime.vram_guard import guardrail
+
                         _, draft_layers, _ = guardrail.acquire_slot(
                             role="helper",
                             model_path=self.draft_model_path,
                             requested_layers=0,
                             total_model_layers=24,
-                            n_ctx=min(2048, self.n_ctx)
+                            n_ctx=min(2048, self.n_ctx),
                         )
                     except Exception:
                         draft_layers = 0
@@ -229,12 +270,16 @@ class LlamaEngine:
                         n_gpu_layers=draft_layers,
                         n_ctx=min(2048, self.n_ctx),
                         n_threads=self.n_threads,
-                        verbose=self.verbose
+                        verbose=self.verbose,
                     )
                     kwargs["draft_model"] = GGUFDraftModel(self._draft_llm)
-                    print(f"    Draft model running on CPU (n_gpu_layers={draft_layers}) to protect VRAM.")
+                    print(
+                        f"    Draft model running on CPU (n_gpu_layers={draft_layers}) to protect VRAM."
+                    )
             except Exception as e:
-                print(f"  ⚠️ MTP/draft setup failed: {e}. Continuing without speculative decoding.")
+                print(
+                    f"  ⚠️ MTP/draft setup failed: {e}. Continuing without speculative decoding."
+                )
 
         self._llm = Llama(**kwargs)
 
@@ -258,7 +303,7 @@ class LlamaEngine:
         temperature: float = 0.7,
         top_p: float = 0.95,
         repeat_penalty: float = 1.1,
-        stop: Optional[List[str]] = None,
+        stop: list[str] | None = None,
     ) -> str:
         """Raw text completion."""
         self._require_loaded()
@@ -268,7 +313,16 @@ class LlamaEngine:
             temperature=temperature,
             top_p=top_p,
             repeat_penalty=repeat_penalty,
-            stop=stop or ["<end_of_turn>", "<eos>", "<|im_end|>"],
+            stop=stop
+            or [
+                "<end_of_turn>",
+                "<eos>",
+                "<|im_end|>",
+                "<start_of_turn>",
+                "<|turn>",
+                "<turn|>",
+                "<|im_start|>",
+            ],
             echo=False,
         )
         return result["choices"][0]["text"]
@@ -279,7 +333,7 @@ class LlamaEngine:
         max_tokens: int = 1024,
         temperature: float = 0.7,
         top_p: float = 0.95,
-        stop: Optional[List[str]] = None,
+        stop: list[str] | None = None,
     ) -> Generator[str, None, None]:
         """Streaming text completion — yields token chunks."""
         self._require_loaded()
@@ -288,7 +342,16 @@ class LlamaEngine:
             max_tokens=max_tokens,
             temperature=temperature,
             top_p=top_p,
-            stop=stop or ["<end_of_turn>", "<eos>", "<|im_end|>"],
+            stop=stop
+            or [
+                "<end_of_turn>",
+                "<eos>",
+                "<|im_end|>",
+                "<start_of_turn>",
+                "<|turn>",
+                "<turn|>",
+                "<|im_start|>",
+            ],
             stream=True,
             echo=False,
         ):
@@ -296,7 +359,7 @@ class LlamaEngine:
             if delta:
                 yield delta
 
-    def _format_messages(self, messages: List[Dict[str, str]]) -> str:
+    def _format_messages(self, messages: list[dict[str, str]]) -> str:
         """Auto-detect chat template from model architecture.
         Qwen2 → <|im_start|>/<|im_end|> format
         Gemma → <start_of_turn>/<end_of_turn> format
@@ -314,6 +377,15 @@ class LlamaEngine:
             if m.get("role") == "system":
                 system_parts.append(str(m.get("content", "")))
         system_text = "\n".join(system_parts).strip()
+
+        # Qwen3 thinking control: XRLF_MODEL_THINKING=false suppresses the
+        # reasoning block. The native chat template implements
+        # enable_thinking=false by pre-seeding an empty <think></think> in the
+        # assistant turn — we replicate that token pattern exactly (base-model
+        # ChatML ignores /no_think placement).
+        no_think = "qwen" in arch and os.environ.get(
+            "XRLF_MODEL_THINKING", "true"
+        ).lower().strip() in ("false", "0", "off")
 
         if "gemma" in arch:
             # Gemma chat template
@@ -339,22 +411,25 @@ class LlamaEngine:
             prompt = ""
             if system_text:
                 prompt += f"<|im_start|>system\n{system_text}<|im_end|>\n"
-            for m in messages:
+            for i, m in enumerate(messages):
                 role = m.get("role")
                 content = str(m.get("content", ""))
                 if role == "system":
                     continue
                 prompt += f"<|im_start|>{role}\n{content}<|im_end|>\n"
-            prompt += "<|im_start|>assistant\n"
+            if no_think:
+                prompt += "<|im_start|>assistant\n<think>\n\n</think>\n\n"
+            else:
+                prompt += "<|im_start|>assistant\n"
             return prompt
 
     def chat(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         max_tokens: int = 1024,
         temperature: float = 0.7,
         stream: bool = False,
-    ) -> Union[str, Generator[str, None, None]]:
+    ) -> str | Generator[str, None, None]:
         """
         Chat completion using the model's built-in chat template.
         Messages format: [{"role": "user"|"assistant"|"system", "content": "..."}]
@@ -374,7 +449,7 @@ class LlamaEngine:
             self._llm.reset()
             # For transformer models, reset() alone doesn't clear KV cache.
             # We need the lower-level kv_cache_clear() call.
-            if hasattr(self._llm, '_ctx') and self._llm._ctx is not None:
+            if hasattr(self._llm, "_ctx") and self._llm._ctx is not None:
                 self._llm._ctx.kv_cache_clear()
         except Exception as e:
             if self.verbose:
@@ -383,7 +458,7 @@ class LlamaEngine:
         # If a chat handler is loaded (e.g. Gemma4ChatHandler), use
         # create_chat_completion which applies the model's native chat template
         # and handles multimodal content (images, audio) properly.
-        if hasattr(self._llm, 'chat_handler') and self._llm.chat_handler:
+        if hasattr(self._llm, "chat_handler") and self._llm.chat_handler:
             try:
                 result = self._llm.create_chat_completion(
                     messages=messages,
@@ -394,10 +469,12 @@ class LlamaEngine:
                 return result["choices"][0]["message"]["content"].strip()
             except Exception as e:
                 print(f"  [LlamaEngine] create_chat_completion failed ({e})")
-                # If messages contain multimodal objects (lists), falling back to text template 
+                # If messages contain multimodal objects (lists), falling back to text template
                 # will inject massive base64 strings into the prompt and blow up the context window.
                 if any(isinstance(m.get("content"), list) for m in messages):
-                    raise ValueError(f"Multimodal chat completion failed (likely unsupported modality): {e}")
+                    raise ValueError(
+                        f"Multimodal chat completion failed (likely unsupported modality): {e}"
+                    )
                 print("  [LlamaEngine] falling back to manual template")
 
         # Fallback: manual template formatting
@@ -406,27 +483,51 @@ class LlamaEngine:
             prompt,
             max_tokens=max_tokens,
             temperature=temperature,
-            stop=["<end_of_turn>", "<eos>"],
+            stop=[
+                "<end_of_turn>",
+                "</end_of_turn>",
+                "<eos>",
+                "<start_of_turn>",
+                "</start_of_turn>",
+                "<|turn>",
+                "<turn|>",
+                "<|im_start|>",
+                "<|im_end|>",
+            ],
             echo=False,
         )
-        return result["choices"][0]["text"].strip()
+        text = result["choices"][0]["text"]
+        # Belt & suspenders: if a turn-boundary marker still leaked into the
+        # output (detokenized variant), cut everything from it onward — the
+        # model was role-playing subsequent turns, not answering.
+        for marker in ("<start_of_turn>", "<|turn>", "<turn|>", "<|im_start|>"):
+            idx = text.find(marker)
+            if idx != -1:
+                text = text[:idx]
+                break
+        # Strip reasoning blocks — clients only want the answer.
+        if "<think>" in text:
+            import re
+
+            text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+        return text.strip()
 
     def _chat_stream(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         max_tokens: int,
         temperature: float,
     ) -> Generator[str, None, None]:
         # Reset KV cache to prevent stale generation replay
         try:
             self._llm.reset()
-            if hasattr(self._llm, '_ctx') and self._llm._ctx is not None:
+            if hasattr(self._llm, "_ctx") and self._llm._ctx is not None:
                 self._llm._ctx.kv_cache_clear()
         except Exception:
             pass
 
         # If a chat handler is loaded, use streaming create_chat_completion
-        if hasattr(self._llm, 'chat_handler') and self._llm.chat_handler:
+        if hasattr(self._llm, "chat_handler") and self._llm.chat_handler:
             try:
                 for chunk in self._llm.create_chat_completion(
                     messages=messages,
@@ -439,23 +540,58 @@ class LlamaEngine:
                         yield delta
                 return
             except Exception as e:
-                print(f"  [LlamaEngine] streaming create_chat_completion failed ({e}), falling back")
+                print(
+                    f"  [LlamaEngine] streaming create_chat_completion failed ({e}), falling back"
+                )
 
         # Fallback: manual template streaming
         prompt = self._format_messages(messages)
+        # Buffer the head of the stream so a leading <think>…</think> block
+        # (empty when /no_think is active) never reaches the client.
+        head = ""
+        head_done = False
         for chunk in self._llm(
             prompt,
             max_tokens=max_tokens,
             temperature=temperature,
-            stop=["<end_of_turn>", "<eos>"],
+            stop=[
+                "<end_of_turn>",
+                "</end_of_turn>",
+                "<eos>",
+                "<start_of_turn>",
+                "</start_of_turn>",
+                "<|turn>",
+                "<turn|>",
+                "<|im_start|>",
+                "<|im_end|>",
+            ],
             stream=True,
             echo=False,
         ):
             delta = chunk["choices"][0].get("text", "")
-            if delta:
+            if not delta:
+                continue
+            if head_done:
                 yield delta
+                continue
+            head += delta
+            stripped = head.lstrip()
+            if stripped.startswith("<think>"):
+                if "</think>" in stripped:
+                    head = stripped.split("</think>", 1)[1]
+                    head_done = True
+                    if head.strip():
+                        yield head
+                    head = ""
+                continue
+            if len(head) > len("<think>"):
+                head_done = True
+                yield head
+                head = ""
+        if head and not head.lstrip().startswith("<think>"):
+            yield head
 
-    def embed(self, text: str) -> List[float]:
+    def embed(self, text: str) -> list[float]:
         """
         Generate a text embedding vector.
         Used for semantic cluster activation scoring.
@@ -471,7 +607,7 @@ class LlamaEngine:
         except Exception:
             return []
 
-    def tokenize(self, text: str) -> List[int]:
+    def tokenize(self, text: str) -> list[int]:
         self._require_loaded()
         return self._llm.tokenize(text.encode("utf-8"))
 
@@ -483,10 +619,13 @@ class LlamaEngine:
             raise RuntimeError("LlamaEngine not loaded — call .load() first")
         try:
             from runtime.vram_guard import guardrail
+
             eviction = guardrail.poll_eviction()
             if eviction:
                 new_model = eviction.get("new_model", "another model")
-                print(f"  [LlamaEngine] Model evicted by incoming '{new_model}'. Unloading VRAM gracefully.")
+                print(
+                    f"  [LlamaEngine] Model evicted by incoming '{new_model}'. Unloading VRAM gracefully."
+                )
                 self.unload()
                 raise RuntimeError(f"Model evicted to make room for {new_model}.")
         except ImportError:
@@ -515,11 +654,13 @@ class LlamaEngine:
         self.loaded = False
         try:
             import gc
+
             gc.collect()
         except Exception:
             pass
         try:
             from runtime.vram_guard import guardrail
+
             guardrail.release_slot("main")
             guardrail.release_slot("helper")
         except Exception:
@@ -532,4 +673,3 @@ class LlamaEngine:
     def __repr__(self) -> str:
         status = "loaded" if self.loaded else "unloaded"
         return f"LlamaEngine({Path(self.gguf_path).name}, {status}, ctx={self.n_ctx})"
-

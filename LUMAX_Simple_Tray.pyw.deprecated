@@ -1,0 +1,152 @@
+#!/usr/bin/env python3
+"""Minimal LUMAX tray: three modes, frontend select, main proxy, stop all."""
+import os
+import sys
+import subprocess
+import time
+import importlib.util
+import pystray
+
+LUMAX_DIR = r"C:\Users\danie\program\LUMAX"
+SIMPLE_TRAY_FILE = os.path.abspath(__file__)
+
+# Load the full LUMAX_Taskbar as a helper library (it is not shown; only used for actions)
+_spec = importlib.util.spec_from_file_location(
+    "LUMAX_Taskbar", os.path.join(LUMAX_DIR, "LUMAX_Taskbar.pyw")
+)
+LUMAX_Taskbar = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(LUMAX_Taskbar)
+t = LUMAX_Taskbar
+
+
+def notify(icon, message, title="LUMAX Simple"):
+    if icon:
+        try:
+            icon.notify(message, title)
+        except Exception:
+            pass
+
+
+def _start_multigate_dev(icon=None):
+    mg_dir = os.path.join(LUMAX_DIR, "FoveAI", "Frontend", "multigate")
+    if not os.path.exists(mg_dir):
+        mg_dir = os.path.join(LUMAX_DIR, "Frontend", "multigate")
+    if icon:
+        notify(icon, "Starting Multigate (port 5177)...", "LUMAX Web")
+    subprocess.Popen(
+        ["cmd", "/c", "npm run dev"],
+        cwd=mg_dir,
+        creationflags=0x08000000,
+    )
+
+
+def start_talk_only(icon, item):
+    """Minimum: audio + top-bar (no web/XR)."""
+    t.start_light_voice_stack(icon, item)
+
+
+def start_lumax(icon, item):
+    """Normal: proxy 8400 + soul core 8000 + web UI 8080."""
+    t.start_spatial_machine(icon, item)
+
+
+def start_full(icon, item):
+    """Full: normal stack + Multigate web portal."""
+    start_lumax(icon, item)
+    time.sleep(1.0)
+    _start_multigate_dev(icon)
+
+
+def stop_all(icon, item):
+    if icon:
+        notify(icon, "Stopping all LUMAX services...", "LUMAX Stop")
+    t.stop_spatial_machine(icon, item)
+    t.stop_memory_proxy_service(icon, item)
+    for port in [5177, 5176]:
+        try:
+            netstat = subprocess.check_output(
+                "netstat -ano -p tcp", creationflags=0x08000000
+            ).decode(errors="ignore")
+            for line in netstat.splitlines():
+                if f":{port}" not in line:
+                    continue
+                if "LISTENING" not in line:
+                    continue
+                parts = line.split()
+                if len(parts) >= 5:
+                    pid = parts[-1].strip()
+                    if pid.isdigit():
+                        subprocess.run(
+                            ["taskkill", "/F", "/PID", pid],
+                            creationflags=0x08000000,
+                        )
+        except Exception:
+            pass
+    if icon:
+        notify(icon, "All LUMAX services stopped", "LUMAX Stop")
+
+
+def restart_simple_tray(icon, item):
+    if icon:
+        notify(icon, "Restarting simple tray...", "LUMAX Tray")
+    subprocess.Popen(
+        [t.VENV_PYTHON, SIMPLE_TRAY_FILE],
+        cwd=LUMAX_DIR,
+        creationflags=0x08000000,
+    )
+    icon.stop()
+
+
+def on_quit(icon, item):
+    icon.stop()
+
+
+def build_menu():
+    env = t.read_env()
+    current_ui = env.get(
+        "XRLF_FRONTEND_UI_PRESET",
+        env.get("XRLF_FRONTEND_UI", env.get("LUMAX_FRONTEND_UI", "multigate")),
+    ).lower()
+
+    def checked(label, cond):
+        return f"✓ {label}" if cond else label
+
+    return pystray.Menu(
+        pystray.MenuItem("🎙 Talk to her (audio only)", start_talk_only),
+        pystray.MenuItem("🧠 Start LUMAX (soul + web)", start_lumax),
+        pystray.MenuItem("🚀 Start Full (LUMAX + Multigate)", start_full),
+        pystray.Menu.SEPARATOR,
+        pystray.MenuItem(
+            "🌐 Select Frontend",
+            pystray.Menu(
+                pystray.MenuItem(
+                    checked("Multigate (5177)", current_ui == "multigate"),
+                    lambda icon, item: t.switch_frontend(icon, item, "multigate"),
+                ),
+                pystray.MenuItem(
+                    checked("XR Vessel (5176)", current_ui == "xr_vessel"),
+                    lambda icon, item: t.switch_frontend(icon, item, "xr_vessel"),
+                ),
+                pystray.MenuItem(
+                    checked("3D Avatar (8080)", current_ui == "3d_avatar"),
+                    lambda icon, item: t.switch_frontend(icon, item, "3d_avatar"),
+                ),
+            ),
+        ),
+        pystray.Menu.SEPARATOR,
+        pystray.MenuItem("▶ Start Main Proxy (8400)", t.start_memory_proxy_service),
+        pystray.MenuItem("🛑 Stop All", stop_all),
+        pystray.Menu.SEPARATOR,
+        pystray.MenuItem("🔄 Restart", restart_simple_tray),
+        pystray.MenuItem("Quit", on_quit),
+    )
+
+
+if __name__ == "__main__":
+    icon = pystray.Icon(
+        "LUMAX_Simple",
+        t.ICON_GREEN if t.is_spatial_machine_running() else t.ICON_BLUE,
+        "LUMAX Simple",
+        menu=build_menu(),
+    )
+    icon.run()

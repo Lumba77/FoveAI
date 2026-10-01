@@ -12,6 +12,7 @@
 'use strict';
 
 const fetch = require('node-fetch');
+const { withLocalUpstream } = require('./local-upstream-queue');
 
 /**
  * Route messages through the smart router for compression.
@@ -67,7 +68,7 @@ async function smartRouteMessages(messages, middleman = null, upstream = null) {
  * Call a specific router model endpoint and apply decision.
  */
 async function callRouterModel(baseUrl, modelName, routingPrompt, originalMessages) {
-    const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+    const response = await withLocalUpstream(() => fetch(`${baseUrl}/v1/chat/completions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -81,7 +82,7 @@ async function callRouterModel(baseUrl, modelName, routingPrompt, originalMessag
             stream: false
         }),
         signal: AbortSignal.timeout(15000)
-    });
+    }));
 
     if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -117,8 +118,13 @@ function applyRoutingDecision(messages, decision) {
         const parsed = JSON.parse(decision);
 
         if (parsed.keep && Array.isArray(parsed.keep)) {
-            // Filter to only kept messages, preserving order
+            // Filter to kept messages — but never let the model drop system
+            // messages or the recent window, whatever indices it returns.
+            const MUST_KEEP_LAST = 4;
             const keepSet = new Set(parsed.keep);
+            messages.forEach((m, i) => {
+                if (m.role === 'system' || i >= messages.length - MUST_KEEP_LAST) keepSet.add(i);
+            });
             return messages.filter((_, i) => keepSet.has(i));
         }
 

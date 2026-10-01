@@ -3,46 +3,43 @@
 #  Imports + Theme + Core Layout + Virtual Canvas Scaffolding
 # ───────────────────────────────────────────────────────────────
 
-from pathlib import Path
-from typing import Optional, List, Tuple
-
 import json
+from pathlib import Path
+
 import requests
-
 from pygments import highlight
-from pygments.lexers import guess_lexer_for_filename, PythonLexer
 from pygments.formatters import TerminalFormatter
-
+from pygments.lexers import PythonLexer, guess_lexer_for_filename
+from rich.text import Text
+from textual import events
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import (
-    Static,
-    Button,
-    RichLog,
-    Input,
-    Tree,
-    Label,
-)
-from textual.screen import ModalScreen
 from textual.reactive import reactive
-from textual import events
-from rich.text import Text
-
+from textual.screen import ModalScreen
+from textual.widgets import (
+    Button,
+    Input,
+    Label,
+    RichLog,
+    Static,
+    Tree,
+)
 
 # ───────────────────────────────────────────────────────────────
 #  GLOBAL THEME COLORS (Lumax Neon)
 # ───────────────────────────────────────────────────────────────
 
-LUMAX_CYAN = "#00eaff"      # User bubble + glow
-LUMAX_PURPLE = "#a020f0"    # AI bubble + glow
-LUMAX_BG = "#0a0a0f"        # Global background
+LUMAX_CYAN = "#00eaff"  # User bubble + glow
+LUMAX_PURPLE = "#a020f0"  # AI bubble + glow
+LUMAX_BG = "#0a0a0f"  # Global background
 LUMAX_PANEL_BG = "#0b0b12"  # Dark glass panel background
-LUMAX_GLOW = "#00ffff55"    # Neon pulse
+LUMAX_GLOW = "#00ffff55"  # Neon pulse
 
 
 # ───────────────────────────────────────────────────────────────
 #  RESPONSIVE LAYOUT MODES
 # ───────────────────────────────────────────────────────────────
+
 
 def compute_layout_mode(width: int, height: int) -> str:
     """
@@ -62,11 +59,13 @@ def compute_layout_mode(width: int, height: int) -> str:
 #  VIRTUAL CANVAS SUPPORT
 # ───────────────────────────────────────────────────────────────
 
+
 class VirtualCanvas:
     """
     A virtual rendering surface larger than the terminal.
     Editor and chat can be taller than the terminal.
     """
+
     def __init__(self):
         self.virtual_height = 200  # can be expanded dynamically
         self.virtual_width = 200
@@ -81,8 +80,8 @@ class VirtualCanvas:
 #  CORE LAYOUT CONTAINERS
 # ───────────────────────────────────────────────────────────────
 
-class LumaxTerminalIDE(App):
 
+class LumaxTerminalIDE(App):
     CSS = f"""
     Screen {{
         background: {LUMAX_BG};
@@ -209,9 +208,7 @@ class LumaxTerminalIDE(App):
                     ChatPane(id="chat-pane"),
                     id="left-pane",
                 ),
-
                 Static(id="divider-vertical"),
-
                 # RIGHT SIDE
                 Vertical(
                     LogsPane(id="logs-pane"),
@@ -227,7 +224,6 @@ class LumaxTerminalIDE(App):
                     ),
                     id="right-pane",
                 ),
-
                 id="main-layout",
             )
         )
@@ -256,10 +252,12 @@ class LumaxTerminalIDE(App):
 #  CHUNK 2 — CodeEditor + ChatPane Widgets
 # ───────────────────────────────────────────────────────────────
 
+
 class CodeEditor(RichLog):
     """Syntax-highlighted code editor."""
+
     can_focus = True
-    file_path: Optional[Path] = None
+    file_path: Path | None = None
     buffer: str = ""
     lexer = PythonLexer()
 
@@ -306,18 +304,19 @@ class CodeEditor(RichLog):
 
 class ChatPane(RichLog):
     """Hybrid chat pane: user/AI messages + highlighted code blocks."""
+
     def on_mount(self) -> None:
         self.border_title = "Chat"
         self.write("Chat ready.\n")
 
     def add_user_message(self, text: str):
-        msg = Text(f"\n[You]\n", style=LUMAX_CYAN)
+        msg = Text("\n[You]\n", style=LUMAX_CYAN)
         self.write(msg)
         body = Text(text + "\n", style="white")
         self.write(body)
 
     def add_ai_message(self, text: str):
-        msg = Text(f"\n[AI]\n", style=LUMAX_PURPLE)
+        msg = Text("\n[AI]\n", style=LUMAX_PURPLE)
         self.write(msg)
         body = Text(text + "\n", style="white")
         self.write(body)
@@ -349,6 +348,7 @@ class PaneController:
     Controls dynamic expansion/collapse of editor and chat panes.
     Handles animations and ratio transitions.
     """
+
     def __init__(self, app: "LumaxTerminalIDE"):
         self.app = app
 
@@ -384,11 +384,13 @@ class PaneController:
 #  DRAGGABLE DIVIDERS
 # ───────────────────────────────────────────────────────────────
 
+
 class DividerController:
     """
     Handles dragging of vertical and horizontal dividers.
     Allows resizing of left/right panes and editor/chat panes.
     """
+
     def __init__(self, app: "LumaxTerminalIDE"):
         self.app = app
         self.dragging_vertical = False
@@ -446,6 +448,7 @@ class DividerController:
 #  INTEGRATION INTO MAIN APP
 # ───────────────────────────────────────────────────────────────
 
+
 def _install_controllers(self: "LumaxTerminalIDE"):
     """Attach controllers to the app instance."""
     self.panes = PaneController(self)
@@ -458,6 +461,7 @@ LumaxTerminalIDE._install_controllers = _install_controllers
 # ───────────────────────────────────────────────────────────────
 #  MOUSE EVENT HANDLING FOR DRAGGING
 # ───────────────────────────────────────────────────────────────
+
 
 def _mouse_handlers(self: "LumaxTerminalIDE"):
 
@@ -489,6 +493,7 @@ LumaxTerminalIDE._mouse_handlers = _mouse_handlers
 #  CLICK HANDLERS FOR EXPANSION
 # ───────────────────────────────────────────────────────────────
 
+
 def _click_handlers(self: "LumaxTerminalIDE"):
 
     def on_click(event: events.Click):
@@ -511,10 +516,12 @@ LumaxTerminalIDE._click_handlers = _click_handlers
 #  BACKEND CONFIGURATION
 # ───────────────────────────────────────────────────────────────
 
+
 class BackendConfig:
     """
     Stores all backend settings for LM Studio, Ollama, Cloud, and XRL.
     """
+
     def __init__(self):
         self.backend = "lmstudio"  # lmstudio | ollama | cloud
         self.model = "default"
@@ -554,10 +561,12 @@ class BackendConfig:
 #  BACKEND CLIENT
 # ───────────────────────────────────────────────────────────────
 
+
 class BackendClient:
     """
     Unified interface for LM Studio, Ollama, Cloud, and XRL compression.
     """
+
     def __init__(self, config: BackendConfig):
         self.config = config
 
@@ -570,11 +579,7 @@ class BackendClient:
             return text
 
         try:
-            resp = requests.post(
-                self.config.xrl_url,
-                json={"text": text},
-                timeout=10
-            )
+            resp = requests.post(self.config.xrl_url, json={"text": text}, timeout=10)
             data = resp.json()
             return data.get("compressed", text)
         except Exception as e:
@@ -676,8 +681,10 @@ class BackendClient:
 #  FILE TREE
 # ───────────────────────────────────────────────────────────────
 
+
 class FileTree(Tree):
     """Displays directory structure and allows file selection."""
+
     def on_mount(self) -> None:
         self.root.expand()
         self.load_directory(Path("."))
@@ -695,8 +702,10 @@ class FileTree(Tree):
 #  DIFF VIEWER
 # ───────────────────────────────────────────────────────────────
 
+
 class DiffViewer(RichLog):
     """Simple line-based diff viewer."""
+
     def on_mount(self) -> None:
         self.border_title = "Diff"
 
@@ -725,8 +734,10 @@ class DiffViewer(RichLog):
 #  LOGS PANE
 # ───────────────────────────────────────────────────────────────
 
+
 class LogsPane(RichLog):
     """General logging output."""
+
     def on_mount(self) -> None:
         self.border_title = "Logs"
         self.write("Lumax IDE Logs Initialized.\n")
@@ -736,8 +747,10 @@ class LogsPane(RichLog):
 #  SETTINGS ModalScreen
 # ───────────────────────────────────────────────────────────────
 
+
 class SettingsModal(ModalScreen):
     """Settings for backend configuration."""
+
     def __init__(self, config: BackendConfig):
         super().__init__()
         self.config = config
@@ -781,8 +794,10 @@ class SettingsModal(ModalScreen):
 #  MODEL SELECTOR ModalScreen
 # ───────────────────────────────────────────────────────────────
 
+
 class ModelSelectorModal(ModalScreen):
     """Lists available models for LM Studio or Ollama."""
+
     def __init__(self, config: BackendConfig):
         super().__init__()
         self.config = config
@@ -806,8 +821,10 @@ class ModelSelectorModal(ModalScreen):
 #  COMMAND PALETTE
 # ───────────────────────────────────────────────────────────────
 
+
 class CommandPalette(ModalScreen):
     """Quick command launcher."""
+
     def compose(self) -> ComposeResult:
         yield Label("Command Palette (type a command):")
         yield Input(id="command-input")
@@ -817,6 +834,7 @@ class CommandPalette(ModalScreen):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id in ("command-close", "command-run"):
             self.app.pop_screen()
+
 
 if __name__ == "__main__":
     app = LumaxTerminalIDE()

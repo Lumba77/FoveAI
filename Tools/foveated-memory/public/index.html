@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LUMAX Super Memory — Foveated Memory Dashboard</title>
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+  <div class="hero">
+    <h1><span class="sparkle">✦</span> LUMAX Super Memory</h1>
+    <p>
+      Foveated memory + TokenSlayer compression + active recall = an LLM that remembers
+      without bankrupting your context window. This dashboard shows the memory ring in real time,
+      the tokens you have saved, and the checkpoints that hold your history.
+    </p>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Memory Ring</h2>
+      <div class="ring" id="ring">
+        <div class="ring-label">
+          <div class="big" id="contextPct">0%</div>
+          <div class="small">compressed</div>
+        </div>
+      </div>
+      <div class="sub" id="ringSub">Live mix of verbatim turns + compressed checkpoints</div>
+    </div>
+
+    <div class="card card-wide">
+      <h2>Ring Compression Breakdown</h2>
+      <div class="ring-bars" id="ringBars">
+        <div class="ring-bar-placeholder">Waiting for ring data...</div>
+      </div>
+    </div>
+
+    <div class="card card-wide">
+      <h2>Context Budget — Tiered Compression</h2>
+      <div class="tier-bars" id="tierBars">
+        <div class="ring-bar-placeholder">Waiting for ring data...</div>
+      </div>
+      <div class="tier-legend" id="tierLegend"></div>
+    </div>
+
+    <div class="card card-wide">
+      <h2>💎 Glowing Stars — High-Value Memories</h2>
+      <div class="stars-list" id="starsList">
+        <div class="ring-bar-placeholder">Waiting for memory data...</div>
+      </div>
+      <div class="sub" id="starsSub"></div>
+    </div>
+
+    <div class="card card-wide">
+      <h2>🔮 Topic Energy Graph — What You Care About</h2>
+      <div class="topic-energy" id="topicEnergy">
+        <div class="ring-bar-placeholder">Waiting for topic data...</div>
+      </div>
+      <div class="sub" id="topicSub"></div>
+    </div>
+
+    <div class="card">
+      <h2>Token Savings</h2>
+      <div class="metric" id="savings">0</div>
+      <div class="sub">chars saved via compression (original → compressed)</div>
+      <div class="gauge"><div class="gauge-fill" id="savingsGauge"></div></div>
+    </div>
+
+    <div class="card">
+      <h2>Cloud Context Cap</h2>
+      <div class="metric" id="cloudCap">auto</div>
+      <div class="sub">capacity-based cap derived from the model's context window</div>
+      <div class="gauge"><div class="gauge-fill" id="capGauge"></div></div>
+    </div>
+
+    <div class="card">
+      <h2>Proxy Status</h2>
+      <div class="metric metric-sm" id="proxyStatus">checking...</div>
+      <div class="sub" id="proxySub">127.0.0.1:8400</div>
+    </div>
+
+    <div class="card card-wide">
+      <h2>🛸 Spaceship Diagnostics — Subsystem Breach Detection</h2>
+      <div class="diag-grid" id="diagList">
+        <div class="ring-bar-placeholder">Probing subsystems...</div>
+      </div>
+      <div class="sub" id="diagSub"></div>
+      <div class="btn-group" style="margin-top:10px;">
+        <button class="btn" id="diagRefreshBtn">⟳ Re-run Diagnostics</button>
+      </div>
+    </div>
+
+    <div class="card card-wide">
+      <h2>Checkpoint Timeline</h2>
+      <div class="timeline" id="timeline">
+        <div class="ckp"><div class="ckp-hash">[CKP:demo]</div><div class="ckp-text">Waiting for memory data...</div></div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!--  CONTEXT WINDOW INSPECTOR — What the AI Actually Sees             -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div class="card card-wide ctx-inspector-card">
+      <h2>🔬 Context Window Inspector — What the AI Actually Sees</h2>
+      <div class="ctx-subtitle">A live cross-section of the context window as it is injected into every AI request. This is the actual text the model receives — not a simulation.</div>
+
+      <!-- Meta representation: token budget bar -->
+      <div class="ctx-budget-section">
+        <div class="ctx-budget-header">
+          <span class="ctx-budget-label">Token Budget</span>
+          <span class="ctx-budget-numbers" id="ctxBudgetNumbers">— / — tokens</span>
+        </div>
+        <div class="ctx-budget-bar" id="ctxBudgetBar">
+          <div class="ctx-budget-fill" id="ctxBudgetFill"></div>
+          <div class="ctx-budget-marker" id="ctxBudgetMarker"></div>
+        </div>
+        <div class="ctx-budget-legend" id="ctxBudgetLegend"></div>
+      </div>
+
+      <!-- Ring stack visualization -->
+      <div class="ctx-ring-stack" id="ctxRingStack">
+        <div class="ring-bar-placeholder">Building context window view...</div>
+      </div>
+
+      <!-- Toggle: show actual content -->
+      <div class="ctx-toggle-row">
+        <label class="switch">
+          <input type="checkbox" id="ctxShowContent" checked>
+          <span class="slider"></span>
+        </label>
+        <span class="ctx-toggle-label">Show actual content samples (what the AI reads)</span>
+        <button class="btn btn-sm" id="ctxRefreshBtn">⟳ Refresh</button>
+        <button class="btn btn-sm" id="ctxRawBtn">📄 View Raw Block</button>
+      </div>
+
+      <!-- Raw context block display -->
+      <div class="ctx-raw-display" id="ctxRawDisplay" style="display:none;">
+        <div class="ctx-raw-header">
+          <span>Raw Ring Block — exactly as injected into the prompt</span>
+          <button class="btn btn-sm" id="ctxCopyBtn">📋 Copy</button>
+        </div>
+        <pre class="ctx-raw-pre" id="ctxRawPre">Loading raw context block...</pre>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!--  MEMORY STORE BROWSER — All stored data, not just rings           -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div class="card card-wide">
+      <h2>📚 Memory Store — Full Statistics</h2>
+      <div class="memstat-grid" id="memstatGrid">
+        <div class="ring-bar-placeholder">Loading memory statistics...</div>
+      </div>
+    </div>
+
+    <div class="card card-wide">
+      <h2>📅 Activity Timeline — Messages Per Day</h2>
+      <div class="activity-timeline" id="activityTimeline">
+        <div class="ring-bar-placeholder">Loading activity...</div>
+      </div>
+      <div class="sub" id="activitySub"></div>
+    </div>
+
+    <div class="card card-wide">
+      <h2>🗂 Sessions</h2>
+      <div class="sessions-list" id="sessionsList">
+        <div class="ring-bar-placeholder">Loading sessions...</div>
+      </div>
+    </div>
+
+    <div class="card card-wide">
+      <h2>📦 Checkpoints — Compressed History Blocks</h2>
+      <div class="checkpoints-list" id="checkpointsList">
+        <div class="ring-bar-placeholder">Loading checkpoints...</div>
+      </div>
+      <div class="sub" id="checkpointsSub"></div>
+    </div>
+
+    <div class="card card-wide">
+      <h2>🔍 Memory Browser — All Stored Messages</h2>
+      <div class="browser-controls">
+        <select id="browserRoleFilter" class="browser-select">
+          <option value="">All roles</option>
+          <option value="user">User</option>
+          <option value="assistant">Assistant</option>
+          <option value="system">System</option>
+        </select>
+        <select id="browserSourceFilter" class="browser-select">
+          <option value="">All sources</option>
+          <option value="direct">Direct</option>
+          <option value="cline">Cline</option>
+          <option value="gemini">Gemini</option>
+          <option value="foveai_cline">FoveAI Cline</option>
+        </select>
+        <input type="text" id="browserSearch" class="browser-input" placeholder="Search messages...">
+        <button class="btn btn-sm" id="browserSearchBtn">🔍 Search</button>
+      </div>
+      <div class="message-browser" id="messageBrowser">
+        <div class="ring-bar-placeholder">Loading messages...</div>
+      </div>
+      <div class="browser-pagination" id="browserPagination"></div>
+    </div>
+
+    <div class="card">
+      <h2>Toggles</h2>
+      <div class="toggle-row">
+        <span>Compression</span>
+        <label class="switch"><input type="checkbox" id="toggleCompress" aria-label="Toggle Context Compression" checked><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span>Active Recall</span>
+        <label class="switch"><input type="checkbox" id="toggleRecall" aria-label="Toggle Active TF-IDF Recall" checked><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span>Thinking-Block Strip</span>
+        <label class="switch"><input type="checkbox" id="toggleStrip" aria-label="Toggle Thinking-Block Stripping" checked><span class="slider"></span></label>
+      </div>
+      <div class="btn-group">
+        <a class="btn" href="#" id="promptGuiBtn">Open Prompt Kiosk</a>
+        <a class="btn btn-accent-outline" href="graphtest.html" target="_blank">📊 Dual Proxy Graph Test</a>
+        <a class="btn btn-muted-outline" href="settings.html">⚙️ Settings Panel</a>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    Diamond Concordia Holonic Architecture · Windows Native · No Docker · No WSL2
+  </footer>
+
+  <script>
+    const API = 'http://127.0.0.1:8400';
+    const DASHBOARD_API = 'http://127.0.0.1:8401';
+
+    async function refresh() {
+      try {
+        const res = await fetch(`${API}/health`);
+        const data = await res.json();
+        document.getElementById('proxyStatus').textContent = data.status || 'ONLINE';
+        document.getElementById('proxyStatus').style.color = 'var(--ok)';
+        document.getElementById('proxySub').textContent = `${data.mode || 'unknown'} · ${data.workspace || 'default'}`;
+        document.getElementById('cloudCap').textContent = String(data.cloud_cap || 'auto');
+
+        // ── Ring Stats ──────────────────────────────────────────────────
+        try {
+          const ringRes = await fetch(`${DASHBOARD_API}/api/rings/stats`);
+          const ringData = await ringRes.json();
+          if (ringData && ringData.rings && ringData.rings.length > 0) {
+            const pct = Math.round(ringData.overallRatio * 100);
+            document.getElementById('contextPct').textContent = pct + '%';
+            document.getElementById('ring').style.background = `conic-gradient(var(--accent) ${pct}%, var(--panel-2) ${pct}%)`;
+            document.getElementById('ringSub').textContent = `${ringData.totalOriginalChars.toLocaleString()} → ${ringData.totalCompressedChars.toLocaleString()} chars · ~${ringData.totalTokens} tokens · ${ringData.ringCount} rings`;
+
+            // ── Tiered Context Budget Stacked Bar ────────────────────────
+            if (ringData.tiers) {
+              const t = ringData.tiers;
+              const total = t.totalChars || 1;
+              const refPct  = Math.round(((t.refined || 0) / total) * 100);
+              const miniPct = Math.round((t.minimallyCompressed / total) * 100);
+              const modPct  = Math.round((t.moderatelyCompressed / total) * 100);
+              const maxPct  = Math.max(0, 100 - refPct - miniPct - modPct);
+
+              document.getElementById('tierBars').innerHTML = `
+                <div class="tier-stacked">
+                  <div class="tier-seg tier-pure" style="width:${refPct}%" title="Refined (Fovea): ${t.refined || 0} ch — stripped filler, 100% semantic">${refPct > 5 ? refPct + '%' : ''}</div>
+                  <div class="tier-seg tier-mini" style="width:${miniPct}%" title="Minimally Compressed (Parafovea): ${t.minimallyCompressed} ch">${miniPct > 5 ? miniPct + '%' : ''}</div>
+                  <div class="tier-seg tier-mod" style="width:${modPct}%" title="Moderately Compressed (Near+Mid): ${t.moderatelyCompressed} ch">${modPct > 5 ? modPct + '%' : ''}</div>
+                  <div class="tier-seg tier-max" style="width:${maxPct}%" title="Maximally Compressed (Far+Outer): ${t.maximallyCompressed} ch">${maxPct > 5 ? maxPct + '%' : ''}</div>
+                </div>`;
+
+              document.getElementById('tierLegend').innerHTML = `
+                <span class="tier-legend-item"><span class="tier-dot tier-pure-bg"></span> Refined (Fovea) <strong>${(t.refined || 0).toLocaleString()} ch</strong> — tone-classified, ~1/3 adaptive</span>
+                <span class="tier-legend-item"><span class="tier-dot tier-mini-bg"></span> Minimal (Parafovea) <strong>${t.minimallyCompressed.toLocaleString()} ch</strong> — ~50%</span>
+                <span class="tier-legend-item"><span class="tier-dot tier-mod-bg"></span> Moderate (Near+Mid) <strong>${t.moderatelyCompressed.toLocaleString()} ch</strong> — ~75-88%</span>
+                <span class="tier-legend-item"><span class="tier-dot tier-max-bg"></span> Max (Far+Outer) <strong>${t.maximallyCompressed.toLocaleString()} ch</strong> — ~95-98%</span>
+                <span class="tier-legend-total">Total: <strong>${total.toLocaleString()} ch</strong> (~${Math.ceil(total / 4).toLocaleString()} tok)</span>`;
+            }
+
+            // Per-ring bars
+            const bars = document.getElementById('ringBars');
+            const maxOrig = Math.max(...ringData.rings.map(r => r.originalChars), 1);
+            bars.innerHTML = ringData.rings.map(r => {
+              const barPct = Math.round((r.compressedChars / Math.max(r.originalChars, 1)) * 100);
+              const barWidth = Math.max(2, Math.round((r.originalChars / maxOrig) * 100));
+              const methodIcon = r.method === 'llm-summary' ? '🤖' : r.method === 'llm-refined' ? '🧠' : r.method === 'extractive' ? '✂️' : r.method === 'hash' ? '🔗' : r.method === 'refined' ? '✨' : '📋';
+              return `
+                <div class="ring-bar-row">
+                  <div class="ring-bar-label">R${r.ring} ${r.label}</div>
+                  <div class="ring-bar-track">
+                    <div class="ring-bar-fill" style="width:${barWidth}%; background:${ringColor(r.ring)}"></div>
+                  </div>
+                  <div class="ring-bar-stats">
+                    <span class="ring-bar-ratio">${barPct}%</span>
+                    <span class="ring-bar-method">${methodIcon} ${r.method}</span>
+                    <span class="ring-bar-detail">${r.msgCount} msgs · ${r.originalChars.toLocaleString()}→${r.compressedChars.toLocaleString()} ch</span>
+                  </div>
+                </div>`;
+            }).join('');
+
+            // Token savings
+            const saved = ringData.totalOriginalChars - ringData.totalCompressedChars;
+            document.getElementById('savings').textContent = saved.toLocaleString();
+            document.getElementById('savingsGauge').style.width = Math.min(100, Math.round(ringData.overallRatio * 100)) + '%';
+          }
+        } catch (e) {
+          console.warn('[Dashboard] Ring stats unavailable:', e.message);
+        }
+
+        // ── Glowing Stars ───────────────────────────────────────────────
+        try {
+          const starsRes = await fetch(`${DASHBOARD_API}/api/memory/stars?min=6&limit=10`);
+          const starsData = await starsRes.json();
+          if (starsData && starsData.stars && starsData.stars.length > 0) {
+            const strategyIcons = { crystalline: '💎', 'tone-first': '🎭', 'logic-only': '⚙️', balanced: '◆', aggressive: '➤' };
+            document.getElementById('starsList').innerHTML = starsData.stars.map(s => {
+              const stars = s.importance?.overall >= 9 ? '★★★★★' : s.importance?.overall >= 7 ? '★★★★' :
+                            s.importance?.overall >= 5 ? '★★★' : '★★';
+              const icon = strategyIcons[s.strategy] || '◆';
+              const cats = (s.categories || []).join(', ');
+              return `<div class="star-row">
+                <span class="star-icon">${icon}</span>
+                <span class="star-rating">${stars}</span>
+                <span class="star-preview">${s.preview}</span>
+                <span class="star-meta">${s.role} · ${cats} · ${s.tone || 'neutral'}</span>
+              </div>`;
+            }).join('');
+            document.getElementById('starsSub').textContent = `${starsData.count} glowing stars (importance ≥ 6) — crystalline memories preserved in detail`;
+          } else {
+            document.getElementById('starsList').innerHTML = '<div class="ring-bar-placeholder">No high-value memories yet — they will appear as you chat</div>';
+          }
+        } catch (e) {
+          console.warn('[Dashboard] Stars unavailable:', e.message);
+        }
+
+        // ── Topic Energy Graph ──────────────────────────────────────────
+        try {
+          const topicRes = await fetch(`${DASHBOARD_API}/api/topics/energy`);
+          const topicData = await topicRes.json();
+          if (topicData && topicData.topics && topicData.topics.length > 0) {
+            const maxEnergy = Math.max(...topicData.topics.map(t => t.energy), 1);
+            document.getElementById('topicEnergy').innerHTML = topicData.topics.slice(0, 12).map(t => {
+              const barPct = Math.round((t.energy / maxEnergy) * 100);
+              const sticky = t.isSticky ? ' 🔥' : '';
+              return `<div class="topic-row">
+                <div class="topic-label">${t.label}${sticky}</div>
+                <div class="topic-bar-track">
+                  <div class="topic-bar-fill" style="width:${barPct}%; background:${topicColor(t.energy)}"></div>
+                </div>
+                <div class="topic-energy-val">${t.energy}</div>
+                <div class="topic-meta">${t.messageCount} msgs · ${t.categories?.join(', ') || ''}</div>
+              </div>`;
+            }).join('');
+            document.getElementById('topicSub').textContent = `${topicData.topicCount} topics tracked · ${topicData.clusterCount} clusters · ${topicData.stickyTopicCount} sticky`;
+          } else {
+            document.getElementById('topicEnergy').innerHTML = '<div class="ring-bar-placeholder">Topic energy graph will build as you chat</div>';
+          }
+        } catch (e) {
+          console.warn('[Dashboard] Topics unavailable:', e.message);
+        }
+
+        const saved = data.tokens_saved || 0;
+        if (!document.getElementById('savings').textContent || document.getElementById('savings').textContent === '0') {
+          document.getElementById('savings').textContent = saved.toLocaleString();
+        }
+        document.getElementById('capGauge').style.width = data.cloud_cap === 'auto' ? '80%' : '60%';
+
+        // ── Context Window Inspector ────────────────────────────────────
+        try {
+          const showContent = document.getElementById('ctxShowContent').checked;
+          const ctxUrl = `${DASHBOARD_API}/api/context/window?content=${showContent}&sample=800`;
+          const ctxRes = await fetch(ctxUrl);
+          const ctxData = await ctxRes.json();
+
+          if (ctxData && ctxData.rings && ctxData.rings.length > 0) {
+            // Token budget bar
+            const used = ctxData.totalTokens || 0;
+            const budget = ctxData.contextBudget || 1;
+            const realWindow = ctxData.realContextWindow || 32768;
+            const usedPct = Math.min(100, Math.round((used / budget) * 100));
+            const budgetPctOfWindow = Math.round((budget / realWindow) * 100);
+
+            document.getElementById('ctxBudgetNumbers').textContent =
+              `${used.toLocaleString()} / ${budget.toLocaleString()} tokens (${usedPct}% of budget · ${realWindow.toLocaleString()} window)`;
+            document.getElementById('ctxBudgetFill').style.width = usedPct + '%';
+            document.getElementById('ctxBudgetFill').style.background =
+              usedPct > 90 ? 'var(--danger)' : usedPct > 70 ? 'var(--warn, #ffd43b)' : 'var(--accent)';
+
+            document.getElementById('ctxBudgetLegend').innerHTML = `
+              <span class="ctx-legend-item"><span class="ctx-dot ctx-dot-used"></span> Used: <strong>${used.toLocaleString()} tok</strong></span>
+              <span class="ctx-legend-item"><span class="ctx-dot ctx-dot-free"></span> Budget: <strong>${budget.toLocaleString()} tok</strong> (${budgetPctOfWindow}% of ${realWindow.toLocaleString()})</span>
+              <span class="ctx-legend-item"><span class="ctx-dot ctx-dot-window"></span> Full window: <strong>${realWindow.toLocaleString()} tok</strong></span>
+              <span class="ctx-legend-item">Overall compression: <strong>${Math.round((ctxData.overallRatio || 0) * 100)}%</strong></span>`;
+
+            // Ring stack — visual meta representation + content
+            const stack = document.getElementById('ctxRingStack');
+            stack.innerHTML = ctxData.rings.map(r => {
+              const fillPct = Math.min(100, Math.round(r.budgetUtilization * 100));
+              const compPct = Math.round(r.compressionRatio * 100);
+              const ringCol = ringColor(r.ring);
+              const methodIcon = r.method === 'llm-summary' ? '🤖' : r.method === 'llm-refined' ? '🧠' :
+                                 r.method === 'extractive' ? '✂️' : r.method === 'hash' ? '🔗' : '📋';
+              const contentHtml = r.contentSample
+                ? `<div class="ctx-ring-content"><div class="ctx-content-label">Actual content the AI sees:</div><pre class="ctx-content-pre">${escapeHtml(r.contentSample)}</pre>${r.contentFullLength > 800 ? `<div class="ctx-content-trunc">… ${r.contentFullLength.toLocaleString()} chars total</div>` : ''}</div>`
+                : '';
+
+              return `
+                <div class="ctx-ring-row" style="border-left: 3px solid ${ringCol}">
+                  <div class="ctx-ring-header">
+                    <span class="ctx-ring-badge" style="background:${ringCol}22;color:${ringCol}">R${r.ring}</span>
+                    <span class="ctx-ring-name">${r.label}</span>
+                    <span class="ctx-ring-method">${methodIcon} ${r.method}</span>
+                    <span class="ctx-ring-comp">${compPct}% compressed</span>
+                  </div>
+                  <div class="ctx-ring-meta">
+                    <span>${r.msgCount} msgs</span>
+                    <span>${r.originalChars.toLocaleString()} → ${r.compressedChars.toLocaleString()} chars</span>
+                    <span>${r.actualTokens} / ${r.budgetTokens} tok (${fillPct}%)</span>
+                  </div>
+                  <div class="ctx-ring-budget-bar">
+                    <div class="ctx-ring-budget-fill" style="width:${fillPct}%;background:${ringCol}"></div>
+                  </div>
+                  ${contentHtml}
+                </div>`;
+            }).join('');
+          } else {
+            document.getElementById('ctxRingStack').innerHTML =
+              '<div class="ring-bar-placeholder">Context window is empty — start a conversation to populate the rings</div>';
+            document.getElementById('ctxBudgetNumbers').textContent = '0 / — tokens';
+          }
+        } catch (e) {
+          console.warn('[Dashboard] Context window inspector unavailable:', e.message);
+        }
+
+        const tl = document.getElementById('timeline');
+        tl.innerHTML = (data.checkpoints || [
+          {hash:'a1b2', text:'Initialization and system prompt.'},
+          {hash:'c3d4', text:'User asked about foveated memory architecture.'},
+          {hash:'e5f6', text:'Proxy auto-capacity logic was explained.'}
+        ]).map(c => `
+          <div class="ckp">
+            <div class="ckp-hash">[CKP:${c.hash || 'xxxx'}]</div>
+            <div class="ckp-text">${c.text || 'Compressed history block'}</div>
+          </div>
+        `).join('');
+      } catch (e) {
+        document.getElementById('proxyStatus').textContent = 'OFFLINE';
+        document.getElementById('proxyStatus').style.color = 'var(--danger)';
+        console.error(e);
+      }
+    }
+
+    function ringColor(ring) {
+      const colors = ['#ff6b6b', '#ffa94d', '#ffd43b', '#69db7c', '#4dabf7', '#9775fa'];
+      return colors[ring] || '#888';
+    }
+
+    function topicColor(energy) {
+      if (energy >= 50) return '#ff6b6b';  // hot — core obsession
+      if (energy >= 25) return '#ffa94d';  // warm — active interest
+      if (energy >= 10) return '#ffd43b';  // mild — occasional
+      if (energy >= 5)  return '#69db7c';  // cool — passing
+      return '#4dabf7';                     // cold — barely touched
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text || '';
+      return div.innerHTML;
+    }
+
+    // ── Context Window Inspector: Raw Block Viewer ──────────────────────
+    document.getElementById('ctxRawBtn').addEventListener('click', async () => {
+      const display = document.getElementById('ctxRawDisplay');
+      const pre = document.getElementById('ctxRawPre');
+      if (display.style.display === 'none') {
+        display.style.display = 'block';
+        pre.textContent = 'Loading raw context block...';
+        try {
+          const res = await fetch(`${DASHBOARD_API}/api/context/raw`);
+          const text = await res.text();
+          pre.textContent = text || '(empty — no memory rings built yet)';
+        } catch (e) {
+          pre.textContent = `Error: ${e.message}`;
+        }
+      } else {
+        display.style.display = 'none';
+      }
+    });
+
+    document.getElementById('ctxCopyBtn').addEventListener('click', () => {
+      const text = document.getElementById('ctxRawPre').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('ctxCopyBtn');
+        btn.textContent = '✓ Copied';
+        setTimeout(() => btn.textContent = '📋 Copy', 2000);
+      });
+    });
+
+    document.getElementById('ctxRefreshBtn').addEventListener('click', () => refresh());
+
+    document.getElementById('ctxShowContent').addEventListener('change', () => refresh());
+
+    // Refresh all new sections on load and periodically
+    refreshFullStats();
+    refreshCheckpoints();
+    refreshBrowser();
+    setInterval(() => { refreshFullStats(); refreshCheckpoints(); }, 30000);
+
+    // ── Memory Store Full Statistics ────────────────────────────────────
+    async function refreshFullStats() {
+      try {
+        const res = await fetch(`${DASHBOARD_API}/api/memory/fullstats`);
+        const data = await res.json();
+        if (!data) return;
+
+        const grid = document.getElementById('memstatGrid');
+        const fmt = n => n.toLocaleString();
+        const fmtDate = ts => ts ? new Date(ts).toLocaleDateString() : '—';
+
+        grid.innerHTML = `
+          <div class="memstat-tile"><div class="memstat-num">${fmt(data.totalMessages)}</div><div class="memstat-label">Total Messages</div></div>
+          <div class="memstat-tile"><div class="memstat-num">${fmt(data.totalSessions)}</div><div class="memstat-label">Sessions</div></div>
+          <div class="memstat-tile"><div class="memstat-num">${fmt(data.totalThemes)}</div><div class="memstat-label">Themes</div></div>
+          <div class="memstat-tile"><div class="memstat-num">${fmt(data.checkpointCount)}</div><div class="memstat-label">Checkpoints</div></div>
+          <div class="memstat-tile"><div class="memstat-num">${fmt(data.checkpointSizeKB)} KB</div><div class="memstat-label">Checkpoint Size</div></div>
+          <div class="memstat-tile"><div class="memstat-num">${data.activityTimeline.length}</div><div class="memstat-label">Active Days</div></div>
+          <div class="memstat-tile memstat-wide">
+            <div class="memstat-breakdown">
+              <span class="memstat-role"><span class="memstat-dot" style="background:#4dabf7"></span> User: <strong>${fmt(data.perRole.user || 0)}</strong></span>
+              <span class="memstat-role"><span class="memstat-dot" style="background:#69db7c"></span> Assistant: <strong>${fmt(data.perRole.assistant || 0)}</strong></span>
+              <span class="memstat-role"><span class="memstat-dot" style="background:#ffd43b"></span> System: <strong>${fmt(data.perRole.system || 0)}</strong></span>
+            </div>
+          </div>
+          <div class="memstat-tile memstat-wide">
+            <div class="memstat-sources">
+              ${Object.entries(data.perSource).map(([src, count]) =>
+                `<span class="memstat-source"><span class="memstat-dot" style="background:${sourceColor(src)}"></span> ${src}: <strong>${fmt(count)}</strong></span>`
+              ).join('')}
+            </div>
+          </div>
+          <div class="memstat-tile memstat-wide">
+            <div class="memstat-dates">
+              <span>First message: <strong>${fmtDate(data.oldestTimestamp)}</strong></span>
+              <span>Last message: <strong>${fmtDate(data.newestTimestamp)}</strong></span>
+            </div>
+          </div>`;
+
+        // Activity timeline
+        const tl = document.getElementById('activityTimeline');
+        if (data.activityTimeline && data.activityTimeline.length > 0) {
+          const maxCount = Math.max(...data.activityTimeline.map(d => d.count), 1);
+          tl.innerHTML = data.activityTimeline.map(d => {
+            const h = Math.max(2, Math.round((d.count / maxCount) * 80));
+            const intensity = d.count / maxCount;
+            const col = intensity > 0.75 ? '#ff6b6b' : intensity > 0.5 ? '#ffa94d' : intensity > 0.25 ? '#ffd43b' : '#4dabf7';
+            return `<div class="activity-bar" style="height:${h}px;background:${col}" title="${d.date}: ${d.count} messages"></div>`;
+          }).join('');
+          document.getElementById('activitySub').textContent = `${data.activityTimeline.length} active days · peak: ${maxCount} messages/day · ${data.activityTimeline[0].date} → ${data.activityTimeline[data.activityTimeline.length-1].date}`;
+        } else {
+          tl.innerHTML = '<div class="ring-bar-placeholder">No activity yet — conversations will appear here as you chat through the proxy</div>';
+          document.getElementById('activitySub').textContent = 'Tip: Dev conversations (Cline, Gemini) can be imported via /api/memory/import';
+        }
+
+        // Sessions
+        const sl = document.getElementById('sessionsList');
+        if (data.sessions && data.sessions.length > 0) {
+          sl.innerHTML = data.sessions.slice(0, 15).map(s => `
+            <div class="session-row">
+              <span class="session-id">${(s.id || 'unknown').substring(0, 20)}</span>
+              <span class="session-title">${s.title || '(untitled)'}</span>
+              <span class="session-count">${s.messageCount || 0} msgs</span>
+              <span class="session-date">${fmtDate(s.lastUpdated)}</span>
+            </div>`).join('');
+        } else {
+          sl.innerHTML = '<div class="ring-bar-placeholder">No sessions yet</div>';
+        }
+      } catch (e) {
+        console.warn('[Dashboard] Full stats unavailable:', e.message);
+      }
+    }
+
+    function sourceColor(src) {
+      const colors = { direct: '#00f0ff', cline: '#ff00aa', gemini: '#4285f4', foveai_cline: '#00e676' };
+      return colors[src] || '#888';
+    }
+
+    // ── Checkpoints ─────────────────────────────────────────────────────
+    async function refreshCheckpoints() {
+      try {
+        const res = await fetch(`${DASHBOARD_API}/api/memory/checkpoints`);
+        const data = await res.json();
+        const cl = document.getElementById('checkpointsList');
+
+        if (data.checkpoints && data.checkpoints.length > 0) {
+          cl.innerHTML = data.checkpoints.slice(0, 20).map(c => `
+            <div class="checkpoint-row">
+              <div class="ckp-hash">[CKP:${c.hash}]</div>
+              <div class="ckp-content">
+                ${c.decisions ? `<div class="ckp-field"><strong>DECISIONS:</strong> ${c.decisions}</div>` : ''}
+                ${c.files ? `<div class="ckp-field"><strong>FILES:</strong> ${c.files}</div>` : ''}
+                ${c.status ? `<div class="ckp-field"><strong>STATUS:</strong> ${c.status}</div>` : ''}
+                ${c.context ? `<div class="ckp-field"><strong>CONTEXT:</strong> ${c.context.substring(0, 200)}${c.context.length > 200 ? '...' : ''}</div>` : ''}
+              </div>
+              <div class="ckp-meta">${c.originalTurns || 0} turns · ${c.compressedSize || 0} bytes · ${c.createdAt || ''}</div>
+            </div>`).join('');
+          document.getElementById('checkpointsSub').textContent = `${data.count} checkpoints stored · ${data.checkpoints.reduce((n,c) => n + (c.originalTurns || 0), 0)} original turns compressed`;
+        } else {
+          cl.innerHTML = '<div class="ring-bar-placeholder">No checkpoints yet — they are created automatically when conversations are compressed</div>';
+          document.getElementById('checkpointsSub').textContent = '';
+        }
+      } catch (e) {
+        console.warn('[Dashboard] Checkpoints unavailable:', e.message);
+      }
+    }
+
+    // ── Memory Browser ──────────────────────────────────────────────────
+    var browserPage = 1;
+
+    async function refreshBrowser() {
+      try {
+        const role = document.getElementById('browserRoleFilter').value;
+        const source = document.getElementById('browserSourceFilter').value;
+        const search = document.getElementById('browserSearch').value;
+        const params = new URLSearchParams({ page: browserPage, limit: 15 });
+        if (role) params.set('role', role);
+        if (source) params.set('source', source);
+        if (search) params.set('search', search);
+
+        const res = await fetch(`${DASHBOARD_API}/api/memory/browse?${params}`);
+        const data = await res.json();
+        const mb = document.getElementById('messageBrowser');
+
+        if (data.messages && data.messages.length > 0) {
+          mb.innerHTML = data.messages.map(m => {
+            const roleColor = m.role === 'user' ? '#4dabf7' : m.role === 'assistant' ? '#69db7c' : '#ffd43b';
+            const imp = m.importance ? `<span class="msg-importance">★${m.importance.overall || '?'}</span>` : '';
+            const cats = m.categories && m.categories.length > 0 ? `<span class="msg-categories">${m.categories.join(', ')}</span>` : '';
+            return `<div class="message-row">
+              <div class="msg-header">
+                <span class="msg-role" style="color:${roleColor}">${m.role}</span>
+                <span class="msg-source" style="color:${sourceColor(m.source)}">${m.source}</span>
+                <span class="msg-time">${m.timestamp || ''}</span>
+                ${imp}${cats}
+                <span class="msg-size">${m.fullLength} chars</span>
+              </div>
+              <div class="msg-content">${escapeHtml(m.content)}</div>
+            </div>`;
+          }).join('');
+
+          // Pagination
+          const pg = document.getElementById('browserPagination');
+          pg.innerHTML = `
+            <button class="btn btn-sm" ${browserPage <= 1 ? 'disabled' : ''} onclick="browserPage--;refreshBrowser()">◀ Prev</button>
+            <span class="page-info">Page ${data.page} / ${data.totalPages} (${data.total} messages)</span>
+            <button class="btn btn-sm" ${browserPage >= data.totalPages ? 'disabled' : ''} onclick="browserPage++;refreshBrowser()">Next ▶</button>`;
+        } else {
+          mb.innerHTML = '<div class="ring-bar-placeholder">No messages found — try a different filter or start a conversation through the proxy</div>';
+          document.getElementById('browserPagination').innerHTML = '';
+        }
+      } catch (e) {
+        console.warn('[Dashboard] Browser unavailable:', e.message);
+      }
+    }
+
+    document.getElementById('browserSearchBtn').addEventListener('click', () => { browserPage = 1; refreshBrowser(); });
+    document.getElementById('browserSearch').addEventListener('keydown', e => { if (e.key === 'Enter') { browserPage = 1; refreshBrowser(); } });
+    document.getElementById('browserRoleFilter').addEventListener('change', () => { browserPage = 1; refreshBrowser(); });
+    document.getElementById('browserSourceFilter').addEventListener('change', () => { browserPage = 1; refreshBrowser(); });
+
+    document.getElementById('promptGuiBtn').addEventListener('click', e => {
+      e.preventDefault();
+      window.open('prompt-kiosk.html', '_blank');
+    });
+
+    async function refreshDiagnostics(force = false) {
+      const listEl = document.getElementById('diagList');
+      const subEl  = document.getElementById('diagSub');
+      try {
+        const url = `${DASHBOARD_API}/api/diagnostics${force ? '?force=1' : ''}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (!data || !data.subsystems) {
+          listEl.innerHTML = '<div class="ring-bar-placeholder">Diagnostics unavailable (subsystems probe returned no data)</div>';
+          subEl.textContent = '';
+          return;
+        }
+        const rows = data.subsystems.map(s => {
+          const icon = s.status === 'ok' ? '🟢' : s.status === 'warn' ? '🟡' : '🔴';
+          const color = s.status === 'ok' ? 'var(--ok)' : s.status === 'warn' ? 'var(--warn, #ffd43b)' : 'var(--danger)';
+          const detail = s.detail ? `<span class="diag-detail">${s.detail}</span>` : '';
+          const fix = s.remediation ? `<div class="diag-fix">💡 ${s.remediation}</div>` : '';
+          return `<div class="diag-row" style="border-left:4px solid ${color}">
+            <span class="diag-icon">${icon}</span>
+            <span class="diag-name">${s.name || s.id || 'unknown'}</span>
+            ${detail}
+            ${fix}
+          </div>`;
+        }).join('');
+        listEl.innerHTML = rows;
+        subEl.textContent = `Overall: ${data.overall || 'unknown'} · ${data.onlineCount ?? data.subsystems.filter(s=>s.status==='ok').length}/${data.subsystems.length} subsystems OK · ${data.timestamp ? 'as of ' + new Date(data.timestamp).toLocaleTimeString() : ''}`;
+      } catch (e) {
+        listEl.innerHTML = '<div class="ring-bar-placeholder">Diagnostics unreachable — is the proxy running?</div>';
+        subEl.textContent = e.message;
+      }
+    }
+
+    document.getElementById('diagRefreshBtn').addEventListener('click', () => refreshDiagnostics(true));
+
+    refresh();
+    refreshDiagnostics();
+    setInterval(() => { refresh(); refreshDiagnostics(); }, 5000);
+  </script>
+</body>
+</html>

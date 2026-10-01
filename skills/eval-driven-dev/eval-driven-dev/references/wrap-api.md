@@ -100,8 +100,10 @@ reference project modules (e.g., `from app import service`).
 from pydantic import BaseModel
 import pixie
 
+
 class AppArgs(BaseModel):
     user_message: str
+
 
 class AppRunnable(pixie.Runnable[AppArgs]):
     @classmethod
@@ -110,6 +112,7 @@ class AppRunnable(pixie.Runnable[AppArgs]):
 
     async def run(self, args: AppArgs) -> None:
         from myapp import handle_request
+
         await handle_request(args.user_message)
 ```
 
@@ -120,8 +123,10 @@ import httpx
 from pydantic import BaseModel
 import pixie
 
+
 class AppArgs(BaseModel):
     user_message: str
+
 
 class AppRunnable(pixie.Runnable[AppArgs]):
     _client: httpx.AsyncClient

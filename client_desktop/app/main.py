@@ -1,5 +1,6 @@
 """Lightweight TUI / CLI control app for FoveAI PC Backend."""
-import sys
+
+
 
 def main():
     print("FoveAI Desktop Control Hub")
@@ -7,6 +8,7 @@ def main():
     print("1. View IPC Connections")
     print("2. Memory Inspector")
     print("3. Exit")
+
 
 if __name__ == "__main__":
     main()

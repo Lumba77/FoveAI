@@ -22,43 +22,107 @@ __UNSLOTH_VERSIONING__
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from torch import Tensor
-import torch
-import torch.nn as nn
-from torch.nn import functional as F
-from unsloth_zoo.temporary_patches.common import torch_compile
-from typing import Any, List, Optional, Tuple, Union, Dict, Set, Callable
-from trl.trainer.orpo_trainer import (Any, AutoModelForCausalLM, BaseImageProcessor, Callable, DPODataCollatorWithPadding, DataCollator, DataLoader, Dataset, EvalLoopOutput, F, FeatureExtractionMixin, Literal, ORPOConfig, ORPOTrainer, Optional, PartialState, Path, PeftModel, PreTrainedModel, PreTrainedTokenizerBase, ProcessorMixin, Trainer, TrainerCallback, Union, add_bos_token_if_needed, add_eos_token_if_needed, autocast, defaultdict, disable_dropout_in_model, generate_model_card, get_comet_experiment_url, inspect, is_comet_available, is_peft_available, is_torch_fx_proxy, is_torch_xla_available, is_wandb_available, log_table_to_comet_experiment, logger, logging, maybe_apply_chat_template, maybe_extract_prompt, nn, np, nullcontext, os, pad_to_length, pd, peft_module_casting_to_bf16, prepare_model_for_kbit_training, random, selective_log_softmax, textwrap, torch, AutoModelForCausalLM, BaseImageProcessor, Callable, DPODataCollatorWithPadding, DataCollator, Dataset, EvalLoopOutput, F, FeatureExtractionMixin, ORPOConfig, ORPOTrainer, Optional, PartialState, PeftModel, PreTrainedModel, PreTrainedTokenizerBase, ProcessorMixin, Trainer, TrainerCallback, Union, autocast, defaultdict, disable_dropout_in_model, inspect, is_comet_available, is_peft_available, is_wandb_available, logger, maybe_apply_chat_template, maybe_extract_prompt, nn, np, os, peft_module_casting_to_bf16, prepare_model_for_kbit_training, torch, F, Optional, PeftModel, PreTrainedModel, Trainer, is_peft_available, logger, os, torch, F, np, F, Optional, PreTrainedModel, Union, add_bos_token_if_needed, add_eos_token_if_needed, is_torch_xla_available, nn, np, os, torch)
-
-
-import os
-import math
-import logging
-from typing import *
-from dataclasses import dataclass, field
-from packaging.version import Version
-import torch
-import numpy as np
-from contextlib import nullcontext
-from torch.nn import functional as F
-import inspect
-from transformers import DataCollatorForSeq2Seq, DataCollatorForLanguageModeling as TransformersDataCollatorForLanguageModeling
-from transformers.training_args import ParallelMode
-from unsloth_zoo.device_type import DEVICE_TYPE, device_synchronize
-
 # Wrap trainer with padding to right and enable training mode
 import functools
+import inspect
+import logging
+import math
+import os
+from collections.abc import Callable
+from contextlib import nullcontext
+from dataclasses import dataclass, field
 from types import MethodType
+from typing import *
+from typing import Any, Optional, Union
+
+import numpy as np
+import torch
+from packaging.version import Version
+from torch import nn
+from torch.nn import functional as F
+from transformers import (
+    DataCollatorForLanguageModeling as TransformersDataCollatorForLanguageModeling,
+)
+from transformers import (
+    DataCollatorForSeq2Seq,
+)
+from transformers.training_args import ParallelMode
+from trl.trainer.orpo_trainer import (
+    Any,
+    AutoModelForCausalLM,
+    BaseImageProcessor,
+    Callable,
+    DataCollator,
+    DataLoader,
+    Dataset,
+    DPODataCollatorWithPadding,
+    EvalLoopOutput,
+    F,
+    FeatureExtractionMixin,
+    Literal,
+    Optional,
+    ORPOConfig,
+    PartialState,
+    Path,
+    PeftModel,
+    PreTrainedModel,
+    PreTrainedTokenizerBase,
+    ProcessorMixin,
+    Trainer,
+    TrainerCallback,
+    Union,
+    add_bos_token_if_needed,
+    add_eos_token_if_needed,
+    autocast,
+    defaultdict,
+    disable_dropout_in_model,
+    generate_model_card,
+    get_comet_experiment_url,
+    inspect,
+    is_comet_available,
+    is_peft_available,
+    is_torch_fx_proxy,
+    is_torch_xla_available,
+    is_wandb_available,
+    log_table_to_comet_experiment,
+    logger,
+    logging,
+    maybe_apply_chat_template,
+    maybe_extract_prompt,
+    nn,
+    np,
+    nullcontext,
+    os,
+    pad_to_length,
+    pd,
+    peft_module_casting_to_bf16,
+    prepare_model_for_kbit_training,
+    random,
+    selective_log_softmax,
+    textwrap,
+    torch,
+)
+
 try:
-    from unsloth_zoo.gradient_checkpointing import reset_unsloth_gradient_checkpointing_buffers
+    from unsloth_zoo.gradient_checkpointing import (
+        reset_unsloth_gradient_checkpointing_buffers,
+    )
 except:
-    def reset_unsloth_gradient_checkpointing_buffers(): pass
+
+    def reset_unsloth_gradient_checkpointing_buffers():
+        pass
+
+
 # Canonical reset lives in unsloth.models._utils so the SFT auto-packing wrapper and the plain
 # Trainer loop can import the same helper; fall back to a no-op only if it can't be imported.
 try:
     from unsloth.models._utils import _unsloth_reset_stray_compile_cache
 except Exception:
-    def _unsloth_reset_stray_compile_cache(self): pass
+
+    def _unsloth_reset_stray_compile_cache(self):
+        pass
+
+
 def prepare_for_training_mode(f):
     @functools.wraps(f)
     def wrapper(self, *args, **kwargs):
@@ -72,14 +136,15 @@ def prepare_for_training_mode(f):
         # evaluate() / log() still work after train() completes.
         # HF's WandbCallback.setup() will call wandb.init() for the new run.
         # See: https://github.com/unslothai/unsloth/issues/3954
-        if getattr(self, '_unsloth_training_completed', False):
+        if getattr(self, "_unsloth_training_completed", False):
             try:
                 import wandb
+
                 if wandb.run is not None:
                     wandb.finish()
                     # Reset HF's WandbCallback so it calls wandb.init() for the new run
                     for cb in self.callback_handler.callbacks:
-                        if type(cb).__name__ == 'WandbCallback':
+                        if type(cb).__name__ == "WandbCallback":
                             cb._initialized = False
                             break
             except:
@@ -87,14 +152,14 @@ def prepare_for_training_mode(f):
         # Enable training mode
         _was_training = None
         # Get gradient checkpointing setting from training arguments
-        use_gc = getattr(self.args, 'gradient_checkpointing', True)
-        if hasattr(self, 'model') and hasattr(self.model, "training"):
+        use_gc = getattr(self.args, "gradient_checkpointing", True)
+        if hasattr(self, "model") and hasattr(self.model, "training"):
             _was_training = self.model.training
-        if hasattr(self, 'model') and hasattr(self.model, "for_training"):
+        if hasattr(self, "model") and hasattr(self.model, "for_training"):
             self.model.for_training(use_gradient_checkpointing=use_gc)
         output = f(self, *args, **kwargs)
         # Restore previous mode when possible
-        if hasattr(self, 'model') and hasattr(self.model, "for_inference"):
+        if hasattr(self, "model") and hasattr(self.model, "for_inference"):
             if _was_training is False:
                 self.model.for_inference()
             elif _was_training is True and hasattr(self.model, "for_training"):
@@ -108,18 +173,25 @@ def prepare_for_training_mode(f):
         # finish this W&B run before starting a new one
         self._unsloth_training_completed = True
         return output
+
     return wrapper
-pass
+
+
 
 torch_compile_options = {
-    "epilogue_fusion"   : True,
-    "max_autotune"      : False,
-    "shape_padding"     : True,
-    "trace.enabled"     : False,
-    "triton.cudagraphs" : False,
+    "epilogue_fusion": True,
+    "max_autotune": False,
+    "shape_padding": True,
+    "trace.enabled": False,
+    "triton.cudagraphs": False,
 }
 
-@torch.compile(dynamic = True, fullgraph = True, options = torch_compile_options,)
+
+@torch.compile(
+    dynamic=True,
+    fullgraph=True,
+    options=torch_compile_options,
+)
 def chunked_hidden_states_selective_log_softmax(
     hidden_states: torch.Tensor,
     lm_head: torch.Tensor,
@@ -147,51 +219,66 @@ def chunked_hidden_states_selective_log_softmax(
         if logit_scale_divide != 0.0:
             chunk_logits = chunk_logits / logit_scale_divide
         if logit_softcapping != 0.0:
-            chunk_logits = logit_softcapping * torch.tanh(chunk_logits / logit_softcapping)
+            chunk_logits = logit_softcapping * torch.tanh(
+                chunk_logits / logit_softcapping
+            )
 
         chunk_logits = chunk_logits.to(torch.float32)
 
         if temperature != 1.0:
             chunk_logits = chunk_logits / temperature
 
-        selected_logits = torch.gather(chunk_logits, dim=-1, index=chunk_index.unsqueeze(-1)).squeeze(-1)
+        selected_logits = torch.gather(
+            chunk_logits, dim=-1, index=chunk_index.unsqueeze(-1)
+        ).squeeze(-1)
         logsumexp_values = torch.logsumexp(chunk_logits, dim=-1)
         per_token_logps = selected_logits - logsumexp_values
         all_per_token_logps.append(per_token_logps)
 
     all_per_token_logps = torch.concat(all_per_token_logps)
 
-    all_per_token_logps = all_per_token_logps.reshape((hidden_states.shape[0], hidden_states.shape[1]))
+    all_per_token_logps = all_per_token_logps.reshape(
+        (hidden_states.shape[0], hidden_states.shape[1])
+    )
     return all_per_token_logps
 
-@torch.compile(dynamic = True, fullgraph = True, options = torch_compile_options,)
+
+@torch.compile(
+    dynamic=True,
+    fullgraph=True,
+    options=torch_compile_options,
+)
 def chunked_selective_log_softmax(
     logits,
     index,
     temperature: float = 1.0,
     chunks: int = 4,
 ):
-    chunked_logits = torch.chunk(logits.reshape(-1, logits.shape[-1]), chunks = chunks, dim = 0)
-    chunked_index  = torch.chunk(index.reshape(-1), chunks = chunks, dim = 0)
+    chunked_logits = torch.chunk(
+        logits.reshape(-1, logits.shape[-1]), chunks=chunks, dim=0
+    )
+    chunked_index = torch.chunk(index.reshape(-1), chunks=chunks, dim=0)
     all_per_token_logps = []
     # Per-chunk selective_log_softmax.
     for chunk_logits, chunk_index in zip(chunked_logits, chunked_index):
         chunk_logits = chunk_logits.to(torch.float32)
         if temperature != 1.0:
             chunk_logits = chunk_logits / temperature
-        selected_logits = torch.gather(chunk_logits, dim = -1, index = chunk_index.unsqueeze(-1)).squeeze(-1)
-        logsumexp_values = torch.logsumexp(chunk_logits, dim = -1)
+        selected_logits = torch.gather(
+            chunk_logits, dim=-1, index=chunk_index.unsqueeze(-1)
+        ).squeeze(-1)
+        logsumexp_values = torch.logsumexp(chunk_logits, dim=-1)
         per_token_logps = selected_logits - logsumexp_values
         all_per_token_logps.append(per_token_logps)
-    pass
     all_per_token_logps = torch.concat(all_per_token_logps)
-    all_per_token_logps = all_per_token_logps.reshape((logits.shape[0], logits.shape[1]))
+    all_per_token_logps = all_per_token_logps.reshape(
+        (logits.shape[0], logits.shape[1])
+    )
     return all_per_token_logps
 
+
 def calculate_pad_tokens_in_prompt(
-    input_ids: torch.Tensor,
-    logits_to_keep: int,
-    pad_token_id: int
+    input_ids: torch.Tensor, logits_to_keep: int, pad_token_id: int
 ) -> torch.Tensor:
     """Count left-padded tokens per sequence, e.g. [pad, pad, pad, cat] -> 3."""
     if logits_to_keep >= input_ids.shape[1]:
@@ -199,17 +286,18 @@ def calculate_pad_tokens_in_prompt(
 
     prompt_section = input_ids[:, :-logits_to_keep]
 
-    padding_mask = (prompt_section == pad_token_id)
+    padding_mask = prompt_section == pad_token_id
 
     pad_token_counts = padding_mask.sum(dim=1)
 
     return pad_token_counts
 
+
 def create_completion_attention_mask(
     completion_input_ids: torch.Tensor,
     left_pad_tokens_per_prompt: torch.Tensor,
     max_left_pad: int,
-    pad_token_id: int
+    pad_token_id: int,
 ) -> torch.Tensor:
     """Build a completion mask that zeros leading prompt and trailing pad tokens.
 
@@ -224,24 +312,24 @@ def create_completion_attention_mask(
     indices = torch.arange(completion_len, device=device).unsqueeze(0)
     shift_mask = indices >= num_tokens_to_mask.unsqueeze(1)
 
-    non_padding_mask = (completion_input_ids != pad_token_id)
+    non_padding_mask = completion_input_ids != pad_token_id
 
     final_mask = shift_mask & non_padding_mask
 
     return final_mask
 
+
 def left_pack_padding(tensor: torch.Tensor, pad_id: int) -> torch.Tensor:
     """Move all padding tokens in each sequence to the right."""
-    mask = (tensor != pad_id)
+    mask = tensor != pad_id
     # stable=True since the binary mask is unordered.
     sorted_indices = torch.argsort(mask, dim=1, descending=True, stable=True)
     packed_tensor = torch.gather(tensor, 1, sorted_indices)
     return packed_tensor
 
+
 def align_logprobs_with_mask(
-    logprob_tensor: torch.Tensor,
-    attention_mask: torch.Tensor,
-    pad_value: float = 0.0
+    logprob_tensor: torch.Tensor, attention_mask: torch.Tensor, pad_value: float = 0.0
 ) -> torch.Tensor:
     """Align a log probability tensor with a given attention mask."""
 
@@ -253,7 +341,7 @@ def align_logprobs_with_mask(
         attention_mask.shape,
         fill_value=pad_value,
         dtype=logprob_tensor.dtype,
-        device=device
+        device=device,
     )
 
     left_pad_counts = torch.argmax(attention_mask, dim=1)
@@ -262,7 +350,9 @@ def align_logprobs_with_mask(
     dest_indices = left_pad_counts.unsqueeze(1) + cols
 
     # Destination row indices, shape [batch_size, logprob_seq_len].
-    row_indices = torch.arange(batch_size, device=device).unsqueeze(1).expand_as(dest_indices)
+    row_indices = (
+        torch.arange(batch_size, device=device).unsqueeze(1).expand_as(dest_indices)
+    )
 
     # Keep only in-bounds destinations, then scatter via advanced indexing.
     valid_mask = dest_indices < mask_seq_len
@@ -272,6 +362,7 @@ def align_logprobs_with_mask(
     padded_logprobs[valid_rows, valid_cols] = valid_vals
 
     return padded_logprobs
+
 
 def align_completion_tool_mask(
     tool_mask: torch.Tensor,
@@ -294,13 +385,9 @@ def align_completion_tool_mask(
         )
     return completion_mask * aligned_tool_mask.to(dtype=completion_mask.dtype)
 
+
 def autotune_batch_and_chunks(
-    total_input_rows,
-    seq_len,
-    hidden_size,
-    vocab_size,
-    dtype_bytes=16,
-    multiplier=None
+    total_input_rows, seq_len, hidden_size, vocab_size, dtype_bytes=16, multiplier=None
 ):
     if multiplier is None:
         final_m = max(4, seq_len // 4096)
@@ -309,7 +396,7 @@ def autotune_batch_and_chunks(
 
     if torch.cuda.is_available():
         free_bytes, _ = torch.cuda.mem_get_info()
-        limit_gb = (free_bytes / (1024**3))*.80
+        limit_gb = (free_bytes / (1024**3)) * 0.80
     elif hasattr(torch, "xpu") and torch.xpu.is_available():
         # XPU: estimate free memory as total - reserved.
         total_mem = torch.xpu.get_device_properties(0).total_memory
@@ -322,11 +409,13 @@ def autotune_batch_and_chunks(
 
     bytes_to_gb = 1024**3
 
-    b_vals = torch.arange(total_input_rows, 0, -1, device='cpu', dtype=torch.float32)
+    b_vals = torch.arange(total_input_rows, 0, -1, device="cpu", dtype=torch.float32)
 
     hidden_gb = (b_vals * seq_len * hidden_size * dtype_bytes) / bytes_to_gb
 
-    base_logits = ((b_vals/total_input_rows) * b_vals * seq_len * vocab_size * dtype_bytes) / bytes_to_gb
+    base_logits = (
+        (b_vals / total_input_rows) * b_vals * seq_len * vocab_size * dtype_bytes
+    ) / bytes_to_gb
     logits_gb = base_logits / final_m
 
     total_mem_gb = hidden_gb + logits_gb
@@ -335,13 +424,14 @@ def autotune_batch_and_chunks(
     valid_indices = torch.nonzero(valid_mask, as_tuple=False)
 
     if valid_indices.shape[0] == 0:
-        #This means your GPU will OOM
+        # This means your GPU will OOM
         return 4, final_m
 
     best_idx = valid_indices[0].item()
     final_b = int(b_vals[best_idx].item())
 
     return final_b, final_m
+
 
 def sanitize_logprob(logprob):
     """Local port of trl.scripts.vllm_serve.sanitize_logprob.
@@ -353,10 +443,12 @@ def sanitize_logprob(logprob):
         )
         return None
     return value
+
+
 @dataclass
 class UnslothORPOConfig(ORPOConfig):
     """
-    
+
     Configuration class for the [`ORPOTrainer`].
 
     This class includes only the parameters that are specific to ORPO training. For a full list of training arguments,
@@ -399,342 +491,360 @@ class UnslothORPOConfig(ORPOConfig):
             string.
         dataset_num_proc (`int` or `None`, *optional*, defaults to `None`):
             Number of processes to use for processing the dataset.
-    
+
     """
+
     vllm_sampling_params: Optional[Any] = field(
-        default = None,
-        metadata = {'help': 'vLLM SamplingParams'},
+        default=None,
+        metadata={"help": "vLLM SamplingParams"},
     )
-    unsloth_num_chunks : Optional[int] = field(
-        default = -1,
-        metadata = {'help': 'Chunk size to reduce memory usage. -1 is most efficient.'},
+    unsloth_num_chunks: Optional[int] = field(
+        default=-1,
+        metadata={"help": "Chunk size to reduce memory usage. -1 is most efficient."},
     )
-    unsloth_logit_chunk_multiplier : Optional[int] = field(
-            default = None,
-            metadata = {'help': 'Multiplier for chunked logit computations.'},
-        )
-    unsloth_grpo_mini_batch : Optional[int] = field(
-        default = None,
-        metadata = {'help': 'Mini batch size for GRPO hidden state accumulation. Default is None unless user defines it.'},
+    unsloth_logit_chunk_multiplier: Optional[int] = field(
+        default=None,
+        metadata={"help": "Multiplier for chunked logit computations."},
     )
-    max_seq_length : Optional[int] = field(
-        default = None,
-        metadata = {'help': 'Maximum sequence length to truncate to.'},
+    unsloth_grpo_mini_batch: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "Mini batch size for GRPO hidden state accumulation. Default is None unless user defines it."
+        },
     )
+    max_seq_length: Optional[int] = field(
+        default=None,
+        metadata={"help": "Maximum sequence length to truncate to."},
+    )
+
     def __init__(
         self,
-        output_dir = None,
-        overwrite_output_dir = None,
-        do_train = False,
-        do_eval = False,
-        do_predict = False,
-        eval_strategy = 'no',
-        prediction_loss_only = False,
-        per_device_train_batch_size = 4,
-        per_device_eval_batch_size = 4,
-        per_gpu_train_batch_size = None,
-        per_gpu_eval_batch_size = None,
-        gradient_accumulation_steps = 2,
-        eval_accumulation_steps = 2,
-        eval_delay = 0,
-        torch_empty_cache_steps = 250,
-        learning_rate = 5e-05,
-        weight_decay = 0.001,
-        adam_beta1 = 0.9,
-        adam_beta2 = 0.999,
-        adam_epsilon = 1e-08,
-        max_grad_norm = 1.0,
-        num_train_epochs = 3.0,
-        max_steps = -1,
-        lr_scheduler_type = 'linear',
-        lr_scheduler_kwargs = None,
-        warmup_ratio = 0.1,
-        warmup_steps = 0,
-        log_level = 'passive',
-        log_level_replica = 'warning',
-        log_on_each_node = True,
-        logging_dir = None,
-        logging_strategy = 'steps',
-        logging_first_step = False,
-        logging_steps = 1,
-        logging_nan_inf_filter = False,
-        save_strategy = 'steps',
-        save_steps = 500,
-        save_total_limit = None,
-        save_safetensors = True,
-        save_on_each_node = False,
-        save_only_model = False,
-        restore_callback_states_from_checkpoint = False,
-        no_cuda = False,
-        use_cpu = False,
-        use_mps_device = False,
-        seed = 3407,
-        data_seed = 3407,
-        jit_mode_eval = False,
-        bf16 = False,
-        fp16 = False,
-        fp16_opt_level = 'O1',
-        half_precision_backend = 'auto',
-        bf16_full_eval = False,
-        fp16_full_eval = False,
-        tf32 = None,
-        local_rank = -1,
-        ddp_backend = None,
-        tpu_num_cores = None,
-        tpu_metrics_debug = False,
-        debug = '',
-        dataloader_drop_last = False,
-        eval_steps = None,
-        dataloader_num_workers = 0,
-        dataloader_prefetch_factor = None,
-        past_index = -1,
-        run_name = None,
-        disable_tqdm = None,
-        remove_unused_columns = True,
-        label_names = None,
-        load_best_model_at_end = False,
-        metric_for_best_model = None,
-        greater_is_better = None,
-        ignore_data_skip = False,
-        fsdp = None,
-        fsdp_min_num_params = 0,
-        fsdp_config = None,
-        fsdp_transformer_layer_cls_to_wrap = None,
-        accelerator_config = None,
-        parallelism_config = None,
-        deepspeed = None,
-        label_smoothing_factor = 0.0,
-        optim = 'adamw_8bit',
-        optim_args = None,
-        adafactor = False,
-        group_by_length = False,
-        length_column_name = 'length',
-        report_to = 'none',
-        project = 'huggingface',
-        trackio_space_id = 'trackio',
-        ddp_find_unused_parameters = None,
-        ddp_bucket_cap_mb = None,
-        ddp_broadcast_buffers = None,
-        dataloader_pin_memory = True,
-        dataloader_persistent_workers = False,
-        skip_memory_metrics = True,
-        use_legacy_prediction_loop = False,
-        push_to_hub = False,
-        resume_from_checkpoint = None,
-        hub_model_id = None,
-        hub_strategy = 'every_save',
-        hub_token = None,
-        hub_private_repo = None,
-        hub_always_push = False,
-        hub_revision = None,
-        gradient_checkpointing = True,
-        gradient_checkpointing_kwargs = None,
-        include_inputs_for_metrics = False,
-        eval_do_concat_batches = True,
-        fp16_backend = 'auto',
-        push_to_hub_model_id = None,
-        push_to_hub_organization = None,
-        push_to_hub_token = None,
-        mp_parameters = '',
-        auto_find_batch_size = False,
-        full_determinism = False,
-        torchdynamo = None,
-        ray_scope = 'last',
-        ddp_timeout = 1800,
-        torch_compile = False,
-        torch_compile_backend = None,
-        torch_compile_mode = None,
-        include_tokens_per_second = False,
-        include_num_input_tokens_seen = False,
-        neftune_noise_alpha = None,
-        optim_target_modules = None,
-        batch_eval_metrics = False,
-        eval_on_start = False,
-        use_liger_kernel = False,
-        liger_kernel_config = None,
-        eval_use_gather_object = False,
-        average_tokens_across_devices = True,
-        max_length = 1024,
-        max_prompt_length = 512,
-        max_completion_length = None,
-        beta = 0.1,
-        disable_dropout = True,
-        label_pad_token_id = -100,
-        padding_value = None,
-        truncation_mode = 'keep_end',
-        generate_during_eval = False,
-        is_encoder_decoder = None,
-        model_init_kwargs = None,
-        dataset_num_proc = None,
-        vllm_sampling_params = None,
-        unsloth_num_chunks = -1,
-        unsloth_logit_chunk_multiplier = None,
-        unsloth_grpo_mini_batch = None,
-        max_seq_length = None,
+        output_dir=None,
+        overwrite_output_dir=None,
+        do_train=False,
+        do_eval=False,
+        do_predict=False,
+        eval_strategy="no",
+        prediction_loss_only=False,
+        per_device_train_batch_size=4,
+        per_device_eval_batch_size=4,
+        per_gpu_train_batch_size=None,
+        per_gpu_eval_batch_size=None,
+        gradient_accumulation_steps=2,
+        eval_accumulation_steps=2,
+        eval_delay=0,
+        torch_empty_cache_steps=250,
+        learning_rate=5e-05,
+        weight_decay=0.001,
+        adam_beta1=0.9,
+        adam_beta2=0.999,
+        adam_epsilon=1e-08,
+        max_grad_norm=1.0,
+        num_train_epochs=3.0,
+        max_steps=-1,
+        lr_scheduler_type="linear",
+        lr_scheduler_kwargs=None,
+        warmup_ratio=0.1,
+        warmup_steps=0,
+        log_level="passive",
+        log_level_replica="warning",
+        log_on_each_node=True,
+        logging_dir=None,
+        logging_strategy="steps",
+        logging_first_step=False,
+        logging_steps=1,
+        logging_nan_inf_filter=False,
+        save_strategy="steps",
+        save_steps=500,
+        save_total_limit=None,
+        save_safetensors=True,
+        save_on_each_node=False,
+        save_only_model=False,
+        restore_callback_states_from_checkpoint=False,
+        no_cuda=False,
+        use_cpu=False,
+        use_mps_device=False,
+        seed=3407,
+        data_seed=3407,
+        jit_mode_eval=False,
+        bf16=False,
+        fp16=False,
+        fp16_opt_level="O1",
+        half_precision_backend="auto",
+        bf16_full_eval=False,
+        fp16_full_eval=False,
+        tf32=None,
+        local_rank=-1,
+        ddp_backend=None,
+        tpu_num_cores=None,
+        tpu_metrics_debug=False,
+        debug="",
+        dataloader_drop_last=False,
+        eval_steps=None,
+        dataloader_num_workers=0,
+        dataloader_prefetch_factor=None,
+        past_index=-1,
+        run_name=None,
+        disable_tqdm=None,
+        remove_unused_columns=True,
+        label_names=None,
+        load_best_model_at_end=False,
+        metric_for_best_model=None,
+        greater_is_better=None,
+        ignore_data_skip=False,
+        fsdp=None,
+        fsdp_min_num_params=0,
+        fsdp_config=None,
+        fsdp_transformer_layer_cls_to_wrap=None,
+        accelerator_config=None,
+        parallelism_config=None,
+        deepspeed=None,
+        label_smoothing_factor=0.0,
+        optim="adamw_8bit",
+        optim_args=None,
+        adafactor=False,
+        group_by_length=False,
+        length_column_name="length",
+        report_to="none",
+        project="huggingface",
+        trackio_space_id="trackio",
+        ddp_find_unused_parameters=None,
+        ddp_bucket_cap_mb=None,
+        ddp_broadcast_buffers=None,
+        dataloader_pin_memory=True,
+        dataloader_persistent_workers=False,
+        skip_memory_metrics=True,
+        use_legacy_prediction_loop=False,
+        push_to_hub=False,
+        resume_from_checkpoint=None,
+        hub_model_id=None,
+        hub_strategy="every_save",
+        hub_token=None,
+        hub_private_repo=None,
+        hub_always_push=False,
+        hub_revision=None,
+        gradient_checkpointing=True,
+        gradient_checkpointing_kwargs=None,
+        include_inputs_for_metrics=False,
+        eval_do_concat_batches=True,
+        fp16_backend="auto",
+        push_to_hub_model_id=None,
+        push_to_hub_organization=None,
+        push_to_hub_token=None,
+        mp_parameters="",
+        auto_find_batch_size=False,
+        full_determinism=False,
+        torchdynamo=None,
+        ray_scope="last",
+        ddp_timeout=1800,
+        torch_compile=False,
+        torch_compile_backend=None,
+        torch_compile_mode=None,
+        include_tokens_per_second=False,
+        include_num_input_tokens_seen=False,
+        neftune_noise_alpha=None,
+        optim_target_modules=None,
+        batch_eval_metrics=False,
+        eval_on_start=False,
+        use_liger_kernel=False,
+        liger_kernel_config=None,
+        eval_use_gather_object=False,
+        average_tokens_across_devices=True,
+        max_length=1024,
+        max_prompt_length=512,
+        max_completion_length=None,
+        beta=0.1,
+        disable_dropout=True,
+        label_pad_token_id=-100,
+        padding_value=None,
+        truncation_mode="keep_end",
+        generate_during_eval=False,
+        is_encoder_decoder=None,
+        model_init_kwargs=None,
+        dataset_num_proc=None,
+        vllm_sampling_params=None,
+        unsloth_num_chunks=-1,
+        unsloth_logit_chunk_multiplier=None,
+        unsloth_grpo_mini_batch=None,
+        max_seq_length=None,
         **kwargs,
     ):
-        if learning_rate < 1e-7: print(f'Unsloth: Your learning rate of `{learning_rate}` is too small and less than 1e-7! Consider increasing it, otherwise gradient updates will be close to 0!')
-        if learning_rate > 1: print(f'Unsloth: Your learning rate of `{learning_rate}` is way too larger > 1! Consider decreasing it to 1e-1, otherwise gradient updates will explode!')
+        if learning_rate < 1e-7:
+            print(
+                f"Unsloth: Your learning rate of `{learning_rate}` is too small and less than 1e-7! Consider increasing it, otherwise gradient updates will be close to 0!"
+            )
+        if learning_rate > 1:
+            print(
+                f"Unsloth: Your learning rate of `{learning_rate}` is way too larger > 1! Consider decreasing it to 1e-1, otherwise gradient updates will explode!"
+            )
         if num_train_epochs is None:
-            num_train_epochs = 3.0  # Default to 3 epochs if None, max_steps will override
-        if output_dir is None and save_strategy == 'steps' and save_steps == 500:
-            output_dir = 'unsloth_training_checkpoints'
-            save_strategy = 'no'
+            num_train_epochs = (
+                3.0  # Default to 3 epochs if None, max_steps will override
+            )
+        if output_dir is None and save_strategy == "steps" and save_steps == 500:
+            output_dir = "unsloth_training_checkpoints"
+            save_strategy = "no"
         import multiprocessing as _mp
+
         if dataset_num_proc is None:
-            if _mp.get_start_method() != 'fork':
+            if _mp.get_start_method() != "fork":
                 dataset_num_proc = None
             else:
                 import psutil
-                dataset_num_proc = min(max((psutil.cpu_count() or 1)+4, 2), 64)
+
+                dataset_num_proc = min(max((psutil.cpu_count() or 1) + 4, 2), 64)
                 memory_gb_left = psutil.virtual_memory().available / (1024**3)
-                if memory_gb_left <= 2: dataset_num_proc = 1
-                else: dataset_num_proc = min(dataset_num_proc, int(memory_gb_left))
-        
+                if memory_gb_left <= 2:
+                    dataset_num_proc = 1
+                else:
+                    dataset_num_proc = min(dataset_num_proc, int(memory_gb_left))
+
         super().__init__(
-            output_dir = output_dir,
-            overwrite_output_dir = overwrite_output_dir,
-            do_train = do_train,
-            do_eval = do_eval,
-            do_predict = do_predict,
-            eval_strategy = eval_strategy,
-            prediction_loss_only = prediction_loss_only,
-            per_device_train_batch_size = per_device_train_batch_size,
-            per_device_eval_batch_size = per_device_eval_batch_size,
-            per_gpu_train_batch_size = per_gpu_train_batch_size,
-            per_gpu_eval_batch_size = per_gpu_eval_batch_size,
-            gradient_accumulation_steps = gradient_accumulation_steps,
-            eval_accumulation_steps = eval_accumulation_steps,
-            eval_delay = eval_delay,
-            torch_empty_cache_steps = torch_empty_cache_steps,
-            learning_rate = learning_rate,
-            weight_decay = weight_decay,
-            adam_beta1 = adam_beta1,
-            adam_beta2 = adam_beta2,
-            adam_epsilon = adam_epsilon,
-            max_grad_norm = max_grad_norm,
-            num_train_epochs = num_train_epochs,
-            max_steps = max_steps,
-            lr_scheduler_type = lr_scheduler_type,
-            lr_scheduler_kwargs = lr_scheduler_kwargs,
-            warmup_ratio = warmup_ratio,
-            warmup_steps = warmup_steps,
-            log_level = log_level,
-            log_level_replica = log_level_replica,
-            log_on_each_node = log_on_each_node,
-            logging_dir = logging_dir,
-            logging_strategy = logging_strategy,
-            logging_first_step = logging_first_step,
-            logging_steps = logging_steps,
-            logging_nan_inf_filter = logging_nan_inf_filter,
-            save_strategy = save_strategy,
-            save_steps = save_steps,
-            save_total_limit = save_total_limit,
-            save_safetensors = save_safetensors,
-            save_on_each_node = save_on_each_node,
-            save_only_model = save_only_model,
-            restore_callback_states_from_checkpoint = restore_callback_states_from_checkpoint,
-            no_cuda = no_cuda,
-            use_cpu = use_cpu,
-            use_mps_device = use_mps_device,
-            seed = seed,
-            data_seed = data_seed,
-            jit_mode_eval = jit_mode_eval,
-            bf16 = bf16,
-            fp16 = fp16,
-            fp16_opt_level = fp16_opt_level,
-            half_precision_backend = half_precision_backend,
-            bf16_full_eval = bf16_full_eval,
-            fp16_full_eval = fp16_full_eval,
-            tf32 = tf32,
-            local_rank = local_rank,
-            ddp_backend = ddp_backend,
-            tpu_num_cores = tpu_num_cores,
-            tpu_metrics_debug = tpu_metrics_debug,
-            debug = debug,
-            dataloader_drop_last = dataloader_drop_last,
-            eval_steps = eval_steps,
-            dataloader_num_workers = dataloader_num_workers,
-            dataloader_prefetch_factor = dataloader_prefetch_factor,
-            past_index = past_index,
-            run_name = run_name,
-            disable_tqdm = disable_tqdm,
-            remove_unused_columns = remove_unused_columns,
-            label_names = label_names,
-            load_best_model_at_end = load_best_model_at_end,
-            metric_for_best_model = metric_for_best_model,
-            greater_is_better = greater_is_better,
-            ignore_data_skip = ignore_data_skip,
-            fsdp = fsdp,
-            fsdp_min_num_params = fsdp_min_num_params,
-            fsdp_config = fsdp_config,
-            fsdp_transformer_layer_cls_to_wrap = fsdp_transformer_layer_cls_to_wrap,
-            accelerator_config = accelerator_config,
-            parallelism_config = parallelism_config,
-            deepspeed = deepspeed,
-            label_smoothing_factor = label_smoothing_factor,
-            optim = optim,
-            optim_args = optim_args,
-            adafactor = adafactor,
-            group_by_length = group_by_length,
-            length_column_name = length_column_name,
-            report_to = report_to,
-            project = project,
-            trackio_space_id = trackio_space_id,
-            ddp_find_unused_parameters = ddp_find_unused_parameters,
-            ddp_bucket_cap_mb = ddp_bucket_cap_mb,
-            ddp_broadcast_buffers = ddp_broadcast_buffers,
-            dataloader_pin_memory = dataloader_pin_memory,
-            dataloader_persistent_workers = dataloader_persistent_workers,
-            skip_memory_metrics = skip_memory_metrics,
-            use_legacy_prediction_loop = use_legacy_prediction_loop,
-            push_to_hub = push_to_hub,
-            resume_from_checkpoint = resume_from_checkpoint,
-            hub_model_id = hub_model_id,
-            hub_strategy = hub_strategy,
-            hub_token = hub_token,
-            hub_private_repo = hub_private_repo,
-            hub_always_push = hub_always_push,
-            hub_revision = hub_revision,
-            gradient_checkpointing = gradient_checkpointing,
-            gradient_checkpointing_kwargs = gradient_checkpointing_kwargs,
-            include_inputs_for_metrics = include_inputs_for_metrics,
-            eval_do_concat_batches = eval_do_concat_batches,
-            fp16_backend = fp16_backend,
-            push_to_hub_model_id = push_to_hub_model_id,
-            push_to_hub_organization = push_to_hub_organization,
-            push_to_hub_token = push_to_hub_token,
-            mp_parameters = mp_parameters,
-            auto_find_batch_size = auto_find_batch_size,
-            full_determinism = full_determinism,
-            torchdynamo = torchdynamo,
-            ray_scope = ray_scope,
-            ddp_timeout = ddp_timeout,
-            torch_compile = torch_compile,
-            torch_compile_backend = torch_compile_backend,
-            torch_compile_mode = torch_compile_mode,
-            include_tokens_per_second = include_tokens_per_second,
-            include_num_input_tokens_seen = include_num_input_tokens_seen,
-            neftune_noise_alpha = neftune_noise_alpha,
-            optim_target_modules = optim_target_modules,
-            batch_eval_metrics = batch_eval_metrics,
-            eval_on_start = eval_on_start,
-            use_liger_kernel = use_liger_kernel,
-            liger_kernel_config = liger_kernel_config,
-            eval_use_gather_object = eval_use_gather_object,
-            average_tokens_across_devices = average_tokens_across_devices,
-            max_length = max_length,
-            max_prompt_length = max_prompt_length,
-            max_completion_length = max_completion_length,
-            beta = beta,
-            disable_dropout = disable_dropout,
-            label_pad_token_id = label_pad_token_id,
-            padding_value = padding_value,
-            truncation_mode = truncation_mode,
-            generate_during_eval = generate_during_eval,
-            is_encoder_decoder = is_encoder_decoder,
-            model_init_kwargs = model_init_kwargs,
-            dataset_num_proc = dataset_num_proc,**kwargs)
+            output_dir=output_dir,
+            overwrite_output_dir=overwrite_output_dir,
+            do_train=do_train,
+            do_eval=do_eval,
+            do_predict=do_predict,
+            eval_strategy=eval_strategy,
+            prediction_loss_only=prediction_loss_only,
+            per_device_train_batch_size=per_device_train_batch_size,
+            per_device_eval_batch_size=per_device_eval_batch_size,
+            per_gpu_train_batch_size=per_gpu_train_batch_size,
+            per_gpu_eval_batch_size=per_gpu_eval_batch_size,
+            gradient_accumulation_steps=gradient_accumulation_steps,
+            eval_accumulation_steps=eval_accumulation_steps,
+            eval_delay=eval_delay,
+            torch_empty_cache_steps=torch_empty_cache_steps,
+            learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            adam_beta1=adam_beta1,
+            adam_beta2=adam_beta2,
+            adam_epsilon=adam_epsilon,
+            max_grad_norm=max_grad_norm,
+            num_train_epochs=num_train_epochs,
+            max_steps=max_steps,
+            lr_scheduler_type=lr_scheduler_type,
+            lr_scheduler_kwargs=lr_scheduler_kwargs,
+            warmup_ratio=warmup_ratio,
+            warmup_steps=warmup_steps,
+            log_level=log_level,
+            log_level_replica=log_level_replica,
+            log_on_each_node=log_on_each_node,
+            logging_dir=logging_dir,
+            logging_strategy=logging_strategy,
+            logging_first_step=logging_first_step,
+            logging_steps=logging_steps,
+            logging_nan_inf_filter=logging_nan_inf_filter,
+            save_strategy=save_strategy,
+            save_steps=save_steps,
+            save_total_limit=save_total_limit,
+            save_safetensors=save_safetensors,
+            save_on_each_node=save_on_each_node,
+            save_only_model=save_only_model,
+            restore_callback_states_from_checkpoint=restore_callback_states_from_checkpoint,
+            no_cuda=no_cuda,
+            use_cpu=use_cpu,
+            use_mps_device=use_mps_device,
+            seed=seed,
+            data_seed=data_seed,
+            jit_mode_eval=jit_mode_eval,
+            bf16=bf16,
+            fp16=fp16,
+            fp16_opt_level=fp16_opt_level,
+            half_precision_backend=half_precision_backend,
+            bf16_full_eval=bf16_full_eval,
+            fp16_full_eval=fp16_full_eval,
+            tf32=tf32,
+            local_rank=local_rank,
+            ddp_backend=ddp_backend,
+            tpu_num_cores=tpu_num_cores,
+            tpu_metrics_debug=tpu_metrics_debug,
+            debug=debug,
+            dataloader_drop_last=dataloader_drop_last,
+            eval_steps=eval_steps,
+            dataloader_num_workers=dataloader_num_workers,
+            dataloader_prefetch_factor=dataloader_prefetch_factor,
+            past_index=past_index,
+            run_name=run_name,
+            disable_tqdm=disable_tqdm,
+            remove_unused_columns=remove_unused_columns,
+            label_names=label_names,
+            load_best_model_at_end=load_best_model_at_end,
+            metric_for_best_model=metric_for_best_model,
+            greater_is_better=greater_is_better,
+            ignore_data_skip=ignore_data_skip,
+            fsdp=fsdp,
+            fsdp_min_num_params=fsdp_min_num_params,
+            fsdp_config=fsdp_config,
+            fsdp_transformer_layer_cls_to_wrap=fsdp_transformer_layer_cls_to_wrap,
+            accelerator_config=accelerator_config,
+            parallelism_config=parallelism_config,
+            deepspeed=deepspeed,
+            label_smoothing_factor=label_smoothing_factor,
+            optim=optim,
+            optim_args=optim_args,
+            adafactor=adafactor,
+            group_by_length=group_by_length,
+            length_column_name=length_column_name,
+            report_to=report_to,
+            project=project,
+            trackio_space_id=trackio_space_id,
+            ddp_find_unused_parameters=ddp_find_unused_parameters,
+            ddp_bucket_cap_mb=ddp_bucket_cap_mb,
+            ddp_broadcast_buffers=ddp_broadcast_buffers,
+            dataloader_pin_memory=dataloader_pin_memory,
+            dataloader_persistent_workers=dataloader_persistent_workers,
+            skip_memory_metrics=skip_memory_metrics,
+            use_legacy_prediction_loop=use_legacy_prediction_loop,
+            push_to_hub=push_to_hub,
+            resume_from_checkpoint=resume_from_checkpoint,
+            hub_model_id=hub_model_id,
+            hub_strategy=hub_strategy,
+            hub_token=hub_token,
+            hub_private_repo=hub_private_repo,
+            hub_always_push=hub_always_push,
+            hub_revision=hub_revision,
+            gradient_checkpointing=gradient_checkpointing,
+            gradient_checkpointing_kwargs=gradient_checkpointing_kwargs,
+            include_inputs_for_metrics=include_inputs_for_metrics,
+            eval_do_concat_batches=eval_do_concat_batches,
+            fp16_backend=fp16_backend,
+            push_to_hub_model_id=push_to_hub_model_id,
+            push_to_hub_organization=push_to_hub_organization,
+            push_to_hub_token=push_to_hub_token,
+            mp_parameters=mp_parameters,
+            auto_find_batch_size=auto_find_batch_size,
+            full_determinism=full_determinism,
+            torchdynamo=torchdynamo,
+            ray_scope=ray_scope,
+            ddp_timeout=ddp_timeout,
+            torch_compile=torch_compile,
+            torch_compile_backend=torch_compile_backend,
+            torch_compile_mode=torch_compile_mode,
+            include_tokens_per_second=include_tokens_per_second,
+            include_num_input_tokens_seen=include_num_input_tokens_seen,
+            neftune_noise_alpha=neftune_noise_alpha,
+            optim_target_modules=optim_target_modules,
+            batch_eval_metrics=batch_eval_metrics,
+            eval_on_start=eval_on_start,
+            use_liger_kernel=use_liger_kernel,
+            liger_kernel_config=liger_kernel_config,
+            eval_use_gather_object=eval_use_gather_object,
+            average_tokens_across_devices=average_tokens_across_devices,
+            max_length=max_length,
+            max_prompt_length=max_prompt_length,
+            max_completion_length=max_completion_length,
+            beta=beta,
+            disable_dropout=disable_dropout,
+            label_pad_token_id=label_pad_token_id,
+            padding_value=padding_value,
+            truncation_mode=truncation_mode,
+            generate_during_eval=generate_during_eval,
+            is_encoder_decoder=is_encoder_decoder,
+            model_init_kwargs=model_init_kwargs,
+            dataset_num_proc=dataset_num_proc,
+            **kwargs,
+        )
         self.vllm_sampling_params = vllm_sampling_params
         self.unsloth_num_chunks = unsloth_num_chunks
         if unsloth_grpo_mini_batch is not None:
@@ -742,13 +852,14 @@ class UnslothORPOConfig(ORPOConfig):
                 self.unsloth_grpo_mini_batch = unsloth_grpo_mini_batch
             else:
                 raise ValueError(
-                    f"Unsloth GRPO mini batch size needs to be less than or equal to the effective generation batch size, "
-                    f"which is self.per_device_train_batch_size * gradient_accumulation_steps."
+                    "Unsloth GRPO mini batch size needs to be less than or equal to the effective generation batch size, "
+                    "which is self.per_device_train_batch_size * gradient_accumulation_steps."
                 )
         self.unsloth_logit_chunk_multiplier = unsloth_logit_chunk_multiplier
         self.max_seq_length = max_seq_length
 
-pass
+
+
 
 class _UnslothORPOTrainer(Trainer):
     r""""""
@@ -763,19 +874,31 @@ class _UnslothORPOTrainer(Trainer):
         train_dataset: Optional[Dataset] = None,
         eval_dataset: Optional[Union[Dataset, dict[str, Dataset]]] = None,
         processing_class: Optional[
-            Union[PreTrainedTokenizerBase, BaseImageProcessor, FeatureExtractionMixin, ProcessorMixin]
+            Union[
+                PreTrainedTokenizerBase,
+                BaseImageProcessor,
+                FeatureExtractionMixin,
+                ProcessorMixin,
+            ]
         ] = None,
         model_init: Optional[Callable[[], PreTrainedModel]] = None,
         callbacks: Optional[list[TrainerCallback]] = None,
-        optimizers: tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (None, None),
-        preprocess_logits_for_metrics: Optional[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = None,
+        optimizers: tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (
+            None,
+            None,
+        ),
+        preprocess_logits_for_metrics: Optional[
+            Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
+        ] = None,
         peft_config: Optional[dict] = None,
         compute_metrics: Optional[Callable[[EvalLoopOutput], dict]] = None,
     ):
         if args.model_init_kwargs is None:
             model_init_kwargs = {}
         elif not isinstance(model, str):
-            raise ValueError("You passed model_kwargs to the ORPOTrainer. But your model is already instantiated.")
+            raise ValueError(
+                "You passed model_kwargs to the ORPOTrainer. But your model is already instantiated."
+            )
         else:
             model_init_kwargs = args.model_init_kwargs
             dtype = model_init_kwargs.get("dtype")
@@ -805,17 +928,23 @@ class _UnslothORPOTrainer(Trainer):
             if isinstance(model, PeftModel):
                 model = model.merge_and_unload()
 
-            if getattr(model, "is_loaded_in_8bit", False) or getattr(model, "is_loaded_in_4bit", False):
+            if getattr(model, "is_loaded_in_8bit", False) or getattr(
+                model, "is_loaded_in_4bit", False
+            ):
                 _support_gc_kwargs = hasattr(
                     args, "gradient_checkpointing_kwargs"
                 ) and "gradient_checkpointing_kwargs" in list(
                     inspect.signature(prepare_model_for_kbit_training).parameters
                 )
 
-                prepare_model_kwargs = {"use_gradient_checkpointing": args.gradient_checkpointing}
+                prepare_model_kwargs = {
+                    "use_gradient_checkpointing": args.gradient_checkpointing
+                }
 
                 if _support_gc_kwargs:
-                    prepare_model_kwargs["gradient_checkpointing_kwargs"] = args.gradient_checkpointing_kwargs
+                    prepare_model_kwargs["gradient_checkpointing_kwargs"] = (
+                        args.gradient_checkpointing_kwargs
+                    )
 
                 model = prepare_model_for_kbit_training(model, **prepare_model_kwargs)
             elif args.gradient_checkpointing:
@@ -827,7 +956,9 @@ class _UnslothORPOTrainer(Trainer):
                     def make_inputs_require_grad(module, input, output):
                         output.requires_grad_(True)
 
-                    model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
+                    model.get_input_embeddings().register_forward_hook(
+                        make_inputs_require_grad
+                    )
 
             # get peft model with the given config
             model = model
@@ -848,9 +979,13 @@ class _UnslothORPOTrainer(Trainer):
                 def make_inputs_require_grad(module, input, output):
                     output.requires_grad_(True)
 
-                model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
+                model.get_input_embeddings().register_forward_hook(
+                    make_inputs_require_grad
+                )
 
-        if args.generate_during_eval and not (is_wandb_available() or is_comet_available()):
+        if args.generate_during_eval and not (
+            is_wandb_available() or is_comet_available()
+        ):
             raise ValueError(
                 "`generate_during_eval=True` requires Weights and Biases or Comet to be installed."
                 " Please install `wandb` or `comet-ml` to resolve."
@@ -859,7 +994,9 @@ class _UnslothORPOTrainer(Trainer):
         if model is not None:
             self.is_encoder_decoder = model.config.is_encoder_decoder
         elif args.is_encoder_decoder is None:
-            raise ValueError("When no model is provided, you need to pass the parameter is_encoder_decoder.")
+            raise ValueError(
+                "When no model is provided, you need to pass the parameter is_encoder_decoder."
+            )
         else:
             self.is_encoder_decoder = args.is_encoder_decoder
 
@@ -868,7 +1005,9 @@ class _UnslothORPOTrainer(Trainer):
             self.pad_token_id = model.config.pad_token_id
 
         if processing_class is None:
-            raise ValueError("processing_class must be specified to tokenize a ORPO dataset.")
+            raise ValueError(
+                "processing_class must be specified to tokenize a ORPO dataset."
+            )
         if args.max_length is None:
             logger.warning(
                 "`max_length` is not set in the ORPOConfig's init"
@@ -897,7 +1036,15 @@ class _UnslothORPOTrainer(Trainer):
 
         if data_collator is None:
             data_collator = DPODataCollatorWithPadding(
-                pad_token_id=(getattr(processing_class, 'pad_token_id', None) if getattr(processing_class, 'pad_token_id', None) is not None else getattr(getattr(processing_class, 'tokenizer', None), 'pad_token_id', None)),
+                pad_token_id=(
+                    getattr(processing_class, "pad_token_id", None)
+                    if getattr(processing_class, "pad_token_id", None) is not None
+                    else getattr(
+                        getattr(processing_class, "tokenizer", None),
+                        "pad_token_id",
+                        None,
+                    )
+                ),
                 label_pad_token_id=args.label_pad_token_id,
                 is_encoder_decoder=self.is_encoder_decoder,
             )
@@ -921,7 +1068,17 @@ class _UnslothORPOTrainer(Trainer):
         self.max_length = max_length
         self.generate_during_eval = args.generate_during_eval
         self.label_pad_token_id = args.label_pad_token_id
-        self.padding_value = args.padding_value if args.padding_value is not None else (getattr(processing_class, 'pad_token_id', None) if getattr(processing_class, 'pad_token_id', None) is not None else getattr(getattr(processing_class, 'tokenizer', None), 'pad_token_id', None))
+        self.padding_value = (
+            args.padding_value
+            if args.padding_value is not None
+            else (
+                getattr(processing_class, "pad_token_id", None)
+                if getattr(processing_class, "pad_token_id", None) is not None
+                else getattr(
+                    getattr(processing_class, "tokenizer", None), "pad_token_id", None
+                )
+            )
+        )
         self.max_prompt_length = max_prompt_length
         self.truncation_mode = args.truncation_mode
         self.processing_class = processing_class
@@ -952,19 +1109,29 @@ class _UnslothORPOTrainer(Trainer):
         # see: https://github.com/huggingface/trl/pull/1255
         with PartialState().main_process_first():
             # Extract the prompt if needed, and apply the chat template if needed
-            train_dataset = train_dataset.map(maybe_extract_prompt, num_proc=args.dataset_num_proc)
             train_dataset = train_dataset.map(
-                maybe_apply_chat_template, fn_kwargs={"tokenizer": processing_class}, num_proc=args.dataset_num_proc
+                maybe_extract_prompt, num_proc=args.dataset_num_proc
             )
-            train_dataset = train_dataset.map(self.tokenize_row, num_proc=args.dataset_num_proc)
+            train_dataset = train_dataset.map(
+                maybe_apply_chat_template,
+                fn_kwargs={"tokenizer": processing_class},
+                num_proc=args.dataset_num_proc,
+            )
+            train_dataset = train_dataset.map(
+                self.tokenize_row, num_proc=args.dataset_num_proc
+            )
             if eval_dataset is not None:
-                eval_dataset = eval_dataset.map(maybe_extract_prompt, num_proc=args.dataset_num_proc)
+                eval_dataset = eval_dataset.map(
+                    maybe_extract_prompt, num_proc=args.dataset_num_proc
+                )
                 eval_dataset = eval_dataset.map(
                     maybe_apply_chat_template,
                     fn_kwargs={"tokenizer": processing_class},
                     num_proc=args.dataset_num_proc,
                 )
-                eval_dataset = eval_dataset.map(self.tokenize_row, num_proc=args.dataset_num_proc)
+                eval_dataset = eval_dataset.map(
+                    self.tokenize_row, num_proc=args.dataset_num_proc
+                )
 
         super().__init__(
             model=model,
@@ -1006,7 +1173,9 @@ class _UnslothORPOTrainer(Trainer):
         prompt_input_ids = tokenizer(prompt, add_special_tokens=False)["input_ids"]
 
         answer_input_ids = full_tokenized["input_ids"][len(prompt_input_ids) :]
-        answer_attention_mask = full_tokenized["attention_mask"][len(prompt_input_ids) :]
+        answer_attention_mask = full_tokenized["attention_mask"][
+            len(prompt_input_ids) :
+        ]
 
         # Concat tokens to form `enc(a) + enc(a + b)[len(enc(a)):]`
         full_concat_input_ids = np.concatenate([prompt_input_ids, answer_input_ids])
@@ -1015,7 +1184,9 @@ class _UnslothORPOTrainer(Trainer):
         full_input_ids = np.array(full_tokenized["input_ids"])
 
         if len(full_input_ids) != len(full_concat_input_ids):
-            raise ValueError("Prompt input ids and answer input ids should have the same length.")
+            raise ValueError(
+                "Prompt input ids and answer input ids should have the same length."
+            )
 
         # On some tokenizers, like Llama-2 tokenizer, there are occasions where tokens
         # can be merged together when tokenizing prompt+answer. This could result
@@ -1025,17 +1196,26 @@ class _UnslothORPOTrainer(Trainer):
 
         # If tokenized prompt is different than both prompt+answer, then it means the
         # last token has changed due to merging.
-        if prompt_input_ids != full_tokenized["input_ids"][:response_token_ids_start_idx]:
+        if (
+            prompt_input_ids
+            != full_tokenized["input_ids"][:response_token_ids_start_idx]
+        ):
             response_token_ids_start_idx -= 1
 
         prompt_input_ids = full_tokenized["input_ids"][:response_token_ids_start_idx]
-        prompt_attention_mask = full_tokenized["attention_mask"][:response_token_ids_start_idx]
+        prompt_attention_mask = full_tokenized["attention_mask"][
+            :response_token_ids_start_idx
+        ]
 
         if len(prompt_input_ids) != len(prompt_attention_mask):
-            raise ValueError("Prompt input ids and attention mask should have the same length.")
+            raise ValueError(
+                "Prompt input ids and attention mask should have the same length."
+            )
 
         answer_input_ids = full_tokenized["input_ids"][response_token_ids_start_idx:]
-        answer_attention_mask = full_tokenized["attention_mask"][response_token_ids_start_idx:]
+        answer_attention_mask = full_tokenized["attention_mask"][
+            response_token_ids_start_idx:
+        ]
 
         return dict(
             prompt_input_ids=prompt_input_ids,
@@ -1044,7 +1224,9 @@ class _UnslothORPOTrainer(Trainer):
             attention_mask=answer_attention_mask,
         )
 
-    def tokenize_row(self, feature, model: Optional[Union[PreTrainedModel, nn.Module]] = None) -> dict:
+    def tokenize_row(
+        self, feature, model: Optional[Union[PreTrainedModel, nn.Module]] = None
+    ) -> dict:
         """Tokenize a single row from a ORPO specific dataset.
 
         At this stage, we don't convert to PyTorch tensors yet; we just handle the truncation in case the prompt +
@@ -1085,7 +1267,9 @@ class _UnslothORPOTrainer(Trainer):
 
             chosen_prompt_len_input_ids = len(chosen_tokens["prompt_input_ids"])
             rejected_prompt_len_input_ids = len(rejected_tokens["prompt_input_ids"])
-            prompt_len_input_ids = min(chosen_prompt_len_input_ids, rejected_prompt_len_input_ids)
+            prompt_len_input_ids = min(
+                chosen_prompt_len_input_ids, rejected_prompt_len_input_ids
+            )
 
             for k, v in prompt_tokens.items():
                 prompt_tokens[k] = v[:prompt_len_input_ids]
@@ -1093,9 +1277,17 @@ class _UnslothORPOTrainer(Trainer):
             # Make sure prompts only have one different token at most an
             # and length only differs by 1 at most
             num_diff_tokens = sum(
-                [a != b for a, b in zip(chosen_tokens["prompt_input_ids"], rejected_tokens["prompt_input_ids"])]
+                [
+                    a != b
+                    for a, b in zip(
+                        chosen_tokens["prompt_input_ids"],
+                        rejected_tokens["prompt_input_ids"],
+                    )
+                ]
             )
-            num_diff_len = abs(chosen_prompt_len_input_ids - rejected_prompt_len_input_ids)
+            num_diff_len = abs(
+                chosen_prompt_len_input_ids - rejected_prompt_len_input_ids
+            )
             if num_diff_tokens > 1 or num_diff_len > 1:
                 raise ValueError(
                     "Chosen and rejected prompt_input_ids might only differ on the "
@@ -1118,41 +1310,61 @@ class _UnslothORPOTrainer(Trainer):
                 tokenizer.eos_token_id, chosen_tokens, rejected_tokens
             )
 
-            longer_response_length = max(len(chosen_tokens["input_ids"]), len(rejected_tokens["input_ids"]))
+            longer_response_length = max(
+                len(chosen_tokens["input_ids"]), len(rejected_tokens["input_ids"])
+            )
 
             # if combined sequence is too long, truncate the prompt
             for answer_tokens in [chosen_tokens, rejected_tokens, prompt_tokens]:
-                if len(answer_tokens["prompt_input_ids"]) + longer_response_length > self.max_length:
+                if (
+                    len(answer_tokens["prompt_input_ids"]) + longer_response_length
+                    > self.max_length
+                ):
                     if self.truncation_mode == "keep_start":
                         for k in ["prompt_input_ids", "prompt_attention_mask"]:
-                            answer_tokens[k] = answer_tokens[k][: self.max_prompt_length]
+                            answer_tokens[k] = answer_tokens[k][
+                                : self.max_prompt_length
+                            ]
                     elif self.truncation_mode == "keep_end":
                         for k in ["prompt_input_ids", "prompt_attention_mask"]:
-                            answer_tokens[k] = answer_tokens[k][-self.max_prompt_length :]
+                            answer_tokens[k] = answer_tokens[k][
+                                -self.max_prompt_length :
+                            ]
                     else:
-                        raise ValueError(f"Unknown truncation mode: {self.truncation_mode}")
+                        raise ValueError(
+                            f"Unknown truncation mode: {self.truncation_mode}"
+                        )
 
             # if that's still too long, truncate the response
             for answer_tokens in [chosen_tokens, rejected_tokens]:
-                if len(answer_tokens["prompt_input_ids"]) + longer_response_length > self.max_length:
+                if (
+                    len(answer_tokens["prompt_input_ids"]) + longer_response_length
+                    > self.max_length
+                ):
                     for k in ["input_ids", "attention_mask"]:
-                        answer_tokens[k] = answer_tokens[k][: self.max_length - self.max_prompt_length]
+                        answer_tokens[k] = answer_tokens[k][
+                            : self.max_length - self.max_prompt_length
+                        ]
 
             # Create labels
             chosen_sequence_tokens = {
-                k: chosen_tokens[f"prompt_{k}"] + chosen_tokens[k] for k in ["input_ids", "attention_mask"]
+                k: chosen_tokens[f"prompt_{k}"] + chosen_tokens[k]
+                for k in ["input_ids", "attention_mask"]
             }
             rejected_sequence_tokens = {
-                k: rejected_tokens[f"prompt_{k}"] + rejected_tokens[k] for k in ["input_ids", "attention_mask"]
+                k: rejected_tokens[f"prompt_{k}"] + rejected_tokens[k]
+                for k in ["input_ids", "attention_mask"]
             }
             chosen_sequence_tokens["labels"] = chosen_sequence_tokens["input_ids"][:]
-            chosen_sequence_tokens["labels"][: len(chosen_tokens["prompt_input_ids"])] = [
-                self.label_pad_token_id
-            ] * len(chosen_tokens["prompt_input_ids"])
-            rejected_sequence_tokens["labels"] = rejected_sequence_tokens["input_ids"][:]
-            rejected_sequence_tokens["labels"][: len(rejected_tokens["prompt_input_ids"])] = [
-                self.label_pad_token_id
-            ] * len(rejected_tokens["prompt_input_ids"])
+            chosen_sequence_tokens["labels"][
+                : len(chosen_tokens["prompt_input_ids"])
+            ] = [self.label_pad_token_id] * len(chosen_tokens["prompt_input_ids"])
+            rejected_sequence_tokens["labels"] = rejected_sequence_tokens["input_ids"][
+                :
+            ]
+            rejected_sequence_tokens["labels"][
+                : len(rejected_tokens["prompt_input_ids"])
+            ] = [self.label_pad_token_id] * len(rejected_tokens["prompt_input_ids"])
 
             for k, toks in {
                 "chosen_": chosen_sequence_tokens,
@@ -1166,13 +1378,22 @@ class _UnslothORPOTrainer(Trainer):
 
         else:
             chosen_tokens = tokenizer(
-                chosen, truncation=True, max_length=self.max_completion_length, add_special_tokens=True
+                chosen,
+                truncation=True,
+                max_length=self.max_completion_length,
+                add_special_tokens=True,
             )
             rejected_tokens = tokenizer(
-                rejected, truncation=True, max_length=self.max_completion_length, add_special_tokens=True
+                rejected,
+                truncation=True,
+                max_length=self.max_completion_length,
+                add_special_tokens=True,
             )
             prompt_tokens = tokenizer(
-                prompt, truncation=True, max_length=self.max_prompt_length, add_special_tokens=True
+                prompt,
+                truncation=True,
+                max_length=self.max_prompt_length,
+                add_special_tokens=True,
             )
 
             batch["chosen_labels"] = chosen_tokens["input_ids"]
@@ -1180,12 +1401,18 @@ class _UnslothORPOTrainer(Trainer):
             batch["prompt_input_ids"] = prompt_tokens["input_ids"]
             batch["prompt_attention_mask"] = prompt_tokens["attention_mask"]
 
-            if model is not None and hasattr(model, "prepare_decoder_input_ids_from_labels"):
-                batch["rejected_decoder_input_ids"] = model.prepare_decoder_input_ids_from_labels(
-                    labels=torch.tensor(batch["rejected_labels"])
+            if model is not None and hasattr(
+                model, "prepare_decoder_input_ids_from_labels"
+            ):
+                batch["rejected_decoder_input_ids"] = (
+                    model.prepare_decoder_input_ids_from_labels(
+                        labels=torch.tensor(batch["rejected_labels"])
+                    )
                 )
-                batch["chosen_decoder_input_ids"] = model.prepare_decoder_input_ids_from_labels(
-                    labels=torch.tensor(batch["chosen_labels"])
+                batch["chosen_decoder_input_ids"] = (
+                    model.prepare_decoder_input_ids_from_labels(
+                        labels=torch.tensor(batch["chosen_labels"])
+                    )
                 )
 
         if is_torch_xla_available():
@@ -1229,9 +1456,13 @@ class _UnslothORPOTrainer(Trainer):
         concatenated_batch = {}
 
         if is_encoder_decoder:
-            max_length = max(batch["chosen_labels"].shape[1], batch["rejected_labels"].shape[1])
+            max_length = max(
+                batch["chosen_labels"].shape[1], batch["rejected_labels"].shape[1]
+            )
         else:
-            max_length = max(batch["chosen_input_ids"].shape[1], batch["rejected_input_ids"].shape[1])
+            max_length = max(
+                batch["chosen_input_ids"].shape[1], batch["rejected_input_ids"].shape[1]
+            )
 
         for k in batch:
             if k.startswith("chosen") and isinstance(batch[k], torch.Tensor):
@@ -1242,7 +1473,9 @@ class _UnslothORPOTrainer(Trainer):
                 elif k.endswith("_attention_mask"):
                     pad_value = 0
                 concatenated_key = k.replace("chosen", "concatenated")
-                concatenated_batch[concatenated_key] = pad_to_length(batch[k], max_length, pad_value=pad_value)
+                concatenated_batch[concatenated_key] = pad_to_length(
+                    batch[k], max_length, pad_value=pad_value
+                )
         for k in batch:
             if k.startswith("rejected") and isinstance(batch[k], torch.Tensor):
                 if "labels" in k or is_encoder_decoder:
@@ -1261,7 +1494,9 @@ class _UnslothORPOTrainer(Trainer):
                 ).to(device=device)
 
         if is_encoder_decoder:
-            concatenated_batch["concatenated_input_ids"] = batch["prompt_input_ids"].repeat(2, 1).to(device=device)
+            concatenated_batch["concatenated_input_ids"] = (
+                batch["prompt_input_ids"].repeat(2, 1).to(device=device)
+            )
             concatenated_batch["concatenated_attention_mask"] = (
                 batch["prompt_attention_mask"].repeat(2, 1).to(device=device)
             )
@@ -1272,7 +1507,13 @@ class _UnslothORPOTrainer(Trainer):
         self,
         policy_chosen_logps: torch.FloatTensor,
         policy_rejected_logps: torch.FloatTensor,
-    ) -> tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
+    ) -> tuple[
+        torch.FloatTensor,
+        torch.FloatTensor,
+        torch.FloatTensor,
+        torch.FloatTensor,
+        torch.FloatTensor,
+    ]:
         """Compute ORPO's odds ratio (OR) loss for a batch of policy and reference model log probabilities.
 
         Args:
@@ -1290,15 +1531,26 @@ class _UnslothORPOTrainer(Trainer):
 
         # Derived from Eqs. (4) and (7) from https://huggingface.co/papers/2403.07691 by using log identities and exp(log(P(y|x)) = P(y|x)
         log_odds = (policy_chosen_logps - policy_rejected_logps) - (
-            torch.log1p(-torch.exp(policy_chosen_logps)) - torch.log1p(-torch.exp(policy_rejected_logps))
+            torch.log1p(-torch.exp(policy_chosen_logps))
+            - torch.log1p(-torch.exp(policy_rejected_logps))
         )
         ratio = F.logsigmoid(log_odds)
         losses = self.beta * ratio
 
-        chosen_rewards = self.beta * (policy_chosen_logps.to(self.accelerator.device)).detach()
-        rejected_rewards = self.beta * (policy_rejected_logps.to(self.accelerator.device)).detach()
+        chosen_rewards = (
+            self.beta * (policy_chosen_logps.to(self.accelerator.device)).detach()
+        )
+        rejected_rewards = (
+            self.beta * (policy_rejected_logps.to(self.accelerator.device)).detach()
+        )
 
-        return losses, chosen_rewards, rejected_rewards, torch.mean(ratio), torch.mean(log_odds)
+        return (
+            losses,
+            chosen_rewards,
+            rejected_rewards,
+            torch.mean(ratio),
+            torch.mean(log_odds),
+        )
 
     @staticmethod
     def get_batch_logps(
@@ -1326,7 +1578,9 @@ class _UnslothORPOTrainer(Trainer):
             given logits.
         """
         if logits.shape[:-1] != labels.shape:
-            raise ValueError("Logits (batch and sequence length dim) and labels must have the same shape.")
+            raise ValueError(
+                "Logits (batch and sequence length dim) and labels must have the same shape."
+            )
 
         if not is_encoder_decoder:
             labels = labels[:, 1:].clone()
@@ -1345,7 +1599,9 @@ class _UnslothORPOTrainer(Trainer):
 
     def concatenated_forward(
         self, model: nn.Module, batch: dict[str, Union[list, torch.LongTensor]]
-    ) -> tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
+    ) -> tuple[
+        torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor
+    ]:
         """Run the given model on the given batch of inputs, concatenating the chosen and rejected inputs together.
 
         We do this to avoid doing two forward passes, because it's faster for FSDP.
@@ -1361,7 +1617,9 @@ class _UnslothORPOTrainer(Trainer):
 
         model_kwargs = (
             {
-                "decoder_input_ids": self._shift_right(concatenated_batch["concatenated_labels"]),
+                "decoder_input_ids": self._shift_right(
+                    concatenated_batch["concatenated_labels"]
+                ),
             }
             if self.is_encoder_decoder
             else {}
@@ -1399,7 +1657,9 @@ class _UnslothORPOTrainer(Trainer):
             attention_mask = concatenated_batch["concatenated_attention_mask"]
             labels = torch.where(attention_mask == 1, labels, self.label_pad_token_id)
         # orpo chosen nll loss is computed over the full prompt and response
-        chosen_nll_loss = cross_entropy_loss(all_logits[:len_chosen], labels[:len_chosen])
+        chosen_nll_loss = cross_entropy_loss(
+            all_logits[:len_chosen], labels[:len_chosen]
+        )
 
         all_logps = self.get_batch_logps(
             all_logits,
@@ -1420,9 +1680,22 @@ class _UnslothORPOTrainer(Trainer):
             rejected_logits = all_logits[len_chosen:]
 
         if self.aux_loss_enabled:
-            return (chosen_logps, rejected_logps, chosen_logits, rejected_logits, chosen_nll_loss, outputs.aux_loss)
+            return (
+                chosen_logps,
+                rejected_logps,
+                chosen_logits,
+                rejected_logits,
+                chosen_nll_loss,
+                outputs.aux_loss,
+            )
 
-        return (chosen_logps, rejected_logps, chosen_logits, rejected_logits, chosen_nll_loss)
+        return (
+            chosen_logps,
+            rejected_logps,
+            chosen_logits,
+            rejected_logits,
+            chosen_nll_loss,
+        )
 
     def get_batch_loss_metrics(
         self,
@@ -1444,8 +1717,8 @@ class _UnslothORPOTrainer(Trainer):
         if self.aux_loss_enabled:
             aux_loss = forward_output[5]
 
-        losses, chosen_rewards, rejected_rewards, log_odds_ratio, log_odds_chosen = self.odds_ratio_loss(
-            policy_chosen_logps, policy_rejected_logps
+        losses, chosen_rewards, rejected_rewards, log_odds_ratio, log_odds_chosen = (
+            self.odds_ratio_loss(policy_chosen_logps, policy_rejected_logps)
         )
         # full ORPO loss
         loss = policy_nll_loss - losses.mean()
@@ -1453,23 +1726,39 @@ class _UnslothORPOTrainer(Trainer):
         reward_accuracies = (chosen_rewards > rejected_rewards).float()
 
         prefix = "eval_" if train_eval == "eval" else ""
-        metrics[f"{prefix}rewards/chosen"] = self.accelerator.gather_for_metrics(chosen_rewards).mean()
-        metrics[f"{prefix}rewards/rejected"] = self.accelerator.gather_for_metrics(rejected_rewards).mean()
-        metrics[f"{prefix}rewards/accuracies"] = self.accelerator.gather_for_metrics(reward_accuracies).mean()
+        metrics[f"{prefix}rewards/chosen"] = self.accelerator.gather_for_metrics(
+            chosen_rewards
+        ).mean()
+        metrics[f"{prefix}rewards/rejected"] = self.accelerator.gather_for_metrics(
+            rejected_rewards
+        ).mean()
+        metrics[f"{prefix}rewards/accuracies"] = self.accelerator.gather_for_metrics(
+            reward_accuracies
+        ).mean()
         metrics[f"{prefix}rewards/margins"] = self.accelerator.gather_for_metrics(
             chosen_rewards - rejected_rewards
         ).mean()
-        metrics[f"{prefix}logps/rejected"] = self.accelerator.gather_for_metrics(policy_rejected_logps).detach().mean()
-        metrics[f"{prefix}logps/chosen"] = self.accelerator.gather_for_metrics(policy_chosen_logps).detach().mean()
+        metrics[f"{prefix}logps/rejected"] = (
+            self.accelerator.gather_for_metrics(policy_rejected_logps).detach().mean()
+        )
+        metrics[f"{prefix}logps/chosen"] = (
+            self.accelerator.gather_for_metrics(policy_chosen_logps).detach().mean()
+        )
         metrics[f"{prefix}logits/rejected"] = self.accelerator.gather_for_metrics(
             policy_rejected_logits.detach().mean()
         ).mean()
         metrics[f"{prefix}logits/chosen"] = self.accelerator.gather_for_metrics(
             policy_chosen_logits.detach().mean()
         ).mean()
-        metrics[f"{prefix}nll_loss"] = self.accelerator.gather_for_metrics(policy_nll_loss).detach().mean()
-        metrics[f"{prefix}log_odds_ratio"] = self.accelerator.gather_for_metrics(log_odds_ratio).detach().mean()
-        metrics[f"{prefix}log_odds_chosen"] = self.accelerator.gather_for_metrics(log_odds_chosen).detach().mean()
+        metrics[f"{prefix}nll_loss"] = (
+            self.accelerator.gather_for_metrics(policy_nll_loss).detach().mean()
+        )
+        metrics[f"{prefix}log_odds_ratio"] = (
+            self.accelerator.gather_for_metrics(log_odds_ratio).detach().mean()
+        )
+        metrics[f"{prefix}log_odds_chosen"] = (
+            self.accelerator.gather_for_metrics(log_odds_chosen).detach().mean()
+        )
         if is_torch_xla_available():
             xm.mark_step()  # needed because .item() calls
         for k, v in metrics.items():
@@ -1487,11 +1776,15 @@ class _UnslothORPOTrainer(Trainer):
         num_items_in_batch=None,
     ) -> Union[torch.Tensor, tuple[torch.Tensor, dict[str, torch.Tensor]]]:
         compute_loss_context_manager = (
-            autocast(self.accelerator.device.type) if self._peft_has_been_casted_to_bf16 else nullcontext()
+            autocast(self.accelerator.device.type)
+            if self._peft_has_been_casted_to_bf16
+            else nullcontext()
         )
 
         with compute_loss_context_manager:
-            loss, metrics = self.get_batch_loss_metrics(model, inputs, train_eval="train")
+            loss, metrics = self.get_batch_loss_metrics(
+                model, inputs, train_eval="train"
+            )
 
         # Make sure to move the loss to the device the original accumulating loss is at back in the `Trainer` class:
         loss = loss.to(self.args.device)
@@ -1509,7 +1802,9 @@ class _UnslothORPOTrainer(Trainer):
         # If one uses `generate_during_eval` with peft + bf16, we need to explicitly call generate with
         # the torch amp context manager as some hidden states are silently casted to full precision.
         generate_context_manager = (
-            autocast(self.accelerator.device.type) if self._peft_has_been_casted_to_bf16 else nullcontext()
+            autocast(self.accelerator.device.type)
+            if self._peft_has_been_casted_to_bf16
+            else nullcontext()
         )
 
         with generate_context_manager:
@@ -1521,8 +1816,12 @@ class _UnslothORPOTrainer(Trainer):
                 pad_token_id=self.processing_class.pad_token_id,
             )
 
-        policy_output = pad_to_length(policy_output, self.max_length, self.processing_class.pad_token_id)
-        policy_output_decoded = self.processing_class.batch_decode(policy_output, skip_special_tokens=True)
+        policy_output = pad_to_length(
+            policy_output, self.max_length, self.processing_class.pad_token_id
+        )
+        policy_output_decoded = self.processing_class.batch_decode(
+            policy_output, skip_special_tokens=True
+        )
 
         return policy_output_decoded
 
@@ -1545,11 +1844,15 @@ class _UnslothORPOTrainer(Trainer):
                 ignore_keys = []
 
         prediction_context_manager = (
-            autocast(self.accelerator.device.type) if self._peft_has_been_casted_to_bf16 else nullcontext()
+            autocast(self.accelerator.device.type)
+            if self._peft_has_been_casted_to_bf16
+            else nullcontext()
         )
 
         with torch.no_grad(), prediction_context_manager:
-            loss, metrics = self.get_batch_loss_metrics(model, inputs, train_eval="eval")
+            loss, metrics = self.get_batch_loss_metrics(
+                model, inputs, train_eval="eval"
+            )
 
         # force log the metrics
         self.store_metrics(metrics, train_eval="eval")
@@ -1568,7 +1871,9 @@ class _UnslothORPOTrainer(Trainer):
 
         return (loss.detach(), logits, labels)
 
-    def store_metrics(self, metrics: dict[str, float], train_eval: Literal["train", "eval"] = "train") -> None:
+    def store_metrics(
+        self, metrics: dict[str, float], train_eval: Literal["train", "eval"] = "train"
+    ) -> None:
         for key, value in metrics.items():
             self._stored_metrics[train_eval][key].append(value)
 
@@ -1591,7 +1896,9 @@ class _UnslothORPOTrainer(Trainer):
         if self.generate_during_eval:
             # Generate random indices within the range of the total number of samples
             num_samples = len(dataloader.dataset)
-            random_indices = random.sample(range(num_samples), k=self.args.eval_batch_size)
+            random_indices = random.sample(
+                range(num_samples), k=self.args.eval_batch_size
+            )
 
             # Use dataloader.dataset.select to get the random batch without iterating over the DataLoader
             random_batch_dataset = dataloader.dataset.select(random_indices)
@@ -1603,7 +1910,10 @@ class _UnslothORPOTrainer(Trainer):
             table = pd.DataFrame(
                 columns=["Prompt", "Policy"],
                 data=[
-                    [prompt, pol[len(prompt) :]] for prompt, pol in zip(random_batch["prompt"], policy_output_decoded)
+                    [prompt, pol[len(prompt) :]]
+                    for prompt, pol in zip(
+                        random_batch["prompt"], policy_output_decoded
+                    )
                 ],
             )
             if "wandb" in self.args.report_to:
@@ -1617,7 +1927,11 @@ class _UnslothORPOTrainer(Trainer):
 
         # Base evaluation
         initial_output = super().evaluation_loop(
-            dataloader, description, prediction_loss_only, ignore_keys, metric_key_prefix
+            dataloader,
+            description,
+            prediction_loss_only,
+            ignore_keys,
+            metric_key_prefix,
         )
 
         return initial_output
@@ -1649,8 +1963,12 @@ class _UnslothORPOTrainer(Trainer):
         # shift inputs to the right
         if is_torch_fx_proxy(input_ids):
             # Item assignment is not supported natively for proxies.
-            shifted_input_ids = torch.full(input_ids.shape[:-1] + (1,), self.decoder_start_token_id)
-            shifted_input_ids = torch.cat([shifted_input_ids, input_ids[..., :-1]], dim=-1)
+            shifted_input_ids = torch.full(
+                input_ids.shape[:-1] + (1,), self.decoder_start_token_id
+            )
+            shifted_input_ids = torch.cat(
+                [shifted_input_ids, input_ids[..., :-1]], dim=-1
+            )
         else:
             shifted_input_ids = input_ids.new_zeros(input_ids.shape)
             shifted_input_ids[..., 1:] = input_ids[..., :-1].clone()
@@ -1692,7 +2010,9 @@ class _UnslothORPOTrainer(Trainer):
         if not self.is_world_process_zero():
             return
 
-        if hasattr(self.model.config, "_name_or_path") and not os.path.isdir(self.model.config._name_or_path):
+        if hasattr(self.model.config, "_name_or_path") and not os.path.isdir(
+            self.model.config._name_or_path
+        ):
             base_model = self.model.config._name_or_path
         else:
             base_model = None
@@ -1728,7 +2048,9 @@ class _UnslothORPOTrainer(Trainer):
             hub_model_id=self.hub_model_id,
             dataset_name=dataset_name,
             tags=tags,
-            wandb_url=wandb.run.url if is_wandb_available() and wandb.run is not None else None,
+            wandb_url=wandb.run.url
+            if is_wandb_available() and wandb.run is not None
+            else None,
             comet_url=get_comet_experiment_url(),
             trainer_name="ORPO",
             trainer_citation=citation,
@@ -1737,9 +2059,11 @@ class _UnslothORPOTrainer(Trainer):
         )
 
         model_card.save(os.path.join(self.args.output_dir, "README.md"))
+
+
 class UnslothORPOTrainer(_UnslothORPOTrainer):
     """
-    
+
     Initialize ORPOTrainer.
 
     Args:
@@ -1774,98 +2098,139 @@ class UnslothORPOTrainer(_UnslothORPOTrainer):
         compute_metrics (`Callable[[EvalPrediction], dict]`, *optional*):
             The function to use to compute the metrics. Must take a `EvalPrediction` and return a dictionary string to
             metric values.
-    
+
     """
+
     def __init__(
         self,
-        model = None,
-        args = None,
-        data_collator = None,
-        train_dataset = None,
-        eval_dataset = None,
-        processing_class = None,
-        model_init = None,
-        callbacks = None,
-        preprocess_logits_for_metrics = None,
-        peft_config = None,
-        compute_metrics = None,
-        **kwargs
+        model=None,
+        args=None,
+        data_collator=None,
+        train_dataset=None,
+        eval_dataset=None,
+        processing_class=None,
+        model_init=None,
+        callbacks=None,
+        preprocess_logits_for_metrics=None,
+        peft_config=None,
+        compute_metrics=None,
+        **kwargs,
     ):
-        if args is None: args = UnslothORPOConfig()
-        use_bf16 = getattr(args, 'bf16', False)
-        if type(use_bf16) is not bool: use_bf16 = False
-        use_fp16 = getattr(args, 'fp16', False)
-        if type(use_fp16) is not bool: use_fp16 = False
+        if args is None:
+            args = UnslothORPOConfig()
+        use_bf16 = getattr(args, "bf16", False)
+        if type(use_bf16) is not bool:
+            use_bf16 = False
+        use_fp16 = getattr(args, "fp16", False)
+        if type(use_fp16) is not bool:
+            use_fp16 = False
         force_float32 = False
-        full_finetuning = os.environ.get('UNSLOTH_ENABLE_FULL_FINETUNING', '0') == '1'
-        if not full_finetuning and (os.environ.get('UNSLOTH_FORCE_FLOAT32', '0') == '1'):
-            print('Unsloth: Switching to float32 training since model cannot work with float16')
+        full_finetuning = os.environ.get("UNSLOTH_ENABLE_FULL_FINETUNING", "0") == "1"
+        if not full_finetuning and (
+            os.environ.get("UNSLOTH_FORCE_FLOAT32", "0") == "1"
+        ):
+            print(
+                "Unsloth: Switching to float32 training since model cannot work with float16"
+            )
             force_float32 = True
-        mixed_precision_dtype = os.environ.get('UNSLOTH_MIXED_PRECISION', 'float32')
-        dtype = getattr(model.config, 'dtype', None) or getattr(model.config, 'torch_dtype', None)
-        if dtype is None: dtype = model.get_input_embeddings().weight.dtype
+        mixed_precision_dtype = os.environ.get("UNSLOTH_MIXED_PRECISION", "float32")
+        dtype = getattr(model.config, "dtype", None) or getattr(
+            model.config, "torch_dtype", None
+        )
+        if dtype is None:
+            dtype = model.get_input_embeddings().weight.dtype
         from unsloth_zoo.utils import _get_dtype
+
         dtype = _get_dtype(dtype)
         float16 = dtype == torch.float16
-        if not force_float32 and (float16 and use_bf16): raise TypeError('Unsloth: Model is in float16 precision but you want to use bfloat16 precision. Set fp16 to `True` and bf16 to `False`')
-        if not force_float32 and (not float16 and use_fp16): raise TypeError('Unsloth: Model is in bfloat16 precision but you want to use float16 precision. Set fp16 to `False` and bf16 to `True`')
+        if not force_float32 and (float16 and use_bf16):
+            raise TypeError(
+                "Unsloth: Model is in float16 precision but you want to use bfloat16 precision. Set fp16 to `True` and bf16 to `False`"
+            )
+        if not force_float32 and (not float16 and use_fp16):
+            raise TypeError(
+                "Unsloth: Model is in bfloat16 precision but you want to use float16 precision. Set fp16 to `False` and bf16 to `True`"
+            )
         if force_float32:
             # Forced float32 training
             args.fp16 = False
             args.bf16 = False
-            os.environ['ACCELERATE_MIXED_PRECISION'] = 'no'
-            if hasattr(args, 'mixed_precision'): args.mixed_precision = 'no'
+            os.environ["ACCELERATE_MIXED_PRECISION"] = "no"
+            if hasattr(args, "mixed_precision"):
+                args.mixed_precision = "no"
             # args.mixed_precision is a new argument which needs to be set now
-        elif (not use_bf16 and not use_fp16) and mixed_precision_dtype == 'float32':
+        elif (not use_bf16 and not use_fp16) and mixed_precision_dtype == "float32":
             # Mixed precision training
             args.fp16 = float16
             args.bf16 = not float16
-            os.environ['ACCELERATE_MIXED_PRECISION'] = 'fp16' if float16 else 'bf16'
-            if hasattr(args, 'mixed_precision'): args.mixed_precision = 'fp16' if float16 else 'bf16'
+            os.environ["ACCELERATE_MIXED_PRECISION"] = "fp16" if float16 else "bf16"
+            if hasattr(args, "mixed_precision"):
+                args.mixed_precision = "fp16" if float16 else "bf16"
             # args.mixed_precision is a new argument which needs to be set now
-        elif mixed_precision_dtype == 'bfloat16':
+        elif mixed_precision_dtype == "bfloat16":
             # Both False since bfloat16 full finetuning doesn't do any autocasting.
             args.fp16 = False
             args.bf16 = False
-            os.environ['ACCELERATE_MIXED_PRECISION'] = 'no'
-            if hasattr(args, 'mixed_precision'): args.mixed_precision = 'no'
+            os.environ["ACCELERATE_MIXED_PRECISION"] = "no"
+            if hasattr(args, "mixed_precision"):
+                args.mixed_precision = "no"
             # args.mixed_precision is a new argument which needs to be set now
-        
-        if getattr(args, 'eval_dataset', None) is not None and getattr(args, 'eval_strategy', 'no') == 'no':
-            args.eval_strategy = 'steps'
-            if getattr(args, 'eval_steps', None) is None: args.eval_steps = 0.1
-        ga_steps = getattr(args, 'gradient_accumulation_steps', None)
+
+        if (
+            getattr(args, "eval_dataset", None) is not None
+            and getattr(args, "eval_strategy", "no") == "no"
+        ):
+            args.eval_strategy = "steps"
+            if getattr(args, "eval_steps", None) is None:
+                args.eval_steps = 0.1
+        ga_steps = getattr(args, "gradient_accumulation_steps", None)
         if ga_steps is not None and ga_steps > 1:
             from transformers import __version__ as transformers_version
-            if Version(transformers_version) <= Version('4.45.2'):
-                print('**** Unsloth: Please use our fixed gradient_accumulation_steps by updating transformers, TRL and Unsloth!\n'
-                      '`pip install --upgrade --no-cache-dir --force-reinstall --no-deps unsloth transformers trl unsloth_zoo`')
-        if getattr(args, 'eval_strategy', 'no') != 'no':
-            eval_bsz = getattr(args, 'per_device_eval_batch_size', 8)
-            if eval_bsz == 8 and args.per_device_train_batch_size < eval_bsz: args.per_device_eval_batch_size = args.per_device_train_batch_size
-            if getattr(args, 'eval_accumulation_steps', None) is None and ga_steps is not None: args.eval_accumulation_steps = ga_steps
-        fp16_full_eval = getattr(args, 'fp16_full_eval', False)
-        if type(fp16_full_eval) is not bool: fp16_full_eval = False
-        bf16_full_eval = getattr(args, 'bf16_full_eval', False)
-        if type(bf16_full_eval) is not bool: bf16_full_eval = False
-        if args.fp16 and bf16_full_eval: args.bf16_full_eval = False; args.fp16_full_eval = True
-        if args.bf16 and fp16_full_eval: args.bf16_full_eval = True; args.fp16_full_eval = False
+
+            if Version(transformers_version) <= Version("4.45.2"):
+                print(
+                    "**** Unsloth: Please use our fixed gradient_accumulation_steps by updating transformers, TRL and Unsloth!\n"
+                    "`pip install --upgrade --no-cache-dir --force-reinstall --no-deps unsloth transformers trl unsloth_zoo`"
+                )
+        if getattr(args, "eval_strategy", "no") != "no":
+            eval_bsz = getattr(args, "per_device_eval_batch_size", 8)
+            if eval_bsz == 8 and args.per_device_train_batch_size < eval_bsz:
+                args.per_device_eval_batch_size = args.per_device_train_batch_size
+            if (
+                getattr(args, "eval_accumulation_steps", None) is None
+                and ga_steps is not None
+            ):
+                args.eval_accumulation_steps = ga_steps
+        fp16_full_eval = getattr(args, "fp16_full_eval", False)
+        if type(fp16_full_eval) is not bool:
+            fp16_full_eval = False
+        bf16_full_eval = getattr(args, "bf16_full_eval", False)
+        if type(bf16_full_eval) is not bool:
+            bf16_full_eval = False
+        if args.fp16 and bf16_full_eval:
+            args.bf16_full_eval = False
+            args.fp16_full_eval = True
+        if args.bf16 and fp16_full_eval:
+            args.bf16_full_eval = True
+            args.fp16_full_eval = False
         if force_float32:
             args.bf16_full_eval = False
             args.fp16_full_eval = False
-        elif os.environ.get('UNSLOTH_MIXED_PRECISION', 'float32') == 'bfloat16':
+        elif os.environ.get("UNSLOTH_MIXED_PRECISION", "float32") == "bfloat16":
             args.bf16_full_eval = True
             args.fp16_full_eval = False
         elif not bf16_full_eval and not fp16_full_eval:
             args.bf16_full_eval = args.bf16
             args.fp16_full_eval = args.fp16
         _output_logits = False
-        if locals().get('compute_metrics', None) is not None: _output_logits = True
-        if locals().get('preprocess_logits_for_metrics', None) is not None: _output_logits = True
+        if locals().get("compute_metrics", None) is not None:
+            _output_logits = True
+        if locals().get("preprocess_logits_for_metrics", None) is not None:
+            _output_logits = True
         if _output_logits:
-            os.environ['UNSLOTH_RETURN_LOGITS'] = '1'
+            os.environ["UNSLOTH_RETURN_LOGITS"] = "1"
         if model is not None:
-            _warnings_issued = getattr(model, 'warnings_issued', None)
+            _warnings_issued = getattr(model, "warnings_issued", None)
             if _warnings_issued is None:
                 model.warnings_issued = {}
             elif not isinstance(_warnings_issued, dict):
@@ -1873,116 +2238,163 @@ class UnslothORPOTrainer(_UnslothORPOTrainer):
                     model.warnings_issued = dict(_warnings_issued)
                 except Exception:
                     model.warnings_issued = {}
-        if 'max_seq_length' not in locals() and not hasattr(args, 'max_seq_length'):
+        if "max_seq_length" not in locals() and not hasattr(args, "max_seq_length"):
             pass
         else:
-            model_max_seq_length = getattr(model, 'max_seq_length', None)
-            args_max_seq_length  = getattr(args,  'max_seq_length', None)
+            model_max_seq_length = getattr(model, "max_seq_length", None)
+            args_max_seq_length = getattr(args, "max_seq_length", None)
             if args_max_seq_length is None and model_max_seq_length is not None:
                 max_seq_length = model.max_seq_length
-                if hasattr(args, 'max_seq_length'): args.max_seq_length = max_seq_length
+                if hasattr(args, "max_seq_length"):
+                    args.max_seq_length = max_seq_length
             elif args_max_seq_length is not None and model_max_seq_length is not None:
                 if args_max_seq_length > model_max_seq_length:
-                    print('Unsloth: You set `max_seq_length` as ' + str(args_max_seq_length) + ' but '
-                           'the maximum the model supports is ' + str(model_max_seq_length) + '. We shall reduce it.')
+                    print(
+                        "Unsloth: You set `max_seq_length` as "
+                        + str(args_max_seq_length)
+                        + " but "
+                        "the maximum the model supports is "
+                        + str(model_max_seq_length)
+                        + ". We shall reduce it."
+                    )
                     args.max_seq_length = model_max_seq_length
-        if model is not None and hasattr(model, 'for_training'):
-            model.for_training(use_gradient_checkpointing=getattr(args, 'gradient_checkpointing', True))
-        if 'tokenizer' in locals() and hasattr(tokenizer, 'padding_side'): tokenizer.padding_side = 'right'
-        if 'processing_class' in locals():
-            if hasattr(processing_class, 'padding_side'): processing_class.padding_side = 'right'
-            if hasattr(processing_class, 'tokenizer') and hasattr(processing_class.tokenizer, 'padding_side'): processing_class.tokenizer.padding_side = 'right'
-        __tokenizer = processing_class if 'processing_class' in locals() else tokenizer
+        if model is not None and hasattr(model, "for_training"):
+            model.for_training(
+                use_gradient_checkpointing=getattr(args, "gradient_checkpointing", True)
+            )
+        if "tokenizer" in locals() and hasattr(tokenizer, "padding_side"):
+            tokenizer.padding_side = "right"
+        if "processing_class" in locals():
+            if hasattr(processing_class, "padding_side"):
+                processing_class.padding_side = "right"
+            if hasattr(processing_class, "tokenizer") and hasattr(
+                processing_class.tokenizer, "padding_side"
+            ):
+                processing_class.tokenizer.padding_side = "right"
+        __tokenizer = processing_class if "processing_class" in locals() else tokenizer
         from unsloth_zoo.vision_utils import UnslothVisionDataCollator
+
         if not isinstance(data_collator, UnslothVisionDataCollator):
-            if isinstance(data_collator, DataCollatorForSeq2Seq) and 'labels' not in train_dataset.column_names:
+            if (
+                isinstance(data_collator, DataCollatorForSeq2Seq)
+                and "labels" not in train_dataset.column_names
+            ):
                 data_collator = TransformersDataCollatorForLanguageModeling(
                     __tokenizer,
-                    mlm = False,
-                    mlm_probability = 0.0,
-                    pad_to_multiple_of = getattr(args, 'pad_to_multiple_of', None),
+                    mlm=False,
+                    mlm_probability=0.0,
+                    pad_to_multiple_of=getattr(args, "pad_to_multiple_of", None),
                 )
-            elif isinstance(data_collator, TransformersDataCollatorForLanguageModeling) and 'labels' in train_dataset.column_names:
+            elif (
+                isinstance(data_collator, TransformersDataCollatorForLanguageModeling)
+                and "labels" in train_dataset.column_names
+            ):
                 data_collator = DataCollatorForSeq2Seq(
                     __tokenizer,
-                    pad_to_multiple_of = getattr(args, 'pad_to_multiple_of', None),
+                    pad_to_multiple_of=getattr(args, "pad_to_multiple_of", None),
                 )
         else:
-            if hasattr(args, 'remove_unused_columns'): args.remove_unused_columns = False
-            if hasattr(args, 'dataset_text_field'): args.dataset_text_field = ''
-            if hasattr(args, 'dataset_kwargs'): args.dataset_kwargs = {'skip_prepare_dataset': True}
+            if hasattr(args, "remove_unused_columns"):
+                args.remove_unused_columns = False
+            if hasattr(args, "dataset_text_field"):
+                args.dataset_text_field = ""
+            if hasattr(args, "dataset_kwargs"):
+                args.dataset_kwargs = {"skip_prepare_dataset": True}
         if not isinstance(data_collator, UnslothVisionDataCollator):
-            if not hasattr(__tokenizer, 'pad') and hasattr(__tokenizer, 'tokenizer'):
+            if not hasattr(__tokenizer, "pad") and hasattr(__tokenizer, "tokenizer"):
                 if isinstance(data_collator, DataCollatorForSeq2Seq):
                     data_collator = DataCollatorForSeq2Seq(
                         __tokenizer.tokenizer,
-                        pad_to_multiple_of = getattr(args, 'pad_to_multiple_of', None),
+                        pad_to_multiple_of=getattr(args, "pad_to_multiple_of", None),
                     )
-                elif isinstance(data_collator, TransformersDataCollatorForLanguageModeling):
+                elif isinstance(
+                    data_collator, TransformersDataCollatorForLanguageModeling
+                ):
                     data_collator = TransformersDataCollatorForLanguageModeling(
                         __tokenizer.tokenizer,
-                        mlm = False,
-                        mlm_probability = 0.0,
-                        pad_to_multiple_of = getattr(args, 'pad_to_multiple_of', None),
+                        mlm=False,
+                        mlm_probability=0.0,
+                        pad_to_multiple_of=getattr(args, "pad_to_multiple_of", None),
                     )
         other_metrics = []
-        
+
         from unsloth_zoo.logging_utils import PatchRLStatistics
-        PatchRLStatistics('orpo_trainer', other_metrics)
-        
+
+        PatchRLStatistics("orpo_trainer", other_metrics)
+
         # [TODO] Fix up DataParallel multiplying batch sizes
         # [TODO] DDP works, but DP seems to not work? [TODO]
-        if getattr(args, "parallel_mode", None) == ParallelMode.NOT_DISTRIBUTED and args.n_gpu > 1:
+        if (
+            getattr(args, "parallel_mode", None) == ParallelMode.NOT_DISTRIBUTED
+            and args.n_gpu > 1
+        ):
             if getattr(args, "_n_gpu", 1) != 1:
                 args._n_gpu = 1
         if "model" in locals() and hasattr(model, "for_training"):
-            model.for_training(use_gradient_checkpointing=getattr(args, 'gradient_checkpointing', True))
+            model.for_training(
+                use_gradient_checkpointing=getattr(args, "gradient_checkpointing", True)
+            )
         super().__init__(
-            model = model,
-            args = args,
-            data_collator = data_collator,
-            train_dataset = train_dataset,
-            eval_dataset = eval_dataset,
-            processing_class = processing_class,
-            model_init = model_init,
-            callbacks = callbacks,
-            preprocess_logits_for_metrics = preprocess_logits_for_metrics,
-            peft_config = peft_config,
-            compute_metrics = compute_metrics,**kwargs)
+            model=model,
+            args=args,
+            data_collator=data_collator,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            processing_class=processing_class,
+            model_init=model_init,
+            callbacks=callbacks,
+            preprocess_logits_for_metrics=preprocess_logits_for_metrics,
+            peft_config=peft_config,
+            compute_metrics=compute_metrics,
+            **kwargs,
+        )
         if "model" in locals() and hasattr(model, "for_inference"):
             model.for_inference()
-        if hasattr(self, 'neftune_hook_handle'):
+        if hasattr(self, "neftune_hook_handle"):
             self.neftune_hook_handle.remove()
-            if hasattr(self, 'neftune_hook_handle'): del self.neftune_hook_handle
-        if getattr(args, 'neftune_noise_alpha', None) is not None:
+            if hasattr(self, "neftune_hook_handle"):
+                del self.neftune_hook_handle
+        if getattr(args, "neftune_noise_alpha", None) is not None:
             model.get_input_embeddings().neftune_noise_alpha = self.neftune_noise_alpha
-        pass
-        if hasattr(self, 'accelerator'):
+        if hasattr(self, "accelerator"):
             scaler = self.accelerator.scaler
             current_model = model
-            while hasattr(current_model, 'model'):
+            while hasattr(current_model, "model"):
                 current_model.accelerator_scaler = scaler
                 current_model = current_model.model
             current_model.accelerator_scaler = scaler
-        pass
-        if hasattr(self, 'train'):
-            self.train = MethodType(prepare_for_training_mode(self.__class__.train), self)
-        pass
-        if hasattr(self, 'llm') and self.llm is not None and hasattr(self.llm, 'get_tokenizer'):
+        if hasattr(self, "train"):
+            self.train = MethodType(
+                prepare_for_training_mode(self.__class__.train), self
+            )
+        if (
+            hasattr(self, "llm")
+            and self.llm is not None
+            and hasattr(self.llm, "get_tokenizer")
+        ):
             _vllm_tok = self.llm.get_tokenizer()
-            _pc = getattr(self, 'processing_class', None) or getattr(self, 'tokenizer', None)
-            if _vllm_tok is not None and _pc is not None and getattr(_pc, 'chat_template', None) is not None and getattr(_vllm_tok, 'chat_template', None) is None:
+            _pc = getattr(self, "processing_class", None) or getattr(
+                self, "tokenizer", None
+            )
+            if (
+                _vllm_tok is not None
+                and _pc is not None
+                and getattr(_pc, "chat_template", None) is not None
+                and getattr(_vllm_tok, "chat_template", None) is None
+            ):
                 _vllm_tok.chat_template = _pc.chat_template
-        pass
-        
-pass
+
+
 
 
 if hasattr(logger, "addFilter"):
     import logging
-    class HideLoggingMessage(logging.Filter):
-        def __init__(self, text): self.text = text
-        def filter(self, x): return not (self.text in x.getMessage())
-    pass
-    logger.addFilter(HideLoggingMessage("`use_cache=True`"))
 
+    class HideLoggingMessage(logging.Filter):
+        def __init__(self, text):
+            self.text = text
+
+        def filter(self, x):
+            return not (self.text in x.getMessage())
+
+    logger.addFilter(HideLoggingMessage("`use_cache=True`"))

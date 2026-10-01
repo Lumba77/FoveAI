@@ -26,22 +26,24 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import sqlite3
 import subprocess
-import socket
-import time
 import threading
-import urllib.request
+import time
 import urllib.error
+import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
 
 # ─── Paths ──────────────────────────────────────────────────────────
 FOVEAI_DIR = Path(__file__).resolve().parent
 VENV_PYTHON = str(FOVEAI_DIR / ".venv" / "bin" / "python")
-MEMORY_DB = FOVEAI_DIR / "xrl_encoded" / "gemma-4-e2b-multimodal-v1.0.xrlf.cache" / "memory.db"
+MEMORY_DB = (
+    FOVEAI_DIR / "xrl_encoded" / "gemma-4-e2b-multimodal-v1.0.xrlf.cache" / "memory.db"
+)
 XRLF_LIVE_LOG = Path.home() / "xrlf_live.log"
 FOVEATED_PROXY_LOG = Path.home() / "foveated_proxy.log"
 
@@ -66,7 +68,7 @@ class CheckResult:
     detail: str = ""
     latency_ms: float = 0.0
     healable: bool = False
-    heal_action: Optional[str] = None
+    heal_action: str | None = None
 
     @property
     def icon(self) -> str:
@@ -90,7 +92,7 @@ class CheckResult:
 @dataclass
 class HealthReport:
     timestamp: float = field(default_factory=time.time)
-    results: List[CheckResult] = field(default_factory=list)
+    results: list[CheckResult] = field(default_factory=list)
     overall: HealthStatus = HealthStatus.UNKNOWN
     summary: str = ""
 
@@ -103,14 +105,15 @@ class HealthReport:
         elif r.status == HealthStatus.PASS and self.overall == HealthStatus.UNKNOWN:
             self.overall = HealthStatus.PASS
 
-    def failing(self) -> List[CheckResult]:
+    def failing(self) -> list[CheckResult]:
         return [r for r in self.results if r.status == HealthStatus.FAIL]
 
-    def warnings(self) -> List[CheckResult]:
+    def warnings(self) -> list[CheckResult]:
         return [r for r in self.results if r.status == HealthStatus.WARN]
 
 
 # ─── Helpers ────────────────────────────────────────────────────────
+
 
 def _port_open(port: int, timeout: float = 0.5) -> bool:
     try:
@@ -121,7 +124,7 @@ def _port_open(port: int, timeout: float = 0.5) -> bool:
         return False
 
 
-def _http_get(url: str, timeout: float = 2.0) -> Tuple[int, Optional[dict]]:
+def _http_get(url: str, timeout: float = 2.0) -> tuple[int, dict | None]:
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "FoveAI-Health/1.0"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -136,11 +139,18 @@ def _http_get(url: str, timeout: float = 2.0) -> Tuple[int, Optional[dict]]:
         return 0, None
 
 
-def _http_post(url: str, data: dict, timeout: float = 30.0) -> Tuple[int, Optional[dict]]:
+def _http_post(
+    url: str, data: dict, timeout: float = 30.0
+) -> tuple[int, dict | None]:
     try:
         body = json.dumps(data).encode("utf-8")
         req = urllib.request.Request(
-            url, data=body, headers={"Content-Type": "application/json", "User-Agent": "FoveAI-Health/1.0"}
+            url,
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "FoveAI-Health/1.0",
+            },
         )
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
@@ -156,44 +166,95 @@ def _http_post(url: str, data: dict, timeout: float = 30.0) -> Tuple[int, Option
 
 # ─── Individual Checks ──────────────────────────────────────────────
 
+
 def check_proxy() -> CheckResult:
     if not _port_open(PORT_PROXY):
-        return CheckResult("Proxy :8400", HealthStatus.FAIL, "Port not listening", healable=True, heal_action="restart_proxy")
+        return CheckResult(
+            "Proxy :8400",
+            HealthStatus.FAIL,
+            "Port not listening",
+            healable=True,
+            heal_action="restart_proxy",
+        )
     code, body = _http_get(f"http://127.0.0.1:{PORT_PROXY}/health", timeout=2)
     if code == 200:
         return CheckResult("Proxy :8400", HealthStatus.PASS, "Healthy")
-    return CheckResult("Proxy :8400", HealthStatus.WARN, f"Port open but /health={code}", healable=True, heal_action="restart_proxy")
+    return CheckResult(
+        "Proxy :8400",
+        HealthStatus.WARN,
+        f"Port open but /health={code}",
+        healable=True,
+        heal_action="restart_proxy",
+    )
 
 
 def check_dashboard() -> CheckResult:
     if not _port_open(PORT_DASHBOARD):
-        return CheckResult("Dashboard :8401", HealthStatus.WARN, "Port not listening", healable=True, heal_action="restart_proxy")
+        return CheckResult(
+            "Dashboard :8401",
+            HealthStatus.WARN,
+            "Port not listening",
+            healable=True,
+            heal_action="restart_proxy",
+        )
     return CheckResult("Dashboard :8401", HealthStatus.PASS, "Listening")
 
 
 def check_xrlf_runtime() -> CheckResult:
     if not _port_open(PORT_XRLF):
-        return CheckResult("XRLF Runtime :8402", HealthStatus.FAIL, "Port not listening", healable=True, heal_action="restart_xrlf")
+        return CheckResult(
+            "XRLF Runtime :8402",
+            HealthStatus.FAIL,
+            "Port not listening",
+            healable=True,
+            heal_action="restart_xrlf",
+        )
     code, body = _http_get(f"http://127.0.0.1:{PORT_XRLF}/health", timeout=2)
     if code == 200 and body:
         model = body.get("model", "?")
         loaded = body.get("status") == "ok"
         if loaded:
-            return CheckResult("XRLF Runtime :8402", HealthStatus.PASS, f"Model: {model}")
-        return CheckResult("XRLF Runtime :8402", HealthStatus.WARN, f"Status: {body.get('status')}", healable=True, heal_action="restart_xrlf")
-    return CheckResult("XRLF Runtime :8402", HealthStatus.FAIL, f"/health={code}", healable=True, heal_action="restart_xrlf")
+            return CheckResult(
+                "XRLF Runtime :8402", HealthStatus.PASS, f"Model: {model}"
+            )
+        return CheckResult(
+            "XRLF Runtime :8402",
+            HealthStatus.WARN,
+            f"Status: {body.get('status')}",
+            healable=True,
+            heal_action="restart_xrlf",
+        )
+    return CheckResult(
+        "XRLF Runtime :8402",
+        HealthStatus.FAIL,
+        f"/health={code}",
+        healable=True,
+        heal_action="restart_xrlf",
+    )
 
 
 def check_ws_ipc() -> CheckResult:
     if not _port_open(PORT_WS):
-        return CheckResult("WebSocket IPC :8403", HealthStatus.WARN, "Port not listening", healable=True, heal_action="restart_xrlf")
+        return CheckResult(
+            "WebSocket IPC :8403",
+            HealthStatus.WARN,
+            "Port not listening",
+            healable=True,
+            heal_action="restart_xrlf",
+        )
     return CheckResult("WebSocket IPC :8403", HealthStatus.PASS, "Listening")
 
 
 def check_soul() -> CheckResult:
     code, body = _http_get(f"http://127.0.0.1:{PORT_XRLF}/soul/status", timeout=2)
     if code != 200 or not body:
-        return CheckResult("Soul (Alice)", HealthStatus.WARN, f"/soul/status={code}", healable=True, heal_action="restart_xrlf")
+        return CheckResult(
+            "Soul (Alice)",
+            HealthStatus.WARN,
+            f"/soul/status={code}",
+            healable=True,
+            heal_action="restart_xrlf",
+        )
     # The response is nested: {soul: {name, traits, ...}, shaping: {axes, shaped_by}}
     soul = body.get("soul", body)
     name = soul.get("name", "?")
@@ -203,10 +264,24 @@ def check_soul() -> CheckResult:
     shaping = body.get("shaping", {})
     axes = shaping.get("axes", {})
     shaped_by = shaping.get("shaped_by", [])
-    shaping_count = len(axes) if isinstance(axes, dict) else (len(shaped_by) if isinstance(shaped_by, list) else 0)
+    shaping_count = (
+        len(axes)
+        if isinstance(axes, dict)
+        else (len(shaped_by) if isinstance(shaped_by, list) else 0)
+    )
     if name.lower() == "alice" and int(traits or 0) > 0:
-        return CheckResult("Soul (Alice)", HealthStatus.PASS, f"{name}, {traits} traits, {shaping_count} shaping")
-    return CheckResult("Soul (Alice)", HealthStatus.WARN, f"name={name} traits={traits}", healable=True, heal_action="restart_xrlf")
+        return CheckResult(
+            "Soul (Alice)",
+            HealthStatus.PASS,
+            f"{name}, {traits} traits, {shaping_count} shaping",
+        )
+    return CheckResult(
+        "Soul (Alice)",
+        HealthStatus.WARN,
+        f"name={name} traits={traits}",
+        healable=True,
+        heal_action="restart_xrlf",
+    )
 
 
 def check_memory() -> CheckResult:
@@ -219,13 +294,17 @@ def check_memory() -> CheckResult:
         session_count = len(sessions)
     else:
         session_count = 0
-    return CheckResult("Memory DB", HealthStatus.PASS, f"{turns} turns, {session_count} sessions")
+    return CheckResult(
+        "Memory DB", HealthStatus.PASS, f"{turns} turns, {session_count} sessions"
+    )
 
 
 def check_capabilities() -> CheckResult:
     code, body = _http_get(f"http://127.0.0.1:{PORT_XRLF}/v1/capabilities", timeout=2)
     if code != 200 or not body:
-        return CheckResult("Capabilities", HealthStatus.WARN, f"/v1/capabilities={code}")
+        return CheckResult(
+            "Capabilities", HealthStatus.WARN, f"/v1/capabilities={code}"
+        )
     parts = []
     if body.get("vision"):
         parts.append("vision")
@@ -238,7 +317,9 @@ def check_capabilities() -> CheckResult:
     gpu = body.get("gpu_layers", 0)
     parts.append(f"gpu={gpu}")
     if not parts:
-        return CheckResult("Capabilities", HealthStatus.WARN, "No capabilities detected")
+        return CheckResult(
+            "Capabilities", HealthStatus.WARN, "No capabilities detected"
+        )
     return CheckResult("Capabilities", HealthStatus.PASS, ", ".join(parts))
 
 
@@ -247,7 +328,13 @@ def check_tts() -> CheckResult:
     code, body = _http_get(f"http://127.0.0.1:{PORT_XRLF}/v1/capabilities", timeout=2)
     if code == 200 and body and body.get("tts"):
         return CheckResult("TTS (Kokoro)", HealthStatus.PASS, "Available")
-    return CheckResult("TTS (Kokoro)", HealthStatus.WARN, "Not available", healable=True, heal_action="restart_xrlf")
+    return CheckResult(
+        "TTS (Kokoro)",
+        HealthStatus.WARN,
+        "Not available",
+        healable=True,
+        heal_action="restart_xrlf",
+    )
 
 
 def check_stt() -> CheckResult:
@@ -255,7 +342,13 @@ def check_stt() -> CheckResult:
     code, body = _http_get(f"http://127.0.0.1:{PORT_XRLF}/v1/capabilities", timeout=2)
     if code == 200 and body and body.get("audio_stt"):
         return CheckResult("STT (Whisper)", HealthStatus.PASS, "Available")
-    return CheckResult("STT (Whisper)", HealthStatus.WARN, "Not available", healable=True, heal_action="restart_xrlf")
+    return CheckResult(
+        "STT (Whisper)",
+        HealthStatus.WARN,
+        "Not available",
+        healable=True,
+        heal_action="restart_xrlf",
+    )
 
 
 def check_context_window() -> CheckResult:
@@ -266,7 +359,9 @@ def check_context_window() -> CheckResult:
     ctx = body.get("context_window", 0)
     model = body.get("model", "?")
     if ctx < 1024:
-        return CheckResult("Context Window", HealthStatus.FAIL, f"Too small: {ctx} for {model}")
+        return CheckResult(
+            "Context Window", HealthStatus.FAIL, f"Too small: {ctx} for {model}"
+        )
     return CheckResult("Context Window", HealthStatus.PASS, f"{ctx} tokens ({model})")
 
 
@@ -296,7 +391,9 @@ def check_coherence(timeout: float = 30.0) -> CheckResult:
         f"http://127.0.0.1:{PORT_XRLF}/v1/chat/completions",
         {
             "model": "xrlf",
-            "messages": [{"role": "user", "content": "What is your name? Who made you?"}],
+            "messages": [
+                {"role": "user", "content": "What is your name? Who made you?"}
+            ],
             "max_tokens": 80,
             "temperature": 0.7,
             "stream": False,
@@ -304,31 +401,60 @@ def check_coherence(timeout: float = 30.0) -> CheckResult:
         timeout=timeout,
     )
     if code != 200 or not body:
-        return CheckResult("Coherence", HealthStatus.FAIL, f"Chat failed: {code}", healable=True, heal_action="restart_xrlf")
+        return CheckResult(
+            "Coherence",
+            HealthStatus.FAIL,
+            f"Chat failed: {code}",
+            healable=True,
+            heal_action="restart_xrlf",
+        )
     choices = body.get("choices", [])
     if not choices:
-        return CheckResult("Coherence", HealthStatus.FAIL, "No choices in response", healable=True, heal_action="restart_xrlf")
+        return CheckResult(
+            "Coherence",
+            HealthStatus.FAIL,
+            "No choices in response",
+            healable=True,
+            heal_action="restart_xrlf",
+        )
     content = choices[0].get("message", {}).get("content", "").lower().strip()
     if not content:
-        return CheckResult("Coherence", HealthStatus.FAIL, "Empty response", healable=True, heal_action="restart_xrlf")
+        return CheckResult(
+            "Coherence",
+            HealthStatus.FAIL,
+            "Empty response",
+            healable=True,
+            heal_action="restart_xrlf",
+        )
 
     # Check for bad patterns
     import re
+
     for pattern in _BAD_PATTERNS:
         if re.search(pattern, content):
             return CheckResult(
-                "Coherence", HealthStatus.FAIL,
+                "Coherence",
+                HealthStatus.FAIL,
                 f"Bad pattern: '{pattern}' in response: {content[:80]}",
-                healable=True, heal_action="restart_xrlf_clear_memory"
+                healable=True,
+                heal_action="restart_xrlf_clear_memory",
             )
 
     # Check for Alice identity
     has_alice = any(m in content for m in _GOOD_MARKERS)
     if has_alice:
-        return CheckResult("Coherence", HealthStatus.PASS, f"Alice identified: {content[:80]}")
+        return CheckResult(
+            "Coherence", HealthStatus.PASS, f"Alice identified: {content[:80]}"
+        )
 
     # Response is coherent but doesn't mention Alice — warn
-    return CheckResult("Coherence", HealthStatus.WARN, f"No Alice identity: {content[:80]}", healable=True, heal_action="restart_xrlf")
+    return CheckResult(
+        "Coherence",
+        HealthStatus.WARN,
+        f"No Alice identity: {content[:80]}",
+        healable=True,
+        heal_action="restart_xrlf",
+    )
 
 
 def check_repo_health() -> CheckResult:
@@ -343,15 +469,27 @@ def check_repo_health() -> CheckResult:
         result = subprocess.run(
             ["git", "status", "--porcelain"],
             cwd=str(git_dir),
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if result.returncode != 0:
-            return CheckResult("Repo Health", HealthStatus.WARN, f"git status failed: {result.stderr[:80]}")
+            return CheckResult(
+                "Repo Health",
+                HealthStatus.WARN,
+                f"git status failed: {result.stderr[:80]}",
+            )
         lines = [l for l in result.stdout.strip().split("\n") if l]
         conflict_lines = [l for l in lines if l.startswith(("UU", "AA", "DD"))]
         if conflict_lines:
-            return CheckResult("Repo Health", HealthStatus.FAIL, f"{len(conflict_lines)} merge conflicts")
-        return CheckResult("Repo Health", HealthStatus.PASS, f"{len(lines)} uncommitted files")
+            return CheckResult(
+                "Repo Health",
+                HealthStatus.FAIL,
+                f"{len(conflict_lines)} merge conflicts",
+            )
+        return CheckResult(
+            "Repo Health", HealthStatus.PASS, f"{len(lines)} uncommitted files"
+        )
     except Exception as e:
         return CheckResult("Repo Health", HealthStatus.WARN, f"git error: {e}")
 
@@ -366,11 +504,15 @@ def check_kv_cache() -> CheckResult:
         skip_count = content.count("full prompt already cached, skipping reset")
         if skip_count > 5:
             return CheckResult(
-                "KV Cache", HealthStatus.WARN,
+                "KV Cache",
+                HealthStatus.WARN,
                 f"{skip_count} stale cache replays detected",
-                healable=True, heal_action="restart_xrlf"
+                healable=True,
+                heal_action="restart_xrlf",
             )
-        return CheckResult("KV Cache", HealthStatus.PASS, f"{skip_count} cache reuses (normal)")
+        return CheckResult(
+            "KV Cache", HealthStatus.PASS, f"{skip_count} cache reuses (normal)"
+        )
     except Exception as e:
         return CheckResult("KV Cache", HealthStatus.UNKNOWN, f"Log read error: {e}")
 
@@ -388,20 +530,28 @@ def check_memory_corruption() -> CheckResult:
             if not text:
                 continue
             lower = text.lower()
-            if any(p in lower for p in ["the quick brown fox", "pangram", "action\": \"summarize"]):
+            if any(
+                p in lower
+                for p in ["the quick brown fox", "pangram", 'action": "summarize']
+            ):
                 bad += 1
         if bad > 0:
             return CheckResult(
-                "Memory Integrity", HealthStatus.FAIL,
+                "Memory Integrity",
+                HealthStatus.FAIL,
                 f"{bad} corrupted turns found",
-                healable=True, heal_action="clear_memory"
+                healable=True,
+                heal_action="clear_memory",
             )
-        return CheckResult("Memory Integrity", HealthStatus.PASS, f"{len(rows)} turns clean")
+        return CheckResult(
+            "Memory Integrity", HealthStatus.PASS, f"{len(rows)} turns clean"
+        )
     except Exception as e:
         return CheckResult("Memory Integrity", HealthStatus.WARN, f"DB error: {e}")
 
 
 # ─── Full Report ────────────────────────────────────────────────────
+
 
 def run_full_report(include_coherence: bool = False) -> HealthReport:
     """Run all health checks. Coherence test is optional (it's a real chat)."""
@@ -444,7 +594,8 @@ def run_sharp_report() -> HealthReport:
 
 # ─── Healing Actions ────────────────────────────────────────────────
 
-def heal_restart_xrlf(clear_memory: bool = False) -> Tuple[bool, str]:
+
+def heal_restart_xrlf(clear_memory: bool = False) -> tuple[bool, str]:
     """Restart the XRLF runtime. Optionally clear persistent memory first."""
     # Kill existing
     subprocess.run(["pkill", "-f", "run_xrlf.py"], capture_output=True, timeout=5)
@@ -476,8 +627,17 @@ def heal_restart_xrlf(clear_memory: bool = False) -> Tuple[bool, str]:
     log_path = str(XRLF_LIVE_LOG)
     try:
         subprocess.Popen(
-            [VENV_PYTHON, "run_xrlf.py", "--model", model_path,
-             "--port", str(PORT_XRLF), "--ws-port", str(PORT_WS), "--verbose"],
+            [
+                VENV_PYTHON,
+                "run_xrlf.py",
+                "--model",
+                model_path,
+                "--port",
+                str(PORT_XRLF),
+                "--ws-port",
+                str(PORT_WS),
+                "--verbose",
+            ],
             cwd=str(FOVEAI_DIR),
             env=env,
             stdout=open(log_path, "w"),
@@ -490,7 +650,7 @@ def heal_restart_xrlf(clear_memory: bool = False) -> Tuple[bool, str]:
     return True, "XRLF restart initiated (model loads in ~3min)"
 
 
-def heal_restart_proxy() -> Tuple[bool, str]:
+def heal_restart_proxy() -> tuple[bool, str]:
     """Restart the foveated-memory Node.js proxy on 8400/8401."""
     subprocess.run(["pkill", "-f", "node server.js"], capture_output=True, timeout=5)
     time.sleep(2)
@@ -523,7 +683,7 @@ def heal_restart_proxy() -> Tuple[bool, str]:
     return True, "Proxy restart initiated"
 
 
-def heal_clear_memory() -> Tuple[bool, str]:
+def heal_clear_memory() -> tuple[bool, str]:
     """Clear corrupted memory turns from the persistent DB."""
     if not MEMORY_DB.exists():
         return False, "No memory DB found"
@@ -538,7 +698,7 @@ def heal_clear_memory() -> Tuple[bool, str]:
         return False, f"Clear failed: {e}"
 
 
-def execute_heal(action: str) -> Tuple[bool, str]:
+def execute_heal(action: str) -> tuple[bool, str]:
     """Execute a healing action by name."""
     if action == "restart_xrlf":
         return heal_restart_xrlf(clear_memory=False)
@@ -551,7 +711,7 @@ def execute_heal(action: str) -> Tuple[bool, str]:
     return False, f"Unknown heal action: {action}"
 
 
-def auto_heal(report: HealthReport) -> List[str]:
+def auto_heal(report: HealthReport) -> list[str]:
     """Attempt to heal all failing checks. Returns list of action messages."""
     messages = []
     actions_done = set()
@@ -566,14 +726,15 @@ def auto_heal(report: HealthReport) -> List[str]:
 
 # ─── Continuous Monitor ─────────────────────────────────────────────
 
+
 class ContinuousHealthMonitor:
     """Background thread that periodically checks health and calls callbacks."""
 
     def __init__(
         self,
         interval: float = 30.0,
-        on_report: Optional[Callable[[HealthReport], None]] = None,
-        on_fail: Optional[Callable[[CheckResult], None]] = None,
+        on_report: Callable[[HealthReport], None] | None = None,
+        on_fail: Callable[[CheckResult], None] | None = None,
         auto_heal_enabled: bool = False,
         coherence_interval: float = 300.0,  # coherence probe every 5min
     ):
@@ -582,13 +743,13 @@ class ContinuousHealthMonitor:
         self.on_fail = on_fail
         self.auto_heal_enabled = auto_heal_enabled
         self.coherence_interval = coherence_interval
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._stop = threading.Event()
         self._last_coherence = 0.0
-        self._last_report: Optional[HealthReport] = None
+        self._last_report: HealthReport | None = None
 
     @property
-    def last_report(self) -> Optional[HealthReport]:
+    def last_report(self) -> HealthReport | None:
         return self._last_report
 
     def start(self) -> None:
@@ -636,11 +797,12 @@ class ContinuousHealthMonitor:
 
 # ─── CLI ────────────────────────────────────────────────────────────
 
+
 def _print_report(report: HealthReport) -> None:
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  FoveAI Health Report — {time.strftime('%H:%M:%S')}")
     print(f"  Overall: {report.overall.value.upper()} — {report.summary}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     for r in report.results:
         status_pad = f"[{r.icon:>4}]"
         detail = f" — {r.detail}" if r.detail else ""
@@ -651,6 +813,7 @@ def _print_report(report: HealthReport) -> None:
 
 if __name__ == "__main__":
     import sys
+
     sharp = "--sharp" in sys.argv
     heal = "--heal" in sys.argv
     watch = "--watch" in sys.argv
@@ -671,7 +834,9 @@ if __name__ == "__main__":
             monitor.stop()
             print("\n[HealthMonitor] Stopped")
     else:
-        report = run_sharp_report() if sharp else run_full_report(include_coherence=False)
+        report = (
+            run_sharp_report() if sharp else run_full_report(include_coherence=False)
+        )
         _print_report(report)
         if heal and report.failing():
             print("\n[Heal] Attempting auto-heal...")

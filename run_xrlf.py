@@ -24,6 +24,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+
 # ── Tiny .env loader (no external dependency) ────────────────────────────────
 # xrlf_runtime.py reads XRLF_REPO_ENABLED via os.environ at import time. Python
 # does NOT auto-load .env files. This loader reads the local `Tools/XRLF 1.0
@@ -53,10 +54,10 @@ _load_local_env()
 
 try:
     import yaml
+
     _YAML = True
 except ImportError:
     _YAML = False
-    import json
 
 
 def load_config(config_path: str = "xrlf_config.yaml") -> dict:
@@ -72,6 +73,7 @@ def run_test(config: dict):
     load it with XRLFRuntime, and run a sample chat.
     """
     import tempfile
+
     from formats.xrlf_packer import XRLFPacker
     from runtime.xrlf_runtime import XRLFRuntime
 
@@ -87,7 +89,7 @@ def run_test(config: dict):
     )
     packer.add_xrl_json_dir("xrl_encoded")
     packer.add_multimodal_hooks()
-    packer.add_memory_db(None)   # empty seed
+    packer.add_memory_db(None)  # empty seed
     packer.add_memory_schema()
     packer.add_runtime_meta()
     packer.write(stub_path)
@@ -102,12 +104,15 @@ def run_test(config: dict):
     test_prompts = [
         {"role": "user", "content": "Explain semantic compression in two sentences."},
         {"role": "user", "content": "Write a Python function to add two numbers."},
-        {"role": "user", "content": "Describe what you see in this image."},   # vision test
+        {
+            "role": "user",
+            "content": "Describe what you see in this image.",
+        },  # vision test
     ]
 
     for i, msg in enumerate(test_prompts):
         has_image = "image" in msg["content"].lower()
-        print(f"\n  --- Test {i+1}: {'[VISION]' if has_image else ''} ---")
+        print(f"\n  --- Test {i + 1}: {'[VISION]' if has_image else ''} ---")
         print(f"  User: {msg['content']}")
         response = rt.chat([msg], has_image=has_image)
         print(f"  XRLF: {response}")
@@ -127,12 +132,23 @@ def main():
     parser = argparse.ArgumentParser(description="XRLF Runtime Launcher")
     parser.add_argument("--model", help="Path to .xrlf file (overrides config)")
     parser.add_argument("--port", type=int, help="API port (overrides config)")
-    parser.add_argument("--ws-port", type=int, default=None, help="WebSocket IPC port (default: API port + 1)")
+    parser.add_argument(
+        "--ws-port",
+        type=int,
+        default=None,
+        help="WebSocket IPC port (default: API port + 1)",
+    )
     parser.add_argument("--config", default="xrlf_config.yaml", help="Config file path")
     parser.add_argument("--test", action="store_true", help="Run self-test and exit")
-    parser.add_argument("--pack", action="store_true",
-                        help="Pack a new .xrlf from config settings, then exit")
-    parser.add_argument("--draft", help="Path to Draft Model GGUF for speculative decoding (used in --pack)")
+    parser.add_argument(
+        "--pack",
+        action="store_true",
+        help="Pack a new .xrlf from config settings, then exit",
+    )
+    parser.add_argument(
+        "--draft",
+        help="Path to Draft Model GGUF for speculative decoding (used in --pack)",
+    )
     parser.add_argument("--whisper", help="Path to Whisper GGUF model (used in --pack)")
     parser.add_argument("--kokoro", help="Path to Kokoro ONNX model (used in --pack)")
     parser.add_argument("--verbose", action="store_true")
@@ -148,6 +164,7 @@ def main():
     # ── Pack mode ─────────────────────────────────────────────────────────────
     if args.pack:
         from formats.xrlf_packer import XRLFPacker
+
         gguf = "foveai-summarizer-draft.gguf"
         output = args.model or config.get("model", "gemma-4-12b-xrl.xrlf")
         memory_db = config.get("memory_db_source", None)
@@ -159,8 +176,10 @@ def main():
         if gguf and os.path.exists(gguf):
             packer.add_gguf(gguf)
         else:
-            print("  ⚠️  No GGUF source in config — packing without core GGUF (stub mode)")
-            
+            print(
+                "  ⚠️  No GGUF source in config — packing without core GGUF (stub mode)"
+            )
+
         draft = args.draft or config.get("draft_source", "") or ""
         if draft and os.path.exists(draft):
             packer.add_draft_gguf(draft)
@@ -168,7 +187,7 @@ def main():
         whisper_model = args.whisper or config.get("whisper_source", "") or ""
         if whisper_model and os.path.exists(whisper_model):
             packer.add_whisper_gguf(whisper_model)
-            
+
         kokoro_model = args.kokoro or config.get("kokoro_source", "") or ""
         if kokoro_model and os.path.exists(kokoro_model):
             packer.add_kokoro_model(kokoro_model)
@@ -189,9 +208,11 @@ def main():
     # FOVEAI_BACKEND_HOST env var overrides config for network accessibility.
     # Bind host chain: specific override → global FOVEAI_BIND_HOST (.env, the
     # same base var server_config.py uses) → yaml → localhost.
-    api_host = (os.environ.get("FOVEAI_API_HOST")
-                or os.environ.get("FOVEAI_BIND_HOST")
-                or config.get("api", {}).get("host", "127.0.0.1"))
+    api_host = (
+        os.environ.get("FOVEAI_API_HOST")
+        or os.environ.get("FOVEAI_BIND_HOST")
+        or config.get("api", {}).get("host", "127.0.0.1")
+    )
     ws_host = os.environ.get("FOVEAI_BACKEND_HOST", "0.0.0.0")
     gpu_layers = config.get("gpu_layers", -1)
     n_ctx = config.get("n_ctx", 8192)
@@ -204,12 +225,14 @@ def main():
         print("  Run with --pack to create a new .xrlf, or --test for a self-test.\n")
         sys.exit(1)
 
-    from runtime.xrlf_runtime import XRLFRuntime
-    from api.server import create_app
-    from Backend.app.IPC.websocket_server import IPCServer
-    import uvicorn
     import asyncio
     import socket
+
+    import uvicorn
+
+    from api.server import create_app
+    from Backend.app.IPC.websocket_server import IPCServer
+    from runtime.xrlf_runtime import XRLFRuntime
 
     # ── Single-instance preflight ────────────────────────────────────────────
     # A second run_xrlf on the same ports used to evict the healthy model via
@@ -227,7 +250,9 @@ def main():
             s.close()
 
     def _health_ping(p: int):
-        import urllib.request, json as _json
+        import json as _json
+        import urllib.request
+
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{p}/health", timeout=2) as r:
                 return _json.loads(r.read())
@@ -238,12 +263,18 @@ def main():
     if not _port_free(api_host, port) or not _port_free(ws_host, ws_port_preflight):
         h = _health_ping(port)
         if h:
-            print(f"\n  ℹ️  XRLF runtime already running on :{port} "
-                  f"(model={h.get('model')}, load_state={h.get('load_state')}) — exiting.")
+            print(
+                f"\n  ℹ️  XRLF runtime already running on :{port} "
+                f"(model={h.get('model')}, load_state={h.get('load_state')}) — exiting."
+            )
             sys.exit(0)
-        print(f"\n  ❌ Port :{port} or :{ws_port_preflight} is held by a process that "
-              f"doesn't answer /health (stale/zombie instance).")
-        print(f"     Stop it first: systemctl --user stop foveai-xrlf  (or pkill -f run_xrlf.py)\n")
+        print(
+            f"\n  ❌ Port :{port} or :{ws_port_preflight} is held by a process that "
+            f"doesn't answer /health (stale/zombie instance)."
+        )
+        print(
+            "     Stop it first: systemctl --user stop foveai-xrlf  (or pkill -f run_xrlf.py)\n"
+        )
         sys.exit(2)
 
     # Construct the runtime WITHOUT loading — the HTTP API binds first so
@@ -269,16 +300,20 @@ def main():
     app.state.ipc_server = ipc_server
 
     # Set fallback URLs for STT/TTS (used only when model lacks native audio)
-    ipc_server.soul_url = os.environ.get('SOUL_URL', 'http://127.0.0.1:8402')
-    ipc_server.mouth_url = os.environ.get('MOUTH_URL', f'http://127.0.0.1:{port}')
+    ipc_server.soul_url = os.environ.get("SOUL_URL", "http://127.0.0.1:8402")
+    ipc_server.mouth_url = os.environ.get("MOUTH_URL", f"http://127.0.0.1:{port}")
 
     print(f"\n  🚀 XRLF API   → http://{api_host}:{port}/v1")
-    print(f"  🔌 XRLF Socket → ws://{ws_host}:{ws_port}/ws  (Quest clients connect here)")
+    print(
+        f"  🔌 XRLF Socket → ws://{ws_host}:{ws_port}/ws  (Quest clients connect here)"
+    )
     print(f"     Model : {model_path} (loads in background — watch /health load_state)")
     print(f"     Memory: embedded foveated (6-ring, persistent={persistent})")
-    print(f"     TTS   : provider-driven (http / Piper / espeak / stub)")
+    print("     TTS   : provider-driven (http / Piper / espeak / stub)")
     print(f"\n  HTTP clients  → http://{api_host}:{port}/v1/chat/completions")
-    print(f"  Socket clients → ws://{ws_host}:{ws_port}/ws  (event: chat, payload: {{text: ...}})\n")
+    print(
+        f"  Socket clients → ws://{ws_host}:{ws_port}/ws  (event: chat, payload: {{text: ...}})\n"
+    )
 
     # Run both servers: WebSocket in a background thread, HTTP in main thread
     import threading
@@ -290,11 +325,11 @@ def main():
 
         # Suppress Windows Proactor connection_lost exception noise during socket resets/shutdowns
         def _silent_loop_exception_handler(loop, context):
-            exception = context.get('exception')
+            exception = context.get("exception")
             if isinstance(exception, (ConnectionResetError, ConnectionAbortedError)):
                 return
-            msg = str(context.get('message', '')).lower()
-            if 'connection_lost' in msg or 'connection_lost' in str(context).lower():
+            msg = str(context.get("message", "")).lower()
+            if "connection_lost" in msg or "connection_lost" in str(context).lower():
                 return
             loop.default_exception_handler(context)
 
@@ -323,6 +358,7 @@ def main():
             print("  📦 Whisper + Kokoro preloaded")
         except Exception as e:
             import traceback
+
             traceback.print_exc()
             runtime.load_state = "error"
             runtime.load_error = str(e)

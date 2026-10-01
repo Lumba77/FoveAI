@@ -29,6 +29,7 @@ The `run()` method receives a Pydantic `BaseModel` whose fields are populated fr
 ```python
 from pydantic import BaseModel
 
+
 class AppArgs(BaseModel):
     user_message: str
     # Add more fields as the app's entry point requires.
@@ -58,6 +59,7 @@ If a field ends up holding data the app would normally fetch itself, it probably
 ```python
 import asyncio
 
+
 class AppRunnable(pixie.Runnable[AppArgs]):
     _sem: asyncio.Semaphore
 
@@ -79,10 +81,10 @@ Only add the semaphore when the app actually has shared mutable state. If the ap
 ```python
 class AppRunnable(pixie.Runnable[AppArgs]):
     @classmethod
-    def create(cls) -> "AppRunnable": ...     # construct instance
-    async def setup(self) -> None: ...        # once, before first run()
+    def create(cls) -> "AppRunnable": ...  # construct instance
+    async def setup(self) -> None: ...  # once, before first run()
     async def run(self, args: AppArgs) -> None: ...  # per dataset entry, concurrent
-    async def teardown(self) -> None: ...     # once, after last run()
+    async def teardown(self) -> None: ...  # once, after last run()
 ```
 
 - `create()` — class method, returns a new instance. Use a quoted return type (`-> "AppRunnable"`) to avoid forward reference errors.
@@ -111,6 +113,7 @@ class AppRunnable(pixie.Runnable[AppArgs]):
 
     async def run(self, args: AppArgs) -> None:
         from myapp import handle_request
+
         await handle_request(args.user_message)
 ```
 

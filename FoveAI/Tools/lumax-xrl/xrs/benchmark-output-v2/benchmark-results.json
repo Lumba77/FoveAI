@@ -1,0 +1,42 @@
+{
+  "benchmarkVersion": "2.0",
+  "timestamp": "2026-07-09T07:21:50.218Z",
+  "mode": "single",
+  "files": 1,
+  "depths": 1,
+  "tests": 1,
+  "totalResults": 1,
+  "averages": {
+    "textReduction": "65%",
+    "totalReduction": "0%",
+    "promptSavings": "64%",
+    "binarySmaller": "0%",
+    "pipelineValid": "100%"
+  },
+  "results": [
+    {
+      "file": "xrs.cjs",
+      "language": "typescript",
+      "depth": 2,
+      "test": 7,
+      "testName": "Binary Format Efficiency",
+      "testCategory": "efficiency",
+      "expectedAccuracy": "100%",
+      "fileSize": 10007,
+      "originalLines": 329,
+      "originalTokens": 2397,
+      "skeletonTokens": 849,
+      "textReduction": "65%",
+      "binaryBytes": 0,
+      "binaryTokens": null,
+      "totalReduction": "0%",
+      "fullPromptTokens": 2426,
+      "skeletonPromptTokens": 881,
+      "tokenSavings": 1545,
+      "savingsPercent": "64%",
+      "pipelineValid": true,
+      "binarySmaller": false,
+      "reductionValid": false
+    }
+  ]
+}

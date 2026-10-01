@@ -27,10 +27,9 @@ processing fewer tokens.
 
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from llama_bridge.helper_model import HelperModel
-
 
 # ── Route tags the router was trained to output ──────────────────────────────
 ROUTE_SPECIALISTS = {
@@ -49,8 +48,8 @@ SIGNAL_STOP = "stop"
 SIGNAL_SOLVED = "solved"
 
 # When to trigger the summarizer (conversation length thresholds)
-SUMMARIZE_MIN_TURNS = 6       # don't compress short conversations
-SUMMARIZE_MIN_CHARS = 2000    # only compress if history is substantial
+SUMMARIZE_MIN_TURNS = 6  # don't compress short conversations
+SUMMARIZE_MIN_CHARS = 2000  # only compress if history is substantial
 
 
 class TriadPipeline:
@@ -60,9 +59,9 @@ class TriadPipeline:
 
     def __init__(
         self,
-        router_path: Optional[str] = None,
-        summarizer_path: Optional[str] = None,
-        n_threads: Optional[int] = None,
+        router_path: str | None = None,
+        summarizer_path: str | None = None,
+        n_threads: int | None = None,
         verbose: bool = False,
     ):
         self.router_path = router_path
@@ -70,12 +69,12 @@ class TriadPipeline:
         self.n_threads = n_threads
         self.verbose = verbose
 
-        self._router: Optional[HelperModel] = None
-        self._summarizer: Optional[HelperModel] = None
+        self._router: HelperModel | None = None
+        self._summarizer: HelperModel | None = None
         self.loaded: bool = False
 
         # Stats for observability
-        self._stats: Dict[str, Any] = {
+        self._stats: dict[str, Any] = {
             "total_calls": 0,
             "router_calls": 0,
             "summarizer_calls": 0,
@@ -125,12 +124,12 @@ class TriadPipeline:
         if active:
             print(f"  🧠 Triad pipeline active: {' + '.join(active)} + main")
         else:
-            print(f"  ⏭️ Triad pipeline: no helpers loaded (main model only)")
+            print("  ⏭️ Triad pipeline: no helpers loaded (main model only)")
         return self
 
     # ── Router ───────────────────────────────────────────────────────────────
 
-    def classify(self, user_msg: str) -> Dict[str, Any]:
+    def classify(self, user_msg: str) -> dict[str, Any]:
         """
         Run the router on the user message.
         Returns a dict with:
@@ -144,7 +143,7 @@ class TriadPipeline:
           - skeleton: skeleton tag if present
         """
         self._stats["total_calls"] += 1
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             "specialist": None,
             "signal": None,
             "intent": None,
@@ -162,10 +161,12 @@ class TriadPipeline:
 
         try:
             raw = self._router.chat(
-                messages=[{
-                    "role": "user",
-                    "content": user_msg,
-                }],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": user_msg,
+                    }
+                ],
                 max_tokens=64,
                 temperature=0.1,
             )
@@ -193,24 +194,26 @@ class TriadPipeline:
             result["signal"] = SIGNAL_SOLVED
 
         # Intent: INTENT:announce EMOTION:joy TARGET:release
-        intent_match = re.search(r'INTENT:(\w+)', raw)
+        intent_match = re.search(r"INTENT:(\w+)", raw)
         if intent_match:
             result["intent"] = intent_match.group(1).lower()
-        emotion_match = re.search(r'EMOTION:(\w+)', raw)
+        emotion_match = re.search(r"EMOTION:(\w+)", raw)
         if emotion_match:
             result["emotion"] = emotion_match.group(1).lower()
 
         # Fovea: <fovea:focus /> or <fovea:peripheral />
-        fovea_match = re.search(r'<fovea:(\w+)\s*/>', raw)
+        fovea_match = re.search(r"<fovea:(\w+)\s*/>", raw)
         if fovea_match:
             result["fovea"] = fovea_match.group(1).lower()
 
         # Hints: <hint:consider-map-filter />
-        hint_matches = re.findall(r'<hint:(\S+)\s*/>', raw)
+        hint_matches = re.findall(r"<hint:(\S+)\s*/>", raw)
         result["hints"] = [h.lower() for h in hint_matches]
 
         # Skeleton: <skeleton:comfort> ... </skeleton:comfort>
-        skeleton_match = re.search(r'<skeleton:(\w+)>(.*?)</skeleton:\1>', raw, re.DOTALL)
+        skeleton_match = re.search(
+            r"<skeleton:(\w+)>(.*?)</skeleton:\1>", raw, re.DOTALL
+        )
         if skeleton_match:
             result["skeleton"] = {
                 "type": skeleton_match.group(1).lower(),
@@ -218,14 +221,16 @@ class TriadPipeline:
             }
 
         if self.verbose:
-            print(f"  [triad] router → specialist={result['specialist']} "
-                  f"signal={result['signal']} intent={result['intent']}")
+            print(
+                f"  [triad] router → specialist={result['specialist']} "
+                f"signal={result['signal']} intent={result['intent']}"
+            )
 
         return result
 
     # ── Summarizer ───────────────────────────────────────────────────────────
 
-    def compress_history(self, messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    def compress_history(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
         """
         Compress conversation history using the summarizer model.
         Replaces older turns with a compressed summary, keeping the most
@@ -253,7 +258,8 @@ class TriadPipeline:
 
         # Build the text to compress
         history_text = "\n".join(
-            f"{t['role']}: {t['content']}" for t in old_turns
+            f"{t['role']}: {t['content']}"
+            for t in old_turns
             if isinstance(t.get("content"), str)
         )
 
@@ -293,19 +299,23 @@ class TriadPipeline:
         self._stats["tokens_saved_estimate"] += max(0, saved_chars // 4)
 
         if self.verbose:
-            print(f"  [triad] summarizer compressed {len(history_text)} → {len(compressed)} chars")
+            print(
+                f"  [triad] summarizer compressed {len(history_text)} → {len(compressed)} chars"
+            )
 
         # Rebuild messages: system + compressed summary + recent turns
-        result: List[Dict[str, str]] = []
+        result: list[dict[str, str]] = []
         # Preserve any system messages
         for m in messages:
             if m.get("role") == "system":
                 result.append(m)
         # Add compressed history as a system context note
-        result.append({
-            "role": "system",
-            "content": f"[Compressed conversation history]\n{compressed}",
-        })
+        result.append(
+            {
+                "role": "system",
+                "content": f"[Compressed conversation history]\n{compressed}",
+            }
+        )
         # Add recent turns verbatim
         for t in recent_turns:
             result.append(t)
@@ -316,9 +326,9 @@ class TriadPipeline:
 
     def pre_process(
         self,
-        messages: List[Dict[str, str]],
+        messages: list[dict[str, str]],
         user_msg: str,
-    ) -> Tuple[List[Dict[str, str]], Dict[str, Any]]:
+    ) -> tuple[list[dict[str, str]], dict[str, Any]]:
         """
         Run the full pre-processing pipeline before the main model generates.
 
@@ -346,5 +356,5 @@ class TriadPipeline:
             self._summarizer = None
         self.loaded = False
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         return dict(self._stats)

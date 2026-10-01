@@ -85,18 +85,26 @@ function detectTemporalZoom(text) {
  */
 async function collectStream(upstreamResponse) {
     let fullText = '';
+    let reasoningText = '';
     const rawChunks = [];
     let buffer = '';
 
+    const result = (over = {}) => {
+        // Reasoning is surfaced separately — if the model produced no content,
+        // fall back to reasoning so the client still sees a response.
+        const out = { fullText: fullText || reasoningText, reasoningText, rawChunks, ...over };
+        return out;
+    };
+
     return new Promise((resolve, reject) => {
         const body = upstreamResponse.body;
-        if (!body) return resolve({ fullText: '', rawChunks: [], recallQuery: null });
+        if (!body) return resolve(result({ recallQuery: null }));
 
         // Safety timeout: if stream hangs for >120s, resolve with what we have
         const hangTimer = setTimeout(() => {
             console.warn('[collectStream] ⚠️ Stream timeout (120s) — resolving with partial content');
             body.destroy();
-            resolve({ fullText, rawChunks, recallQuery: detectRecall(fullText) });
+            resolve(result({ recallQuery: detectRecall(fullText) }));
         }, 120000);
 
         body.on('data', (chunk) => {
@@ -115,8 +123,9 @@ async function collectStream(upstreamResponse) {
                 try {
                     const parsed = JSON.parse(data);
                     const delta = parsed?.choices?.[0]?.delta || {};
-                    const text = delta.content || delta.reasoning_content || delta.reasoning || '';
-                    fullText += text;
+                    if (delta.content) fullText += delta.content;
+                    const rt = delta.reasoning_content || delta.reasoning || '';
+                    if (rt) reasoningText += rt;
                 } catch (_) { /* partial chunk, ignore */ }
             }
 
@@ -125,35 +134,35 @@ async function collectStream(upstreamResponse) {
             if (recallQuery) {
                 clearTimeout(hangTimer);
                 body.destroy(); // Stop the upstream stream
-                resolve({ fullText, rawChunks, recallQuery, zoomQuery: null, saccadeQuery: null, accommodateQuery: null, temporalZoomQuery: null });
+                resolve(result({ recallQuery, zoomQuery: null, saccadeQuery: null, accommodateQuery: null, temporalZoomQuery: null }));
             }
             // Check for zoom token mid-stream
             const zoomQuery = detectZoom(fullText);
             if (zoomQuery) {
                 clearTimeout(hangTimer);
                 body.destroy(); // Stop the upstream stream
-                resolve({ fullText, rawChunks, recallQuery: null, zoomQuery, saccadeQuery: null, accommodateQuery: null, temporalZoomQuery: null });
+                resolve(result({ recallQuery: null, zoomQuery, saccadeQuery: null, accommodateQuery: null, temporalZoomQuery: null }));
             }
             // Check for saccade token mid-stream
             const saccadeQuery = detectSaccade(fullText);
             if (saccadeQuery) {
                 clearTimeout(hangTimer);
                 body.destroy();
-                resolve({ fullText, rawChunks, recallQuery: null, zoomQuery: null, saccadeQuery, accommodateQuery: null, temporalZoomQuery: null });
+                resolve(result({ recallQuery: null, zoomQuery: null, saccadeQuery, accommodateQuery: null, temporalZoomQuery: null }));
             }
             // Check for accommodate token mid-stream
             const accommodateQuery = detectAccommodate(fullText);
             if (accommodateQuery) {
                 clearTimeout(hangTimer);
                 body.destroy();
-                resolve({ fullText, rawChunks, recallQuery: null, zoomQuery: null, saccadeQuery: null, accommodateQuery, temporalZoomQuery: null });
+                resolve(result({ recallQuery: null, zoomQuery: null, saccadeQuery: null, accommodateQuery, temporalZoomQuery: null }));
             }
             // Check for temporal zoom token mid-stream
             const temporalZoomQuery = detectTemporalZoom(fullText);
             if (temporalZoomQuery) {
                 clearTimeout(hangTimer);
                 body.destroy();
-                resolve({ fullText, rawChunks, recallQuery: null, zoomQuery: null, saccadeQuery: null, accommodateQuery: null, temporalZoomQuery });
+                resolve(result({ recallQuery: null, zoomQuery: null, saccadeQuery: null, accommodateQuery: null, temporalZoomQuery }));
             }
         });
 
@@ -166,11 +175,12 @@ async function collectStream(upstreamResponse) {
                     try {
                         const parsed = JSON.parse(data);
                         const delta = parsed?.choices?.[0]?.delta || {};
-                        fullText += delta.content || delta.reasoning_content || delta.reasoning || '';
+                        if (delta.content) fullText += delta.content;
+                        reasoningText += delta.reasoning_content || delta.reasoning || '';
                     } catch (_) {}
                 }
             }
-            resolve({ fullText, rawChunks, recallQuery: detectRecall(fullText), zoomQuery: detectZoom(fullText), saccadeQuery: detectSaccade(fullText), accommodateQuery: detectAccommodate(fullText), temporalZoomQuery: detectTemporalZoom(fullText) });
+            resolve(result({ recallQuery: detectRecall(fullText), zoomQuery: detectZoom(fullText), saccadeQuery: detectSaccade(fullText), accommodateQuery: detectAccommodate(fullText), temporalZoomQuery: detectTemporalZoom(fullText) }));
         });
         body.on('error', reject);
     });
@@ -185,11 +195,11 @@ async function collectJson(upstreamResponse) {
     const message = data?.choices?.[0]?.message || {};
     let fullText = message.content || '';
     // Ollama Cloud uses 'reasoning' instead of 'reasoning_content'.
-    // If the model returned no content but has reasoning, surface it as content so the client sees a response.
-    if (!fullText && message.reasoning_content) {
-        fullText = message.reasoning_content;
-    } else if (!fullText && message.reasoning) {
-        fullText = message.reasoning;
+    // Reasoning is surfaced separately; if the model returned no content,
+    // fall back to reasoning so the client sees a response.
+    const reasoningText = message.reasoning_content || message.reasoning || '';
+    if (!fullText && reasoningText) {
+        fullText = reasoningText;
     }
     if (data.choices?.[0]?.message) {
         data.choices[0].message.content = fullText;
@@ -199,7 +209,7 @@ async function collectJson(upstreamResponse) {
     const saccadeQuery = detectSaccade(fullText);
     const accommodateQuery = detectAccommodate(fullText);
     const temporalZoomQuery = detectTemporalZoom(fullText);
-    return { fullText, data, recallQuery, zoomQuery, saccadeQuery, accommodateQuery, temporalZoomQuery };
+    return { fullText, reasoningText, data, recallQuery, zoomQuery, saccadeQuery, accommodateQuery, temporalZoomQuery };
 }
 
 /**

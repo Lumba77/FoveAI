@@ -16,10 +16,12 @@ Convert all 4 TypeScript modules to base64-encoded strings (matching `gen_ts` pa
 ### New `deploy` structure:
 ```python
 """Deploy WebSearch.ts, CommsBridge.ts, VoiceClone.ts, GameController.ts"""
+
 import os, base64
 
-BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                    'Frontend', 'XR_Vessel', 'src', 'senses')
+BASE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "Frontend", "XR_Vessel", "src", "senses"
+)
 
 modules_b64 = {
     "WebSearch.ts": "BASE64_ENCODED_CONTENT_HERE",
@@ -34,14 +36,14 @@ for fn, b64_content in modules_b64.items():
     fp = os.path.join(BASE, fn)
     try:
         content = base64.b64decode(b64_content)
-        with open(fp, 'wb') as f:
+        with open(fp, "wb") as f:
             f.write(content)
         size = os.path.getsize(fp)
-        print(f'  ✓ {fn}: {size} bytes')
+        print(f"  ✓ {fn}: {size} bytes")
     except Exception as e:
-        print(f'  ✗ {fn}: FAILED — {e}')
+        print(f"  ✗ {fn}: FAILED — {e}")
 
-print(f'\nAll {len(modules_b64)} modules deployed.')
+print(f"\nAll {len(modules_b64)} modules deployed.")
 ```
 
 ### Base64 Encoding

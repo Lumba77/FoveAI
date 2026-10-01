@@ -18,7 +18,7 @@
 
 ## 1. System Architecture Overview
 
-FOVEAI is a **Windows-Native** spatial AI companion ecosystem. The architecture is refactored from brittle, multi-model HTTP swarms into a **Streamlined One-Model Triad** communicating over a low-latency persistent **WebSocket IPC layer** on port 8400.
+FOVEAI is a spatial AI companion ecosystem now running **Linux-native** (post-2026 hard-drive migration; previously Windows). The architecture is refactored from brittle, multi-model HTTP swarms into a **Streamlined One-Model Triad**: the Foveated Memory proxy on port 8400 fronts the XRLF runtime on 8402 (HTTP) / 8403 (WebSocket IPC).
 
 ### High-Level Data Flow (Low-Latency WebSocket IPC)
 
@@ -32,11 +32,11 @@ User Input (text/voice/spatial)
 │  - Jenna Pair Programmer (VS Code / Antigravity IDE)     │
 │  - 3D Avatar Chatbot UI (:8080)                          │
 └────────────────────────────┬────────────────────────────┘
-                             │ Low-Latency WebSocket IPC (ws://:8400)
+                             │ HTTP / WebSocket IPC (ws://:8403, http://:8400)
                              │ [Events: chat, chat.stream, audio, motor_action]
                              ▼
 ┌─────────────────────────────────────────────────────────┐
-│               FoveAI Unified XRLF Engine (:8400)        │
+│          FoveAI Unified Engine (proxy :8400 → :8402)    │
 │                                                         │
 │  ┌──────────────────────────────────────────────────┐  │
 │  │ 1. Smart Proxy: Lumax-Plumax-Omni-Router-v2      │  │
@@ -46,9 +46,11 @@ User Input (text/voice/spatial)
 │                             │ Critical Principia Focus  │
 │                             ▼                           │
 │  ┌──────────────────────────────────────────────────┐  │
-│  │ 2. Main Cognitive Core: Gemma-4-12B-MTP-XRLF     │  │
+│  │ 2. Main Cognitive Core: Gemma-4-E2B-XRLF         │  │
 │  │    - Single active high-intelligence model       │  │
 │  │    - Native XRL cognitive steering & reasoning   │  │
+│  │    - Native audio: /v1/audio/speech (Kokoro)     │  │
+│  │      & /v1/audio/transcriptions (Whisper)        │  │
 │  └──────────────────────────▲───────────────────────┘  │
 │                             │                           │
 │  ┌──────────────────────────┴───────────────────────┐  │
@@ -61,30 +63,31 @@ User Input (text/voice/spatial)
      ┌───────────────────────┼───────────────────────┐
      ▼                       ▼                       ▼
 ┌──────────────┐    ┌─────────────────┐    ┌──────────────────┐
-│Sovereign Core│    │  Motor Cortex   │    │  Stardust Gnists │
-│:8000 (Soul)  │    │:8110 (Puppeteer)│    │:8109 (33M Vector)│
+│ Voice/Body   │    │  Subconscious   │    │  Chat Relay      │
+│:8406/:8409   │    │:8411            │    │:8407             │
+│Motor :8410   │    │                 │    │                  │
 └──────────────┘    └─────────────────┘    └──────────────────┘
 ```
 
-*Note: LM Studio (:7272) is preserved as an optional legacy fallback for developers wishing to bring external GGUF models, but the native default is the unified XRLF engine.*
+*Note: LM Studio (:1234) is preserved as an optional legacy fallback for developers wishing to bring external GGUF models, but the native default is the unified XRLF engine. It is normally offline.*
 
-### Startup Sequence
+### Startup Sequence (Linux, post-migration)
 
 ```
-Start_Concordia.PS1
+sleipnir_launcher.sh / foveai-autostart.sh
     │
-    ▼
-sleipnir_launcher.js
+    ├── systemctl --user services:
+    │   ├── foveai-backend.service     → Foveated Memory Proxy (:8400) + Dashboard (:8401)
+    │   ├── foveai-xrlf.service        → XRLF runtime (:8402 HTTP, :8403 WS IPC)
+    │   ├── foveai-tts.service         → Kokoro TTS (:8406)
+    │   ├── foveai-chat-relay.service  → Chat Relay (:8407)
+    │   ├── foveai-stt.service         → Whisper STT (:8409, WebSocket-only)
+    │   ├── foveai-motor.service       → Motor daemon (:8410)
+    │   ├── foveai-subconscious.service→ Subconscious daemon (:8411)
+    │   └── foveai-multigate.service   → Multigate WebUI (:5177, Vite, Node ≥20)
     │
-    ├── Foveated Memory Proxy (:8400) + Dashboard (:8401)
-    ├── MCP Server
-    ├── Core Solver
-    ├── Stardust Neural (:8109)
-    ├── Motor Cortex (:8110)
-    ├── Sovereign Core (:8000)
-    ├── XR Vessel API (:8101)
-    ├── Vite Dev Server (:5176)
-    └── Cloudflare Tunnel
+    └── server_config.refresh_network_config() — rewrites foveai_network_config.json
+        with the live LAN IP at startup (dynamic; no static IP required)
 ```
 
 ---
@@ -156,18 +159,22 @@ All files in `Frontend/3D_Avatar_Chatbot/`:
 
 | Port | Service | File | Purpose |
 |------|---------|------|---------|
-| 8000 | Sovereign Core | `Backend/Cognition/compagent.py` | Central cognitive loop. Routes user input through LLM, returns responses with motor actions. |
-| 8001 | Ears STT | — | Speech-to-text service. |
-| 8004 | Mouth Kokoro | `Frontend/Mouth/lumax_mouth_kokoro_server.py` | Text-to-speech service. Python FastAPI server using Kokoro TTS pipeline. Serves audio/wav at 24kHz via POST `/tts`. Voice selection via `voice` param or `LUMAX_KOKORO_VOICE` env var. |
-| 8101 | XR Vessel API | `Frontend/XR_Vessel/xr_app.py` | Legacy API proxy with 70+ endpoints. Soundboard context, avatar management, system status. |
-| 8200 | Foveated Memory Proxy | `Tools/foveated-memory/server.js` | OpenAI-compatible LLM gateway. Routes cloud/local, applies XRL memory rings, exposes `/v1/models`, `/v1/chat/completions`, and control endpoints. |
-| 8201 | Foveated Memory Dashboard | `Tools/foveated-memory/public/` | Settings panel, memory kiosk, and prompt UI served by the proxy. |
-| 8103 | TokenSlayer | `Backend/Cognition/tokenslayer_proxy_server.py` | Smart context ingestion. Strips noise/syntax bloat, compresses code to structural skeletons (~85% reduction). |
-| 8106 | TokenSlayer Proxy | — | Deprecated. Port 8200 is the single LLM gateway. |
-| 8109 | Stardust Gnists | `Backend/Memory/stardust_encoder.py` | 33M parameter sentence-transformer vector matrix. Instant semantic memory matching. |
-| 8110 | Motor Cortex | `Backend/Cognition/motor_daemon.py` | Native tool use: walk_forward, walk_to_target, change_emotion, trigger_micro_gesture. SSE stream. |
-| 8112 | DeadSure Failsafe | — | Windows Scheduled Task-managed AI safety guard. |
-| 8888 | Unsloth Gemma | — | Local LLM inference (Gemma-4 12B GGUF). |
+| 8400 | Foveated Memory Proxy | `foveated-memory/server.js` | OpenAI-compatible LLM gateway + memory rings + voice routing. `/api/tts` (native :8402 → Kokoro :8406 fallback), `/api/soul/stt`, `/api/tts/voices`, `/api/voice/status`, `/api/subsystems`. |
+| 8401 | Dashboard | `foveated-memory/public/` | Settings panel (`settings.html`), subsystem health check. |
+| 8402 | XRLF Runtime / Sovereign Core | `runtime/xrlf_runtime.py`, `api/server.py`, `Backend/Cognition/compagent.py` | Main cognitive core (Gemma-4-E2B). `/health` exposes `loaded`/`load_state`. Native `/v1/audio/speech` (Kokoro) and `/v1/audio/transcriptions` (Whisper). |
+| 8403 | WS IPC | `Backend/app/IPC/websocket_server.py` | Persistent client-to-runtime WebSocket conduit. **WS/TCP only — no HTTP health route.** |
+| 8406 | Mouth Kokoro TTS | `Frontend/Mouth/foveai_mouth_kokoro_server.py` | Text-to-speech. POST `/tts`, `/say`, `/voices`, `/health`. audio/wav at 24kHz. Voice via `voice` param or `FoveAI_KOKORO_VOICE` env var (note: mixed-case key). `foveai-tts.service`. |
+| 8407 | Chat Relay | `Backend/chat_relay_server.py` | Cross-client chat relay. `foveai-chat-relay.service`. |
+| 8408 | Creative Service | — | Assigned; optional. |
+| 8409 | Ears STT | `Backend/stt_whisper_server.py` | Whisper streaming speech-to-text. **WebSocket-only** — probe TCP, not HTTP. `foveai-stt.service`. |
+| 8410 | Motor / Autonomous | `Backend/Cognition/motor_daemon.py` | Native avatar agency: walk, gesture, emotion rendering. `foveai-motor.service`. |
+| 8411 | Subconscious | `Backend/Cognition/subconscious_daemon.py` | Telemetry evaluation + dispatch (`POST /telemetry`, `/health`). `foveai-subconscious.service`. |
+| 5177 | Multigate WebUI | `Frontend/multigate/` | Browser UI (Vite dev, Node ≥20). Same-origin `/api/*` proxied to :8400; `/api/lmstudio` proxied to LM Studio. `foveai-multigate.service`. |
+| 5176 | WebXR Vessel UI | `Frontend/XR_Vessel/` | Spatial frontend. Optional/deprecated — normally offline. |
+| 1234 | LM Studio | — | Optional legacy GGUF gateway. Normally offline. |
+| 3389 | xrdp | — | Remote desktop access. |
+| ~~8000/8001/8004~~ | Legacy voice/soul | — | **Retired.** TTS→8406, STT→8409, Soul→8402. Do not revive. |
+| ~~8101-8112/8200/8888~~ | Legacy stack | — | **Retired.** XR Vessel API, TokenSlayer, Stardust, old proxy/motor ports, Unsloth — all purged. |
 
 ---
 
@@ -193,7 +200,7 @@ All files in `Frontend/3D_Avatar_Chatbot/`:
 ### 4.2 Voice Input (STT)
 
 **How it works:**
-- Uses Web Speech API (`SpeechRecognition`) or backend Ears service (:8001)
+- Uses Web Speech API (`SpeechRecognition`) or backend Ears service (:8409, WebSocket-only; native HTTP path on :8402 `/v1/audio/transcriptions`)
 - `initSpeechRecognition()` in [`main.js:3646`](Frontend/3D_Avatar_Chatbot/src/main.js:3646) sets up recognition
 - Continuous listening mode via VAD pin toggle
 - Auto-send option submits recognized text automatically
@@ -207,7 +214,7 @@ All files in `Frontend/3D_Avatar_Chatbot/`:
 
 **How it works:**
 - `speakText()` in [`main.js:3478`](Frontend/3D_Avatar_Chatbot/src/main.js:3478) checks `window.TTSProvider.isActive()` to decide which TTS engine to use
-- **Kokoro TTS (primary):** If `LUMAX_TTS_ENABLED=true` in localStorage, uses the pluggable `window.TTSProvider` which POSTs to `/api/tts?text=...` (proxied through Nexus Proxy on port 8080 → Kokoro on port 8004). Returns audio/wav blob played via `AudioContext`.
+- **Kokoro TTS (primary):** If `LUMAX_TTS_ENABLED=true` in localStorage, uses the pluggable `window.TTSProvider` which POSTs to `/api/tts?text=...` (proxied through the Foveated Memory proxy on :8400 → native :8402 `/v1/audio/speech`, falling back to Kokoro on :8406). Returns audio/wav blob played via `AudioContext`.
 - **Web Speech API (fallback):** If Kokoro is disabled, uses browser's built-in SpeechSynthesis. Voice selection with language filtering, gender preference (Any/Male/Female), rate and pitch controls.
 - Bracket tokens (`<type:value>`) are stripped before TTS via `stripBracketTokens()` to prevent AI thought markers from being read aloud.
 - Voice and speed are configurable via `.env` variables `LUMAX_KOKORO_VOICE` and `LUMAX_KOKORO_SPEED`, read by `_fetchEnvConfig()` and stored in localStorage.
@@ -838,13 +845,13 @@ Custom DOM events for cross-component communication:
 | Head facing away | `lookAt` direction not negated for VRM | Check `LumaxIntegrationLayer.js:1117` negates the lookAt target for VRM's -Z forward |
 | No AI response | No provider configured | Open Settings → configure provider |
 | Streaming not working | Provider doesn't support streaming | Falls back to non-streaming automatically |
-| Motor commands not executing | Motor Cortex not running | Check `:8110` is active |
+| Motor commands not executing | Motor daemon not running | Check `:8410` is active (`foveai-motor.service`) |
 | Soundboard tags not working | Soul Core not running | Falls back to XR_Vessel API, then defaults |
 | HUD not showing | LumaxHud3D not initialized | Check console for errors |
 | Panel not loading | Component URL incorrect | Check `components/` file exists |
 | Voice not working | Microphone permission denied | Allow microphone access in browser |
 | Kokoro TTS not speaking | `LUMAX_TTS_ENABLED` not `true` | Set `LUMAX_TTS_ENABLED=true` in `.env` and restart |
-| Kokoro TTS wrong voice | `LUMAX_KOKORO_VOICE` not set | Set `LUMAX_KOKORO_VOICE=af_heart` for Jen's voice |
+| Kokoro TTS wrong voice | `FoveAI_KOKORO_VOICE` not set | Set `FoveAI_KOKORO_VOICE=af_heart` in `.env` (mixed-case key) for Jen's voice |
 | Memory not persisting | `LUMAX_MEMORY_BACKUP_ENABLED` is `false` | Set `LUMAX_MEMORY_BACKUP_ENABLED=true` in `.env` |
 | Greeting not speaking | `LUMAX_GREETING_ENABLED` is `false` or `lumax_greeting_seen` is set | Set `LUMAX_GREETING_ENABLED=true` or clear localStorage key |
 | Bracket tokens read aloud | `stripBracketTokens()` not called | Check `speakText()` calls `stripBracketTokens()` before TTS |
@@ -858,7 +865,7 @@ Custom DOM events for cross-component communication:
 
 ---
 
-> **Last updated:** 2026-07-10
+> **Last updated:** 2026-09-19
 > **Maintainer:** LUMAX AI System
 > **Note:** This document is auto-maintained. When adding new features, update the relevant section.
 ---
@@ -868,7 +875,7 @@ Custom DOM events for cross-component communication:
 A transparent **context compression middleware** sits inside the Foveated Memory proxy (port 8400).
 
 ### Foveated Memory Proxy behavior notes
-- **Single source of truth for LLM routing.** Port 8400 exposes an OpenAI-compatible `/v1` surface. Cloud mode forwards to Ollama Cloud (`LUMAX_PROXY_TARGET`); local mode forwards to LM Studio (`LM_STUDIO_URL`).
+- **Single source of truth for LLM routing.** Port 8400 exposes an OpenAI-compatible `/v1` surface. Cloud mode forwards to Ollama Cloud (`LUMAX_PROXY_TARGET`); local mode forwards to the XRLF runtime on :8402 (`XRLF_RUNTIME_URL`/`XRLF_LOCAL_BASE_URL`).
 - **Memory is workspace-isolated by Bearer token.** The `Authorization` header value is sanitized into a workspace directory name; each token gets its own memory store under `Tools/foveated-memory/memory_data/`.
 - **Model resolution.** `model: auto`, missing model, or cloud-provider-style model names are resolved to the configured default: `LUMAX_MODEL_CLOUD_ID` in cloud mode, `LUMAX_MODEL_LOCAL_ID` in local mode. Do not rely on upstream to interpret placeholder names.
 - **Do not inject reasoning controls by default.** The proxy must not send `reasoning_effort` or `thinking_budget` unless the user explicitly requests them. Ollama Cloud treats these as signals to return only a `reasoning` field, leaving `content` empty.
@@ -893,4 +900,90 @@ XRL serves as the unified, single-source engine for both **conversational memory
 - **Retirement of Foreign Tools**: Standalone token-stripping proxies (e.g. TokenSlayer proxies) and experimental third-party utilities (such as SigMap) are retired in favor of native XRLation.
 
 > **Last updated:** 2026-09-02  
+> **Maintainer:** LUMAX / FoveAI Unified Architecture
+
+---
+
+## Post-Migration Stack Healing & Dynamic IP (2026-09-19)
+
+After a hard-drive crash and server migration, the stack was healed **without duplicating existing implementations**:
+
+### Voice reassigned to the 840x series
+- **TTS:** native `:8402/v1/audio/speech` (Kokoro preloaded in the XRLF runtime) → fallback Kokoro service `:8406` (`foveai-tts.service`). Legacy `:8004` retired.
+- **STT:** native `:8402/v1/audio/transcriptions` → Whisper WebSocket service `:8409` (`foveai-stt.service`). Legacy `:8001` retired. `:8409` has no HTTP `/health` — probe TCP.
+- Proxy `server.js` routes via `TTS_URL`/`STT_URL` env vars; `/api/tts/voices` feeds client voice pickers; `/api/voice/status` reports live backends.
+
+### Restored services (existing code, new systemd units)
+- `foveai-motor.service` → `motor_daemon.py` :8410
+- `foveai-subconscious.service` → `subconscious_daemon.py` :8411 (`/health` added)
+- `foveai-chat-relay.service` → `chat_relay_server.py` :8407
+- `foveai-multigate.service` → `Frontend/multigate` Vite dev :5177 (requires Node ≥20; Node 24 installed at `~/.local`)
+
+### Migration repairs
+- `.venv` voice stack reinstalled (torch CPU, kokoro 0.9.4, faster-whisper 1.2.1, soundfile, misaki, py-espeak-ng).
+- `.env` CA path fixed Fedora→Debian (`ca-certificates.crt`); `FoveAI_KOKORO_VOICE` case corrected.
+- Kokoro + Whisper models cached in `/home/lumba/Models/hub` (services run `HF_HUB_OFFLINE=1`).
+
+### Dynamic LAN IP
+- `server_config.SERVER_IP` is a dynamic descriptor: blank `FOVEAI_SERVER_IP` → live LAN detection each access; explicit override still wins; IPv6 gets brackets; failure → `127.0.0.1`.
+- `refresh_network_config()` rewrites both `foveai_network_config.json` snapshots at Sleipnir startup — survives DHCP/router changes.
+- Multigate browser requests use same-origin `/api/*` (remote visitors no longer call their own `127.0.0.1`); LM Studio proxied via `/api/lmstudio`; ignition requires explicit `FOVEAI_IGNITION_URL`.
+
+> **Last updated:** 2026-09-19
+> **Maintainer:** LUMAX / FoveAI Unified Architecture
+
+---
+
+## Autonomous Cognition Activation (2026-09-20)
+
+The dormant soul stack was found **present but disconnected** — `lifespan=lifespan` commented out of the FastAPI constructor, and compagent itself never deployed. All fixes reuse existing subsystems; no parallel implementations were added.
+
+### Soul service & live persona layer
+- `foveai-soul.service` — compagent on `:8405`, member of `foveai-stack.target`. `SOUL_URL`/`SOUL_PORT`/`FOVEAI_COMPAGENT_PORT` in `.env` all `=8405`; Vite proxies `/api/soul/*` to it. (`:8000` is a retired legacy port — soul's 84xx successor is `:8405`; `:8402` is XRLF, NOT the soul equivalent.)
+- `soul_state.py` — shared live-DNA bridge (compagent writes, PersonaManager/autonomous_agent/MindCore read). Includes a bidirectional `FOVEAI_*`/`FoveAI_*` env-case normalizer and the shared trait→directive renderer.
+- All **17 trait sliders + MBTI + `agent_person_balance`** reach the prompt (`[TONE_OVERRIDE]`/`[AGENCY_MODE]`) and model routing live — no restart. `UpdateSoulRequest` declares the agentic fields so Pydantic no longer drops them.
+- `personality_presets.json` — 10 archetypes (jen_baseline, enfp, infj, infp, intj, entj, the_steward, the_mentor, the_muse, the_sentinel) with traits, `mbti_type`, `agent_person_balance`. PersonaTab has the selector, MBTI chip, and AGENTIC PROTOCOLS slider group.
+- Agentic levers gate real behavior: `autonomy<0.3` downgrades self-edits to proposals, `proactivity` mutes outreach, `curiosity` suppresses topic suggestions; `service`/`mentorship` feed the existing compagent bias chain.
+
+### Tasks — assign → plan → todo → report (agent_plans)
+Tasks reuse `agent_plans` — no new store. `POST/GET /api/soul/tasks`; `[TASK]` plans are injected into the autonomous tick with priority over idle curiosity. Jen decomposes work herself:
+- `<self:todo id="N">` → `add_plan_step`; `<self:step_done plan="N" step="i">` → `complete_plan_step`; `<self:task_done id="N">` → outcome + chat-feed report.
+
+**Scheduling** (migration-safe columns on `agent_plans`): `scheduled_for`, `recurrence` (`none|daily|weekly`), `origin` (`user|director|jen`). Statuses `scheduled` (dormant — invisible to `get_active_plans`, i.e. hidden from Jenna) and `proposed` (awaiting approval). Every tick calls `activate_due_tasks()`; `reschedule_recurring()` re-arms daily/weekly after `<self:task_done>` keeping the original clock time. `POST /tasks/{id}/approve|reject`. `origin='director'` + `scheduled` = tasks the Director plants that Jenna can't see until they fire. PersonaTab: datetime picker, recurrence select, propose checkbox, approve/reject buttons, status badges.
+
+### Unified todo substrate & HUD
+Coder models' `todo_add/todo_list/todo_done` (coder_tools) were a parallel `coder_todos.json` store — now bridged onto a persistent `[CODER]` plan in `agent_plans` (id in `set_memory("coder_session_plan_id")`, legacy JSON migrated once). `hud_context()` renders open steps across **all** active `[TASK]`/`[CODER]` plans (`p{id}.{step}`) into every model's prompt — loop and chat both.
+
+### Cycle states, curiosity, senses, voice
+- `_cycle_state()` in autonomous_agent: `CO_PRESENT` (active <5min) / `IDLE_REFLECTIVE` (night, high CPU, or short idle) / `IDLE_ACTIVE` (daytime + away >1h — the self-tutoring window). `VR_EXPLORATION` intentionally omitted until a headset-activity bridge exists.
+- `JEN_INTERESTS` + `_suggest_topics()` rotate ten declared domains (science, philosophy, cosmology, current affairs, fringe research…), deduped via `curiosity_log.json`.
+- `<self:brief topic="…">` → priority-3 chat briefing + curiosity log. `<self:speak>` → Kokoro `:8406` → `paplay` — she can announce, comment, tutor aloud.
+- `web_agent_bridge.py` — persistent headless Chromium (own asyncio thread): `read`/`click`/`type`/`scroll`/`back`/`shot`/`look`, cookies in `Backend/data/web_session/`, screenshots to `web_screenshots/`; `set_vision_callable` is the mmproj seam. Guardrails: http(s) only, financial/checkout paths refused, env whitelists.
+- Dream cycle now folds recent research topics + thoughts into reflective insight/intention — dreaming = consolidation, not idle filler.
+- `TTS_SERVICE_URL` default fixed `:8004→:8406`.
+
+### Cloud repertoire & the Director
+- Slot order: **nvidia** (`moonshotai/kimi-k3`, existing `FOVEAI_NVIDIA_API_KEY`) → ollama_cloud → gemini → openrouter (scaffold in `.env`; default `deepseek/deepseek-chat-v3.1:free`).
+- Sparse by design: loop ticks pinned `cloud_routing_override="local"`; 45s cadence; `FoveAI_CLOUD_GENAI_DAILY_MAX=60`.
+- Director fix: dead `"github"` slot → env `FOVEAI_DIRECTOR_SLOT` (default ollama_cloud); invalid kwarg removed; `except→debug` elevated to warning. `FoveAI_COGNITIVE_MODE` lifted `local→hybrid` (was hard-locking all cloud slots); Gemini key case mismatch fixed in code.
+
+### Sealed Director context (compartmentalized tasks)
+- `agent_plans` gained two sealed columns: `hidden_context` (the Director's WHY) and `director_plan` (a master-plan group label linking sibling tasks — the WHERE-IT-FITS). Both are write-only at task creation and only honored when `origin='director'` — user/Jen POSTs cannot smuggle sealed fields.
+- Jen sees the WHAT only: the autonomous tick injects `title + description + steps`, and `hud_context` renders steps — sealed columns never enter any prompt. `GET /tasks`, `/api/agent/plans`, and `/api/agent/plan/{id}` strip them and expose only a `sealed: bool` flag (Jen can fetch these endpoints via `<self:fetch>` — stripping is the real boundary, not obscurity).
+- Reveal path: `GET /api/soul/tasks/{id}/context` returns hidden_context + director_plan + sibling tasks; `GET /api/soul/director/plans/{name}` returns a whole master plan. Both require `?key=` matching `FOVEAI_DIRECTOR_API_KEY`, or a valid Multigate gate cookie (the UI reveal button rides it). The PersonaTab tasks card shows a 🔒 "sealed directive" badge with a click-to-reveal panel showing master plan + rationale + siblings.
+- Usage: `POST /api/soul/tasks` with `origin: "director"`, `hidden_context`, `director_plan` — optionally `run_at`/`recurrence` for dormancy.
+
+### Dev Kiosk — App Forge (user-facing build pipeline)
+- `Backend/Cognition/kiosk_templates/` — five stdlib-only Python templates (`ai_chat`, `ai_persona`, `music_app`, `web_browser`, `meter_widget`); each serves a small UI via `http.server` on 127.0.0.1 so it PyInstallers cleanly. AI templates call the local XRLF at `:8402/v1/chat/completions`.
+- Endpoints (compagent, ~line 2360): `GET /kiosk/templates`, `POST /kiosk/apps` (scaffold into `Backend/data/kiosk_apps/{owner}/{app}/`), `GET /kiosk/apps`, `GET|POST /kiosk/apps/{owner}/{app}/file`, `POST /kiosk/assist` (local-model code gen), `POST /kiosk/build` (always a source `.zip`; PyInstaller `--onefile` binary when available), `GET /kiosk/download/{owner}/{app}/{artifact}`.
+- Policy is enforced in two places and shown in the UI: `KIOSK_POLICY` text ships with `/kiosk/templates` and is rendered as a card in DevKioskTab; `_KIOSK_BLOCK_RE` refuses intrusion/abuse assist prompts outright and logs policy-flagged generated code. Encouraged: creative apps, Chrome extensions, XRLF-powered AI apps, chat/db/trading apps, API-key tools, TTS/STT. Forbidden: hacking/intrusion, credential theft, scanners/exploits, targeting FoveAI services, illegal activity.
+- Assist output is sanitized for leaked persona tokens (`<emotion:*>`, `<thought:*>` …) — the local model is persona-conditioned and occasionally prefixes them.
+- `Frontend/multigate/src/components/tabs/DevKioskTab.tsx` — two sections: APP FORGE (templates → editor → assist → compile → download) and the pre-existing SoftLayer module forge.
+- Note: PyInstaller binaries are platform-specific — a build on this host produces a Linux x86_64 executable, not a cross-platform artifact.
+
+### WebVM route fix (2026-09-20)
+- Root cause of the recurring "WebVM is dead" reports: not the bundle, not the proxy — the **password gate** in `vite.config.ts` intercepts every path outside its allowlist (`/api/`, `/v1/`, `/xrlf/`, `/health`) and returns the `Xarel — Enter` login HTML, which mimics a broken-proxy/SPA-fallback symptom.
+- `/webvm` is now served by the `webvmStatic` plugin — a `configureServer` middleware that runs before Vite's internal stack and streams `Frontend/XR_Vessel/public/webvm` with `Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: require-corp` on every response (SharedArrayBuffer requirement). compagent also exposes `/webvm/{path}` with the same headers for direct soul-API access.
+
+> **Last updated:** 2026-09-20
 > **Maintainer:** LUMAX / FoveAI Unified Architecture

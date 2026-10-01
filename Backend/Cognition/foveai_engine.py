@@ -1,36 +1,39 @@
-import os
-import re
-import sys
-import math
 import inspect
 import logging
+import math
+import os
+import re
 import time
 from contextlib import contextmanager
-from typing import Any, Dict, Optional
+from typing import Any
 
 import jinja2
-import numpy as np
 from jinja2.sandbox import ImmutableSandboxedEnvironment
 
 # Provide defaults so flake8 can resolve these names even if imports fail
+# Probe only — a real `import torch` here pages in ~4GB of CUDA libs and makes
+# cold service boots crawl for minutes (worse on ecryptfs). Actual imports stay
+# local to the functions that need them.
 _TORCH_AVAILABLE = False
 try:
-    import torch
-    _TORCH_AVAILABLE = True
-except ImportError:
+    import importlib.util as _ilu
+
+    _TORCH_AVAILABLE = _ilu.find_spec("torch") is not None
+except Exception:
     _TORCH_AVAILABLE = False
 
 # Conditional imports
 try:
     from llama_cpp import Llama
+
     GGUF_AVAILABLE = True
-except ImportError:
+except (ImportError, RuntimeError):
     GGUF_AVAILABLE = False
     Llama = None  # type: ignore
 
 try:
     from llama_cpp.llama_chat_format import Llava15ChatHandler
-except ImportError:
+except (ImportError, RuntimeError):
     Llava15ChatHandler = None
 
 
@@ -51,10 +54,12 @@ def _env_int(name: str, default: int) -> int:
         return int(default)
 
 
-def _hf_pretrained_dtype_kw(model_cls: Any) -> Dict[str, Any]:
+def _hf_pretrained_dtype_kw(model_cls: Any) -> dict[str, Any]:
     """Prefer ``dtype`` over deprecated ``torch_dtype`` when ``from_pretrained`` supports it."""
     if not _TORCH_AVAILABLE:
         return {}
+    import torch
+
     dt = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
     try:
         sig = inspect.signature(model_cls.from_pretrained)
@@ -113,7 +118,7 @@ def _lenient_jinja_chat_formatter_for_llama_init(lenient: bool):
             eos_token: str,
             bos_token: str,
             add_generation_prompt: bool = True,
-            stop_token_ids: Optional[list[int]] = None,
+            stop_token_ids: list[int] | None = None,
         ):
             try:
                 super().__init__(
@@ -147,19 +152,15 @@ def _lenient_jinja_chat_formatter_for_llama_init(lenient: bool):
     finally:
         lcf.Jinja2ChatFormatter = real_cls  # type: ignore[assignment]
 
+
 HF_AVAILABLE = False
 try:
-    from transformers import AutoTokenizer, AutoProcessor, AutoModelForCausalLM
-    HF_AVAILABLE = True
-except ImportError:
-    AutoTokenizer = None
-    AutoProcessor = None
-    AutoModelForCausalLM = None
+    import importlib.util as _ilu2
 
-try:
-    from transformers import AutoModelForVision2Seq
-except ImportError:
-    AutoModelForVision2Seq = None
+    HF_AVAILABLE = _ilu2.find_spec("transformers") is not None
+except Exception:
+    HF_AVAILABLE = False
+
 
 class LumaxEngine:
     def __init__(self, model_path: str):
@@ -171,7 +172,7 @@ class LumaxEngine:
         self.processor = None
         # Set in load() when FoveAI_GGUF_NATIVE_VISION=1 and mmproj + Llava15ChatHandler init succeeds.
         self.gguf_multimodal_ready = False
-        self.mmproj_path: Optional[str] = None
+        self.mmproj_path: str | None = None
         # GGUF context window (supports long-context models if VRAM permits).
         # Default matches docker-compose foveai_soul (8192). Older default 32768 surprised users when
         # MindCore+memories exceeded n_ctx — env still wins when set (e.g. .env / compose).
@@ -180,12 +181,12 @@ class LumaxEngine:
             ctx_cap = int(os.getenv("FoveAI_LOCAL_N_CTX_MAX", "65536") or "65536")
         except Exception:
             ctx_cap = 65536
-            
+
         try:
             self.n_gpu_layers = int(os.getenv("FoveAI_GGUF_N_GPU_LAYERS", "99") or "99")
         except Exception:
             self.n_gpu_layers = 99
-            
+
         self.gguf_n_ctx_max = max(4096, min(ctx_cap, 65536))
         try:
             ctx_raw = int(os.getenv("FoveAI_LOCAL_N_CTX", "8192") or "8192")
@@ -196,10 +197,14 @@ class LumaxEngine:
         self.gguf_n_ctx_baseline: int = self.gguf_n_ctx
         cpu_count = max(1, (os.cpu_count() or 1))
         # Keep local GGUF from saturating every host thread by default.
-        self.gguf_n_threads = max(1, min(_env_int("FoveAI_LOCAL_N_THREADS", min(4, cpu_count)), cpu_count))
+        self.gguf_n_threads = max(
+            1, min(_env_int("FoveAI_LOCAL_N_THREADS", min(4, cpu_count)), cpu_count)
+        )
         self.gguf_n_threads_batch = max(
             1,
-            min(_env_int("FoveAI_LOCAL_N_THREADS_BATCH", self.gguf_n_threads), cpu_count),
+            min(
+                _env_int("FoveAI_LOCAL_N_THREADS_BATCH", self.gguf_n_threads), cpu_count
+            ),
         )
         # Optional lower bound for shrink (e.g. start FoveAI_LOCAL_N_CTX=32768 but allow urgent shrink toward 4096).
         self.gguf_adaptive_shrink_floor: int = self._compute_adaptive_shrink_floor()
@@ -221,9 +226,9 @@ class LumaxEngine:
             "frequency_penalty": 0.5,
             "repetition_penalty": 1.15,
             "repeat_last_n": 128,
-            "do_sample": True
+            "do_sample": True,
         }
-        
+
         logging.info(f"LumaxEngine: Init {self.engine_type} for {self.model_name}")
         logging.info(
             "LumaxEngine: GGUF perf threads n_threads=%d n_threads_batch=%d",
@@ -231,7 +236,7 @@ class LumaxEngine:
             self.gguf_n_threads_batch,
         )
 
-    def _gguf_perf_kwargs(self) -> Dict[str, Any]:
+    def _gguf_perf_kwargs(self) -> dict[str, Any]:
         return {
             "n_threads": self.gguf_n_threads,
             "n_threads_batch": self.gguf_n_threads_batch,
@@ -247,7 +252,7 @@ class LumaxEngine:
             return self.gguf_n_ctx_baseline
         return max(4096, min(v, self.gguf_n_ctx_max))
 
-    def _gguf_chat_format(self) -> Optional[str]:
+    def _gguf_chat_format(self) -> str | None:
         """
         Preset llama-cpp-python chat formatter (e.g. ``qwen``) — avoids the GGUF metadata Jinja path
         for *completions* when no external template is used.
@@ -259,7 +264,7 @@ class LumaxEngine:
         v = os.getenv("FoveAI_GGUF_CHAT_FORMAT", "").strip()
         return v or None
 
-    def _read_external_chat_template_text(self) -> Optional[str]:
+    def _read_external_chat_template_text(self) -> str | None:
         """Load optional Jinja chat template from disk (Qwen / tool-use aware templates)."""
         p = os.getenv("FoveAI_GGUF_CHAT_TEMPLATE_PATH", "").strip()
         if not p:
@@ -273,13 +278,15 @@ class LumaxEngine:
             logging.warning("LumaxEngine: could not read chat template %r: %s", p, e)
             return None
 
-    def _gguf_chat_format_kwargs_only(self) -> Dict[str, Any]:
+    def _gguf_chat_format_kwargs_only(self) -> dict[str, Any]:
         cf = self._gguf_chat_format()
         if cf:
             return {"chat_format": cf}
         return {}
 
-    def _gguf_chat_kwargs_text_only(self, template_text: Optional[str]) -> Dict[str, Any]:
+    def _gguf_chat_kwargs_text_only(
+        self, template_text: str | None
+    ) -> dict[str, Any]:
         """Extra kwargs for ``Llama()`` on text-only GGUF loads (custom Jinja file or preset format)."""
         if template_text and GGUF_AVAILABLE:
             import llama_cpp.llama_chat_format as lcf
@@ -294,27 +301,34 @@ class LumaxEngine:
                     add_generation_prompt=_model_thinking_enabled(),
                 ).to_chat_handler()
             except Exception as e:
-                logging.error("LumaxEngine: custom chat template failed to compile: %s", e)
+                logging.error(
+                    "LumaxEngine: custom chat template failed to compile: %s", e
+                )
                 return self._gguf_chat_format_kwargs_only()
             return {"chat_handler": handler, "chat_format": None}
         return self._gguf_chat_format_kwargs_only()
 
     def _detect_type(self):
         m_name = self.model_name.lower()
-        
+
         # Check for GGUF files in the path (direct or inside dir)
-        if self.model_path.endswith(".gguf"): return "GGUF"
+        if self.model_path.endswith(".gguf"):
+            return "GGUF"
         if os.path.isdir(self.model_path):
             for f in os.listdir(self.model_path):
-                if f.endswith(".gguf"): return "GGUF"
-            
-            if "vl" in m_name: return "QWEN_VL"
-            if "dflash" in m_name: return "DFLASH"
-            if "gptq" in m_name or "awq" in m_name: return "QUANTIZED_HF"
+                if f.endswith(".gguf"):
+                    return "GGUF"
+
+            if "vl" in m_name:
+                return "QWEN_VL"
+            if "dflash" in m_name:
+                return "DFLASH"
+            if "gptq" in m_name or "awq" in m_name:
+                return "QUANTIZED_HF"
             return "TRANSFORMERS"
         return "UNKNOWN"
 
-    def _resolve_mmproj_path(self, model_file: str) -> Optional[str]:
+    def _resolve_mmproj_path(self, model_file: str) -> str | None:
         """mmproj path: FoveAI_MMPROJ_PATH, or *mmproj*.gguf next to weights / in model dir."""
         env_p = os.getenv("FoveAI_MMPROJ_PATH", "").strip()
         if env_p and os.path.isfile(env_p):
@@ -356,9 +370,7 @@ class LumaxEngine:
         self.mmproj_path = mmproj_file
         native_vision = _env_bool("FoveAI_GGUF_NATIVE_VISION", False)
         use_multimodal = bool(
-            mmproj_file
-            and native_vision
-            and Llava15ChatHandler is not None
+            mmproj_file and native_vision and Llava15ChatHandler is not None
         )
 
         tpl_text = self._read_external_chat_template_text()
@@ -368,7 +380,9 @@ class LumaxEngine:
         vl_extra_kw = self._gguf_chat_format_kwargs_only()
 
         logging.info(f"LumaxEngine: Manifesting GGUF Soul from {model_file}...")
-        logging.info("LumaxEngine: GGUF n_ctx=%d (max=%d)", self.gguf_n_ctx, self.gguf_n_ctx_max)
+        logging.info(
+            "LumaxEngine: GGUF n_ctx=%d (max=%d)", self.gguf_n_ctx, self.gguf_n_ctx_max
+        )
         perf_kw = self._gguf_perf_kwargs()
         use_flash_attn = os.getenv("FOVEAI_FLASH_ATTN", "1") == "1"
         with _lenient_jinja_chat_formatter_for_llama_init(lenient):
@@ -407,7 +421,10 @@ class LumaxEngine:
                             **perf_kw,
                         )
                     except Exception as fallback_ex:
-                        logging.error("LumaxEngine: Fallback text-only GGUF init failed: %s", fallback_ex)
+                        logging.error(
+                            "LumaxEngine: Fallback text-only GGUF init failed: %s",
+                            fallback_ex,
+                        )
                         self.model = None
                         return False
 
@@ -435,11 +452,13 @@ class LumaxEngine:
         logging.info("LumaxEngine: GGUF Soul Manifested.")
         return True
 
-    def _gpu_free_mem_ratio(self) -> Optional[float]:
+    def _gpu_free_mem_ratio(self) -> float | None:
         """CUDA free / total if torch sees a GPU; else None (CPU-only — VRAM shrink disabled)."""
         if not _TORCH_AVAILABLE:
             return None
         try:
+            import torch
+
             if torch.cuda.is_available():
                 free_b, total_b = torch.cuda.mem_get_info()
                 if total_b and total_b > 0:
@@ -470,7 +489,9 @@ class LumaxEngine:
             self._adaptive_last_any_reload_ts = time.time()
             return True
         except Exception as e:
-            logging.error("LumaxEngine: adaptive n_ctx reload failed: %s", e, exc_info=True)
+            logging.error(
+                "LumaxEngine: adaptive n_ctx reload failed: %s", e, exc_info=True
+            )
             self.gguf_n_ctx = old_ctx
             try:
                 if self.model:
@@ -478,7 +499,9 @@ class LumaxEngine:
                     self.model = None
                 self._manifest_gguf_llama()
             except Exception as e2:
-                logging.error("LumaxEngine: adaptive n_ctx restore failed: %s", e2, exc_info=True)
+                logging.error(
+                    "LumaxEngine: adaptive n_ctx restore failed: %s", e2, exc_info=True
+                )
             return False
 
     def ensure_gguf_context_for_prompt(
@@ -504,7 +527,9 @@ class LumaxEngine:
 
         now = time.time()
         try:
-            min_reload_gap = float(os.getenv("FoveAI_ADAPTIVE_N_CTX_MIN_RELOAD_SEC", "1.5") or "1.5")
+            min_reload_gap = float(
+                os.getenv("FoveAI_ADAPTIVE_N_CTX_MIN_RELOAD_SEC", "1.5") or "1.5"
+            )
         except Exception:
             min_reload_gap = 1.5
 
@@ -518,14 +543,18 @@ class LumaxEngine:
         need = n + reserve
 
         try:
-            alpha = float(os.getenv("FoveAI_ADAPTIVE_SHRINK_EMA_ALPHA", "0.07") or "0.07")
+            alpha = float(
+                os.getenv("FoveAI_ADAPTIVE_SHRINK_EMA_ALPHA", "0.07") or "0.07"
+            )
         except Exception:
             alpha = 0.07
         alpha = min(0.5, max(0.01, alpha))
         if self._adaptive_ema_need <= 0:
             self._adaptive_ema_need = float(need)
         else:
-            self._adaptive_ema_need = (1.0 - alpha) * self._adaptive_ema_need + alpha * float(need)
+            self._adaptive_ema_need = (
+                1.0 - alpha
+            ) * self._adaptive_ema_need + alpha * float(need)
 
         try:
             step = int(os.getenv("FoveAI_ADAPTIVE_N_CTX_STEP", "2048") or "2048")
@@ -536,11 +565,15 @@ class LumaxEngine:
         baseline = self.gguf_n_ctx_baseline
         shrink_floor = self.gguf_adaptive_shrink_floor
         try:
-            margin = int(os.getenv("FoveAI_ADAPTIVE_SHRINK_MARGIN_TOKENS", "768") or "768")
+            margin = int(
+                os.getenv("FoveAI_ADAPTIVE_SHRINK_MARGIN_TOKENS", "768") or "768"
+            )
         except Exception:
             margin = 768
         try:
-            headroom = float(os.getenv("FoveAI_ADAPTIVE_SHRINK_EMA_HEADROOM", "1.2") or "1.2")
+            headroom = float(
+                os.getenv("FoveAI_ADAPTIVE_SHRINK_EMA_HEADROOM", "1.2") or "1.2"
+            )
         except Exception:
             headroom = 1.2
         raw_safe = self._adaptive_ema_need * headroom + float(margin)
@@ -548,7 +581,10 @@ class LumaxEngine:
         safe_min = max(shrink_floor, min(safe_min, self.gguf_n_ctx_max))
 
         try:
-            critical_thr = float(os.getenv("FoveAI_ADAPTIVE_SHRINK_CRITICAL_FREE_RATIO", "0.05") or "0.05")
+            critical_thr = float(
+                os.getenv("FoveAI_ADAPTIVE_SHRINK_CRITICAL_FREE_RATIO", "0.05")
+                or "0.05"
+            )
         except Exception:
             critical_thr = 0.05
         free_ratio = self._gpu_free_mem_ratio()
@@ -564,10 +600,15 @@ class LumaxEngine:
         # --- Grow when this turn does not fit ---
         if need > self.gguf_n_ctx:
             try:
-                grow_cd = float(os.getenv("FoveAI_ADAPTIVE_N_CTX_COOLDOWN_SEC", "8") or "8")
+                grow_cd = float(
+                    os.getenv("FoveAI_ADAPTIVE_N_CTX_COOLDOWN_SEC", "8") or "8"
+                )
             except Exception:
                 grow_cd = 8.0
-            if self._adaptive_last_grow_ts > 0 and (now - self._adaptive_last_grow_ts) < grow_cd:
+            if (
+                self._adaptive_last_grow_ts > 0
+                and (now - self._adaptive_last_grow_ts) < grow_cd
+            ):
                 return
             if not can_reload():
                 return
@@ -593,25 +634,34 @@ class LumaxEngine:
             return
 
         try:
-            urgent_thr = float(os.getenv("FoveAI_ADAPTIVE_SHRINK_URGENT_FREE_RATIO", "0.09") or "0.09")
+            urgent_thr = float(
+                os.getenv("FoveAI_ADAPTIVE_SHRINK_URGENT_FREE_RATIO", "0.09") or "0.09"
+            )
         except Exception:
             urgent_thr = 0.09
 
         urgent = free_ratio is not None and free_ratio < urgent_thr
         try:
-            urgent_cd = float(os.getenv("FoveAI_ADAPTIVE_SHRINK_URGENT_COOLDOWN_SEC", "4") or "4")
+            urgent_cd = float(
+                os.getenv("FoveAI_ADAPTIVE_SHRINK_URGENT_COOLDOWN_SEC", "4") or "4"
+            )
         except Exception:
             urgent_cd = 4.0
         try:
-            lazy_cd = float(os.getenv("FoveAI_ADAPTIVE_N_CTX_SHRINK_COOLDOWN_SEC", "60") or "60")
+            lazy_cd = float(
+                os.getenv("FoveAI_ADAPTIVE_N_CTX_SHRINK_COOLDOWN_SEC", "60") or "60"
+            )
         except Exception:
             lazy_cd = 60.0
 
-        new_ctx: Optional[int] = None
+        new_ctx: int | None = None
         tag = ""
 
         if urgent:
-            if self._adaptive_last_shrink_ts > 0 and (now - self._adaptive_last_shrink_ts) < urgent_cd:
+            if (
+                self._adaptive_last_shrink_ts > 0
+                and (now - self._adaptive_last_shrink_ts) < urgent_cd
+            ):
                 return
             if not can_reload():
                 return
@@ -624,7 +674,10 @@ class LumaxEngine:
         else:
             if safe_min >= self.gguf_n_ctx - step:
                 return
-            if self._adaptive_last_shrink_ts > 0 and (now - self._adaptive_last_shrink_ts) < lazy_cd:
+            if (
+                self._adaptive_last_shrink_ts > 0
+                and (now - self._adaptive_last_shrink_ts) < lazy_cd
+            ):
                 return
             if not can_reload():
                 return
@@ -642,24 +695,33 @@ class LumaxEngine:
         try:
             if self.engine_type == "GGUF" and GGUF_AVAILABLE:
                 return self._manifest_gguf_llama()
-            
+
             elif self.engine_type == "QWEN_VL" or self.engine_type == "QUANTIZED_HF":
                 if not HF_AVAILABLE or not _TORCH_AVAILABLE:
-                    logging.error("LumaxEngine: %s requires transformers+torch, but one or both are not installed.", self.engine_type)
+                    logging.error(
+                        "LumaxEngine: %s requires transformers+torch, but one or both are not installed.",
+                        self.engine_type,
+                    )
                     return False
-                from transformers import AutoTokenizer, AutoModelForCausalLM
+                from transformers import AutoModelForCausalLM, AutoTokenizer
+
                 logging.info(f"LumaxEngine: Manifesting {self.engine_type} Soul...")
-                self.tokenizer = AutoTokenizer.from_pretrained(self.model_path, trust_remote_code=True)
-                
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    self.model_path, trust_remote_code=True
+                )
+
                 # Check for Flash Attention availability
                 attn_impl = "eager"
                 try:
                     import flash_attn
+
                     attn_impl = "flash_attention_2"
                     logging.info("LumaxEngine: Flash Attention 2 detected and enabled.")
                 except ImportError:
-                    logging.warning("LumaxEngine: Flash Attention not found, falling back to eager.")
- 
+                    logging.warning(
+                        "LumaxEngine: Flash Attention not found, falling back to eager."
+                    )
+
                 self.model = AutoModelForCausalLM.from_pretrained(
                     self.model_path,
                     device_map="auto",
@@ -667,42 +729,58 @@ class LumaxEngine:
                     attn_implementation=attn_impl,
                     **_hf_pretrained_dtype_kw(AutoModelForCausalLM),
                 )
-                logging.info(f"LumaxEngine: {self.engine_type} Soul Manifested on {self.model.device}.")
+                logging.info(
+                    f"LumaxEngine: {self.engine_type} Soul Manifested on {self.model.device}."
+                )
                 return True
 
             elif self.engine_type == "DFLASH":
                 if not HF_AVAILABLE or not _TORCH_AVAILABLE:
-                    logging.error("LumaxEngine: DFlash requires transformers+torch, but one or both are not installed.")
+                    logging.error(
+                        "LumaxEngine: DFlash requires transformers+torch, but one or both are not installed."
+                    )
                     return False
-                logging.info(f"LumaxEngine: Manifesting Qwen3.5-4B-DFlash Soul...")
-                self.tokenizer = AutoTokenizer.from_pretrained(self.model_path, trust_remote_code=True)
-                
+                from transformers import AutoTokenizer
+
+                logging.info("LumaxEngine: Manifesting Qwen3.5-4B-DFlash Soul...")
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    self.model_path, trust_remote_code=True
+                )
+
                 # Use importlib to load dflash.py directly to avoid sys.path pollution or naming conflicts
                 dflash_path = os.path.join(self.model_path, "dflash.py")
                 if os.path.exists(dflash_path):
                     import importlib.util
                     import sys
-                    spec = importlib.util.spec_from_file_location("dflash_model", dflash_path)
+
+                    spec = importlib.util.spec_from_file_location(
+                        "dflash_model", dflash_path
+                    )
                     dflash_mod = importlib.util.module_from_spec(spec)
                     sys.modules["dflash_model"] = dflash_mod
                     spec.loader.exec_module(dflash_mod)
-                    
+
                     self.model = dflash_mod.DFlashDraftModel.from_pretrained(
                         self.model_path,
                         device_map="auto",
                         trust_remote_code=True,
                         **_hf_pretrained_dtype_kw(dflash_mod.DFlashDraftModel),
                     )
-                    logging.info("LumaxEngine: DFlash Soul Manifested (Block Diffusion Active).")
+                    logging.info(
+                        "LumaxEngine: DFlash Soul Manifested (Block Diffusion Active)."
+                    )
                     return True
                 else:
-                    logging.warning("dflash.py not found in model path, using transformers fallback...")
+                    logging.warning(
+                        "dflash.py not found in model path, using transformers fallback..."
+                    )
                     from transformers import AutoModelForCausalLM
-                    
+
                     # Check for Flash Attention availability
                     attn_impl = "eager"
                     try:
                         import flash_attn
+
                         attn_impl = "flash_attention_2"
                     except ImportError:
                         pass
@@ -718,38 +796,52 @@ class LumaxEngine:
 
             elif self.engine_type == "TRANSFORMERS":
                 if not HF_AVAILABLE or not _TORCH_AVAILABLE:
-                    logging.error("LumaxEngine: Transformers engine requires transformers+torch, but one or both are not installed.")
+                    logging.error(
+                        "LumaxEngine: Transformers engine requires transformers+torch, but one or both are not installed."
+                    )
                     return False
-                from transformers import AutoModelForCausalLM, BitsAndBytesConfig
-                logging.info(f"LumaxEngine: Manifesting {self.model_name} with 4-bit optimization...")
-                
-                self.tokenizer = AutoTokenizer.from_pretrained(self.model_path, trust_remote_code=True)
-                
+                import torch
+                from transformers import (
+                    AutoModelForCausalLM,
+                    AutoTokenizer,
+                    BitsAndBytesConfig,
+                )
+
+                logging.info(
+                    f"LumaxEngine: Manifesting {self.model_name} with 4-bit optimization..."
+                )
+
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    self.model_path, trust_remote_code=True
+                )
+
                 # 4-bit Quantization Config for RTX 4060 efficiency
                 bnb_config = BitsAndBytesConfig(
                     load_in_4bit=True,
                     bnb_4bit_use_double_quant=True,
                     bnb_4bit_quant_type="nf4",
-                    bnb_4bit_compute_dtype=torch.bfloat16
+                    bnb_4bit_compute_dtype=torch.bfloat16,
                 )
 
                 self.model = AutoModelForCausalLM.from_pretrained(
                     self.model_path,
                     quantization_config=bnb_config,
                     device_map="auto",
-                    trust_remote_code=True
+                    trust_remote_code=True,
                 )
-                logging.info(f"LumaxEngine: Soul Manifested (4-bit Active).")
+                logging.info("LumaxEngine: Soul Manifested (4-bit Active).")
                 return True
-                
+
         except Exception as e:
             logging.error(f"LumaxEngine: Manifestation Failed -> {e}", exc_info=True)
         return False
 
     def flush(self):
         """Evict VRAM: purge Torch cache to yield priority for external sensory tasks (STT/TTS)."""
-        import torch
         import gc
+
+        import torch
+
         try:
             gc.collect()
             if torch.cuda.is_available():
@@ -792,21 +884,27 @@ class LumaxEngine:
             return raw.decode("utf-8", errors="replace")
         return str(raw)
 
-    def generate(self, prompt: str, image_base64: str = None, max_tokens: int = 768) -> str:
+    def generate(
+        self, prompt: str, image_base64: str = None, max_tokens: int = 768
+    ) -> str:
         if not self.model:
             logging.info("LumaxEngine: Model not loaded. Attempting JIT load...")
             if not self.load():
                 return "Soul not manifested. No local GGUF or Transformers model is currently loaded in the engine."
-        
+
         try:
             if self.engine_type == "GGUF":
                 vl_extra = 0
                 if image_base64 and getattr(self, "gguf_multimodal_ready", False):
                     try:
-                        vl_extra = int(os.getenv("FoveAI_ADAPTIVE_VL_EXTRA_TOKENS", "768") or "768")
+                        vl_extra = int(
+                            os.getenv("FoveAI_ADAPTIVE_VL_EXTRA_TOKENS", "768") or "768"
+                        )
                     except Exception:
                         vl_extra = 768
-                self.ensure_gguf_context_for_prompt(prompt, max_tokens, extra_token_slots=vl_extra)
+                self.ensure_gguf_context_for_prompt(
+                    prompt, max_tokens, extra_token_slots=vl_extra
+                )
                 gguf_config = {
                     "temperature": self.gen_config.get("temperature", 0.7),
                     "top_p": self.gen_config.get("top_p", 0.8),
@@ -818,8 +916,12 @@ class LumaxEngine:
                 }
                 # Stops: do NOT use "\n\n" — it cuts off normal paragraphs after a few words.
                 _stops = [
-                    "USER:", "\nUSER:",
-                    "<|eot_id|>", "<|end_of_text|>", "<|im_end|>", "<|im_end|>",
+                    "USER:",
+                    "\nUSER:",
+                    "<|eot_id|>",
+                    "<|end_of_text|>",
+                    "<|im_end|>",
+                    "<|im_end|>",
                 ]
                 if image_base64 and getattr(self, "gguf_multimodal_ready", False):
                     try:
@@ -832,7 +934,10 @@ class LumaxEngine:
                             {
                                 "role": "user",
                                 "content": [
-                                    {"type": "image_url", "image_url": {"url": img_url}},
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {"url": img_url},
+                                    },
                                     {"type": "text", "text": prompt},
                                 ],
                             }
@@ -853,7 +958,8 @@ class LumaxEngine:
                         raw_c = msg.get("content")
                         if isinstance(raw_c, list):
                             piece = "".join(
-                                x.get("text", "") if isinstance(x, dict) else str(x) for x in raw_c
+                                x.get("text", "") if isinstance(x, dict) else str(x)
+                                for x in raw_c
                             ).strip()
                         elif isinstance(raw_c, str):
                             piece = raw_c.strip()
@@ -867,7 +973,9 @@ class LumaxEngine:
                             mm_ex,
                         )
                 prompt = self._fit_gguf_prompt(prompt, max_tokens)
-                output = self.model(prompt, max_tokens=max_tokens, stop=_stops, **gguf_config)
+                output = self.model(
+                    prompt, max_tokens=max_tokens, stop=_stops, **gguf_config
+                )
                 return _strip_model_thinking_text(output["choices"][0]["text"].strip())
 
             elif (
@@ -876,8 +984,12 @@ class LumaxEngine:
                 or self.engine_type == "QUANTIZED_HF"
             ):
                 # AWQ / GPTQ / plain HF text: vision is text-injected (compagent helper stack), not raw pixels here.
-                inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
-                outputs = self.model.generate(**inputs, max_new_tokens=max_tokens, **self.gen_config)
+                inputs = self.tokenizer(prompt, return_tensors="pt").to(
+                    self.model.device
+                )
+                outputs = self.model.generate(
+                    **inputs, max_new_tokens=max_tokens, **self.gen_config
+                )
                 return _strip_model_thinking_text(
                     self.tokenizer.decode(outputs[0], skip_special_tokens=True)
                 )
@@ -888,16 +1000,29 @@ class LumaxEngine:
                 # Qwen3-VL Logic
                 content = [{"type": "text", "text": prompt}]
                 if image_base64:
-                    content.insert(0, {"type": "image", "image": f"data:image/jpeg;base64,{image_base64}"})
-                
+                    content.insert(
+                        0,
+                        {
+                            "type": "image",
+                            "image": f"data:image/jpeg;base64,{image_base64}",
+                        },
+                    )
+
                 messages = [{"role": "user", "content": content}]
                 text = self.processor.apply_chat_template(
-                    messages, tokenize=False, add_generation_prompt=_model_thinking_enabled()
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=_model_thinking_enabled(),
                 )
-                inputs = self.processor(text=[text], padding=True, return_tensors="pt").to(self.model.device)
+                inputs = self.processor(
+                    text=[text], padding=True, return_tensors="pt"
+                ).to(self.model.device)
 
                 generated_ids = self.model.generate(**inputs, max_new_tokens=max_tokens)
-                generated_ids_trimmed = [out_ids[len(in_ids):] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)]
+                generated_ids_trimmed = [
+                    out_ids[len(in_ids) :]
+                    for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+                ]
                 return _strip_model_thinking_text(
                     self.processor.batch_decode(
                         generated_ids_trimmed,
@@ -905,7 +1030,7 @@ class LumaxEngine:
                         clean_up_tokenization_spaces=False,
                     )[0]
                 )
-                
+
         except Exception as e:
             return f"Cognition Error: {e}"
 
@@ -936,13 +1061,13 @@ class LumaxEngine:
             }
             prompt = self._fit_gguf_prompt(prompt, max_tokens)
             stream = self.model(
-                prompt, 
-                max_tokens=max_tokens, 
-                stop=["USER:", "<|redacted_im_end|>", "\n\n"], 
+                prompt,
+                max_tokens=max_tokens,
+                stop=["USER:", "<|redacted_im_end|>", "\n\n"],
                 stream=True,
-                **gguf_config
+                **gguf_config,
             )
-            
+
             for chunk in stream:
                 if "choices" in chunk and len(chunk["choices"]) > 0:
                     text = chunk["choices"][0].get("text", "")
@@ -950,6 +1075,7 @@ class LumaxEngine:
                         yield text
         except Exception as e:
             yield f" [Cognition Stream Error: {e}] "
+
     def embed(self, text: str) -> list[float]:
         """Generate embeddings in-place using the manifested GGUF soul."""
         if not self.model or self.engine_type != "GGUF":

@@ -7,13 +7,14 @@ Env:
   FoveAI_CLOUD_GENAI_DAILY_MAX — max successful cloud /chat/completions per UTC day (0 = unlimited).
   FoveAI_CLOUD_GENAI_USAGE_PATH — JSON counter file (default: next to this file under ../../preflight/outbox/).
 """
+
 from __future__ import annotations
 
 import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
 logger = logging.getLogger("genai_daily_budget")
 
@@ -34,10 +35,12 @@ def usage_path() -> str:
     if raw:
         return os.path.normpath(os.path.expandvars(raw))
     here = os.path.dirname(os.path.abspath(__file__))
-    return os.path.normpath(os.path.join(here, "..", "..", "preflight", "outbox", "genai_daily_usage.json"))
+    return os.path.normpath(
+        os.path.join(here, "..", "..", "preflight", "outbox", "genai_daily_usage.json")
+    )
 
 
-def _read_state() -> Dict[str, Any]:
+def _read_state() -> dict[str, Any]:
     path = usage_path()
     if not os.path.isfile(path):
         return {"date": "", "count": 0}
@@ -52,7 +55,7 @@ def _read_state() -> Dict[str, Any]:
         return {"date": "", "count": 0}
 
 
-def _write_state(data: Dict[str, Any]) -> None:
+def _write_state(data: dict[str, Any]) -> None:
     path = usage_path()
     parent = os.path.dirname(path)
     if parent:
@@ -89,12 +92,12 @@ def record_success(n: int = 1) -> None:
         logger.error("genai_daily_budget: could not write %s: %s", usage_path(), e)
 
 
-def usage_snapshot() -> Dict[str, Any]:
+def usage_snapshot() -> dict[str, Any]:
     cap = daily_cap()
     today = _utc_today()
     st = _read_state()
     used = 0 if st.get("date") != today else int(st.get("count", 0))
-    remaining: Optional[int]
+    remaining: int | None
     if cap <= 0:
         remaining = None
     else:

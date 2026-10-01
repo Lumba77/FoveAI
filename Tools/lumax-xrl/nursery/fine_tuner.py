@@ -2,13 +2,13 @@
 Fine-Tuner for Forge Nursery
 Wraps Unsloth's LoRA/QLoRA fine-tuning API for Gemma 4 12B variants.
 """
-import os
+
 import json
-import time
 import logging
+import os
 import threading
-from pathlib import Path
-from typing import Optional, Callable
+import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
@@ -26,6 +26,7 @@ STATUS_CANCELLED = "cancelled"
 @dataclass
 class TrainingConfig:
     """Configuration for a fine-tuning job."""
+
     variant_id: str
     base_model_path: str
     output_dir: str
@@ -39,16 +40,24 @@ class TrainingConfig:
     gradient_accumulation: int = 4
     max_seq_length: int = 2048
     use_4bit: bool = True
-    target_modules: list[str] = field(default_factory=lambda: [
-        "q_proj", "k_proj", "v_proj", "o_proj",
-        "gate_proj", "up_proj", "down_proj",
-    ])
+    target_modules: list[str] = field(
+        default_factory=lambda: [
+            "q_proj",
+            "k_proj",
+            "v_proj",
+            "o_proj",
+            "gate_proj",
+            "up_proj",
+            "down_proj",
+        ]
+    )
     max_samples: int = 5000
 
 
 @dataclass
 class TrainingJob:
     """Tracks a running or completed training job."""
+
     job_id: str
     config: TrainingConfig
     status: str = STATUS_QUEUED
@@ -58,8 +67,8 @@ class TrainingJob:
     loss: float = 0.0
     started_at: float = 0.0
     completed_at: float = 0.0
-    error: Optional[str] = None
-    output_path: Optional[str] = None
+    error: str | None = None
+    output_path: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -104,7 +113,7 @@ class ForgeFineTuner:
     def start_job(
         self,
         job_id: str,
-        progress_callback: Optional[Callable[[TrainingJob], None]] = None,
+        progress_callback: Callable[[TrainingJob], None] | None = None,
     ) -> None:
         """Start a queued training job in a background thread."""
         job = self.jobs.get(job_id)
@@ -121,7 +130,7 @@ class ForgeFineTuner:
     def _run_training(
         self,
         job: TrainingJob,
-        progress_callback: Optional[Callable[[TrainingJob], None]] = None,
+        progress_callback: Callable[[TrainingJob], None] | None = None,
     ) -> None:
         """Execute the Unsloth fine-tuning pipeline."""
         try:
@@ -159,6 +168,7 @@ class ForgeFineTuner:
 
         except Exception as e:
             import traceback
+
             traceback.print_exc()
             job.status = STATUS_FAILED
             job.error = str(e)
@@ -169,8 +179,8 @@ class ForgeFineTuner:
     def _load_model(self, config: TrainingConfig):
         """Load Gemma 4 12B with Unsloth optimizations."""
         try:
-            from unsloth import FastLanguageModel
             import torch
+            from unsloth import FastLanguageModel
 
             logger.info(f"Loading base model from: {config.base_model_path}")
 
@@ -184,14 +194,12 @@ class ForgeFineTuner:
             return model, tokenizer
 
         except ImportError:
-            raise RuntimeError(
-                "Unsloth is not installed. Run: pip install unsloth"
-            )
+            raise RuntimeError("Unsloth is not installed. Run: pip install unsloth")
         except Exception as e:
             # Fallback: try loading from local GGUF path via transformers
             logger.warning(f"Unsloth load failed ({e}), trying local path...")
-            from transformers import AutoModelForCausalLM, AutoTokenizer
             import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer
 
             model = AutoModelForCausalLM.from_pretrained(
                 config.base_model_path,
@@ -204,8 +212,8 @@ class ForgeFineTuner:
 
     def _prepare_dataset(self, config: TrainingConfig, tokenizer):
         """Load and tokenize datasets for training."""
-        from datasets import concatenate_datasets, Dataset
-        from dataset_curator import scan_local_datasets, load_dataset_for_training
+        from dataset_curator import load_dataset_for_training, scan_local_datasets
+        from datasets import Dataset
 
         all_samples = []
         local_datasets = {ds.name: ds for ds in scan_local_datasets()}
@@ -347,7 +355,7 @@ class ForgeFineTuner:
             except Exception:
                 pass
 
-    def get_job(self, job_id: str) -> Optional[TrainingJob]:
+    def get_job(self, job_id: str) -> TrainingJob | None:
         return self.jobs.get(job_id)
 
     def list_jobs(self) -> list[dict]:
@@ -363,7 +371,7 @@ class ForgeFineTuner:
 
 
 # Singleton instance
-_fine_tuner: Optional[ForgeFineTuner] = None
+_fine_tuner: ForgeFineTuner | None = None
 
 
 def get_fine_tuner(models_dir: str = None) -> ForgeFineTuner:

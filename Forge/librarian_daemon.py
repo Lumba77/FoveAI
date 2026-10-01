@@ -13,16 +13,17 @@ Guardian role:
   7. Log all actions to ~/.foveai/guardian.log
 """
 
-import os
-import json
-import time
-import logging
 import asyncio
+import json
+import logging
+import os
 import subprocess
-import urllib.request
+import time
 import urllib.error
-from datetime import datetime, timedelta
+import urllib.request
+from datetime import datetime
 from pathlib import Path
+
 from mesh_bus import mesh_bus
 
 logger = logging.getLogger("forge.librarian_daemon")
@@ -31,22 +32,24 @@ logger = logging.getLogger("forge.librarian_daemon")
 REPO_ROOT = Path(os.getenv("FoveAI_REPO_ROOT", Path(__file__).resolve().parent.parent))
 
 # ─── Guardian Constants ─────────────────────────────────────────────────────────
-GUARDIAN_LOG       = Path(os.path.expanduser("~/.foveai/guardian.log"))
-KB_PATH            = Path(os.path.expanduser("~/.foveai/solutions.json"))
-SOLVER_URL         = "http://127.0.0.1:8113/solve/apply"
-HEALTH_INTERVAL    = 30       # seconds between health checks
-MEMORY_WARN_MB     = 8000     # warn if any process exceeds this
-MEMORY_CRITICAL_MB = 12000    # kill if any process exceeds this
-DUPLICATE_THRESHOLD = 3       # warn if more than N copies of same process
+GUARDIAN_LOG = Path(os.path.expanduser("~/.foveai/guardian.log"))
+KB_PATH = Path(os.path.expanduser("~/.foveai/solutions.json"))
+SOLVER_URL = "http://127.0.0.1:8113/solve/apply"
+HEALTH_INTERVAL = 30  # seconds between health checks
+MEMORY_WARN_MB = 8000  # warn if any process exceeds this
+MEMORY_CRITICAL_MB = 12000  # kill if any process exceeds this
+DUPLICATE_THRESHOLD = 3  # warn if more than N copies of same process
 
 # System memory pressure thresholds (total RAM %)
-SYSTEM_RAM_WARN_PCT    = 85   # warn + start logging pressure
+SYSTEM_RAM_WARN_PCT = 85  # warn + start logging pressure
 SYSTEM_RAM_CRITICAL_PCT = 92  # proactive cleansing — kill biggest offenders
-SYSTEM_RAM_EMERGENCY_PCT = 97 # emergency — kill ALL non-essential processes
+SYSTEM_RAM_EMERGENCY_PCT = 97  # emergency — kill ALL non-essential processes
 
 # Stutter detection
-STUTTER_THRESHOLD_MULTIPLIER = 2.5  # if loop takes >2.5x HEALTH_INTERVAL, system is stuttering
-STUTTER_CONSECUTIVE_THRESHOLD = 3   # 3 consecutive stutters = emergency cleanse
+STUTTER_THRESHOLD_MULTIPLIER = (
+    2.5  # if loop takes >2.5x HEALTH_INTERVAL, system is stuttering
+)
+STUTTER_CONSECUTIVE_THRESHOLD = 3  # 3 consecutive stutters = emergency cleanse
 
 # Services we expect to be running (port → name)
 EXPECTED_SERVICES = {
@@ -70,12 +73,22 @@ GPU_COMPETITORS = [
 
 # Processes that are safe to kill in emergency (non-Windows-critical)
 EMERGENCY_KILL_LIST = [
-    "chrome.exe", "msedge.exe", "firefox.exe",
-    "discord.exe", "slack.exe", "teams.exe",
-    "spotify.exe", "code.exe",  # VS Code — user can reopen
-    "lm studio.exe", "ollama.exe", "llama-server.exe",
-    "koboldcpp.exe", "python.exe", "python3.exe",
+    "chrome.exe",
+    "msedge.exe",
+    "firefox.exe",
+    "discord.exe",
+    "slack.exe",
+    "teams.exe",
+    "spotify.exe",
+    "code.exe",  # VS Code — user can reopen
+    "lm studio.exe",
+    "ollama.exe",
+    "llama-server.exe",
+    "koboldcpp.exe",
+    "python.exe",
+    "python3.exe",
 ]
+
 
 # ─── Guardian Logging ──────────────────────────────────────────────────────────
 def guardian_log(level: str, message: str, details: dict = None):
@@ -100,6 +113,7 @@ def guardian_log(level: str, message: str, details: dict = None):
     else:
         logger.info(f"🛡️ [Guardian] {message}")
 
+
 # ─── System Health Checks ──────────────────────────────────────────────────────
 def get_process_list():
     """Get a list of running processes with memory info. Windows-native."""
@@ -107,34 +121,35 @@ def get_process_list():
     try:
         # tasklist CSV: ImageName,PID,SessionName,Session#,MemUsage
         output = subprocess.check_output(
-            ["tasklist", "/FO", "CSV", "/NH"],
-            encoding="utf-8", errors="ignore"
+            ["tasklist", "/FO", "CSV", "/NH"], encoding="utf-8", errors="ignore"
         )
         for line in output.strip().split("\n"):
-            parts = line.replace('"', '').split(",")
+            parts = line.replace('"', "").split(",")
             if len(parts) >= 5:
                 name = parts[0].strip()
-                pid  = parts[1].strip()
+                pid = parts[1].strip()
                 mem_str = parts[4].strip().replace(" K", "").replace(".", "")
                 try:
                     mem_kb = int(mem_str.replace(",", ""))
                 except ValueError:
                     mem_kb = 0
-                procs.append({
-                    "name": name,
-                    "pid": pid,
-                    "mem_mb": round(mem_kb / 1024, 1),
-                })
+                procs.append(
+                    {
+                        "name": name,
+                        "pid": pid,
+                        "mem_mb": round(mem_kb / 1024, 1),
+                    }
+                )
     except Exception as e:
         guardian_log("ERROR", f"Failed to get process list: {e}")
     return procs
+
 
 def check_port(port: int) -> bool:
     """Check if a port is in use. Returns True if something is listening."""
     try:
         output = subprocess.check_output(
-            ["netstat", "-ano", "-p", "TCP"],
-            encoding="utf-8", errors="ignore"
+            ["netstat", "-ano", "-p", "TCP"], encoding="utf-8", errors="ignore"
         )
         for line in output.split("\n"):
             if f":{port}" in line and "LISTENING" in line:
@@ -142,6 +157,7 @@ def check_port(port: int) -> bool:
     except Exception:
         pass
     return False
+
 
 def check_health() -> list:
     """
@@ -154,35 +170,51 @@ def check_health() -> list:
         return issues
 
     # 1. Duplicate Python services
-    python_procs = [p for p in procs if p["name"].lower() in ("python.exe", "python3.exe", "python")]
+    python_procs = [
+        p for p in procs if p["name"].lower() in ("python.exe", "python3.exe", "python")
+    ]
     if len(python_procs) > DUPLICATE_THRESHOLD:
         total_mem = sum(p["mem_mb"] for p in python_procs)
-        issues.append({
-            "type": "duplicate_python",
-            "severity": "critical" if total_mem > MEMORY_CRITICAL_MB else "warn",
-            "message": f"{len(python_procs)} Python processes using {total_mem:.0f}MB RAM — possible duplicate services",
-            "auto_fix": "kill_duplicate_python",
-            "details": {"count": len(python_procs), "total_mem_mb": total_mem},
-        })
+        issues.append(
+            {
+                "type": "duplicate_python",
+                "severity": "critical" if total_mem > MEMORY_CRITICAL_MB else "warn",
+                "message": f"{len(python_procs)} Python processes using {total_mem:.0f}MB RAM — possible duplicate services",
+                "auto_fix": "kill_duplicate_python",
+                "details": {"count": len(python_procs), "total_mem_mb": total_mem},
+            }
+        )
 
     # 2. Memory hogs
     for p in procs:
         if p["mem_mb"] > MEMORY_CRITICAL_MB:
-            issues.append({
-                "type": "memory_critical",
-                "severity": "critical",
-                "message": f"{p['name']} (PID {p['pid']}) using {p['mem_mb']:.0f}MB — exceeds critical threshold",
-                "auto_fix": "kill_process",
-                "details": {"name": p["name"], "pid": p["pid"], "mem_mb": p["mem_mb"]},
-            })
+            issues.append(
+                {
+                    "type": "memory_critical",
+                    "severity": "critical",
+                    "message": f"{p['name']} (PID {p['pid']}) using {p['mem_mb']:.0f}MB — exceeds critical threshold",
+                    "auto_fix": "kill_process",
+                    "details": {
+                        "name": p["name"],
+                        "pid": p["pid"],
+                        "mem_mb": p["mem_mb"],
+                    },
+                }
+            )
         elif p["mem_mb"] > MEMORY_WARN_MB:
-            issues.append({
-                "type": "memory_warn",
-                "severity": "warn",
-                "message": f"{p['name']} (PID {p['pid']}) using {p['mem_mb']:.0f}MB — high memory usage",
-                "auto_fix": None,
-                "details": {"name": p["name"], "pid": p["pid"], "mem_mb": p["mem_mb"]},
-            })
+            issues.append(
+                {
+                    "type": "memory_warn",
+                    "severity": "warn",
+                    "message": f"{p['name']} (PID {p['pid']}) using {p['mem_mb']:.0f}MB — high memory usage",
+                    "auto_fix": None,
+                    "details": {
+                        "name": p["name"],
+                        "pid": p["pid"],
+                        "mem_mb": p["mem_mb"],
+                    },
+                }
+            )
 
     # 3. GPU competitor conflicts (multiple LLM runtimes)
     gpu_procs = []
@@ -190,31 +222,41 @@ def check_health() -> list:
         name_lower = p["name"].lower()
         for competitor in GPU_COMPETITORS:
             import re
+
             if re.search(competitor, name_lower):
                 gpu_procs.append(p)
                 break
     if len(gpu_procs) > 1:
         names = [p["name"] for p in gpu_procs]
-        issues.append({
-            "type": "gpu_conflict",
-            "severity": "critical",
-            "message": f"Multiple GPU competitors running: {', '.join(names)} — VRAM contention",
-            "auto_fix": "kill_gpu_competitors",
-            "details": {"processes": [{"name": p["name"], "pid": p["pid"]} for p in gpu_procs]},
-        })
+        issues.append(
+            {
+                "type": "gpu_conflict",
+                "severity": "critical",
+                "message": f"Multiple GPU competitors running: {', '.join(names)} — VRAM contention",
+                "auto_fix": "kill_gpu_competitors",
+                "details": {
+                    "processes": [
+                        {"name": p["name"], "pid": p["pid"]} for p in gpu_procs
+                    ]
+                },
+            }
+        )
 
     # 4. Expected services down
     for port, name in EXPECTED_SERVICES.items():
         if not check_port(port):
-            issues.append({
-                "type": "service_down",
-                "severity": "warn",
-                "message": f"Expected service '{name}' not listening on port {port}",
-                "auto_fix": None,  # foveai-solver handles service restarts
-                "details": {"service": name, "port": port},
-            })
+            issues.append(
+                {
+                    "type": "service_down",
+                    "severity": "warn",
+                    "message": f"Expected service '{name}' not listening on port {port}",
+                    "auto_fix": None,  # foveai-solver handles service restarts
+                    "details": {"service": name, "port": port},
+                }
+            )
 
     return issues
+
 
 # ─── System Memory Pressure Detection ───────────────────────────────────────────
 def get_system_ram() -> dict:
@@ -225,8 +267,15 @@ def get_system_ram() -> dict:
     try:
         # Get total visible memory
         output = subprocess.check_output(
-            ["wmic", "OS", "get", "TotalVisibleMemorySize,FreePhysicalMemory", "/Value"],
-            encoding="utf-8", errors="ignore"
+            [
+                "wmic",
+                "OS",
+                "get",
+                "TotalVisibleMemorySize,FreePhysicalMemory",
+                "/Value",
+            ],
+            encoding="utf-8",
+            errors="ignore",
         )
         total_kb = 0
         free_kb = 0
@@ -248,6 +297,7 @@ def get_system_ram() -> dict:
     except Exception as e:
         guardian_log("WARN", f"Failed to get system RAM: {e}")
     return None
+
 
 def check_memory_pressure() -> dict | None:
     """
@@ -281,6 +331,7 @@ def check_memory_pressure() -> dict | None:
         "top_offenders": top_offenders,
     }
 
+
 def emergency_cleanse(level: str, top_offenders: list) -> int:
     """
     Kill non-essential processes to free memory.
@@ -292,9 +343,11 @@ def emergency_cleanse(level: str, top_offenders: list) -> int:
     killed = 0
 
     if level == "warn":
-        guardian_log("WARN",
+        guardian_log(
+            "WARN",
             f"System RAM at {get_system_ram()['used_pct'] if get_system_ram() else '?'}% — "
-            f"top offenders: {', '.join(f'{p['name']}({p['mem_mb']:.0f}MB)' for p in top_offenders[:3])}")
+            f"top offenders: {', '.join(f'{p['name']}({p['mem_mb']:.0f}MB)' for p in top_offenders[:3])}",
+        )
         return 0
 
     if level == "critical":
@@ -304,15 +357,20 @@ def emergency_cleanse(level: str, top_offenders: list) -> int:
             name_lower = p["name"].lower()
             for kill_pattern in EMERGENCY_KILL_LIST:
                 import re
-                if re.search(kill_pattern.replace(".exe", "").replace(".", "\\."), name_lower):
+
+                if re.search(
+                    kill_pattern.replace(".exe", "").replace(".", "\\."), name_lower
+                ):
                     targets.append(p)
                     break
             if len(targets) >= 3:
                 break
 
-        guardian_log("ERROR",
+        guardian_log(
+            "ERROR",
             f"🚨 CRITICAL memory pressure ({get_system_ram()['used_pct'] if get_system_ram() else '?'}%) — "
-            f"killing top offenders: {[t['name'] for t in targets]}")
+            f"killing top offenders: {[t['name'] for t in targets]}",
+        )
 
     elif level == "emergency":
         # Kill ALL non-essential processes
@@ -322,24 +380,34 @@ def emergency_cleanse(level: str, top_offenders: list) -> int:
             name_lower = p["name"].lower()
             for kill_pattern in EMERGENCY_KILL_LIST:
                 import re
-                if re.search(kill_pattern.replace(".exe", "").replace(".", "\\."), name_lower):
+
+                if re.search(
+                    kill_pattern.replace(".exe", "").replace(".", "\\."), name_lower
+                ):
                     targets.append(p)
                     break
 
-        guardian_log("ERROR",
+        guardian_log(
+            "ERROR",
             f"🆘 EMERGENCY memory pressure ({get_system_ram()['used_pct'] if get_system_ram() else '?'}%) — "
-            f"killing ALL non-essential processes ({len(targets)} targets)")
+            f"killing ALL non-essential processes ({len(targets)} targets)",
+        )
 
     for p in targets:
         try:
-            subprocess.run(["taskkill", "/F", "/PID", p["pid"]],
-                           capture_output=True, timeout=10)
-            guardian_log("INFO", f"Emergency cleanse: killed {p['name']} (PID {p['pid']}, {p['mem_mb']}MB)")
+            subprocess.run(
+                ["taskkill", "/F", "/PID", p["pid"]], capture_output=True, timeout=10
+            )
+            guardian_log(
+                "INFO",
+                f"Emergency cleanse: killed {p['name']} (PID {p['pid']}, {p['mem_mb']}MB)",
+            )
             killed += 1
         except Exception as e:
             guardian_log("ERROR", f"Emergency cleanse failed for PID {p['pid']}: {e}")
 
     return killed
+
 
 # ─── Stutter Detection ─────────────────────────────────────────────────────────
 _stutter_state = {
@@ -349,6 +417,7 @@ _stutter_state = {
     "max_loop_duration": 0,
 }
 
+
 def detect_stutter(loop_start: float, loop_end: float) -> str | None:
     """
     Detect if the guardian loop is stuttering (taking too long).
@@ -356,7 +425,9 @@ def detect_stutter(loop_start: float, loop_end: float) -> str | None:
     """
     duration = loop_end - loop_start
     _stutter_state["last_loop_duration"] = duration
-    _stutter_state["max_loop_duration"] = max(_stutter_state["max_loop_duration"], duration)
+    _stutter_state["max_loop_duration"] = max(
+        _stutter_state["max_loop_duration"], duration
+    )
 
     threshold = HEALTH_INTERVAL * STUTTER_THRESHOLD_MULTIPLIER
 
@@ -367,8 +438,11 @@ def detect_stutter(loop_start: float, loop_end: float) -> str | None:
         _stutter_state["consecutive_stutters"] += 1
         return "stutter"
     else:
-        _stutter_state["consecutive_stutters"] = max(0, _stutter_state["consecutive_stutters"] - 1)
+        _stutter_state["consecutive_stutters"] = max(
+            0, _stutter_state["consecutive_stutters"] - 1
+        )
         return None
+
 
 # ─── Freeze-Cause Rapport ──────────────────────────────────────────────────────
 def generate_freeze_rapport() -> dict:
@@ -387,14 +461,23 @@ def generate_freeze_rapport() -> dict:
     # 1. Check Windows Event Log for unexpected shutdowns (Event ID 6008)
     try:
         output = subprocess.check_output(
-            ["wevtutil", "qe", "System", "/q:*[System[EventID=6008]]",
-             "/c:3", "/rd:true", "/f:text"],
-            encoding="utf-8", errors="ignore",
+            [
+                "wevtutil",
+                "qe",
+                "System",
+                "/q:*[System[EventID=6008]]",
+                "/c:3",
+                "/rd:true",
+                "/f:text",
+            ],
+            encoding="utf-8",
+            errors="ignore",
             timeout=15,
         )
         # Parse dates from the output
         import re
-        dates = re.findall(r'Date:\s*(.+)', output)
+
+        dates = re.findall(r"Date:\s*(.+)", output)
         for d in dates[:3]:
             rapport["unexpected_shutdowns"].append(d.strip())
     except Exception:
@@ -420,18 +503,27 @@ def generate_freeze_rapport() -> dict:
                 # Analyze for patterns
                 error_count = sum(1 for e in last_entries if e.get("level") == "ERROR")
                 warn_count = sum(1 for e in last_entries if e.get("level") == "WARN")
-                memory_issues = sum(1 for e in last_entries
-                                   if "memory" in e.get("message", "").lower()
-                                   or "RAM" in e.get("message", ""))
+                memory_issues = sum(
+                    1
+                    for e in last_entries
+                    if "memory" in e.get("message", "").lower()
+                    or "RAM" in e.get("message", "")
+                )
 
                 if error_count >= 3:
-                    rapport["suspected_cause"] = f"Multiple errors ({error_count}) before shutdown"
+                    rapport["suspected_cause"] = (
+                        f"Multiple errors ({error_count}) before shutdown"
+                    )
                 elif memory_issues >= 2:
-                    rapport["suspected_cause"] = f"Memory pressure ({memory_issues} memory warnings)"
+                    rapport["suspected_cause"] = (
+                        f"Memory pressure ({memory_issues} memory warnings)"
+                    )
                 elif warn_count >= 5:
                     rapport["suspected_cause"] = f"Cascading warnings ({warn_count})"
                 else:
-                    rapport["suspected_cause"] = "No clear pattern — possible external cause or GPU hang"
+                    rapport["suspected_cause"] = (
+                        "No clear pattern — possible external cause or GPU hang"
+                    )
         except Exception:
             pass
 
@@ -441,9 +533,17 @@ def generate_freeze_rapport() -> dict:
         rapport["current_ram"] = ram
 
     procs = get_process_list()
-    python_count = sum(1 for p in procs if p["name"].lower() in ("python.exe", "python3.exe", "python"))
-    gpu_count = sum(1 for p in procs
-                    if any(c in p["name"].lower() for c in ["llama", "ollama", "lm studio", "kobold", "unsloth"]))
+    python_count = sum(
+        1 for p in procs if p["name"].lower() in ("python.exe", "python3.exe", "python")
+    )
+    gpu_count = sum(
+        1
+        for p in procs
+        if any(
+            c in p["name"].lower()
+            for c in ["llama", "ollama", "lm studio", "kobold", "unsloth"]
+        )
+    )
     rapport["current_state"] = {
         "total_processes": len(procs),
         "python_processes": python_count,
@@ -453,6 +553,7 @@ def generate_freeze_rapport() -> dict:
 
     return rapport
 
+
 def print_freeze_rapport(rapport: dict):
     """Print a human-readable freeze rapport to the log."""
     guardian_log("INFO", "=" * 60)
@@ -460,7 +561,10 @@ def print_freeze_rapport(rapport: dict):
     guardian_log("INFO", "=" * 60)
 
     if rapport["unexpected_shutdowns"]:
-        guardian_log("INFO", f"Recent unexpected shutdowns: {len(rapport['unexpected_shutdowns'])}")
+        guardian_log(
+            "INFO",
+            f"Recent unexpected shutdowns: {len(rapport['unexpected_shutdowns'])}",
+        )
         for d in rapport["unexpected_shutdowns"][:3]:
             guardian_log("INFO", f"  • {d}")
 
@@ -468,21 +572,33 @@ def print_freeze_rapport(rapport: dict):
 
     if rapport.get("current_ram"):
         r = rapport["current_ram"]
-        guardian_log("INFO", f"Current RAM: {r['used_mb']:.0f}MB / {r['total_mb']:.0f}MB ({r['used_pct']}%)")
+        guardian_log(
+            "INFO",
+            f"Current RAM: {r['used_mb']:.0f}MB / {r['total_mb']:.0f}MB ({r['used_pct']}%)",
+        )
 
     if rapport.get("current_state"):
         s = rapport["current_state"]
-        guardian_log("INFO",
+        guardian_log(
+            "INFO",
             f"Current state: {s['total_processes']} processes, "
             f"{s['python_processes']} Python, {s['gpu_processes']} GPU, "
-            f"{s['total_process_mem_mb']:.0f}MB total")
+            f"{s['total_process_mem_mb']:.0f}MB total",
+        )
 
     if rapport.get("last_guardian_state"):
-        guardian_log("INFO", f"Last guardian entries before shutdown ({len(rapport['last_guardian_state'])} entries):")
+        guardian_log(
+            "INFO",
+            f"Last guardian entries before shutdown ({len(rapport['last_guardian_state'])} entries):",
+        )
         for entry in rapport["last_guardian_state"][-5:]:
-            guardian_log("INFO", f"  [{entry.get('level','?')}] {entry.get('message','')[:120]}")
+            guardian_log(
+                "INFO",
+                f"  [{entry.get('level', '?')}] {entry.get('message', '')[:120]}",
+            )
 
     guardian_log("INFO", "=" * 60)
+
 
 # ─── Knowledge Base Lookup ─────────────────────────────────────────────────────
 def query_kb(error_text: str) -> dict | None:
@@ -523,11 +639,15 @@ def query_kb(error_text: str) -> dict | None:
                 best = sol
 
         if best:
-            guardian_log("INFO", f"KB match found (score: {best_score:.0%}): {best.get('description', '')[:100]}")
+            guardian_log(
+                "INFO",
+                f"KB match found (score: {best_score:.0%}): {best.get('description', '')[:100]}",
+            )
             return best
     except Exception as e:
         guardian_log("WARN", f"KB lookup failed: {e}")
     return None
+
 
 # ─── Auto-Fix Actions ──────────────────────────────────────────────────────────
 def apply_auto_fix(issue: dict) -> bool:
@@ -543,7 +663,11 @@ def apply_auto_fix(issue: dict) -> bool:
         # Kill all but the newest Python processes (keep the most recently started ones)
         try:
             procs = get_process_list()
-            python_procs = [p for p in procs if p["name"].lower() in ("python.exe", "python3.exe", "python")]
+            python_procs = [
+                p
+                for p in procs
+                if p["name"].lower() in ("python.exe", "python3.exe", "python")
+            ]
             if len(python_procs) <= DUPLICATE_THRESHOLD:
                 return False
             # Sort by PID (higher PID = newer on Windows) — keep the last DUPLICATE_THRESHOLD
@@ -551,9 +675,15 @@ def apply_auto_fix(issue: dict) -> bool:
             to_kill = python_procs[:-DUPLICATE_THRESHOLD]
             for p in to_kill:
                 try:
-                    subprocess.run(["taskkill", "/F", "/PID", p["pid"]],
-                                   capture_output=True, timeout=10)
-                    guardian_log("INFO", f"Killed duplicate Python process: {p['name']} (PID {p['pid']}, {p['mem_mb']}MB)")
+                    subprocess.run(
+                        ["taskkill", "/F", "/PID", p["pid"]],
+                        capture_output=True,
+                        timeout=10,
+                    )
+                    guardian_log(
+                        "INFO",
+                        f"Killed duplicate Python process: {p['name']} (PID {p['pid']}, {p['mem_mb']}MB)",
+                    )
                 except Exception as e:
                     guardian_log("ERROR", f"Failed to kill PID {p['pid']}: {e}")
             return True
@@ -565,8 +695,11 @@ def apply_auto_fix(issue: dict) -> bool:
         pid = issue.get("details", {}).get("pid")
         if pid:
             try:
-                subprocess.run(["taskkill", "/F", "/PID", str(pid)],
-                               capture_output=True, timeout=10)
+                subprocess.run(
+                    ["taskkill", "/F", "/PID", str(pid)],
+                    capture_output=True,
+                    timeout=10,
+                )
                 guardian_log("INFO", f"Killed memory hog: PID {pid}")
                 return True
             except Exception as e:
@@ -579,15 +712,20 @@ def apply_auto_fix(issue: dict) -> bool:
         if len(details) <= 1:
             return False
         # Keep the one with highest memory usage
-        details.sort(key=lambda p: p.get("mem_mb", 0) if isinstance(p, dict) else 0, reverse=True)
+        details.sort(
+            key=lambda p: p.get("mem_mb", 0) if isinstance(p, dict) else 0, reverse=True
+        )
         to_kill = details[1:]  # kill all except the biggest
         for p in to_kill:
             pid = p.get("pid") if isinstance(p, dict) else None
             name = p.get("name", "unknown") if isinstance(p, dict) else str(p)
             if pid:
                 try:
-                    subprocess.run(["taskkill", "/F", "/PID", str(pid)],
-                                   capture_output=True, timeout=10)
+                    subprocess.run(
+                        ["taskkill", "/F", "/PID", str(pid)],
+                        capture_output=True,
+                        timeout=10,
+                    )
                     guardian_log("INFO", f"Killed GPU competitor: {name} (PID {pid})")
                 except Exception as e:
                     guardian_log("ERROR", f"Failed to kill GPU competitor {name}: {e}")
@@ -595,17 +733,20 @@ def apply_auto_fix(issue: dict) -> bool:
 
     return False
 
+
 # ─── Escalation to Lumax-Solver ────────────────────────────────────────────────
 def escalate_to_solver(error_text: str, issues: list = None) -> bool:
     """
     POST the error to foveai-solver's /solve/apply endpoint.
     Returns True if the solver accepted the request.
     """
-    payload = json.dumps({
-        "error": error_text,
-        "source": "librarian_guardian",
-        "issues": issues or [],
-    }).encode("utf-8")
+    payload = json.dumps(
+        {
+            "error": error_text,
+            "source": "librarian_guardian",
+            "issues": issues or [],
+        }
+    ).encode("utf-8")
 
     try:
         req = urllib.request.Request(
@@ -622,11 +763,14 @@ def escalate_to_solver(error_text: str, issues: list = None) -> bool:
                 guardian_log("WARN", f"Escalation to solver returned {resp.status}")
                 return False
     except urllib.error.URLError as e:
-        guardian_log("WARN", f"Lumax-solver not reachable on :8113 — is it running? ({e.reason})")
+        guardian_log(
+            "WARN", f"Lumax-solver not reachable on :8113 — is it running? ({e.reason})"
+        )
         return False
     except Exception as e:
         guardian_log("ERROR", f"Escalation failed: {e}")
         return False
+
 
 # ─── Active Guardian Loop ──────────────────────────────────────────────────────
 async def guardian_loop():
@@ -639,8 +783,14 @@ async def guardian_loop():
     """
     await asyncio.sleep(10)  # Let other daemons start first
     guardian_log("INFO", "🛡️ Active Guardian armed — monitoring system health every 30s")
-    guardian_log("INFO", f"   RAM thresholds: warn={SYSTEM_RAM_WARN_PCT}% critical={SYSTEM_RAM_CRITICAL_PCT}% emergency={SYSTEM_RAM_EMERGENCY_PCT}%")
-    guardian_log("INFO", f"   Stutter detection: {STUTTER_THRESHOLD_MULTIPLIER}x interval, {STUTTER_CONSECUTIVE_THRESHOLD} consecutive = emergency")
+    guardian_log(
+        "INFO",
+        f"   RAM thresholds: warn={SYSTEM_RAM_WARN_PCT}% critical={SYSTEM_RAM_CRITICAL_PCT}% emergency={SYSTEM_RAM_EMERGENCY_PCT}%",
+    )
+    guardian_log(
+        "INFO",
+        f"   Stutter detection: {STUTTER_THRESHOLD_MULTIPLIER}x interval, {STUTTER_CONSECUTIVE_THRESHOLD} consecutive = emergency",
+    )
 
     while True:
         loop_start = time.time()
@@ -655,29 +805,37 @@ async def guardian_loop():
                 guardian_log(
                     "ERROR" if level in ("critical", "emergency") else "WARN",
                     f"System RAM pressure [{level.upper()}]: {ram['used_pct']}% used "
-                    f"({ram['used_mb']:.0f}MB / {ram['total_mb']:.0f}MB)"
+                    f"({ram['used_mb']:.0f}MB / {ram['total_mb']:.0f}MB)",
                 )
 
                 if level in ("critical", "emergency"):
                     killed = emergency_cleanse(level, top)
                     if killed > 0:
-                        guardian_log("INFO", f"Emergency cleanse: killed {killed} process(es) to free memory")
+                        guardian_log(
+                            "INFO",
+                            f"Emergency cleanse: killed {killed} process(es) to free memory",
+                        )
                         await asyncio.sleep(2)
                         new_ram = get_system_ram()
                         if new_ram:
-                            guardian_log("INFO",
+                            guardian_log(
+                                "INFO",
                                 f"Post-cleanse RAM: {new_ram['used_pct']}% "
-                                f"({new_ram['free_mb']:.0f}MB free)")
+                                f"({new_ram['free_mb']:.0f}MB free)",
+                            )
 
             # ── Priority 1: Process Health Checks ──
             issues = check_health()
 
             if issues:
                 criticals = [i for i in issues if i["severity"] == "critical"]
-                warnings  = [i for i in issues if i["severity"] == "warn"]
+                warnings = [i for i in issues if i["severity"] == "warn"]
 
                 if criticals:
-                    guardian_log("ERROR", f"Guardian detected {len(criticals)} critical issue(s), {len(warnings)} warning(s)")
+                    guardian_log(
+                        "ERROR",
+                        f"Guardian detected {len(criticals)} critical issue(s), {len(warnings)} warning(s)",
+                    )
 
                 for issue in issues:
                     msg = issue["message"]
@@ -696,16 +854,22 @@ async def guardian_loop():
                     if issue.get("auto_fix"):
                         fixed = apply_auto_fix(issue)
                         if fixed:
-                            guardian_log("INFO", f"Auto-fixed (no KB needed): {msg[:100]}")
+                            guardian_log(
+                                "INFO", f"Auto-fixed (no KB needed): {msg[:100]}"
+                            )
                             continue
 
                     # Step 3: Escalate to foveai-solver for complex issues
                     if issue["severity"] == "critical":
                         error_context = f"Guardian detected: {msg}\n"
                         if issue.get("details"):
-                            error_context += f"Details: {json.dumps(issue['details'])}\n"
+                            error_context += (
+                                f"Details: {json.dumps(issue['details'])}\n"
+                            )
                         if kb_solution:
-                            error_context += f"KB suggestion: {kb_solution.get('description', '')}\n"
+                            error_context += (
+                                f"KB suggestion: {kb_solution.get('description', '')}\n"
+                            )
 
                         escalate_to_solver(error_context, [issue])
 
@@ -721,132 +885,152 @@ async def guardian_loop():
                     "ERROR" if stutter == "severe_stutter" else "WARN",
                     f"Guardian loop {stutter}: took {loop_end - loop_start:.1f}s "
                     f"(threshold: {HEALTH_INTERVAL * STUTTER_THRESHOLD_MULTIPLIER:.0f}s, "
-                    f"consecutive: {_stutter_state['consecutive_stutters']})"
+                    f"consecutive: {_stutter_state['consecutive_stutters']})",
                 )
 
-                if _stutter_state["consecutive_stutters"] >= STUTTER_CONSECUTIVE_THRESHOLD:
-                    guardian_log("ERROR",
+                if (
+                    _stutter_state["consecutive_stutters"]
+                    >= STUTTER_CONSECUTIVE_THRESHOLD
+                ):
+                    guardian_log(
+                        "ERROR",
                         f"🆘 {_stutter_state['consecutive_stutters']} consecutive stutters — "
-                        f"system is choking! Emergency cleanse triggered.")
+                        f"system is choking! Emergency cleanse triggered.",
+                    )
                     ram = get_system_ram()
                     if ram:
-                        guardian_log("ERROR", f"Pre-cleanse RAM: {ram['used_pct']}% used")
+                        guardian_log(
+                            "ERROR", f"Pre-cleanse RAM: {ram['used_pct']}% used"
+                        )
                     procs = get_process_list()
                     top = sorted(procs, key=lambda p: p["mem_mb"], reverse=True)[:10]
                     killed = emergency_cleanse("emergency", top)
-                    guardian_log("INFO", f"Stutter emergency cleanse: killed {killed} process(es)")
+                    guardian_log(
+                        "INFO",
+                        f"Stutter emergency cleanse: killed {killed} process(es)",
+                    )
                     _stutter_state["consecutive_stutters"] = 0
 
             # Mesh bus: publish health summary
-            mesh_bus.publish_simple("guardian.health_check", {
-                "issues_found": len(issues),
-                "critical": sum(1 for i in issues if i["severity"] == "critical"),
-                "warnings": sum(1 for i in issues if i["severity"] == "warn"),
-                "memory_pressure": pressure["level"] if pressure else "healthy",
-                "stutter": stutter,
-                "loop_duration_s": round(loop_end - loop_start, 1),
-            })
+            mesh_bus.publish_simple(
+                "guardian.health_check",
+                {
+                    "issues_found": len(issues),
+                    "critical": sum(1 for i in issues if i["severity"] == "critical"),
+                    "warnings": sum(1 for i in issues if i["severity"] == "warn"),
+                    "memory_pressure": pressure["level"] if pressure else "healthy",
+                    "stutter": stutter,
+                    "loop_duration_s": round(loop_end - loop_start, 1),
+                },
+            )
 
         except Exception as e:
             guardian_log("ERROR", f"Guardian loop error: {e}")
 
         await asyncio.sleep(HEALTH_INTERVAL)
 
+
 # ─── Terminal Log Tailing (unchanged) ──────────────────────────────────────────
 async def tail_terminal_logs():
     """Tail the terminal log file and feed it into TerminalLibrarian."""
     temp_dir = os.environ.get("TEMP", os.environ.get("TMP", "/tmp"))
     log_file = Path(temp_dir) / "terminal_librarian_input.jsonl"
-    
+
     logger.info(f"Librarian: Waiting for terminal log file at {log_file}...")
     while not log_file.exists():
         await asyncio.sleep(2)
-        
+
     logger.info(f"Librarian: Tailing terminal logs from {log_file}")
-    
+
     # Import TerminalLibrarian dynamically
     import sys
+
     forge_dir = REPO_ROOT / "Forge"
     if str(forge_dir) not in sys.path:
         sys.path.insert(0, str(forge_dir))
-    
+
     from terminal_librarian import TerminalLibrarian
+
     lib = TerminalLibrarian(
         archive_path=str(forge_dir / ".logs" / "terminal_archive.json")
     )
-    
+
     # Open and tail the file
     with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
         # Seek to the end of the file to only process new commands
         f.seek(0, 2)
-        
+
         while True:
             line = f.readline()
             if not line:
                 await asyncio.sleep(0.5)
                 continue
-                
+
             try:
                 line_stripped = line.strip()
                 if not line_stripped:
                     continue
-                    
+
                 event = json.loads(line_stripped)
                 ev_type = event.get("type")
                 cmd = event.get("command", "")
-                
+
                 if ev_type == "command_start":
                     lib.capture_command(cmd)
                     mesh_bus.publish_simple("terminal.command_start", {"command": cmd})
                     logger.info(f"Librarian: Command started: {cmd}")
-                    
+
                 elif ev_type == "command_complete":
                     output = event.get("output", "")
                     exit_code = event.get("exit_code", 0)
                     lib.capture_output(output)
                     lib.complete_command(exit_code)
-                    
+
                     # Generate a clean summary of output
                     summary = output[:200] + "..." if len(output) > 200 else output
-                    mesh_bus.publish_simple("terminal.command_complete", {
-                        "command": cmd,
-                        "exit_code": exit_code,
-                        "output_summary": summary
-                    })
+                    mesh_bus.publish_simple(
+                        "terminal.command_complete",
+                        {
+                            "command": cmd,
+                            "exit_code": exit_code,
+                            "output_summary": summary,
+                        },
+                    )
                     logger.info(f"Librarian: Command completed ({exit_code}): {cmd}")
-                    
+
                 elif ev_type == "command_error":
                     error_msg = event.get("error", "")
                     lib.capture_output(f"Error: {error_msg}")
                     lib.complete_command(1)
-                    mesh_bus.publish_simple("terminal.command_error", {
-                        "command": cmd,
-                        "error": error_msg
-                    })
+                    mesh_bus.publish_simple(
+                        "terminal.command_error", {"command": cmd, "error": error_msg}
+                    )
                     logger.warning(f"Librarian: Command failed: {cmd} - {error_msg}")
-                    
+
             except Exception as e:
                 logger.warning(f"Librarian: Error tailing line: {e}")
+
 
 async def periodic_discovery():
     """Periodically execute discovery swarm sweeps to map newly added classes/endpoints.
     Runs once on first startup, then once per week thereafter."""
     # Ensure backend/Cognition is in path
     import sys
+
     cog_dir = REPO_ROOT / "Mind" / "Cognition"
     if str(cog_dir) not in sys.path:
         sys.path.insert(0, str(cog_dir))
-        
+
     # pyrefly: ignore [missing-import]
     from discovery_swarm import execute_discovery_mission
-    
+
     # State file to track last discovery run
     state_file = REPO_ROOT / ".logs" / "discovery_state.json"
     WEEK_SECONDS = 7 * 24 * 3600  # 604800 seconds
-    
+
     # Wait 30 seconds after startup for stabilization
     await asyncio.sleep(30)
-    
+
     while True:
         try:
             # Check if we should run based on last run time
@@ -859,35 +1043,42 @@ async def periodic_discovery():
                     if elapsed < WEEK_SECONDS:
                         remaining_h = (WEEK_SECONDS - elapsed) / 3600
                         logger.info(
-                            f"Librarian: Skipping discovery sweep — last run was {elapsed/3600:.1f}h ago "
+                            f"Librarian: Skipping discovery sweep — last run was {elapsed / 3600:.1f}h ago "
                             f"(next run in {remaining_h:.1f}h)"
                         )
                         should_run = False
                 except Exception:
                     should_run = True  # Corrupt state → run
-             
+
             if should_run:
                 logger.info("Librarian: Running weekly codebase discovery sweep...")
                 result = await execute_discovery_mission(
-                    duration_minutes=5,
-                    use_director=False,
-                    auto_apply=False
+                    duration_minutes=5, use_director=False, auto_apply=False
                 )
-                logger.info(f"Librarian: Discovery sweep complete. Result: {result.get('summary', 'No summary')}")
-                
+                logger.info(
+                    f"Librarian: Discovery sweep complete. Result: {result.get('summary', 'No summary')}"
+                )
+
                 # Persist timestamp
                 state_file.parent.mkdir(parents=True, exist_ok=True)
-                state_file.write_text(json.dumps({
-                    "last_discovery_ts": time.time(),
-                    "last_discovery_iso": datetime.utcnow().isoformat() + "Z",
-                    "last_result_summary": result.get("summary", "")[:200],
-                }, indent=2), encoding="utf-8")
-                
+                state_file.write_text(
+                    json.dumps(
+                        {
+                            "last_discovery_ts": time.time(),
+                            "last_discovery_iso": datetime.utcnow().isoformat() + "Z",
+                            "last_result_summary": result.get("summary", "")[:200],
+                        },
+                        indent=2,
+                    ),
+                    encoding="utf-8",
+                )
+
         except Exception as e:
             logger.error(f"Librarian: Periodic discovery sweep failed: {e}")
-             
+
         # Check every hour whether it's time for the next weekly run
         await asyncio.sleep(3600)
+
 
 async def start_librarian_daemon():
     """Start all background daemon tasks including the active guardian."""

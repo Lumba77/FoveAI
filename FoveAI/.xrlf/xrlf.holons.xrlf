@@ -1,0 +1,43 @@
+XRLF.3.HOLONS.START
+
+DESCRIPTION:
+  Diamond Concordia Holonic Architecture — top-level holons for LUMAX
+
+HOLONS:
+  soul:
+    name := Soul Service
+    port := 8000
+    responsibility := Core cognition, identity, intent
+    dependencies := memory
+  memory:
+    name := Memory Service
+    port := 8002
+    responsibility := Foveated memory, recall, context compression
+    dependencies := fovea_local
+  creative:
+    name := Creative Service
+    port := 8003
+    responsibility := Generation, imagination, output synthesis
+    dependencies := soul, memory
+  cognee:
+    name := Cognee Knowledge Graph
+    port := 8009
+    responsibility := Structured knowledge, semantic search
+    dependencies := memory
+  web_ui:
+    name := Web UI
+    port := 8080
+    responsibility := Frontend interface, user interaction
+    dependencies := soul, creative
+  tsproxy:
+    name := TokenSlayer Proxy
+    port := 8103
+    responsibility := Context compression, on-demand expansion
+    dependencies := memory
+
+CONCORDIA:
+  loop := soul -> memory -> creative -> soul
+  governance := xrlf.contract.xrlf
+  memory_proxy := http://127.0.0.1:8200
+
+XRLF.3.HOLONS.END

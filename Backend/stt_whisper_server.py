@@ -15,7 +15,6 @@ Requirements:
 import asyncio
 import json
 import logging
-import struct
 import time
 from typing import Optional
 
@@ -34,9 +33,12 @@ logger = logging.getLogger("stt_server")
 import os
 
 HOST = os.getenv("STT_HOST", "0.0.0.0")
-PORT = int(os.getenv("STT_PORT", "8001"))
+PORT = int(os.getenv("STT_PORT", "8409"))
 SAMPLE_RATE = 16000
-WHISPER_MODEL = os.getenv("STT_MODEL", r"C:\Users\danie\.cache\huggingface\hub\models--Systran--faster-whisper-base.en\snapshots\3d3d5dee26484f91867d81cb899cfcf72b96be6c")
+WHISPER_MODEL = os.getenv(
+    "STT_MODEL",
+    r"C:\Users\danie\.cache\huggingface\hub\models--Systran--faster-whisper-base.en\snapshots\3d3d5dee26484f91867d81cb899cfcf72b96be6c",
+)
 DEVICE = os.getenv("STT_DEVICE", "cpu")
 COMPUTE_TYPE = os.getenv("STT_COMPUTE_TYPE", "int8" if DEVICE == "cpu" else "float16")
 LANGUAGE = "en"
@@ -44,13 +46,15 @@ LANGUAGE = "en"
 # Minimum chunk duration before attempting transcription (seconds)
 MIN_CHUNK_DURATION = 0.5
 # Silence threshold (RMS amplitude) to auto-stop recording
-SILENCE_THRESHOLD = 0.01
+# Room noise floor here measures ~0.045 RMS; 0.01 would hold the VAD open
+# forever. Override per-environment via STT_SILENCE_THRESHOLD.
+SILENCE_THRESHOLD = float(os.getenv("STT_SILENCE_THRESHOLD", "0.08"))
 SILENCE_DURATION = 1.5  # seconds of silence before auto-finalize
 
 
 class WhisperSTTServer:
     def __init__(self):
-        self.model: Optional[WhisperModel] = None
+        self.model: WhisperModel | None = None
         self._load_model()
 
     def _load_model(self):
@@ -84,11 +88,13 @@ class WhisperSTTServer:
             segment_list = []
             full_text = ""
             for seg in segments:
-                segment_list.append({
-                    "start": round(seg.start, 3),
-                    "end": round(seg.end, 3),
-                    "text": seg.text.strip(),
-                })
+                segment_list.append(
+                    {
+                        "start": round(seg.start, 3),
+                        "end": round(seg.end, 3),
+                        "text": seg.text.strip(),
+                    }
+                )
                 full_text += seg.text
 
             return {
@@ -113,33 +119,46 @@ class WhisperSTTServer:
         """Compute RMS amplitude for VAD."""
         if len(audio) == 0:
             return 0.0
-        return float(np.sqrt(np.mean(audio ** 2)))
+        return float(np.sqrt(np.mean(audio**2)))
+
+
+# One shared Whisper model — was loaded per-connection (30s stall on every
+# client). Preload at startup so the first connect is instant.
+_STT_INSTANCE: Optional["WhisperSTTServer"] = None
+
+
+def _get_stt() -> "WhisperSTTServer":
+    global _STT_INSTANCE
+    if _STT_INSTANCE is None:
+        _STT_INSTANCE = WhisperSTTServer()
+    return _STT_INSTANCE
 
 
 async def handle_client(websocket, path=None):
     """Handle a single Quest 3 STT client connection."""
     # Reject connections that are NOT to /ws path
-    ws_path = getattr(websocket, 'path', path or '/')
-    if ws_path not in ('/', '/ws'):
+    ws_path = getattr(websocket, "path", path or "/")
+    if ws_path not in ("/", "/ws"):
         logger.warning(f"Rejected connection to unknown path: {ws_path}")
         await websocket.close(1008, "Unknown path")
         return
 
-    client_addr = websocket.remote_address if hasattr(websocket, 'remote_address') else "unknown"
-    logger.info(f"Client connected: {client_addr} (path={ws_path})"
+    client_addr = (
+        websocket.remote_address if hasattr(websocket, "remote_address") else "unknown"
     )
+    logger.info(f"Client connected: {client_addr} (path={ws_path})")
 
     # Send 'ready' handshake immediately — Unity client waits for this before starting mic
-    await websocket.send(json.dumps({
-        "type": "ready",
-        "sample_rate": SAMPLE_RATE,
-        "message": "STT server ready"
-    }))
+    await websocket.send(
+        json.dumps(
+            {"type": "ready", "sample_rate": SAMPLE_RATE, "message": "STT server ready"}
+        )
+    )
     logger.info("Sent ready handshake")
 
-    stt = WhisperSTTServer()
+    stt = _get_stt()  # shared model — loaded once, not per connection
     audio_buffer = bytearray()
-    silence_start: Optional[float] = None
+    silence_start: float | None = None
     is_recording = False
 
     try:
@@ -168,10 +187,14 @@ async def handle_client(websocket, path=None):
                     if len(audio_buffer) > SAMPLE_RATE * 2 * MIN_CHUNK_DURATION:
                         full_audio = stt.pcm_to_numpy(bytes(audio_buffer))
                         result = stt.transcribe(full_audio)
-                        await websocket.send(json.dumps({
-                            "type": "final",
-                            **result,
-                        }))
+                        await websocket.send(
+                            json.dumps(
+                                {
+                                    "type": "final",
+                                    **result,
+                                }
+                            )
+                        )
                         logger.info(f"Final: {result.get('text', '')[:80]}")
                     audio_buffer.clear()
                     silence_start = None
@@ -188,21 +211,29 @@ async def handle_client(websocket, path=None):
                     audio_buffer.clear()
                     silence_start = None
                     is_recording = True
-                    await websocket.send(json.dumps({"type": "ack", "status": "recording"}))
+                    await websocket.send(
+                        json.dumps({"type": "ack", "status": "recording"})
+                    )
                     logger.info("Recording started")
 
                 elif cmd.get("type") == "stop":
                     if len(audio_buffer) > 0:
                         full_audio = stt.pcm_to_numpy(bytes(audio_buffer))
                         result = stt.transcribe(full_audio)
-                        await websocket.send(json.dumps({
-                            "type": "final",
-                            **result,
-                        }))
+                        await websocket.send(
+                            json.dumps(
+                                {
+                                    "type": "final",
+                                    **result,
+                                }
+                            )
+                        )
                         logger.info(f"Final: {result.get('text', '')[:80]}")
                     audio_buffer.clear()
                     is_recording = False
-                    await websocket.send(json.dumps({"type": "ack", "status": "stopped"}))
+                    await websocket.send(
+                        json.dumps({"type": "ack", "status": "stopped"})
+                    )
 
                 elif cmd.get("type") == "reset":
                     audio_buffer.clear()
@@ -221,6 +252,7 @@ async def handle_client(websocket, path=None):
 
 async def main():
     logger.info(f"Starting STT WebSocket server on {HOST}:{PORT} (path=/ws)")
+    _get_stt()  # warm the model before the port opens
     async with websockets.serve(handle_client, HOST, PORT, max_size=2**20):
         await asyncio.Future()  # run forever
 

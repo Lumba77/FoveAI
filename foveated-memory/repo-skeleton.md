@@ -6,6 +6,11 @@ FoveAI/
     stats.py
     test_ignore.py
   _forge/
+    models--w-ahmad--Gemma-4-12B-it-qat-GGUF-MoQ/
+      refs/
+      .transport.gguf-a58cd2edcbe5de6f7ecc07df
+    smart-router-gguf_gguf/
+      Modelfile
     adapter_config.json
     added_tokens.json
     build_manifest.py
@@ -16,6 +21,7 @@ FoveAI/
     special_tokens_map.json
     tokenizer_config.json
   .agent/
+    rules/
     skills/
       aicb-claude-skill.changelog/
       aicb-claude-skill.imprint/
@@ -30,16 +36,7 @@ FoveAI/
     last-session.md
     skills.md
   .agents/
-    bridge/
-      ANTIGRAVITY_INBOX.md
-      DEVIN_INBOX.md
-      events.jsonl
-      README.md
-      SHARED_TASKS.md
-    rules/
-      neurosync-context.md
-    skills/
-      config/
-      convention/
-      decision/
-(26 files, 17 dirs — 7 skipped as noise)
+    .idea/
+      caches/
+      .agents.iml
+(23 files, 17 dirs — 13 skipped as noise)

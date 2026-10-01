@@ -126,4 +126,14 @@ http://localhost:8400
 
 Every model you load in LM Studio now gets the foveated ring block injected at session start and full [recall:](recall:) active memory on every turn. The workspace's memory persists permanently to ./memory\_data/default/memory.db
 
+---
+
+##### Current deployment (2026-09-19, post-migration)
+
+- Upstream is the **XRLF runtime on :8402** (`XRLF_RUNTIME_URL`/`XRLF_LOCAL_BASE_URL`), not LM Studio — `:1234` is optional/normally offline.
+- Voice routes added: `/api/tts` (native :8402 `/v1/audio/speech` → Kokoro :8406 fallback), `/api/soul/stt` (native :8402 `/v1/audio/transcriptions`), `/api/tts/voices`, `/api/voice/status`.
+- Upstream voice env vars: `TTS_URL` (:8406), `STT_URL` (:8409, WebSocket-only — TCP probe). Legacy `:8001`/`:8004` retired.
+- Dashboard/settings served on :8401; subsystem health check uses the current 840x port map.
+- LAN IP is dynamic: blank `FOVEAI_SERVER_IP` → live detection via `server_config.py`; `foveai_network_config.json` snapshots refresh at Sleipnir startup.
+
 

@@ -20,6 +20,8 @@ export interface MemoryStatus {
   workspaceId: string;
   latencyMs: number;
   online: boolean;
+  assistantName?: string;
+  userName?: string;
 }
 
 export interface MemorySearchResult {
@@ -310,6 +312,8 @@ export class FoveatedClient {
           total_themes?: number;
           total_sessions?: number;
           model?: string;
+          assistant_name?: string;
+          user_name?: string;
         };
         // 2) Best-effort enrichment from /v1/models — NEVER fatal if it fails.
         const modelName = await this._probeModelName(workspaceId, s.model || 'auto');
@@ -323,6 +327,8 @@ export class FoveatedClient {
           workspaceId,
           latencyMs: Date.now() - t0,
           online: true,
+          assistantName: s.assistant_name,
+          userName: s.user_name,
         };
       }
       this.logger?.(`[Jenna] /api/status returned ${statusResp.status}`);
@@ -432,6 +438,37 @@ export class FoveatedClient {
       });
     } catch {
       // Fire-and-forget — bond injection failures are non-fatal
+    }
+  }
+
+  /** List voices exposed by the FoveAI TTS service (proxied via /api/tts/voices) */
+  async getTtsVoices(): Promise<{ default?: string; emotion_map?: Record<string, string>; voices?: string[] } | null> {
+    try {
+      const resp = await fetch(`${this.baseUrl}/api/tts/voices`, { signal: AbortSignal.timeout(4000) });
+      if (!resp.ok) return null;
+      return await resp.json() as { default?: string; emotion_map?: Record<string, string>; voices?: string[] };
+    } catch {
+      return null;
+    }
+  }
+
+  /** Synthesize speech via the FoveAI TTS service (proxied via /api/tts).
+   *  Returns the audio payload as a Buffer, or null when TTS is unavailable. */
+  async speak(text: string, voice?: string): Promise<{ audio: Buffer; contentType: string } | null> {
+    try {
+      const resp = await fetch(`${this.baseUrl}/api/tts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, voice: voice || 'default' }),
+        signal: AbortSignal.timeout(20000),
+      });
+      const contentType = resp.headers.get('content-type') || '';
+      if (resp.ok && contentType.includes('audio')) {
+        return { audio: Buffer.from(await resp.arrayBuffer()), contentType };
+      }
+      return null;
+    } catch {
+      return null;
     }
   }
 

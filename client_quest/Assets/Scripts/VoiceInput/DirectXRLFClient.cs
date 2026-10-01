@@ -43,8 +43,8 @@ namespace Lumax.Quest3Bridge
     public class DirectXRLFClient : MonoBehaviour
     {
         [Header("Connection")]
-        [Tooltip("Port 8200 = Foveated Proxy (Memories), Port 8300 = Raw XRLF Engine")]
-        public int targetPort = 8200;
+        [Tooltip("8402 = XRLF inference runtime (/v1/chat/completions); 8400 = foveated-memory proxy")]
+        public int targetPort = 8402;
 
         [Header("Context")]
         [Tooltip("System prompt injected as the first message.")]

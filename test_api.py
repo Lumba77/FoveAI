@@ -1,23 +1,26 @@
-import urllib.request
 import json
 import time
+import urllib.request
+
 
 def test_api():
     url = "http://127.0.0.1:8400/v1/chat/completions"
     headers = {"Content-Type": "application/json"}
-    
+
     # A simple logic question to test the model
     data = {
         "messages": [
             {"role": "system", "content": "You are a helpful AI assistant."},
-            {"role": "user", "content": "What is 2 + 2? Please answer in one word."}
+            {"role": "user", "content": "What is 2 + 2? Please answer in one word."},
         ],
         "max_tokens": 50,
-        "temperature": 0.1
+        "temperature": 0.1,
     }
-    
-    req = urllib.request.Request(url, data=json.dumps(data).encode("utf-8"), headers=headers, method="POST")
-    
+
+    req = urllib.request.Request(
+        url, data=json.dumps(data).encode("utf-8"), headers=headers, method="POST"
+    )
+
     print(f"Sending request to {url}...")
     t0 = time.time()
     try:
@@ -36,6 +39,7 @@ def test_api():
         print(f"❌ Connection failed: {e}")
     except Exception as e:
         print(f"❌ Error: {e}")
+
 
 if __name__ == "__main__":
     test_api()

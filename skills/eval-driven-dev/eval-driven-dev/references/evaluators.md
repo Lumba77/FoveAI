@@ -573,13 +573,13 @@ from pixie import create_agent_evaluator
 ResponseQuality = create_agent_evaluator(
     name="ResponseQuality",
     criteria="The response directly addresses the user's question with "
-             "accurate, well-structured information. No hallucinations "
-             "or off-topic content.",
+    "accurate, well-structured information. No hallucinations "
+    "or off-topic content.",
 )
 
 ToolUsageCorrectness = create_agent_evaluator(
     name="ToolUsageCorrectness",
     criteria="The app called the correct tools in the right order based "
-             "on the user's intent. No unnecessary or missed tool calls.",
+    "on the user's intent. No unnecessary or missed tool calls.",
 )
 ```

@@ -9,12 +9,13 @@ This module reads from .env (via python-dotenv) and provides sensible defaults.
 It also provides generate_app_config() to auto-generate AppConfig.json for the Quest client.
 """
 
-import os
 import json
 import logging
+import os
 from pathlib import Path
 
 logger = logging.getLogger("foveai.server_config")
+
 
 # ── Load .env ────────────────────────────────────────────────────────────────
 def _load_env_file(path: Path) -> None:
@@ -33,6 +34,7 @@ def _load_env_file(path: Path) -> None:
         # Don't overwrite vars already set in the real environment
         if key and key not in os.environ:
             os.environ[key] = val
+
 
 # Walk up from this file to find the project root .env
 _project_root = Path(__file__).resolve().parent
@@ -66,14 +68,23 @@ def _env_int(key: str, default: int) -> int:
 def detect_lan_ip() -> str:
     """Best-effort primary LAN IP (no traffic is sent — UDP route lookup only)."""
     import socket
+
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(0.75)
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except OSError:
         return "127.0.0.1"
+
+
+class _ServerAddress:
+    def __get__(self, instance: object, owner: type | None = None) -> str:
+        return _env("FOVEAI_SERVER_IP") or detect_lan_ip()
+
+
+def _url_host(host: str) -> str:
+    return f"[{host}]" if ":" in host and not host.startswith("[") else host
 
 
 class ServerConfig:
@@ -88,7 +99,7 @@ class ServerConfig:
     BIND_HOST: str = _env("FOVEAI_BIND_HOST", "0.0.0.0")
     # Client-facing IP. FOVEAI_SERVER_IP wins; otherwise auto-detect the LAN IP
     # so Quest clients get a reachable address instead of a broken 127.0.0.1.
-    SERVER_IP: str = _env("FOVEAI_SERVER_IP", "") or detect_lan_ip()
+    SERVER_IP = _ServerAddress()
 
     # ── Unified WebSocket port (from .env) ───────────────────────────────────
     # ALL client traffic goes through this one port: chat, TTS, STT, motor, etc.
@@ -97,8 +108,8 @@ class ServerConfig:
 
     # ── Backend service ports (from .env — separate HTTP services) ───────────
     # Core cognitive servers
-    COMPAGENT_PORT: int = _env_int("FOVEAI_COMPAGENT_PORT", 8400)
-    SOUL_PORT: int = _env_int("SOUL_PORT", 8402)
+    COMPAGENT_PORT: int = _env_int("FOVEAI_COMPAGENT_PORT", 8405)
+    SOUL_PORT: int = _env_int("SOUL_PORT", 8405)
     AUTONOMOUS_PORT: int = _env_int("FOVEAI_AUTONOMOUS_PORT", 8410)
     MOTOR_DAEMON_PORT: int = _env_int("FOVEAI_MOTOR_PORT", 8410)
     SUBCONSCIOUS_PORT: int = _env_int("FOVEAI_SUBCONSCIOUS_PORT", 8411)
@@ -115,12 +126,12 @@ class ServerConfig:
     @classmethod
     def ws_url(cls, port: int, path: str = "/ws") -> str:
         """Build a WebSocket URL using the server IP."""
-        return f"ws://{cls.SERVER_IP}:{port}{path}"
+        return f"ws://{_url_host(cls.SERVER_IP)}:{port}{path}"
 
     @classmethod
     def http_url(cls, port: int, path: str = "") -> str:
         """Build an HTTP URL using the server IP."""
-        return f"http://{cls.SERVER_IP}:{port}{path}"
+        return f"http://{_url_host(cls.SERVER_IP)}:{port}{path}"
 
     @classmethod
     def bind_url(cls, port: int, path: str = "") -> str:
@@ -139,7 +150,32 @@ class ServerConfig:
         }
 
     @classmethod
-    def generate_app_config(cls, output_path: str = None, avatar_model: str = "Alicechan.vrm") -> str:
+    def refresh_network_config(cls, output_path: str | Path) -> dict:
+        path = Path(output_path)
+        data = json.loads(path.read_text(encoding="utf-8-sig")) if path.exists() else {}
+        address = cls.SERVER_IP
+        if address == "127.0.0.1" and not _env("FOVEAI_SERVER_IP"):
+            return data
+        updated = dict(data)
+        adb = bool(data.get("use_adb_reverse", data.get("adb_reverse", False)))
+        updated.update(
+            {
+                "version": 1,
+                "pc_lan_ip": address,
+                "nat_peer_default": address,
+                "soul_host": "127.0.0.1" if adb else address,
+                "adb_reverse": adb,
+                "use_adb_reverse": adb,
+            }
+        )
+        if updated != data:
+            path.write_text(json.dumps(updated, indent=2) + "\n", encoding="utf-8")
+        return updated
+
+    @classmethod
+    def generate_app_config(
+        cls, output_path: str = None, avatar_model: str = "Alicechan.vrm"
+    ) -> str:
         """
         Write AppConfig.json for the Quest client.
         Default output: client_quest/Assets/StreamingAssets/AppConfig.json
@@ -150,8 +186,17 @@ class ServerConfig:
             here = Path(__file__).resolve().parent
             candidates = [
                 here / "client_quest" / "Assets" / "StreamingAssets" / "AppConfig.json",
-                here / "FoveAI" / "client_quest" / "Assets" / "StreamingAssets" / "AppConfig.json",
-                here.parent / "client_quest" / "Assets" / "StreamingAssets" / "AppConfig.json",
+                here
+                / "FoveAI"
+                / "client_quest"
+                / "Assets"
+                / "StreamingAssets"
+                / "AppConfig.json",
+                here.parent
+                / "client_quest"
+                / "Assets"
+                / "StreamingAssets"
+                / "AppConfig.json",
             ]
             for c in candidates:
                 if c.parent.exists():
@@ -167,18 +212,20 @@ class ServerConfig:
 
         logger.info(f"[ServerConfig] Generated AppConfig.json → {output_path}")
         logger.info(f"[ServerConfig]   serverIp: {cls.SERVER_IP}")
-        logger.info(f"[ServerConfig]   wsPort: {cls.WS_PORT} (unified WebSocket for all traffic)")
+        logger.info(
+            f"[ServerConfig]   wsPort: {cls.WS_PORT} (unified WebSocket for all traffic)"
+        )
         return output_path
 
     @classmethod
     def summary(cls) -> str:
         """Return a human-readable summary of all config values."""
         lines = [
-            f"FoveAI Server Configuration (unified WebSocket):",
+            "FoveAI Server Configuration (unified WebSocket):",
             f"  Bind host:    {cls.BIND_HOST}",
             f"  Server IP:    {cls.SERVER_IP}",
             f"  Unified WS:   :{cls.WS_PORT}  (chat, TTS, STT, motor, animation — all on /ws)",
-            f"  Backend services:",
+            "  Backend services:",
             f"    :{cls.COMPAGENT_PORT}  compagent/proxy (sovereign core)",
             f"    :{cls.SOUL_PORT}  soul core/XRLF runtime",
             f"    :{cls.MEMORY_PORT}  memory service",
@@ -195,10 +242,18 @@ class ServerConfig:
 # ── CLI entry point: generate AppConfig.json ─────────────────────────────────
 if __name__ == "__main__":
     import sys
+
     print(ServerConfig.summary())
     print()
 
-    if "--generate-appconfig" in sys.argv:
+    if "--refresh-network-config" in sys.argv:
+        root = Path(__file__).resolve().parent
+        for path in (
+            root / "foveai_network_config.json",
+            root / "Frontend" / "foveai_network_config.json",
+        ):
+            ServerConfig.refresh_network_config(path)
+    elif "--generate-appconfig" in sys.argv:
         path = ServerConfig.generate_app_config()
         print(f"\n✅ AppConfig.json written to: {path}")
     elif "--set-ip" in sys.argv:
@@ -206,13 +261,17 @@ if __name__ == "__main__":
         idx = sys.argv.index("--set-ip")
         if idx + 1 < len(sys.argv):
             new_ip = sys.argv[idx + 1]
-            print(f"\n💡 To update your server IP, add this to your .env:")
+            print("\n💡 To update your server IP, add this to your .env:")
             print(f"   FOVEAI_SERVER_IP={new_ip}")
-            print(f"   Then run: python server_config.py --generate-appconfig")
+            print("   Then run: python server_config.py --generate-appconfig")
         else:
             print("Usage: python server_config.py --set-ip <IP_ADDRESS>")
     else:
         print("\nUsage:")
         print("  python server_config.py                      # Show current config")
-        print("  python server_config.py --generate-appconfig # Write AppConfig.json for Quest")
-        print("  python server_config.py --set-ip <IP>        # Show instructions to update IP")
+        print(
+            "  python server_config.py --generate-appconfig # Write AppConfig.json for Quest"
+        )
+        print(
+            "  python server_config.py --set-ip <IP>        # Show instructions to update IP"
+        )

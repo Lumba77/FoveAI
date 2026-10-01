@@ -1,6 +1,7 @@
 """
 tests/test_softlayer.py — Unit tests for SoftLayer module and config endpoints
 """
+
 import importlib.util
 import sys
 import unittest
@@ -24,7 +25,9 @@ class TestSoftLayerEndpoints(unittest.TestCase):
         runtime_module = ModuleType("runtime.xrlf_runtime")
         runtime_module.XRLFRuntime = RuntimeState
         server_path = Path(__file__).resolve().parents[1] / "api" / "server.py"
-        spec = importlib.util.spec_from_file_location("api_softlayer_test_server", server_path)
+        spec = importlib.util.spec_from_file_location(
+            "api_softlayer_test_server", server_path
+        )
         assert spec is not None and spec.loader is not None
         server = importlib.util.module_from_spec(spec)
         with patch.dict(sys.modules, {"runtime.xrlf_runtime": runtime_module}):
@@ -44,7 +47,9 @@ class TestSoftLayerEndpoints(unittest.TestCase):
     def test_get_softlayer_config_file(self) -> None:
         response = self.client.get("/softlayer/hud_config.js")
         self.assertEqual(response.status_code, 200)
-        self.assertIn("application/javascript", response.headers.get("content-type", ""))
+        self.assertIn(
+            "application/javascript", response.headers.get("content-type", "")
+        )
         self.assertIn("FoveAI", response.text)
 
     def test_get_nonexistent_config_returns_404(self) -> None:
@@ -63,7 +68,9 @@ class TestSoftLayerEndpoints(unittest.TestCase):
     def test_get_softlayer_module_file(self) -> None:
         response = self.client.get("/softlayer/modules/lighting.js")
         self.assertEqual(response.status_code, 200)
-        self.assertIn("application/javascript", response.headers.get("content-type", ""))
+        self.assertIn(
+            "application/javascript", response.headers.get("content-type", "")
+        )
         self.assertIn("FoveAI", response.text)
 
     def test_get_nonexistent_module_returns_404(self) -> None:

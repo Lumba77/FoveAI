@@ -35,45 +35,56 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
-        "--core-gguf", required=False,
+        "--core-gguf",
+        required=False,
         default=None,
         help="Path to the Gemma-4-12B MoQ GGUF file (the neural core). "
-             "If omitted, a GGUF-free XRLF stub is produced (for testing).",
+        "If omitted, a GGUF-free XRLF stub is produced (for testing).",
     )
     parser.add_argument(
-        "--xrl-dir", default="xrl_encoded",
+        "--xrl-dir",
+        default="xrl_encoded",
         help="Directory containing XRL JSON artifacts (default: xrl_encoded/)",
     )
     parser.add_argument(
-        "--mmproj", default=None,
+        "--mmproj",
+        default=None,
         help="Path to the Multimodal Projector GGUF file (optional).",
     )
     parser.add_argument(
-        "--whisper-gguf", default=None,
+        "--whisper-gguf",
+        default=None,
         help="Path to the Whisper STT GGUF model file to embed in .xrlf (optional)",
     )
     parser.add_argument(
-        "--kokoro-model", default=None,
+        "--kokoro-model",
+        default=None,
         help="Path to the Kokoro TTS ONNX model file to embed in .xrlf (optional)",
     )
     parser.add_argument(
-        "--memory-db", default=None,
+        "--memory-db",
+        default=None,
         help="Path to a foveated memory SQLite DB to embed (optional)",
     )
     parser.add_argument(
-        "--base-model", default="gemma-4-12b-it-qat-GGUF-MoQ",
+        "--base-model",
+        default="gemma-4-12b-it-qat-GGUF-MoQ",
         help="Name of the neural core model",
     )
     parser.add_argument(
-        "--xrl-source", default="qwen3.5-4b",
+        "--xrl-source",
+        default="qwen3.5-4b",
         help="Name of the XRL source/distillation model",
     )
     parser.add_argument(
-        "--output", "-o", default="gemma-4-12b-xrl.xrlf",
+        "--output",
+        "-o",
+        default="gemma-4-12b-xrl.xrlf",
         help="Output .xrlf file path",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="Print the section table without writing the file",
     )
 
@@ -110,7 +121,11 @@ def main():
     # 1.5. Embedded Whisper STT & Kokoro TTS models (auto-detected if available)
     whisper_path = args.whisper_gguf
     if not whisper_path:
-        for candidate in ["models/whisper/whisper-base.gguf", "models/whisper.gguf", "foveated-memory/models/whisper.gguf"]:
+        for candidate in [
+            "models/whisper/whisper-base.gguf",
+            "models/whisper.gguf",
+            "foveated-memory/models/whisper.gguf",
+        ]:
             p = os.path.join(ROOT, candidate)
             if os.path.exists(p):
                 whisper_path = p
@@ -120,7 +135,11 @@ def main():
 
     kokoro_path = args.kokoro_model
     if not kokoro_path:
-        for candidate in ["models/kokoro/kokoro-v0_19.onnx", "Frontend/Mouth/kokoro-v0_19.onnx", "foveated-memory/models/kokoro.onnx"]:
+        for candidate in [
+            "models/kokoro/kokoro-v0_19.onnx",
+            "Frontend/Mouth/kokoro-v0_19.onnx",
+            "foveated-memory/models/kokoro.onnx",
+        ]:
             p = os.path.join(ROOT, candidate)
             if os.path.exists(p):
                 kokoro_path = p

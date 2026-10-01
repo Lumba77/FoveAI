@@ -10,19 +10,17 @@ Web UI:  http://localhost:8006
 API:     http://localhost:8006/api/chat
 """
 
-import os
 import json
-import asyncio
 import logging
-from pathlib import Path
+import os
+from collections.abc import AsyncGenerator
 from datetime import datetime
-from typing import Optional, AsyncGenerator
-import httpx
+from pathlib import Path
 
-from fastapi import FastAPI, WebSocket, HTTPException, BackgroundTasks
-from fastapi.responses import HTMLResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
+import httpx
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
 # === Logging ===
@@ -40,7 +38,7 @@ CHAT_HISTORY_FILE = "/app/backend/Cognition/soul_coder_chat_history.json"
 app = FastAPI(
     title="Soul Coder Chat",
     description="Interactive AI coding assistant with project context",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 # CORS for web access
@@ -52,17 +50,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 # === Data Models ===
 class ChatMessage(BaseModel):
     role: str  # "user" or "assistant"
     content: str
-    timestamp: Optional[str] = None
+    timestamp: str | None = None
+
 
 class ChatRequest(BaseModel):
     message: str
-    context: Optional[str] = None
-    model: Optional[str] = None
+    context: str | None = None
+    model: str | None = None
     stream: bool = True
+
 
 class ChatResponse(BaseModel):
     role: str
@@ -70,49 +71,54 @@ class ChatResponse(BaseModel):
     model: str
     timestamp: str
 
+
 # === Project Context ===
 class ProjectContext:
     """Analyze and cache project structure for context"""
-    
+
     def __init__(self, repo_root: str = FoveAI_REPO_ROOT):
         self.repo_root = Path(repo_root)
         self.cache = None
         self.last_update = None
-    
+
     def get_context(self) -> str:
         """Build project context string"""
         context_parts = []
-        
+
         # Project structure
         context_parts.append("## FoveAI-lite Project Structure\n")
-        
+
         # Key directories
         for dir_name in ["Mind", "Body", "Build", "Scripts"]:
             dir_path = self.repo_root / dir_name
             if dir_path.exists():
                 context_parts.append(f"\n### {dir_name}/\n")
                 context_parts.append(self._list_dir_contents(dir_path, max_depth=2))
-        
+
         # Key config files
         context_parts.append("\n### Configuration Files\n")
         for filename in ["docker-compose.yml", ".env.example", "FoveAI.md"]:
             file_path = self.repo_root / filename
             if file_path.exists():
                 context_parts.append(f"- {filename}")
-        
+
         # Recent changes
         context_parts.append("\n### Active Development\n")
-        context_parts.append(f"- Soul Coder Service (coding-agent profile)\n")
-        context_parts.append(f"- Unsloth/LM Studio Models: 9B Qwen Coder (prod) / 2B variant (test)\n")
-        context_parts.append(f"- Docker Compose Integration\n")
-        
+        context_parts.append("- Soul Coder Service (coding-agent profile)\n")
+        context_parts.append(
+            "- Unsloth/LM Studio Models: 9B Qwen Coder (prod) / 2B variant (test)\n"
+        )
+        context_parts.append("- Docker Compose Integration\n")
+
         return "".join(context_parts)
-    
-    def _list_dir_contents(self, dir_path: Path, max_depth: int = 1, current_depth: int = 0) -> str:
+
+    def _list_dir_contents(
+        self, dir_path: Path, max_depth: int = 1, current_depth: int = 0
+    ) -> str:
         """List directory contents"""
         if current_depth >= max_depth:
             return ""
-        
+
         items = []
         try:
             for item in sorted(dir_path.iterdir())[:10]:  # Limit to 10 items
@@ -124,10 +130,12 @@ class ProjectContext:
                     items.append(f"{'  ' * (current_depth + 1)}- {item.name}")
         except PermissionError:
             pass
-        
+
         return "\n".join(items)
 
+
 project_context = ProjectContext()
+
 
 # === Chat History ===
 class ChatHistory:
@@ -135,7 +143,7 @@ class ChatHistory:
         self.history_file = Path(history_file)
         self.messages = []
         self.load()
-    
+
     def load(self):
         """Load history from file"""
         if self.history_file.exists():
@@ -144,32 +152,37 @@ class ChatHistory:
                 self.messages = data.get("messages", [])
             except Exception as e:
                 logger.warning(f"Could not load chat history: {e}")
-    
+
     def add_message(self, role: str, content: str):
         """Add message to history"""
-        self.messages.append({
-            "role": role,
-            "content": content,
-            "timestamp": datetime.now().isoformat()
-        })
+        self.messages.append(
+            {"role": role, "content": content, "timestamp": datetime.now().isoformat()}
+        )
         self.save()
-    
+
     def save(self):
         """Save history to file"""
         try:
             self.history_file.parent.mkdir(parents=True, exist_ok=True)
-            self.history_file.write_text(json.dumps({
-                "messages": self.messages[-50:],  # Keep last 50 messages
-                "updated": datetime.now().isoformat()
-            }, indent=2))
+            self.history_file.write_text(
+                json.dumps(
+                    {
+                        "messages": self.messages[-50:],  # Keep last 50 messages
+                        "updated": datetime.now().isoformat(),
+                    },
+                    indent=2,
+                )
+            )
         except Exception as e:
             logger.warning(f"Could not save chat history: {e}")
-    
+
     def get_context_messages(self, limit: int = 10) -> list:
         """Get recent messages for context"""
         return self.messages[-limit:]
 
+
 chat_history = ChatHistory()
+
 
 # === System Prompt ===
 def get_system_prompt() -> str:
@@ -216,6 +229,7 @@ Project Context:
 
 Remember: You have insider knowledge of this specific project. Use it!"""
 
+
 # === Health Check ===
 @app.get("/health")
 async def health_check():
@@ -226,13 +240,14 @@ async def health_check():
             ollama_ok = resp.status_code == 200
     except Exception:
         ollama_ok = False
-    
+
     return {
         "service": "soul-coder-chat",
         "status": "healthy" if ollama_ok else "degraded",
         "ollama": "ok" if ollama_ok else "not-responding",
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
     }
+
 
 # === Web UI ===
 @app.get("/", response_class=HTMLResponse)
@@ -553,10 +568,11 @@ async def web_ui():
     </html>
     """
 
+
 # === Chat API ===
 async def stream_chat_response(message: str, model: str) -> AsyncGenerator[str, None]:
     """Stream chat response from Ollama"""
-    
+
     # Build context from recent messages
     context_messages = chat_history.get_context_messages(limit=5)
     conversation_context = ""
@@ -565,7 +581,7 @@ async def stream_chat_response(message: str, model: str) -> AsyncGenerator[str, 
         for msg in context_messages:
             role = "User" if msg["role"] == "user" else "Assistant"
             conversation_context += f"{role}: {msg['content'][:200]}\n"
-    
+
     # Full prompt
     full_prompt = f"""{get_system_prompt()}
 
@@ -574,68 +590,67 @@ async def stream_chat_response(message: str, model: str) -> AsyncGenerator[str, 
 User: {message}
 
 Soul Coder:"""
-    
+
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            async with client.stream(
-                "POST",
-                f"{OLLAMA_HOST}/api/generate",
-                json={
-                    "model": model,
-                    "prompt": full_prompt,
-                    "stream": True,
-                    "temperature": 0.7,
-                    "top_p": 0.9,
-                },
-            ) as response:
-                if response.status_code != 200:
-                    yield f"Error: Ollama returned {response.status_code}"
-                    return
-                
-                async for line in response.aiter_lines():
-                    if line:
-                        try:
-                            chunk = json.loads(line)
-                            if "response" in chunk:
-                                yield chunk["response"]
-                        except json.JSONDecodeError:
-                            pass
+        async with httpx.AsyncClient(timeout=120.0) as client, client.stream(
+            "POST",
+            f"{OLLAMA_HOST}/api/generate",
+            json={
+                "model": model,
+                "prompt": full_prompt,
+                "stream": True,
+                "temperature": 0.7,
+                "top_p": 0.9,
+            },
+        ) as response:
+            if response.status_code != 200:
+                yield f"Error: Ollama returned {response.status_code}"
+                return
+
+            async for line in response.aiter_lines():
+                if line:
+                    try:
+                        chunk = json.loads(line)
+                        if "response" in chunk:
+                            yield chunk["response"]
+                    except json.JSONDecodeError:
+                        pass
     except Exception as e:
         logger.error(f"Stream error: {e}")
-        yield f"Error communicating with Ollama: {str(e)}"
+        yield f"Error communicating with Ollama: {e!s}"
+
 
 @app.post("/api/chat")
 async def chat(request: ChatRequest):
     """Chat endpoint with streaming response"""
-    
+
     model = request.model or DEFAULT_MODEL
-    
+
     # Add user message to history
     chat_history.add_message("user", request.message)
-    
+
     async def generate():
         """Generate streaming response"""
         assistant_response = ""
-        
+
         async for chunk in stream_chat_response(request.message, model):
             assistant_response += chunk
             if request.stream:
                 yield chunk
-        
+
         # Save assistant response to history
         if assistant_response:
             chat_history.add_message("assistant", assistant_response)
-    
+
     return StreamingResponse(generate(), media_type="text/plain")
+
 
 # === Chat History API ===
 @app.get("/api/history")
 async def get_history():
     """Get chat history"""
-    return {
-        "messages": chat_history.messages,
-        "count": len(chat_history.messages)
-    }
+    return {"messages": chat_history.messages, "count": len(chat_history.messages)}
+
 
 @app.post("/api/history/clear")
 async def clear_history():
@@ -643,6 +658,7 @@ async def clear_history():
     chat_history.messages = []
     chat_history.save()
     return {"status": "cleared"}
+
 
 # === Startup ===
 @app.on_event("startup")
@@ -653,11 +669,8 @@ async def startup():
     logger.info(f"Project Root: {FoveAI_REPO_ROOT}")
     logger.info(f"Default Model: {DEFAULT_MODEL}")
 
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=8006,
-        log_level=LOG_LEVEL.lower()
-    )
+
+    uvicorn.run(app, host="0.0.0.0", port=8006, log_level=LOG_LEVEL.lower())

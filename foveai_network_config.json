@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "pc_lan_ip": "192.168.8.100",
-  "soul_host": "192.168.8.100",
+  "pc_lan_ip": "192.168.8.109",
+  "soul_host": "192.168.8.109",
   "adb_reverse": false,
   "use_adb_reverse": false,
-  "nat_peer_default": "192.168.8.100"
+  "nat_peer_default": "192.168.8.109"
 }

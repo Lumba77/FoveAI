@@ -1,0 +1,17 @@
+[Unit]
+Description=FoveAI XRLF Local Inference Runtime (:8402/:8403)
+After=network.target foveai-backend.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/lumba/FoveAI
+ExecStart=/home/lumba/FoveAI/.venv/bin/python run_xrlf.py --model xrl_encoded/gemma-4-e2b-multimodal-v1.0.xrlf --port 8402 --ws-port 8403
+Restart=always
+RestartSec=3
+Environment=NODE_ENV=production
+Environment=XRLF_REPO_ENABLED=true
+Environment=GGML_CUDA_NO_VMM=1
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=default.target

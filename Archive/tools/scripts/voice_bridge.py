@@ -32,13 +32,12 @@ import subprocess
 import sys
 import threading
 import time
-import urllib.request
 
 import numpy as np
 import sounddevice as sd
 
-
 # ── Device selection ─────────────────────────────────────────────────────────
+
 
 def list_input_devices():
     """Print all available input devices and exit."""
@@ -74,7 +73,10 @@ def resolve_device(device_arg):
             print(f"  [ERR] Device index {idx} not found.", flush=True)
             sys.exit(1)
         if dev["max_input_channels"] <= 0:
-            print(f"  [ERR] Device {idx} ({dev['name']}) has no input channels.", flush=True)
+            print(
+                f"  [ERR] Device {idx} ({dev['name']}) has no input channels.",
+                flush=True,
+            )
             sys.exit(1)
         return idx
     except ValueError:
@@ -123,14 +125,15 @@ CHUNK_SAMPLES = int(SAMPLE_RATE * CHUNK_DURATION)
 
 # VAD
 VAD_ENERGY_THRESHOLD = 300.0
-VAD_SILENCE_FRAMES = 6   # ~3 seconds of silence to stop
+VAD_SILENCE_FRAMES = 6  # ~3 seconds of silence to stop
 
 # STT: use local faster-whisper or the XRLF endpoint
 XRLF_STT_URL = "http://127.0.0.1:8403/ws"  # WS endpoint for STT
 USE_LOCAL_WHISPER = True  # Use local faster-whisper if available
-FALLBACK_TO_XRLF = True   # Fall back to XRLF WS endpoint if local fails
+FALLBACK_TO_XRLF = True  # Fall back to XRLF WS endpoint if local fails
 
 # ── State ───────────────────────────────────────────────────────────────────
+
 
 class BridgeState:
     def __init__(self):
@@ -143,14 +146,17 @@ class BridgeState:
         self.whisper_model = None
         self.transcribing = False
 
+
 state = BridgeState()
 
 # ── Whisper (local) ─────────────────────────────────────────────────────────
+
 
 def load_local_whisper():
     """Load faster-whisper model (CPU, int8)."""
     try:
         from faster_whisper import WhisperModel
+
         cache_dirs = [
             os.getenv("HF_HUB_CACHE", ""),
             os.getenv("HF_HOME", ""),
@@ -161,7 +167,9 @@ def load_local_whisper():
             if not cache_dir or not os.path.isdir(cache_dir):
                 continue
             for candidate_name in ["faster-whisper-tiny", "faster-whisper-base.en"]:
-                candidate = os.path.join(cache_dir, f"models--Systran--{candidate_name}")
+                candidate = os.path.join(
+                    cache_dir, f"models--Systran--{candidate_name}"
+                )
                 if os.path.isdir(candidate):
                     snapshots = os.path.join(candidate, "snapshots")
                     if os.path.isdir(snapshots):
@@ -176,7 +184,10 @@ def load_local_whisper():
                 break
 
         if not model_path:
-            print("  [Whisper] No cached model found, using 'tiny' (will download)", flush=True)
+            print(
+                "  [Whisper] No cached model found, using 'tiny' (will download)",
+                flush=True,
+            )
             model_path = "tiny"
 
         model = WhisperModel(model_path, device="cpu", compute_type="int8")
@@ -185,6 +196,7 @@ def load_local_whisper():
     except Exception as e:
         print(f"  [Whisper] Local load failed: {e}", flush=True)
         return None
+
 
 def transcribe_local(audio: np.ndarray) -> str:
     """Transcribe audio using local faster-whisper."""
@@ -202,11 +214,14 @@ def transcribe_local(audio: np.ndarray) -> str:
     text = " ".join(seg.text.strip() for seg in segments).strip()
     return text
 
+
 # ── XRLF WS STT fallback ────────────────────────────────────────────────────
+
 
 async def transcribe_via_xrlf(audio: np.ndarray) -> str:
     """Send audio to XRLF WebSocket for Whisper transcription."""
     import websockets
+
     try:
         async with websockets.connect(XRLF_STT_URL, max_size=10_000_000) as ws:
             await ws.send(json.dumps({"type": "start_recording"}))
@@ -218,8 +233,13 @@ async def transcribe_via_xrlf(audio: np.ndarray) -> str:
                 raw = await asyncio.wait_for(ws.recv(), timeout=30)
                 if isinstance(raw, str):
                     msg = json.loads(raw)
-                    if msg.get("event") == "stt.result" or msg.get("type") == "stt.result":
-                        return msg.get("payload", {}).get("text", "") or msg.get("text", "")
+                    if (
+                        msg.get("event") == "stt.result"
+                        or msg.get("type") == "stt.result"
+                    ):
+                        return msg.get("payload", {}).get("text", "") or msg.get(
+                            "text", ""
+                        )
                     elif msg.get("event") == "chat.response":
                         # The WS auto-triggers chat — we just want the transcription
                         # but the handler sends audio to chat. Extract the user text.
@@ -231,7 +251,9 @@ async def transcribe_via_xrlf(audio: np.ndarray) -> str:
         print(f"  [XRLF STT] Failed: {e}", flush=True)
         return ""
 
+
 # ── Type text into focused window ───────────────────────────────────────────
+
 
 def type_text(text: str):
     """Type text into the currently focused window."""
@@ -245,7 +267,12 @@ def type_text(text: str):
         if shutil.which("wtype"):
             try:
                 subprocess.run(["wtype", text], check=True, timeout=5)
-                print(f"  [TYPE] Typed via wtype: \"{text[:60]}...\"" if len(text) > 60 else f"  [TYPE] Typed via wtype: \"{text}\"", flush=True)
+                print(
+                    f'  [TYPE] Typed via wtype: "{text[:60]}..."'
+                    if len(text) > 60
+                    else f'  [TYPE] Typed via wtype: "{text}"',
+                    flush=True,
+                )
                 return
             except Exception as e:
                 print(f"  [TYPE] wtype failed: {e}, trying clipboard...", flush=True)
@@ -256,8 +283,15 @@ def type_text(text: str):
                 subprocess.run(["wl-copy", text], check=True, timeout=3)
                 time.sleep(0.1)
                 # Simulate Ctrl+V
-                subprocess.run(["wtype", "-M", "ctrl", "v", "-m", "ctrl"], check=True, timeout=3)
-                print(f"  [TYPE] Pasted via clipboard: \"{text[:60]}...\"" if len(text) > 60 else f"  [TYPE] Pasted: \"{text}\"", flush=True)
+                subprocess.run(
+                    ["wtype", "-M", "ctrl", "v", "-m", "ctrl"], check=True, timeout=3
+                )
+                print(
+                    f'  [TYPE] Pasted via clipboard: "{text[:60]}..."'
+                    if len(text) > 60
+                    else f'  [TYPE] Pasted: "{text}"',
+                    flush=True,
+                )
                 return
             except Exception as e:
                 print(f"  [TYPE] Clipboard paste failed: {e}", flush=True)
@@ -269,15 +303,24 @@ def type_text(text: str):
         # X11: use xdotool
         if shutil.which("xdotool"):
             try:
-                subprocess.run(["xdotool", "type", "--delay", "10", text], check=True, timeout=10)
-                print(f"  [TYPE] Typed via xdotool: \"{text[:60]}...\"" if len(text) > 60 else f"  [TYPE] Typed: \"{text}\"", flush=True)
+                subprocess.run(
+                    ["xdotool", "type", "--delay", "10", text], check=True, timeout=10
+                )
+                print(
+                    f'  [TYPE] Typed via xdotool: "{text[:60]}..."'
+                    if len(text) > 60
+                    else f'  [TYPE] Typed: "{text}"',
+                    flush=True,
+                )
                 return
             except Exception as e:
                 print(f"  [TYPE] xdotool failed: {e}", flush=True)
 
         print(f"\n  [VOICE] Transcribed (copy manually): {text}\n", flush=True)
 
+
 # ── Audio recording ─────────────────────────────────────────────────────────
+
 
 def audio_callback(indata: np.ndarray, frames: int, time_info, status):
     """Called by sounddevice for each audio chunk."""
@@ -301,7 +344,10 @@ def audio_callback(indata: np.ndarray, frames: int, time_info, status):
                             state.vad_silence_count = 0
                             print("  [VAD] Silence — transcribing...", flush=True)
                             # Trigger transcription
-                            threading.Thread(target=stop_and_transcribe, daemon=True).start()
+                            threading.Thread(
+                                target=stop_and_transcribe, daemon=True
+                            ).start()
+
 
 def start_recording():
     """Start capturing audio."""
@@ -309,6 +355,7 @@ def start_recording():
         state.audio_buffer = []
         state.recording = True
     print("  [MIC] ● Recording... (release Meta+H to transcribe)", flush=True)
+
 
 def stop_and_transcribe():
     """Stop recording and transcribe."""
@@ -350,10 +397,11 @@ def stop_and_transcribe():
         # Clean up transcription
         text = text.strip()
         if text:
-            print(f"  [STT] \"{text}\"", flush=True)
+            print(f'  [STT] "{text}"', flush=True)
             type_text(text)
     else:
         print("  [STT] No speech detected", flush=True)
+
 
 def cancel_recording():
     """Discard current recording."""
@@ -362,7 +410,9 @@ def cancel_recording():
         state.audio_buffer = []
     print("  [MIC] ✕ Cancelled", flush=True)
 
+
 # ── Hotkeys ─────────────────────────────────────────────────────────────────
+
 
 def setup_hotkeys():
     """Set up global hotkeys."""
@@ -373,24 +423,26 @@ def setup_hotkeys():
     def on_press(key):
         current_keys.add(key)
 
-        is_meta = (keyboard.Key.cmd in current_keys or
-                   keyboard.Key.cmd_l in current_keys or
-                   keyboard.Key.cmd_r in current_keys)
+        is_meta = (
+            keyboard.Key.cmd in current_keys
+            or keyboard.Key.cmd_l in current_keys
+            or keyboard.Key.cmd_r in current_keys
+        )
 
         if not is_meta:
             return
 
         key_char = None
-        if hasattr(key, 'char') and key.char:
+        if hasattr(key, "char") and key.char:
             key_char = key.char.lower()
 
         # Meta+H — Push to talk
-        if key_char == 'h':
+        if key_char == "h":
             if not state.recording and not state.continuous and not state.transcribing:
                 start_recording()
 
         # Meta+J — Toggle continuous VAD
-        elif key_char == 'j':
+        elif key_char == "j":
             state.continuous = not state.continuous
             if state.continuous:
                 print("\n  [MODE] ●● Continuous VAD ON — just talk\n", flush=True)
@@ -398,11 +450,11 @@ def setup_hotkeys():
                 print("\n  [MODE] ○○ Continuous mode OFF\n", flush=True)
 
         # Meta+K — Cancel recording
-        elif key_char == 'k':
+        elif key_char == "k":
             cancel_recording()
 
         # Meta+Q — Quit
-        elif key_char == 'q':
+        elif key_char == "q":
             print("\n  [EXIT] Quitting Voice Bridge...", flush=True)
             return False
 
@@ -410,7 +462,7 @@ def setup_hotkeys():
         current_keys.discard(key)
 
         # Release Meta+H — stop and transcribe
-        if hasattr(key, 'char') and key.char and key.char.lower() == 'h':
+        if hasattr(key, "char") and key.char and key.char.lower() == "h":
             if state.recording:
                 stop_and_transcribe()
 
@@ -418,17 +470,32 @@ def setup_hotkeys():
     listener.start()
     return listener
 
+
 # ── Main ────────────────────────────────────────────────────────────────────
 
+
 async def main():
-    parser = argparse.ArgumentParser(description="FoveAI Voice Bridge — talk to your AI")
-    parser.add_argument("--no-local-whisper", action="store_true", help="Use XRLF endpoint only")
-    parser.add_argument("--no-xrlf-fallback", action="store_true", help="Local Whisper only")
-    parser.add_argument("--device", type=str, default=None,
-                        help="Audio input device: index (e.g. 3) or name substring (e.g. 'AUSDOM'). "
-                             "Use --list-devices to see options. Default: system default input.")
-    parser.add_argument("--list-devices", action="store_true",
-                        help="List available audio input devices and exit.")
+    parser = argparse.ArgumentParser(
+        description="FoveAI Voice Bridge — talk to your AI"
+    )
+    parser.add_argument(
+        "--no-local-whisper", action="store_true", help="Use XRLF endpoint only"
+    )
+    parser.add_argument(
+        "--no-xrlf-fallback", action="store_true", help="Local Whisper only"
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help="Audio input device: index (e.g. 3) or name substring (e.g. 'AUSDOM'). "
+        "Use --list-devices to see options. Default: system default input.",
+    )
+    parser.add_argument(
+        "--list-devices",
+        action="store_true",
+        help="List available audio input devices and exit.",
+    )
     args = parser.parse_args()
 
     if args.list_devices:
@@ -444,7 +511,8 @@ async def main():
     device_index = resolve_device(args.device)
 
     session_type = os.environ.get("XDG_SESSION_TYPE", "x11")
-    print(f"""
+    print(
+        f"""
   ╔══════════════════════════════════════════════════╗
   ║  FoveAI Voice Bridge — Talk to Your AI           ║
   ╠══════════════════════════════════════════════════╣
@@ -454,24 +522,38 @@ async def main():
   ║  Meta+Q  — Quit                                  ║
   ╠══════════════════════════════════════════════════╣
   ║  Session: {session_type:<39s} ║
-  ║  STT: {'local Whisper' if USE_LOCAL_WHISPER else 'XRLF endpoint':<42s} ║
-  ║  Fallback: {'XRLF WS' if FALLBACK_TO_XRLF else 'none':<41s} ║
+  ║  STT: {"local Whisper" if USE_LOCAL_WHISPER else "XRLF endpoint":<42s} ║
+  ║  Fallback: {"XRLF WS" if FALLBACK_TO_XRLF else "none":<41s} ║
   ╚══════════════════════════════════════════════════╝
-    """, flush=True)
+    """,
+        flush=True,
+    )
 
     # Check typing tools
     if session_type == "wayland":
         has_wtype = shutil.which("wtype") is not None
         has_wlcopy = shutil.which("wl-copy") is not None
         if not has_wtype:
-            print("  [WARN] wtype not found — install with: sudo dnf install wtype", flush=True)
+            print(
+                "  [WARN] wtype not found — install with: sudo dnf install wtype",
+                flush=True,
+            )
         if not has_wlcopy:
-            print("  [WARN] wl-copy not found — install with: sudo dnf install wl-clipboard", flush=True)
+            print(
+                "  [WARN] wl-copy not found — install with: sudo dnf install wl-clipboard",
+                flush=True,
+            )
         if not has_wtype and not has_wlcopy:
-            print("  [WARN] No typing method available — text will print to stdout only", flush=True)
+            print(
+                "  [WARN] No typing method available — text will print to stdout only",
+                flush=True,
+            )
     else:
         if not shutil.which("xdotool"):
-            print("  [WARN] xdotool not found — install with: sudo dnf install xdotool", flush=True)
+            print(
+                "  [WARN] xdotool not found — install with: sudo dnf install xdotool",
+                flush=True,
+            )
 
     # Load Whisper
     if USE_LOCAL_WHISPER:
@@ -494,7 +576,10 @@ async def main():
         callback=audio_callback,
     )
     stream.start()
-    print(f"  [MIC] Listening on {device_name(device_index)} ({SAMPLE_RATE}Hz)", flush=True)
+    print(
+        f"  [MIC] Listening on {device_name(device_index)} ({SAMPLE_RATE}Hz)",
+        flush=True,
+    )
     print("  [READY] Press Meta+H and talk!\n", flush=True)
 
     # Start hotkeys
@@ -510,6 +595,7 @@ async def main():
         stream.stop()
         stream.close()
         listener.stop()
+
 
 if __name__ == "__main__":
     try:

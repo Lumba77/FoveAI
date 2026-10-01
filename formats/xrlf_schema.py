@@ -25,7 +25,6 @@ Section layout
 import struct
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Dict, List, Optional
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -43,20 +42,21 @@ SECTION_ENTRY_SIZE = SECTION_ENTRY_STRUCT.size  # 22 bytes
 
 # ── Flags bitfield ────────────────────────────────────────────────────────────
 
+
 class XRLFFlags(IntEnum):
-    HAS_CORE_GGUF       = 1 << 0
-    IS_MULTIMODAL       = 1 << 1   # native vision/audio in core model
-    HAS_MM_HOOKS        = 1 << 2   # external tool hooks (TTS etc.)
-    HAS_EMBEDDED_MEMORY = 1 << 3   # foveated memory embedded
-    HAS_MEMORY_SCHEMA   = 1 << 4
-    MEMORY_PERSISTENT   = 1 << 5   # memory updates re-packed on session end
-    CORE_IS_GGUF_MoQ    = 1 << 6   # MoQ (Mixed-Quantization) core
-    STT_NATIVE          = 1 << 7   # core model handles speech-to-text natively
-    VISION_NATIVE       = 1 << 8   # core model handles image/video natively
-    HAS_MMPROJ          = 1 << 9   # embedded multimodal projector
-    HAS_DRAFT_GGUF      = 1 << 10  # embedded speculative decoding draft model
-    HAS_WHISPER_GGUF    = 1 << 11  # embedded whisper model for local STT
-    HAS_KOKORO_MODEL    = 1 << 12  # embedded kokoro model for local TTS
+    HAS_CORE_GGUF = 1 << 0
+    IS_MULTIMODAL = 1 << 1  # native vision/audio in core model
+    HAS_MM_HOOKS = 1 << 2  # external tool hooks (TTS etc.)
+    HAS_EMBEDDED_MEMORY = 1 << 3  # foveated memory embedded
+    HAS_MEMORY_SCHEMA = 1 << 4
+    MEMORY_PERSISTENT = 1 << 5  # memory updates re-packed on session end
+    CORE_IS_GGUF_MoQ = 1 << 6  # MoQ (Mixed-Quantization) core
+    STT_NATIVE = 1 << 7  # core model handles speech-to-text natively
+    VISION_NATIVE = 1 << 8  # core model handles image/video natively
+    HAS_MMPROJ = 1 << 9  # embedded multimodal projector
+    HAS_DRAFT_GGUF = 1 << 10  # embedded speculative decoding draft model
+    HAS_WHISPER_GGUF = 1 << 11  # embedded whisper model for local STT
+    HAS_KOKORO_MODEL = 1 << 12  # embedded kokoro model for local TTS
 
 
 # Default flags for Gemma-4-12B-MoQ (all native multimodal input)
@@ -75,46 +75,52 @@ GEMMA4_DEFAULT_FLAGS = (
 
 # ── Section types ─────────────────────────────────────────────────────────────
 
+
 class SectionType(IntEnum):
-    CORE_GGUF        = 0x01   # Raw GGUF bytes of the neural core
-    XRL_PRINCIPLES   = 0x02   # Distilled reasoning principia
-    XRL_GRAPH        = 0x03   # Semantic concept graph
-    XRL_CLUSTERS     = 0x04   # Cognitive cluster definitions
-    XRL_PROFILES     = 0x05   # Task profiles (chat/code/vision/reasoning)
-    XRL_EXPANSION    = 0x06   # Expansion rules
-    XRL_MM_HOOKS     = 0x07   # Multimodal hook descriptors (TTS for Gemma-4)
-    XRL_MEMORY_DATA  = 0x08   # Embedded foveated memory (SQLite + TF-IDF)
-    XRL_MEMORY_SCHEMA= 0x09   # Memory retrieval policy & 6-ring config
-    RUNTIME_META     = 0x0A   # Build info, flags, capability map
-    CORE_MMPROJ      = 0x0B   # Raw GGUF bytes of the multimodal projector
-    CORE_DRAFT_GGUF  = 0x0C   # Raw GGUF bytes of the speculative decoding draft model
-    XRL_GRAMMAR      = 0x0D   # XRLF cognitive grammar primer (system prompt vocabulary)
-    XRL_SCROLLS      = 0x0E   # Dragon scrolls — drop-in knowledge the model studies at runtime
+    CORE_GGUF = 0x01  # Raw GGUF bytes of the neural core
+    XRL_PRINCIPLES = 0x02  # Distilled reasoning principia
+    XRL_GRAPH = 0x03  # Semantic concept graph
+    XRL_CLUSTERS = 0x04  # Cognitive cluster definitions
+    XRL_PROFILES = 0x05  # Task profiles (chat/code/vision/reasoning)
+    XRL_EXPANSION = 0x06  # Expansion rules
+    XRL_MM_HOOKS = 0x07  # Multimodal hook descriptors (TTS for Gemma-4)
+    XRL_MEMORY_DATA = 0x08  # Embedded foveated memory (SQLite + TF-IDF)
+    XRL_MEMORY_SCHEMA = 0x09  # Memory retrieval policy & 6-ring config
+    RUNTIME_META = 0x0A  # Build info, flags, capability map
+    CORE_MMPROJ = 0x0B  # Raw GGUF bytes of the multimodal projector
+    CORE_DRAFT_GGUF = 0x0C  # Raw GGUF bytes of the speculative decoding draft model
+    XRL_GRAMMAR = 0x0D  # XRLF cognitive grammar primer (system prompt vocabulary)
+    XRL_SCROLLS = (
+        0x0E  # Dragon scrolls — drop-in knowledge the model studies at runtime
+    )
     CORE_WHISPER_GGUF = 0x0F  # Raw GGUF bytes of the embedded Whisper STT model
     CORE_KOKORO_MODEL = 0x10  # Raw bytes of the embedded Kokoro TTS model
 
-SECTION_NAMES: Dict[int, str] = {t.value: t.name for t in SectionType}
+
+SECTION_NAMES: dict[int, str] = {t.value: t.name for t in SectionType}
 
 
 # Section-level flags
 class SectionFlags(IntEnum):
-    NONE        = 0
-    COMPRESSED  = 1 << 0   # payload is msgpack-compressed
-    ENCRYPTED   = 1 << 1   # reserved for future encryption
-    OPTIONAL    = 1 << 2   # runtime can continue without this section
+    NONE = 0
+    COMPRESSED = 1 << 0  # payload is msgpack-compressed
+    ENCRYPTED = 1 << 1  # reserved for future encryption
+    OPTIONAL = 1 << 2  # runtime can continue without this section
 
 
 # ── Dataclasses ───────────────────────────────────────────────────────────────
 
+
 @dataclass
 class XRLFHeader:
     """Parsed XRLF file header."""
-    magic: bytes           = MAGIC
-    version: int           = FORMAT_VERSION
-    base_model_name: str   = ""   # e.g. "gemma-4-12b-it-qat-GGUF-MoQ"
-    xrl_source_model: str  = ""   # e.g. "claude-sonnet-4" or "qwen3.5-4b"
-    flags: int             = int(GEMMA4_DEFAULT_FLAGS)
-    section_count: int     = 0
+
+    magic: bytes = MAGIC
+    version: int = FORMAT_VERSION
+    base_model_name: str = ""  # e.g. "gemma-4-12b-it-qat-GGUF-MoQ"
+    xrl_source_model: str = ""  # e.g. "claude-sonnet-4" or "qwen3.5-4b"
+    flags: int = int(GEMMA4_DEFAULT_FLAGS)
+    section_count: int = 0
 
     def has_flag(self, flag: XRLFFlags) -> bool:
         return bool(self.flags & flag)
@@ -132,14 +138,17 @@ class XRLFHeader:
 @dataclass
 class SectionEntry:
     """One entry in the XRLF section table."""
+
     section_type: SectionType
-    offset: int    = 0
-    length: int    = 0
-    flags: int     = int(SectionFlags.NONE)
+    offset: int = 0
+    length: int = 0
+    flags: int = int(SectionFlags.NONE)
 
     @property
     def name(self) -> str:
-        return SECTION_NAMES.get(self.section_type, f"UNKNOWN(0x{self.section_type:02x})")
+        return SECTION_NAMES.get(
+            self.section_type, f"UNKNOWN(0x{self.section_type:02x})"
+        )
 
     @property
     def compressed(self) -> bool:
@@ -149,11 +158,12 @@ class SectionEntry:
 @dataclass
 class XRLFManifest:
     """Full parsed manifest of an XRLF file."""
+
     header: XRLFHeader
-    sections: List[SectionEntry] = field(default_factory=list)
+    sections: list[SectionEntry] = field(default_factory=list)
     file_size: int = 0
 
-    def section(self, section_type: SectionType) -> Optional[SectionEntry]:
+    def section(self, section_type: SectionType) -> SectionEntry | None:
         for s in self.sections:
             if s.section_type == section_type:
                 return s
@@ -171,7 +181,9 @@ class XRLFManifest:
             f"  File size    : {self.file_size / 1e9:.2f} GB",
         ]
         for s in self.sections:
-            lines.append(f"    [{s.name:20s}] {s.length / 1e6:8.2f} MB  flags=0x{s.flags:02x}")
+            lines.append(
+                f"    [{s.name:20s}] {s.length / 1e6:8.2f} MB  flags=0x{s.flags:02x}"
+            )
         return "\n".join(lines)
 
 
@@ -179,15 +191,15 @@ class XRLFManifest:
 
 GEMMA4_CAPABILITY_MAP = {
     "input": {
-        "text":   {"native": True,  "hook": None},
-        "image":  {"native": True,  "hook": None},   # mmproj built into GGUF
-        "video":  {"native": True,  "hook": None},   # temporal vision
-        "audio":  {"native": True,  "hook": None},   # speech/audio understanding
+        "text": {"native": True, "hook": None},
+        "image": {"native": True, "hook": None},  # mmproj built into GGUF
+        "video": {"native": True, "hook": None},  # temporal vision
+        "audio": {"native": True, "hook": None},  # speech/audio understanding
     },
     "output": {
-        "text":   {"native": True,  "hook": None},
+        "text": {"native": True, "hook": None},
         "speech": {"native": False, "hook": "tts"},  # only external dep needed
-        "image":  {"native": False, "hook": "image_gen"},   # optional diffusion
-        "audio":  {"native": False, "hook": "audio_gen"},   # optional music gen
+        "image": {"native": False, "hook": "image_gen"},  # optional diffusion
+        "audio": {"native": False, "hook": "audio_gen"},  # optional music gen
     },
 }

@@ -157,6 +157,7 @@ namespace FoveAI.UI
                 serverIp = _serverIp,
                 wsPort = _wsPort,
                 httpPort = _httpPort,
+                soulPort = Config.ConfigLoader.Settings != null ? Config.ConfigLoader.Settings.soulPort : 8405,
                 avatarModel = _avatarModel,
             };
             string json = JsonUtility.ToJson(settings, true);

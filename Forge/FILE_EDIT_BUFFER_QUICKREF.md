@@ -16,9 +16,7 @@ from file_edit_buffer import staging_area
 
 # Stage changes
 staging_area.stage_file(
-    file_path="Forge/mesh_bus.py",
-    content="# new content",
-    edit_type="MODIFY"
+    file_path="Forge/mesh_bus.py", content="# new content", edit_type="MODIFY"
 )
 
 # Get Librarian review

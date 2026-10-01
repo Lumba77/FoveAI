@@ -1,0 +1,10 @@
+[
+  {
+    "test": 7,
+    "name": "Binary Format Efficiency",
+    "category": "efficiency",
+    "expectedAccuracy": "100%",
+    "results": 1,
+    "avgPromptSavings": "64%"
+  }
+]

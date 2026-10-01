@@ -2,40 +2,36 @@
 Gemma4ChatHandler — extracted from llama-cpp-python 0.3.34
 Works with llama-cpp-python 0.3.16 (which has mtmd_cpp but not the handler class)
 """
+
+import ctypes
+import json
 import os
 import sys
-import json
-import ctypes
+from collections.abc import Iterator
 from contextlib import ExitStack
 from typing import (
-    List,
-    Optional,
     Any,
-    Union,
-    Generator,
-    Dict,
-    Tuple,
-    Iterator,
     Literal,
+    Union,
 )
 
+import jinja2
 import llama_cpp
-import llama_cpp.llama as llama
-import llama_cpp.llama_types as llama_types
-import llama_cpp.llama_grammar as llama_grammar
-from llama_cpp.llama_chat_format import suppress_stdout_stderr
+from jinja2.sandbox import ImmutableSandboxedEnvironment
+from llama_cpp import llama, llama_grammar, llama_types
 from llama_cpp.llama_chat_format import (
     Jinja2ChatFormatter,
     _convert_completion_to_chat,
     _convert_completion_to_chat_function,
     _grammar_for_response_format,
+    suppress_stdout_stderr,
 )
-from jinja2.sandbox import ImmutableSandboxedEnvironment
-import jinja2
+
 try:
     from llama_cpp.llama_chat_format import logger
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
 
 
@@ -43,14 +39,14 @@ class MTMDChatHandler:
     def __init__(
         self, clip_model_path: str, verbose: bool = True, use_gpu: bool = True
     ):
-        import llama_cpp.mtmd_cpp as mtmd_cpp
+        from llama_cpp import mtmd_cpp
 
         self.clip_model_path = clip_model_path
         self.verbose = verbose
         self.use_gpu = use_gpu
         self._mtmd_cpp = mtmd_cpp
         self._exit_stack = ExitStack()
-        self.mtmd_ctx: Optional[mtmd_cpp.mtmd_context_p] = None
+        self.mtmd_ctx: mtmd_cpp.mtmd_context_p | None = None
 
         if not os.path.exists(clip_model_path):
             raise ValueError(f"Clip model path does not exist: {clip_model_path}")
@@ -117,7 +113,6 @@ class MTMDChatHandler:
         """Decode audio bytes (WAV/MP3/etc) into a float32 array at the model's native sample rate."""
         import io
         import wave
-        import struct
 
         # Get the model's expected sample rate
         target_sr = self._mtmd_cpp.mtmd_get_audio_sample_rate(self.mtmd_ctx)
@@ -136,6 +131,7 @@ class MTMDChatHandler:
             # Try soundfile (handles FLAC, OGG, etc)
             try:
                 import soundfile as sf
+
                 samples, sr = sf.read(io.BytesIO(audio_bytes), dtype="float32")
                 # Ensure mono
                 if len(samples.shape) > 1:
@@ -148,6 +144,7 @@ class MTMDChatHandler:
                 # Try numpy + manual decode as last resort
                 try:
                     import numpy as np
+
                     with wave.open(io.BytesIO(audio_bytes), "rb") as wav:
                         n_channels = wav.getnchannels()
                         sampwidth = wav.getsampwidth()
@@ -155,14 +152,19 @@ class MTMDChatHandler:
                         n_frames = wav.getnframes()
                         raw = wav.readframes(n_frames)
                 except Exception:
-                    raise ValueError("Cannot decode audio — install soundfile: pip install soundfile")
+                    raise ValueError(
+                        "Cannot decode audio — install soundfile: pip install soundfile"
+                    )
 
         # Convert raw bytes to float32 samples
         import numpy as np
+
         if sampwidth == 2:
             audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
         elif sampwidth == 1:
-            audio = (np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 128) / 128.0
+            audio = (
+                np.frombuffer(raw, dtype=np.uint8).astype(np.float32) - 128
+            ) / 128.0
         elif sampwidth == 4:
             audio = np.frombuffer(raw, dtype=np.int32).astype(np.float32) / 2147483648.0
         else:
@@ -182,6 +184,7 @@ class MTMDChatHandler:
     def _resample(samples, orig_sr, target_sr):
         """Simple linear resampling."""
         import numpy as np
+
         if orig_sr == target_sr:
             return samples
         ratio = target_sr / orig_sr
@@ -217,9 +220,9 @@ class MTMDChatHandler:
 
     def _get_template_messages(
         self,
-        messages: List[llama_types.ChatCompletionRequestMessage],
+        messages: list[llama_types.ChatCompletionRequestMessage],
         media_marker: str,
-    ) -> List[Any]:
+    ) -> list[Any]:
         return [
             self._convert_message_for_template(message, media_marker)
             for message in messages
@@ -230,7 +233,7 @@ class MTMDChatHandler:
         cls,
         message: llama_types.ChatCompletionRequestMessage,
         media_marker: str,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         message_dict = dict(message)
         content = message_dict.get("content")
         if isinstance(content, list):
@@ -258,9 +261,9 @@ class MTMDChatHandler:
     def _postprocess_template_text(
         self,
         text: str,
-        image_urls: List[str],
+        image_urls: list[str],
         media_marker: str,
-        audio_urls: Optional[List[str]] = None,
+        audio_urls: list[str] | None = None,
     ) -> str:
         for image_url in image_urls:
             text = text.replace(image_url, media_marker)
@@ -273,23 +276,21 @@ class MTMDChatHandler:
         self,
         *,
         llama: llama.Llama,
-        messages: List[llama_types.ChatCompletionRequestMessage],
-        functions: Optional[List[llama_types.ChatCompletionFunction]] = None,
-        function_call: Optional[llama_types.ChatCompletionRequestFunctionCall] = None,
-        tools: Optional[List[llama_types.ChatCompletionTool]] = None,
-        tool_choice: Optional[llama_types.ChatCompletionToolChoiceOption] = None,
+        messages: list[llama_types.ChatCompletionRequestMessage],
+        functions: list[llama_types.ChatCompletionFunction] | None = None,
+        function_call: llama_types.ChatCompletionRequestFunctionCall | None = None,
+        tools: list[llama_types.ChatCompletionTool] | None = None,
+        tool_choice: llama_types.ChatCompletionToolChoiceOption | None = None,
         temperature: float = 0.2,
         top_p: float = 0.95,
         top_k: int = 40,
         min_p: float = 0.05,
         typical_p: float = 1.0,
         stream: bool = False,
-        stop: Optional[Union[str, List[str]]] = [],
-        seed: Optional[int] = None,
-        response_format: Optional[
-            llama_types.ChatCompletionRequestResponseFormat
-        ] = None,
-        max_tokens: Optional[int] = None,
+        stop: str | list[str] | None = [],
+        seed: int | None = None,
+        response_format: llama_types.ChatCompletionRequestResponseFormat | None = None,
+        max_tokens: int | None = None,
         presence_penalty: float = 0.0,
         frequency_penalty: float = 0.0,
         repeat_penalty: float = 1.1,
@@ -297,17 +298,14 @@ class MTMDChatHandler:
         mirostat_mode: int = 0,
         mirostat_tau: float = 5.0,
         mirostat_eta: float = 0.1,
-        model: Optional[str] = None,
-        logits_processor: Optional[llama.LogitsProcessorList] = None,
-        grammar: Optional[llama.LlamaGrammar] = None,
-        logit_bias: Optional[Dict[str, float]] = None,
-        logprobs: Optional[bool] = None,
-        top_logprobs: Optional[int] = None,
+        model: str | None = None,
+        logits_processor: llama.LogitsProcessorList | None = None,
+        grammar: llama.LlamaGrammar | None = None,
+        logit_bias: dict[str, float] | None = None,
+        logprobs: bool | None = None,
+        top_logprobs: int | None = None,
         **kwargs,  # type: ignore
-    ) -> Union[
-        llama_types.CreateChatCompletionResponse,
-        Iterator[llama_types.CreateChatCompletionStreamResponse],
-    ]:
+    ) -> llama_types.CreateChatCompletionResponse | Iterator[llama_types.CreateChatCompletionStreamResponse]:
         self._init_mtmd_context(llama)
         assert self.mtmd_ctx is not None
 
@@ -341,7 +339,9 @@ class MTMDChatHandler:
             strftime_now=Jinja2ChatFormatter.strftime_now,
             **kwargs,
         )
-        text = self._postprocess_template_text(text, image_urls, media_marker, audio_urls)
+        text = self._postprocess_template_text(
+            text, image_urls, media_marker, audio_urls
+        )
 
         if self.verbose:
             print(text, file=sys.stderr)
@@ -550,8 +550,8 @@ class MTMDChatHandler:
                 return image_bytes
 
     @staticmethod
-    def get_image_urls(messages: List[llama_types.ChatCompletionRequestMessage]):
-        image_urls: List[str] = []
+    def get_image_urls(messages: list[llama_types.ChatCompletionRequestMessage]):
+        image_urls: list[str] = []
         for message in messages:
             if message["role"] == "user":
                 if message["content"] is None:
@@ -569,8 +569,8 @@ class MTMDChatHandler:
         return image_urls
 
     @staticmethod
-    def get_audio_urls(messages: List[llama_types.ChatCompletionRequestMessage]):
-        audio_urls: List[str] = []
+    def get_audio_urls(messages: list[llama_types.ChatCompletionRequestMessage]):
+        audio_urls: list[str] = []
         for message in messages:
             if message["role"] == "user":
                 if message["content"] is None:
@@ -594,17 +594,17 @@ class MTMDChatHandler:
     def from_pretrained(
         cls,
         repo_id: str,
-        filename: Optional[str],
-        local_dir: Optional[Union[str, os.PathLike[str]]] = None,
-        local_dir_use_symlinks: Union[bool, Literal["auto"]] = "auto",
-        cache_dir: Optional[Union[str, os.PathLike[str]]] = None,
+        filename: str | None,
+        local_dir: str | os.PathLike[str] | None = None,
+        local_dir_use_symlinks: bool | Literal["auto"] = "auto",
+        cache_dir: str | os.PathLike[str] | None = None,
         **kwargs: Any,
     ) -> "MTMDChatHandler":
         import fnmatch
         from pathlib import Path
 
         try:
-            from huggingface_hub import hf_hub_download, HfFileSystem  # type: ignore
+            from huggingface_hub import HfFileSystem, hf_hub_download  # type: ignore
             from huggingface_hub.utils import validate_repo_id  # type: ignore
         except ImportError:
             raise ImportError(
@@ -621,7 +621,7 @@ class MTMDChatHandler:
             for file in hffs.ls(repo_id)  # type: ignore
         ]
 
-        file_list: List[str] = []
+        file_list: list[str] = []
         for file in files:
             rel_path = Path(file).relative_to(repo_id)
             file_list.append(str(rel_path))
@@ -675,5 +675,3 @@ class MTMDChatHandler:
 
 class Gemma4ChatHandler(MTMDChatHandler):
     pass
-
-

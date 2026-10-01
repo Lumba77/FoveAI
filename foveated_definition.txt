@@ -1,0 +1,13 @@
+# Foveated Memory: Architectural Definition
+
+Foveated Memory is a biomimetic context-management architecture for AI, inspired directly by the human eye's *fovea centralis*.
+
+Just like the human retina does not process the entire visual field in 4K resolution, Foveated Memory does not force the AI to remember an entire conversation word-for-word. Instead, it relies on a gradient of compression:
+
+1. **The Foveal Center (High-Res Sharpness):** 
+   The absolute center of attention (the most recent messages) is kept in perfect, uncompressed, high-definition raw tokens. This mimics the dense cone cells of the fovea, allowing the AI to focus deeply on immediate logic and exact syntax.
+
+2. **The Peripheral Lens (Progressive Compression):** 
+   As memories age and move away from the center of attention, they are pushed outward across "rings" of increasing compression. The text is aggressively summarized into dense XRLF (eXtensible Reality Language) checkpoints—trading exact wording for atomic keywords and shapes.
+
+By mimicking biological vision, Foveated Memory grants an AI a theoretically infinite memory span without ever overloading its "visual cortex" (the GPU VRAM limit). It maintains perfect sharpness where it matters, and highly compressed efficiency everywhere else.

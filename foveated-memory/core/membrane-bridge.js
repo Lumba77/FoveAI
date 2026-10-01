@@ -15,7 +15,8 @@ const path = require('path');
 const fs = require('fs');
 const { getCachedSkeleton } = require('./skeleton-slimmer');
 
-const PYTHON_BIN = process.env.PYTHON_PATH || 'python';
+const defaultVenvPython = path.resolve(__dirname, '..', '..', '.venv', process.platform === 'win32' ? 'Scripts/python.exe' : 'bin/python');
+const PYTHON_BIN = process.env.PYTHON_PATH || (fs.existsSync(defaultVenvPython) ? defaultVenvPython : (process.platform === 'win32' ? 'python' : 'python3'));
 const MEMBRANE_CORE_PY = path.resolve(__dirname, '..', 'membrane_core.py');
 const REPO_PRINCIPIA_MD = path.resolve(__dirname, '..', 'repo-principia.md');
 const REPO_SKELETON_MD = fs.existsSync(REPO_PRINCIPIA_MD) ? REPO_PRINCIPIA_MD : path.resolve(__dirname, '..', 'repo-skeleton.md');

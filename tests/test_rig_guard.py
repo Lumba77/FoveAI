@@ -5,7 +5,6 @@ Validates telemetry queries, safe parsing, ignore auditing, and alert cooldowns.
 """
 
 import sys
-import os
 import unittest
 from pathlib import Path
 
@@ -14,11 +13,10 @@ FOVEAI_ROOT = Path(__file__).resolve().parent.parent
 if str(FOVEAI_ROOT) not in sys.path:
     sys.path.insert(0, str(FOVEAI_ROOT))
 
-from runtime.rig_guard import RigGuard, CRITICAL_IGNORE_PATTERNS
+from runtime.rig_guard import RigGuard
 
 
 class TestRigGuard(unittest.TestCase):
-
     def setUp(self):
         self.guard = RigGuard(cooldown_seconds=5)
 
@@ -32,7 +30,9 @@ class TestRigGuard(unittest.TestCase):
         self.assertGreater(ram["total_gb"], 0)
         self.assertGreaterEqual(ram["percent"], 0)
         self.assertLessEqual(ram["percent"], 100)
-        print(f"\n[Test] System RAM: {ram['used_gb']}/{ram['total_gb']} GB ({ram['percent']}%)")
+        print(
+            f"\n[Test] System RAM: {ram['used_gb']}/{ram['total_gb']} GB ({ram['percent']}%)"
+        )
 
     def test_language_server_status_query(self):
         """Test language server status querying doesn't crash and returns structured info."""
@@ -73,6 +73,7 @@ class TestRigGuard(unittest.TestCase):
     def test_alert_cooldown(self):
         """Verify notifications respect cooldown periods."""
         alerts = []
+
         def fake_notify(msg, title):
             alerts.append((msg, title))
 
@@ -83,8 +84,14 @@ class TestRigGuard(unittest.TestCase):
         # Immediate second run MUST NOT send duplicate alert because of cooldown
         second_dispatched = self.guard.audit_and_alert(fake_notify)
         second_count = len(alerts)
-        self.assertEqual(first_count, second_count, "Cooldown failed to throttle duplicate alert!")
-        self.assertEqual(len(second_dispatched), 0, "Second audit should dispatch 0 alerts within cooldown period!")
+        self.assertEqual(
+            first_count, second_count, "Cooldown failed to throttle duplicate alert!"
+        )
+        self.assertEqual(
+            len(second_dispatched),
+            0,
+            "Second audit should dispatch 0 alerts within cooldown period!",
+        )
 
     def test_runaway_git_hunter(self):
         """Verify runaway git process scanner executes safely without error."""
@@ -105,28 +112,31 @@ class TestRigGuard(unittest.TestCase):
     def test_smart_cpu_offload_calculation(self):
         """Verify smart CPU offload calculations for small and large models."""
         from runtime.vram_guard import VRAMGuardrail
+
         vg = VRAMGuardrail()
         # Test 1: Small 2.4GB model should offload all layers to GPU
         dummy_small = "dummy_small.gguf"
-        offload_small = vg.calculate_smart_offload(dummy_small, total_layers=33, n_ctx=2048)
+        offload_small = vg.calculate_smart_offload(
+            dummy_small, total_layers=33, n_ctx=2048
+        )
         self.assertIn("gpu_layers", offload_small)
         self.assertIn("cpu_layers", offload_small)
         self.assertIn("mode", offload_small)
         self.assertEqual(offload_small["cpu_layers"], 0)
-        print(f"[Test] Smart Offload (Small): {offload_small['mode']} ({offload_small['gpu_layers']}/33 GPU)")
+        print(
+            f"[Test] Smart Offload (Small): {offload_small['mode']} ({offload_small['gpu_layers']}/33 GPU)"
+        )
 
         # Test 2: Large 12B model with simulated high VRAM usage should offload layers to CPU
         offload_large = vg.calculate_smart_offload(
-            "dummy_large.gguf",
-            total_layers=42,
-            n_ctx=4096,
-            safety_floor_gb=1.6
+            "dummy_large.gguf", total_layers=42, n_ctx=4096, safety_floor_gb=1.6
         )
         self.assertIn("gpu_layers", offload_large)
         self.assertIn("cpu_layers", offload_large)
-        print(f"[Test] Smart Offload (Large): {offload_large['mode']} ({offload_large['gpu_layers']} GPU / {offload_large['cpu_layers']} CPU)")
+        print(
+            f"[Test] Smart Offload (Large): {offload_large['mode']} ({offload_large['gpu_layers']} GPU / {offload_large['cpu_layers']} CPU)"
+        )
 
 
 if __name__ == "__main__":
     unittest.main()
-

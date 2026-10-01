@@ -4,9 +4,9 @@ Bootstrap the XRLF FoveAI under the FoveAI repo root.
 Creates the .xrlf/*.xrlf files and config files matching .env variable names.
 Also rewrites XRLF_* paths in .env to point to the local Windows workspace.
 """
-import os
-import re
+
 import json
+import os
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -15,16 +15,22 @@ XRLF_DIR = WORKSPACE / ".xrlf"
 CONFIG_DIR = XRLF_DIR / "config"
 EXT_DIR = XRLF_DIR / "extensions"
 
+
 def ensure_dirs():
-    for d in [XRLF_DIR, CONFIG_DIR, EXT_DIR,
-              XRLF_DIR / "checkpoints",
-              XRLF_DIR / "memory" / "default",
-              XRLF_DIR / "memory" / "builder",
-              XRLF_DIR / "memory" / "planner",
-              XRLF_DIR / "memory" / "reviewer",
-              XRLF_DIR / "memory" / "scribe",
-              XRLF_DIR / "memory" / "tester"]:
+    for d in [
+        XRLF_DIR,
+        CONFIG_DIR,
+        EXT_DIR,
+        XRLF_DIR / "checkpoints",
+        XRLF_DIR / "memory" / "default",
+        XRLF_DIR / "memory" / "builder",
+        XRLF_DIR / "memory" / "planner",
+        XRLF_DIR / "memory" / "reviewer",
+        XRLF_DIR / "memory" / "scribe",
+        XRLF_DIR / "memory" / "tester",
+    ]:
         d.mkdir(parents=True, exist_ok=True)
+
 
 def load_json(name):
     p = REPO_ROOT / ".xrlf" / name
@@ -33,11 +39,13 @@ def load_json(name):
             return json.load(f)
     return {}
 
+
 def write_xrlf(path, content):
     with open(path, "w", encoding="utf-8") as f:
         f.write(content)
         if not content.endswith("\n"):
             f.write("\n")
+
 
 def contract_xrlf():
     return f"""XRLF.3.CONTRACT.START
@@ -103,6 +111,7 @@ EXECUTION.PREDICATE:
 XRLF.3.CONTRACT.END
 """
 
+
 def holons_xrlf():
     return """XRLF.3.HOLONS.START
 
@@ -122,6 +131,7 @@ HOLON.RULES:
 
 XRLF.3.HOLONS.END
 """
+
 
 def phasegraph_xrlf():
     return """XRLF.3.PHASEGRAPH.START
@@ -147,9 +157,15 @@ TRANSITIONS:
 XRLF.3.PHASEGRAPH.END
 """
 
+
 def agents_xrlf():
     data = load_json("agents.json")
-    lines = ["XRLF.3.AGENTS.START", "", f"DEFAULT_ROLE := {data.get('default_role', 'builder')}", ""]
+    lines = [
+        "XRLF.3.AGENTS.START",
+        "",
+        f"DEFAULT_ROLE := {data.get('default_role', 'builder')}",
+        "",
+    ]
     for role, cfg in data.get("roles", {}).items():
         lines.append(f"AGENT.{role.upper()}:")
         for k, v in cfg.items():
@@ -157,18 +173,22 @@ def agents_xrlf():
                 v = "[" + ", ".join(str(x) for x in v) + "]"
             lines.append(f"  {k} := {v}")
         lines.append("")
-    lines.extend([
-        "API:",
-        f"  header := {data.get('api_key_header', 'Authorization')}",
-        f"  scheme := {data.get('api_key_scheme', 'Bearer')}",
-        "",
-        "XRLF.3.AGENTS.END"
-    ])
+    lines.extend(
+        [
+            "API:",
+            f"  header := {data.get('api_key_header', 'Authorization')}",
+            f"  scheme := {data.get('api_key_scheme', 'Bearer')}",
+            "",
+            "XRLF.3.AGENTS.END",
+        ]
+    )
     return "\n".join(lines)
+
 
 def config_xrlf(name, json_name):
     data = load_json(json_name)
     lines = [f"XRLF.3.CONFIG.{name.upper()}.START", ""]
+
     def walk(prefix, obj):
         if isinstance(obj, dict):
             for k, v in obj.items():
@@ -184,9 +204,11 @@ def config_xrlf(name, json_name):
                     walk(prefix + "  ", v)
                 else:
                     lines.append(f"{prefix}[{i}] := {v}")
+
     walk("", data)
     lines.extend(["", f"XRLF.3.CONFIG.{name.upper()}.END"])
     return "\n".join(lines)
+
 
 def update_env():
     env_path = REPO_ROOT / ".env"
@@ -200,19 +222,29 @@ def update_env():
     env_path.write_text(text, encoding="utf-8")
     print(f"Updated .env XRLF paths to: {new_root}")
 
+
 def main():
     ensure_dirs()
     write_xrlf(XRLF_DIR / "xrlf.contract.xrlf", contract_xrlf())
     write_xrlf(XRLF_DIR / "holons.xrlf", holons_xrlf())
     write_xrlf(XRLF_DIR / "phasegraph.xrlf", phasegraph_xrlf())
     write_xrlf(XRLF_DIR / "agents.xrlf", agents_xrlf())
-    write_xrlf(CONFIG_DIR / "geometry.config.xrlf", config_xrlf("geometry", "geometry.json"))
-    write_xrlf(CONFIG_DIR / "resonance.config.xrlf", config_xrlf("resonance", "resonance.json"))
-    write_xrlf(CONFIG_DIR / "thermal.config.xrlf", config_xrlf("thermal", "thermal.json"))
-    write_xrlf(CONFIG_DIR / "runtime.config.xrlf", config_xrlf("runtime", "runtime.json"))
+    write_xrlf(
+        CONFIG_DIR / "geometry.config.xrlf", config_xrlf("geometry", "geometry.json")
+    )
+    write_xrlf(
+        CONFIG_DIR / "resonance.config.xrlf", config_xrlf("resonance", "resonance.json")
+    )
+    write_xrlf(
+        CONFIG_DIR / "thermal.config.xrlf", config_xrlf("thermal", "thermal.json")
+    )
+    write_xrlf(
+        CONFIG_DIR / "runtime.config.xrlf", config_xrlf("runtime", "runtime.json")
+    )
     write_xrlf(CONFIG_DIR / "agents.config.xrlf", config_xrlf("agents", "agents.json"))
     update_env()
     print("XRLF workspace bootstrapped at:", WORKSPACE)
+
 
 if __name__ == "__main__":
     main()

@@ -2,7 +2,7 @@
   "name": "foveai-vibe-coder",
   "displayName": "FoveAI Vibe Coder",
   "description": "Persistent-memory AI vibe coder powered by FoveAI Foveated Memory — voice, context farming, repo scanning, execution buffer, and autonomous intent engine.",
-  "version": "0.5.6",
+  "version": "0.6.0",
   "publisher": "foveai",
   "engines": {
     "vscode": "^1.85.0"
@@ -25,7 +25,7 @@
       "activitybar": [
         {
           "id": "jenna-panel",
-          "title": "Jenna",
+          "title": "FoveAI Vibe Coding",
           "icon": "assets/jenna-activity-icon.svg"
         }
       ]
@@ -41,6 +41,16 @@
       ]
     },
     "commands": [
+      {
+        "command": "jenna.signIn",
+        "title": "FoveAI — Sign In (beta account)",
+        "icon": "$(sign-in)"
+      },
+      {
+        "command": "jenna.signOut",
+        "title": "FoveAI — Sign Out",
+        "icon": "$(sign-out)"
+      },
       {
         "command": "jenna.switchPersona",
         "title": "FoveAI — Switch Active Persona",
@@ -207,8 +217,8 @@
         },
         "jenna.model": {
           "type": "string",
-          "default": "XRLF 9B (Coder)",
-          "description": "Model to use for Jenna coding assistant. Default is XRLF 9B (Coder)."
+          "default": "Quwtpus-9B-XRLF",
+          "description": "Model to use for Jenna coding assistant. Default is Quwtpus-9B-XRLF (alias for the qwopus3.5-9b-coder-mtp-moq XRLF on the central :8402 runtime)."
         },
         "jenna.workspaceId": {
           "type": "string",
@@ -219,6 +229,11 @@
           "type": "boolean",
           "default": true,
           "description": "Enable streaming responses from Jenna"
+        },
+        "jenna.agentTools": {
+          "type": "boolean",
+          "default": true,
+          "description": "Let the model drive workspace tools (read/search/edit/write files, run commands with approval, repo scan) via in-response tool calls — the Cline-style agentic loop. Disable to fall back to the legacy intent classifier (jenna.agentMode)."
         },
         "jenna.inlineCompletions": {
           "type": "boolean",

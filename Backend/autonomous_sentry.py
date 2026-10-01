@@ -1,19 +1,20 @@
-import time
-import os
 import json
-import socket
-import httpx
 import logging
+import os
+import socket
 import subprocess
+import time
 from datetime import datetime, timezone
-from preflight.checks import run_preflight, summarize
-from preflight.json_util import load_playbook_path
+
+import httpx
 from preflight.agentic_solver import (
+    answer_runtime_question,
     propose_actions,
     propose_architecture_plan,
     read_unstable_features,
-    answer_runtime_question,
 )
+from preflight.checks import run_preflight, summarize
+from preflight.json_util import load_playbook_path
 
 # Default WARNING: routine chatter at DEBUG. Override with FoveAI_SENTRY_LOG_LEVEL=INFO for verbose loops.
 _sentry_lvl_name = os.getenv("FoveAI_SENTRY_LOG_LEVEL", "WARNING").upper()
@@ -83,12 +84,26 @@ def _service_health_urls() -> dict[str, str]:
     """
     soul_base = os.getenv("SOUL_URL", "http://foveai_soul:8402").strip().rstrip("/")
     ears_base = os.getenv("EARS_URL", "http://foveai_body:8001").strip().rstrip("/")
-    mouth_base = os.getenv("MOUTH_URL", os.getenv("FoveAI_MOUTH_URL", "http://foveai_body:8002")).strip().rstrip("/")
-    turbo_base = os.getenv("TURBO_URL", os.getenv("FoveAI_TURBO_URL", "http://foveai_turbochat:8005")).strip().rstrip("/")
-    creative_base = os.getenv(
-        "CREATIVE_SERVICE_URL",
-        "http://foveai_creativity:8003",
-    ).strip().rstrip("/")
+    mouth_base = (
+        os.getenv("MOUTH_URL", os.getenv("FoveAI_MOUTH_URL", "http://foveai_body:8002"))
+        .strip()
+        .rstrip("/")
+    )
+    turbo_base = (
+        os.getenv(
+            "TURBO_URL", os.getenv("FoveAI_TURBO_URL", "http://foveai_turbochat:8005")
+        )
+        .strip()
+        .rstrip("/")
+    )
+    creative_base = (
+        os.getenv(
+            "CREATIVE_SERVICE_URL",
+            "http://foveai_creativity:8003",
+        )
+        .strip()
+        .rstrip("/")
+    )
     urls: dict[str, str] = {
         "SOUL": os.getenv("FoveAI_SENTRY_SOUL_HEALTH_URL", f"{soul_base}/health"),
         "EARS": os.getenv("FoveAI_SENTRY_EARS_HEALTH_URL", f"{ears_base}/health"),
@@ -97,7 +112,9 @@ def _service_health_urls() -> dict[str, str]:
     # Turbo health is only relevant when mouth backend is turbo.
     tts_backend = _resolved_tts_backend()
     if tts_backend == "turbo":
-        urls["TURBO"] = os.getenv("FoveAI_SENTRY_TURBO_HEALTH_URL", f"{turbo_base}/health")
+        urls["TURBO"] = os.getenv(
+            "FoveAI_SENTRY_TURBO_HEALTH_URL", f"{turbo_base}/health"
+        )
     # Creativity (dream) on :8003 — foveai_embers does not publish host ports; conflict on 8003 is never from embers.
     if _bool_env("FoveAI_SENTRY_CHECK_CREATIVITY", True):
         cu = os.getenv("FoveAI_SENTRY_CREATIVITY_HEALTH_URL", "").strip()
@@ -107,12 +124,16 @@ def _service_health_urls() -> dict[str, str]:
             urls["CREATIVE"] = f"{creative_base}/health"
     # Same container as uvicorn (127.0.0.1); detects dead Web UI while sentry still runs.
     if _bool_env("FoveAI_SENTRY_CHECK_WEBUI", True):
-        wu = os.getenv("FoveAI_SENTRY_WEBUI_HEALTH_URL", "http://127.0.0.1:8080/health").strip()
+        wu = os.getenv(
+            "FoveAI_SENTRY_WEBUI_HEALTH_URL", "http://127.0.0.1:8080/health"
+        ).strip()
         if wu:
             urls["WEBUI"] = wu
     # Autonomous Core (Jen's independent runtime) on :8010
     if _bool_env("FoveAI_SENTRY_CHECK_AUTONOMOUS", True):
-        au = os.getenv("FoveAI_SENTRY_AUTONOMOUS_HEALTH_URL", "http://127.0.0.1:8010/health").strip()
+        au = os.getenv(
+            "FoveAI_SENTRY_AUTONOMOUS_HEALTH_URL", "http://127.0.0.1:8010/health"
+        ).strip()
         if au:
             urls["AUTONOMOUS"] = au
     return urls
@@ -123,7 +144,9 @@ def _resolved_tts_backend() -> str:
     Active mouth stack: turbo or chatterbox.
     Source order: marker file first, then env, then turbo.
     """
-    marker = os.getenv("FoveAI_TTS_BACKEND_FILE", "/app/Backend/preflight/tts_backend").strip()
+    marker = os.getenv(
+        "FoveAI_TTS_BACKEND_FILE", "/app/Backend/preflight/tts_backend"
+    ).strip()
     if marker:
         try:
             if os.path.isfile(marker):
@@ -140,12 +163,16 @@ def _resolved_tts_backend() -> str:
 # Resolved once at import; callers may re-read via _service_health_urls() in tests.
 SERVICES: dict[str, str] = _service_health_urls()
 
-OUTBOX_DIR = os.getenv("FoveAI_SENTRY_OUTBOX_DIR", os.path.join("/app", "Backend", "preflight", "outbox"))
+OUTBOX_DIR = os.getenv(
+    "FoveAI_SENTRY_OUTBOX_DIR", os.path.join("/app", "Backend", "preflight", "outbox")
+)
 WATCHDOG_POLICY_PATH = os.getenv(
     "FoveAI_SENTRY_WATCHDOG_POLICY_PATH",
     os.path.join("/app", "ops", "playbooks", "watchdog_policy.json"),
 )
-INBOX_DIR = os.getenv("FoveAI_SENTRY_INBOX_DIR", os.path.join("/app", "Backend", "preflight", "inbox"))
+INBOX_DIR = os.getenv(
+    "FoveAI_SENTRY_INBOX_DIR", os.path.join("/app", "Backend", "preflight", "inbox")
+)
 
 # foveai_ops mounts /var/run/docker.sock; COMPOSE_PROJECT_NAME should match host `docker compose ls`.
 _COMPOSE_FILE = "/app/docker-compose.yml"
@@ -166,7 +193,9 @@ def _run_docker_compose(args: list[str], timeout: float) -> subprocess.Completed
     )
 
 
-def _docker_restart(container: str, timeout: float = 40.0) -> subprocess.CompletedProcess:
+def _docker_restart(
+    container: str, timeout: float = 40.0
+) -> subprocess.CompletedProcess:
     """Restart by container name — avoids compose project mismatch when cwd is /app."""
     return subprocess.run(
         ["docker", "restart", container],
@@ -305,7 +334,9 @@ def _speak_watchdog_answer(question: str, answer: str) -> None:
     engine = os.getenv("FoveAI_SENTRY_TTS_ENGINE", "TURBO").strip()
     max_chars = int(os.getenv("FoveAI_SENTRY_TTS_MAX_CHARS", "320"))
     # Keep spoken output short and useful.
-    spoken = f"Watchdog answer for question: {question}. {answer}".replace("\n", " ").strip()
+    spoken = f"Watchdog answer for question: {question}. {answer}".replace(
+        "\n", " "
+    ).strip()
     if len(spoken) > max_chars:
         spoken = spoken[: max_chars - 3].rstrip() + "..."
     payload = {"text": spoken, "voice": voice, "engine": engine}
@@ -313,9 +344,15 @@ def _speak_watchdog_answer(question: str, answer: str) -> None:
         with httpx.Client(timeout=20.0) as client:
             resp = client.post(tts_url, json=payload)
             if resp.status_code == 200:
-                logger.debug("🔊 Watchdog TTS answer spoken via %s (%s)", tts_url, engine)
+                logger.debug(
+                    "🔊 Watchdog TTS answer spoken via %s (%s)", tts_url, engine
+                )
             else:
-                logger.warning("Watchdog TTS failed: status=%s body=%s", resp.status_code, (resp.text or "")[:180])
+                logger.warning(
+                    "Watchdog TTS failed: status=%s body=%s",
+                    resp.status_code,
+                    (resp.text or "")[:180],
+                )
     except Exception as e:
         logger.warning("Watchdog TTS request failed: %s", e)
 
@@ -346,19 +383,30 @@ def _inspect_containers_report() -> dict:
         "OPS": "foveai_ops",
     }
     try:
-        ps = subprocess.run(["docker", "ps"], capture_output=True, text=True, timeout=20)
+        ps = subprocess.run(
+            ["docker", "ps"], capture_output=True, text=True, timeout=20
+        )
         report["docker_ps"] = (ps.stdout or ps.stderr or "").strip()
     except Exception as e:
         report["docker_ps"] = f"docker ps failed: {e}"
     for key, cname in service_to_container.items():
         try:
-            ins = subprocess.run(["docker", "inspect", cname], capture_output=True, text=True, timeout=20)
+            ins = subprocess.run(
+                ["docker", "inspect", cname], capture_output=True, text=True, timeout=20
+            )
             report["service_inspect"][key] = (ins.stdout or ins.stderr or "")[:6000]
         except Exception as e:
             report["service_inspect"][key] = f"inspect failed: {e}"
         try:
-            logs = subprocess.run(["docker", "logs", "--tail", "120", cname], capture_output=True, text=True, timeout=20)
-            report["recent_logs"][key] = ((logs.stdout or "") + "\n" + (logs.stderr or "")).strip()[:9000]
+            logs = subprocess.run(
+                ["docker", "logs", "--tail", "120", cname],
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+            report["recent_logs"][key] = (
+                (logs.stdout or "") + "\n" + (logs.stderr or "")
+            ).strip()[:9000]
         except Exception as e:
             report["recent_logs"][key] = f"logs failed: {e}"
     _write_outbox("container_watchdog_report_latest.json", report)
@@ -405,7 +453,12 @@ def _action_allowed(action: str, policy: dict) -> bool:
         return bool(actions.get("allow_docker_compose_up", False))
     if action == "bridge_reverse":
         return bool(actions.get("allow_bridge_reverse", True))
-    if action in ("restart_service_soul", "restart_service_body", "restart_service_turbo", "restart_service_ops"):
+    if action in (
+        "restart_service_soul",
+        "restart_service_body",
+        "restart_service_turbo",
+        "restart_service_ops",
+    ):
         return bool(actions.get("allow_service_restart", False))
     if action == "rebuild_service_soul":
         # Rebuild requires compose build/up permissions.
@@ -440,12 +493,16 @@ def check_services() -> dict:
                     logger.debug("✅ %s: ONLINE", name)
                     failures[name] = False
                 else:
-                    logger.warning("⚠️ %s: UNSTABLE (Status %s) url=%s", name, resp.status_code, url)
+                    logger.warning(
+                        "⚠️ %s: UNSTABLE (Status %s) url=%s", name, resp.status_code, url
+                    )
                     failures[name] = True
         except Exception as e:
             err = str(e)
             hint = ""
-            if name == "SOUL" and ("timed out" in err.lower() or "timeout" in err.lower()):
+            if name == "SOUL" and (
+                "timed out" in err.lower() or "timeout" in err.lower()
+            ):
                 hint = (
                     " — Soul may still be running: long /compagent + sync local inference can block /health "
                     "on one uvicorn worker; raise FoveAI_SENTRY_HEALTH_TIMEOUT_SEC or run compagent with "
@@ -454,6 +511,7 @@ def check_services() -> dict:
             logger.error("❌ %s: OFFLINE (%s) url=%s%s", name, err, url, hint)
             failures[name] = True
     return failures
+
 
 def _parse_quest_ip_from_adb_devices(stdout: str) -> str:
     for line in stdout.splitlines():
@@ -467,7 +525,9 @@ def _parse_quest_ip_from_adb_devices(stdout: str) -> str:
         if ":" in serial:
             host = serial.split(":", 1)[0].strip()
             parts = host.split(".")
-            if len(parts) == 4 and all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
+            if len(parts) == 4 and all(
+                p.isdigit() and 0 <= int(p) <= 255 for p in parts
+            ):
                 return host
     return ""
 
@@ -485,26 +545,30 @@ def refresh_quest_network_config(quest_ip: str) -> None:
             logger.debug("Could not read %s: %s", QUEST_NETWORK_CONFIG, e)
             data = {}
 
-    env_lan = os.getenv("FoveAI_PC_LAN_IP", "").strip()
+    env_lan = (
+        os.getenv("FoveAI_PC_LAN_IP", "").strip()
+        or os.getenv("FOVEAI_SERVER_IP", "").strip()
+    )
     if env_lan:
         data["pc_lan_ip"] = env_lan
         data["nat_peer_default"] = env_lan
     else:
         existing = str(data.get("pc_lan_ip", "") or "").strip()
-        if not existing:
-            auto = _auto_pc_lan_ipv4()
-            if auto:
-                data["pc_lan_ip"] = auto
-                data["nat_peer_default"] = auto
-            elif _in_docker():
-                logger.debug(
-                    "Quest LAN: pc_lan_ip missing (FoveAI_PC_LAN_IP unset, empty %s). "
-                    "Set FoveAI_PC_LAN_IP in .env or run .\\connect_quest.ps1 on Windows to write the JSON.",
-                    QUEST_NETWORK_CONFIG,
-                )
+        auto = _auto_pc_lan_ipv4()
+        if auto:
+            data["pc_lan_ip"] = auto
+            data["nat_peer_default"] = auto
+        elif not existing and _in_docker():
+            logger.debug(
+                "Quest LAN: pc_lan_ip missing (FoveAI_PC_LAN_IP unset, empty %s). "
+                "Set FoveAI_PC_LAN_IP in .env or run .\\connect_quest.ps1 on Windows to write the JSON.",
+                QUEST_NETWORK_CONFIG,
+            )
     if quest_ip:
         data["quest_ip"] = quest_ip
-    mode_env = os.getenv("FoveAI_QUEST_LINK_MODE", "").strip().lower()  # adb | lan | auto
+    mode_env = (
+        os.getenv("FoveAI_QUEST_LINK_MODE", "").strip().lower()
+    )  # adb | lan | auto
     use_adb_env = os.getenv("FoveAI_USE_ADB_REVERSE", "").strip().lower()
     if mode_env == "adb":
         desired_adb_reverse = True
@@ -538,21 +602,28 @@ def refresh_quest_network_config(quest_ip: str) -> None:
             try:
                 with open(QUEST_NETWORK_CONFIG, "r", encoding="utf-8-sig") as f:
                     old_data = json.load(f)
-                if isinstance(old_data, dict) and _network_config_canonical_json(old_data) == new_canon:
+                if (
+                    isinstance(old_data, dict)
+                    and _network_config_canonical_json(old_data) == new_canon
+                ):
                     return
             except Exception:
                 pass
         with open(QUEST_NETWORK_CONFIG, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
             f.write("\n")
-        logger.debug("Updated %s (quest_ip=%s)", QUEST_NETWORK_CONFIG, quest_ip or "(unchanged)")
+        logger.debug(
+            "Updated %s (quest_ip=%s)", QUEST_NETWORK_CONFIG, quest_ip or "(unchanged)"
+        )
     except Exception as e:
         logger.warning("Could not write %s: %s", QUEST_NETWORK_CONFIG, e)
 
 
 def establish_neural_bridge():
     if not _bool_env("FoveAI_SENTRY_REFRESH_NETWORK_CONFIG", True):
-        logger.debug("Sentry bridge: FoveAI_SENTRY_REFRESH_NETWORK_CONFIG=0 — skipping Quest network file / adb reverse.")
+        logger.debug(
+            "Sentry bridge: FoveAI_SENTRY_REFRESH_NETWORK_CONFIG=0 — skipping Quest network file / adb reverse."
+        )
         return
     mode_env = os.getenv("FoveAI_QUEST_LINK_MODE", "").strip().lower()
     use_adb_env = os.getenv("FoveAI_USE_ADB_REVERSE", "").strip().lower()
@@ -575,7 +646,9 @@ def establish_neural_bridge():
             timeout=15,
         )
         if "device" not in res.stdout:
-            logger.warning("⚠️ No Quest 3 detected via host.docker.internal. Ensure USB is plugged in!")
+            logger.warning(
+                "⚠️ No Quest 3 detected via host.docker.internal. Ensure USB is plugged in!"
+            )
             return
 
         quest_ip = _parse_quest_ip_from_adb_devices(res.stdout)
@@ -583,7 +656,14 @@ def establish_neural_bridge():
 
         for p in ports:
             # -H host.docker.internal bridges the container to the Windows Host's ADB daemon
-            cmd = ["adb", "-H", "host.docker.internal", "reverse", f"tcp:{p}", f"tcp:{p}"]
+            cmd = [
+                "adb",
+                "-H",
+                "host.docker.internal",
+                "reverse",
+                f"tcp:{p}",
+                f"tcp:{p}",
+            ]
             res = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             if res.returncode == 0:
                 logger.debug(f"✅ Bridge TCP:{p} locked.")
@@ -592,15 +672,19 @@ def establish_neural_bridge():
                 pass
         logger.debug("✅ Sovereign Bridge: All tunnels SECURE.")
     except Exception as e:
-        logger.error(f"❌ Bridge Failure: {str(e)}")
+        logger.error(f"❌ Bridge Failure: {e!s}")
 
 
-def _execute_heal_actions(actions: list[str], policy: dict, failures: dict, solver_decision: dict) -> None:
+def _execute_heal_actions(
+    actions: list[str], policy: dict, failures: dict, solver_decision: dict
+) -> None:
     for action in actions:
         if not _action_allowed(action, policy):
             logger.warning("🛡️ Action blocked by watchdog policy: %s", action)
             continue
-        if _action_needs_approval(action, policy) and not _gpu_guard_may_skip_approval(solver_decision):
+        if _action_needs_approval(action, policy) and not _gpu_guard_may_skip_approval(
+            solver_decision
+        ):
             _request_approval(
                 reason=f"approval-required:{action}",
                 actions=[action],
@@ -614,7 +698,10 @@ def _execute_heal_actions(actions: list[str], policy: dict, failures: dict, solv
                 if res.returncode == 0:
                     logger.debug("🛠️ Heal action docker_compose_up: OK")
                 else:
-                    logger.warning("🛠️ Heal action docker_compose_up failed: %s", (res.stderr or "").strip())
+                    logger.warning(
+                        "🛠️ Heal action docker_compose_up failed: %s",
+                        (res.stderr or "").strip(),
+                    )
             except Exception as e:
                 logger.warning("🛠️ Heal action docker_compose_up error: %s", e)
         elif action == "bridge_reverse":
@@ -649,17 +736,23 @@ def _execute_heal_actions(actions: list[str], policy: dict, failures: dict, solv
             try:
                 build = _run_docker_compose(["build", "foveai_soul"], timeout=1800)
                 if build.returncode != 0:
-                    logger.warning("🛠️ rebuild_service_soul build failed: %s", (build.stderr or "").strip()[:300])
+                    logger.warning(
+                        "🛠️ rebuild_service_soul build failed: %s",
+                        (build.stderr or "").strip()[:300],
+                    )
                     continue
-                up = _run_docker_compose(["up", "-d", "--force-recreate", "foveai_soul"], timeout=240)
+                up = _run_docker_compose(
+                    ["up", "-d", "--force-recreate", "foveai_soul"], timeout=240
+                )
                 logger.debug("🛠️ rebuild_service_soul up rc=%s", up.returncode)
                 if up.returncode != 0:
-                    logger.warning("🛠️ rebuild_service_soul up failed: %s", (up.stderr or "").strip()[:300])
+                    logger.warning(
+                        "🛠️ rebuild_service_soul up failed: %s",
+                        (up.stderr or "").strip()[:300],
+                    )
             except Exception as e:
                 logger.warning("🛠️ rebuild_service_soul error: %s", e)
-        elif action == "inspect_containers":
-            _inspect_containers_report()
-        elif action == "capture_service_logs":
+        elif action == "inspect_containers" or action == "capture_service_logs":
             _inspect_containers_report()
         elif action == "extended_test_probe":
             probe = {
@@ -669,7 +762,9 @@ def _execute_heal_actions(actions: list[str], policy: dict, failures: dict, solv
             }
             _write_outbox("extended_test_probe_latest.json", probe)
         elif action == "request_architecture_plan":
-            plan = propose_architecture_plan(failures=failures, solver_decision=solver_decision)
+            plan = propose_architecture_plan(
+                failures=failures, solver_decision=solver_decision
+            )
             _write_outbox("architect_plan_latest.json", plan)
             _request_approval(
                 reason="architect-plan-generated",
@@ -681,19 +776,30 @@ def _execute_heal_actions(actions: list[str], policy: dict, failures: dict, solv
         else:
             logger.warning("🛠️ Unknown heal action ignored: %s", action)
 
+
 if __name__ == "__main__":
     preflight_level = os.getenv("FoveAI_PREFLIGHT_LEVEL", "light").strip().lower()
-    preflight_autoheal = os.getenv("FoveAI_PREFLIGHT_AUTOHEAL", "true").strip().lower() in ("1", "true", "yes", "on")
+    preflight_autoheal = os.getenv(
+        "FoveAI_PREFLIGHT_AUTOHEAL", "true"
+    ).strip().lower() in ("1", "true", "yes", "on")
     sentry_interval_sec = float(os.getenv("FoveAI_SENTRY_INTERVAL_SEC", "15"))
     roam_enabled = _bool_env("FoveAI_SENTRY_ROAM_ENABLED", True)
     roam_when_in_service = _bool_env("FoveAI_SENTRY_ROAM_WHEN_IN_SERVICE", True)
     roam_when_not_in_service = _bool_env("FoveAI_SENTRY_ROAM_WHEN_NOT_IN_SERVICE", True)
-    roam_min_interval_sec = float(os.getenv("FoveAI_SENTRY_ROAM_MIN_INTERVAL_SEC", "60"))
+    roam_min_interval_sec = float(
+        os.getenv("FoveAI_SENTRY_ROAM_MIN_INTERVAL_SEC", "60")
+    )
     roam_loop_budget_ms = float(os.getenv("FoveAI_SENTRY_ROAM_LOOP_BUDGET_MS", "700"))
     gpu_guard_enabled = _bool_env("FoveAI_SENTRY_SOUL_GPU_GUARD_ENABLED", True)
-    gpu_guard_hold_loops = max(1, int(os.getenv("FoveAI_SENTRY_SOUL_GPU_GUARD_HOLD_LOOPS", "2")))
-    gpu_guard_cooldown_sec = max(30.0, float(os.getenv("FoveAI_SENTRY_SOUL_GPU_GUARD_COOLDOWN_SEC", "1800")))
-    gpu_guard_remediation = os.getenv("FoveAI_SENTRY_SOUL_GPU_GUARD_REMEDIATION", "rebuild").strip().lower()
+    gpu_guard_hold_loops = max(
+        1, int(os.getenv("FoveAI_SENTRY_SOUL_GPU_GUARD_HOLD_LOOPS", "2"))
+    )
+    gpu_guard_cooldown_sec = max(
+        30.0, float(os.getenv("FoveAI_SENTRY_SOUL_GPU_GUARD_COOLDOWN_SEC", "1800"))
+    )
+    gpu_guard_remediation = (
+        os.getenv("FoveAI_SENTRY_SOUL_GPU_GUARD_REMEDIATION", "rebuild").strip().lower()
+    )
     gpu_guard_bad_loops = 0
     last_gpu_guard_fix_ts = 0.0
     last_roam_ts = 0.0
@@ -724,7 +830,9 @@ if __name__ == "__main__":
                     context={"failures": failures, "decision": decision},
                 )
             if isinstance(actions, list):
-                _execute_heal_actions(actions, policy=policy, failures=failures, solver_decision=decision)
+                _execute_heal_actions(
+                    actions, policy=policy, failures=failures, solver_decision=decision
+                )
             improvement_notes = decision.get("improvement_notes", [])
             test_measures = decision.get("test_measures", [])
             if improvement_notes or test_measures:
@@ -760,16 +868,31 @@ if __name__ == "__main__":
                         "probe": probe,
                     },
                 )
-                cooldown_ok = (time.time() - last_gpu_guard_fix_ts) >= gpu_guard_cooldown_sec
+                cooldown_ok = (
+                    time.time() - last_gpu_guard_fix_ts
+                ) >= gpu_guard_cooldown_sec
                 if gpu_guard_bad_loops >= gpu_guard_hold_loops and cooldown_ok:
                     if gpu_guard_remediation == "restart":
-                        _execute_heal_actions(["restart_service_soul"], policy=policy, failures=failures, solver_decision={"reason": "gpu-guard"})
+                        _execute_heal_actions(
+                            ["restart_service_soul"],
+                            policy=policy,
+                            failures=failures,
+                            solver_decision={"reason": "gpu-guard"},
+                        )
                         last_gpu_guard_fix_ts = time.time()
                     elif gpu_guard_remediation == "rebuild":
-                        _execute_heal_actions(["rebuild_service_soul"], policy=policy, failures=failures, solver_decision={"reason": "gpu-guard"})
+                        _execute_heal_actions(
+                            ["rebuild_service_soul"],
+                            policy=policy,
+                            failures=failures,
+                            solver_decision={"reason": "gpu-guard"},
+                        )
                         last_gpu_guard_fix_ts = time.time()
                     else:
-                        logger.debug("Soul GPU guard remediation disabled (mode=%s)", gpu_guard_remediation)
+                        logger.debug(
+                            "Soul GPU guard remediation disabled (mode=%s)",
+                            gpu_guard_remediation,
+                        )
                     gpu_guard_bad_loops = 0
             else:
                 gpu_guard_bad_loops = 0
@@ -783,7 +906,11 @@ if __name__ == "__main__":
         roam_due = (now - last_roam_ts) >= max(5.0, roam_min_interval_sec)
         allow_roam = False
         if roam_enabled and roam_due:
-            if app_in_service and roam_when_in_service and loop_elapsed_ms <= roam_loop_budget_ms:
+            if (
+                app_in_service
+                and roam_when_in_service
+                and loop_elapsed_ms <= roam_loop_budget_ms
+            ):
                 allow_roam = True
             if (not app_in_service) and roam_when_not_in_service:
                 allow_roam = True

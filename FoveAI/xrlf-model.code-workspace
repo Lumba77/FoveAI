@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"editor.mouseWheelZoom": true,
+		"editor.autoIndentOnPaste": true,
+		"diffEditor.renderSideBySide": false,
+		"diffEditor.experimental.showMoves": true,
+		"scm.diffDecorationsGutterAction": "diff",
+		"lmstudio.serverUrl": "http://localhost:7272/v1",
+		"lmstudio.maxOutputTokens": 16800,
+		"codeium.enableCodeLens": false
+	}
+}

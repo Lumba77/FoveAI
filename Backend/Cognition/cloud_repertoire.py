@@ -29,16 +29,22 @@ Cloud completion length:
   FoveAI_CLOUD_MAX_TOKENS_CAP — upper clamp for max_tokens (default 131072 if unset). Set lower (e.g. 8192)
   on small models or tight budgets.
 """
+
 from __future__ import annotations
 
 import json
 import logging
 import os
-import random
+import time
 from datetime import date, datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import httpx
+
+try:
+    import soul_state as _soul_state  # side-effect: FOVEAI_/FoveAI_ env case normalization
+except ImportError:
+    _soul_state = None
 
 import genai_daily_budget
 
@@ -50,18 +56,26 @@ try:
 except ImportError:
     try:
         import sys
+
         sys.path.append(os.path.dirname(os.path.abspath(__file__)))
         from motor_cortex import get_motor_tools_schema  # type: ignore
     except ImportError:
+
         def get_motor_tools_schema() -> list:
             return []
+
 
 try:
     from smart_context_manager import smart_context_manager  # type: ignore
 except ImportError:
     try:
         import sys
-        sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "Forge")))
+
+        sys.path.append(
+            os.path.abspath(
+                os.path.join(os.path.dirname(__file__), "..", "..", "Forge")
+            )
+        )
         from smart_context_manager import smart_context_manager  # type: ignore
     except ImportError:
         smart_context_manager = None
@@ -89,6 +103,7 @@ def _cloud_max_output_tokens_ceiling() -> int:
 # Repertoire slimmed: Ollama Cloud is primary (handled outside repertoire),
 # repertoire only holds fallback cloud providers.
 _DEFAULT_BASE = {
+    "NVIDIA": "https://integrate.api.nvidia.com/v1",
     "OLLAMA_CLOUD": "https://ollama.com/v1",
     "GEMINI": "https://generativelanguage.googleapis.com/v1beta/openai/",
     "OPENROUTER": "https://openrouter.ai/api/v1",
@@ -97,13 +112,16 @@ _DEFAULT_BASE = {
 # No slots are keyless in the slimmed repertoire (all are cloud providers).
 _NO_KEY_REQUIRED: set = set()
 
-# OLLAMA_CLOUD first (primary), then GEMINI and OPENROUTER as fallbacks.
-_SLOT_ORDER = ("OLLAMA_CLOUD", "GEMINI", "OPENROUTER")
+# NVIDIA NIM first (primary cloud), then OLLAMA_CLOUD, GEMINI, OPENROUTER
+# as fallbacks when NVIDIA is depleted or unavailable.
+_SLOT_ORDER = ("NVIDIA", "OLLAMA_CLOUD", "GEMINI", "OPENROUTER")
 _SLOT_PUBLIC_ID = {
+    "NVIDIA": "nvidia",
     "OLLAMA_CLOUD": "ollama_cloud",
     "GEMINI": "gemini",
     "OPENROUTER": "openrouter",
 }
+
 
 def _utc_date_iso() -> str:
     return datetime.now(timezone.utc).date().isoformat()
@@ -140,7 +158,9 @@ def openai_daily_budget_allows() -> bool:
             if st.get("date") == today:
                 count = int(st.get("count", 0))
         except Exception as e:
-            logger.warning("cloud_repertoire: OpenAI usage state unreadable (%s), treating as 0", e)
+            logger.warning(
+                "cloud_repertoire: OpenAI usage state unreadable (%s), treating as 0", e
+            )
     return count < cap
 
 
@@ -170,7 +190,7 @@ def openai_budget_record_successful_request() -> None:
         logger.error("cloud_repertoire: could not write OpenAI usage state: %s", e)
 
 
-def eligible_cloud_slot_ids() -> List[str]:
+def eligible_cloud_slot_ids() -> list[str]:
     """Configured cloud slots in priority order."""
     if os.getenv("FoveAI_COGNITIVE_MODE", "").strip().lower() == "local":
         return []
@@ -178,7 +198,7 @@ def eligible_cloud_slot_ids() -> List[str]:
     return slots
 
 
-def privacy_slot_ids() -> List[str]:
+def privacy_slot_ids() -> list[str]:
     """Slots suitable for privacy mode.
     Repertoire slimmed — only OpenRouter available for privacy."""
     if os.getenv("FoveAI_COGNITIVE_MODE", "").strip().lower() == "local":
@@ -190,17 +210,53 @@ def privacy_slot_ids() -> List[str]:
         if pid and slot_credentials(prefix):
             privacy_slots.append(pid)
     if not privacy_slots:
-        logger.info("cloud_repertoire: no privacy slots configured — falling back to all eligible slots")
+        logger.info(
+            "cloud_repertoire: no privacy slots configured — falling back to all eligible slots"
+        )
         return eligible_cloud_slot_ids()
     return privacy_slots
 
 
-def _read_slot(prefix: str) -> Tuple[str, str, str, str]:
+def _url_to_base(url: str) -> str:
+    """Normalize a full endpoint URL to a base URL (strip /chat/completions etc.)."""
+    u = (url or "").strip()
+    for suffix in ("/chat/completions", "/completions"):
+        u = u.removesuffix(suffix)
+    return u.rstrip("/")
+
+
+def _read_slot(prefix: str) -> tuple[str, str, str, str]:
     if prefix == "OPENROUTER":
         key = os.getenv("FoveAI_CLOUD_OPENROUTER_API", "").strip()
         base = os.getenv("FoveAI_CLOUD_OPENROUTER_BASEURL", "").strip()
-        model = os.getenv("FoveAI_MODEL_OPENROUTER_ID", "gryphe/mythomax-l2-13b").strip()
-        label = os.getenv("FoveAI_REPERTOIRE_OPENROUTER_LABEL", "OpenRouter Intimate").strip()
+        model = os.getenv(
+            "FoveAI_MODEL_OPENROUTER_ID", "deepseek/deepseek-chat-v3.1:free"
+        ).strip()
+        label = os.getenv(
+            "FoveAI_REPERTOIRE_OPENROUTER_LABEL", "OpenRouter Intimate"
+        ).strip()
+        return base, key, model, label
+
+    if prefix == "NVIDIA":
+        key = (
+            os.getenv("FoveAI_REPERTOIRE_NVIDIA_API_KEY", "")
+            or os.getenv("FOVEAI_REPERTOIRE_NVIDIA_API_KEY", "")
+            or os.getenv("FOVEAI_NVIDIA_API_KEY", "")
+        ).strip()
+        base = (
+            os.getenv("FoveAI_REPERTOIRE_NVIDIA_BASE_URL", "")
+            or os.getenv("FOVEAI_REPERTOIRE_NVIDIA_BASE_URL", "")
+            or _url_to_base(os.getenv("FOVEAI_NVIDIA_URL", ""))
+            or _DEFAULT_BASE.get(prefix, "")
+        ).strip()
+        model = (
+            os.getenv("FoveAI_REPERTOIRE_NVIDIA_MODEL", "")
+            or os.getenv("FOVEAI_REPERTOIRE_NVIDIA_MODEL", "")
+            or os.getenv("FOVEAI_NVIDIA_MODEL", "")
+            or os.getenv("FOVEAI_CODER_MODEL", "")
+            or "moonshotai/kimi-k3"
+        ).strip()
+        label = os.getenv("FoveAI_REPERTOIRE_NVIDIA_LABEL", "NVIDIA NIM").strip()
         return base, key, model, label
 
     if prefix == "OLLAMA_CLOUD":
@@ -213,11 +269,17 @@ def _read_slot(prefix: str) -> Tuple[str, str, str, str]:
         model = os.getenv("FoveAI_MODEL_CLOUD_ID", "").strip()
         if not model:
             model = "gemma3:latest"
-        label = os.getenv("FoveAI_REPERTOIRE_OLLAMA_CLOUD_LABEL", "").strip() or "Ollama Cloud Mind"
+        label = (
+            os.getenv("FoveAI_REPERTOIRE_OLLAMA_CLOUD_LABEL", "").strip()
+            or "Ollama Cloud Mind"
+        )
         return base, key, model, label
 
     # Generic fallback for GEMINI and any future cloud slots
-    key = os.getenv(f"FoveAI_REPERTOIRE_{prefix}_API_KEY", "").strip()
+    key = (
+        os.getenv(f"FoveAI_REPERTOIRE_{prefix}_API_KEY", "")
+        or os.getenv(f"FOVEAI_REPERTOIRE_{prefix}_API_KEY", "")
+    ).strip()
     if not key:
         if prefix == "GEMINI":
             key = os.getenv("GEMINI_API_KEY", os.getenv("GOOGLE_API_KEY", "")).strip()
@@ -228,16 +290,22 @@ def _read_slot(prefix: str) -> Tuple[str, str, str, str]:
     base = os.getenv(f"FoveAI_REPERTOIRE_{prefix}_BASE_URL", "").strip()
     if not base:
         base = _DEFAULT_BASE.get(prefix, "")
-    label = os.getenv(f"FoveAI_REPERTOIRE_{prefix}_LABEL", prefix.title()).strip() or prefix.title()
+    label = (
+        os.getenv(f"FoveAI_REPERTOIRE_{prefix}_LABEL", prefix.title()).strip()
+        or prefix.title()
+    )
     return base, key, model, label
 
 
 def ollama_deep_model() -> str:
     """Return the deep-reasoning model for analytical tasks."""
-    return os.getenv("FoveAI_REPERTOIRE_OLLAMA_DEEP_MODEL", "gemma3:27b").strip() or "gemma3:27b"
+    return (
+        os.getenv("FoveAI_REPERTOIRE_OLLAMA_DEEP_MODEL", "gemma3:27b").strip()
+        or "gemma3:27b"
+    )
 
 
-def slot_credentials(prefix: str) -> Optional[Tuple[str, str, str, str]]:
+def slot_credentials(prefix: str) -> tuple[str, str, str, str] | None:
     """Returns (base_url, api_key, model, label) if the slot is usable."""
     if os.getenv("FoveAI_COGNITIVE_MODE", "").strip().lower() == "local":
         return None
@@ -247,11 +315,11 @@ def slot_credentials(prefix: str) -> Optional[Tuple[str, str, str, str]]:
     return None
 
 
-def configured_slots_public() -> List[Dict[str, str]]:
+def configured_slots_public() -> list[dict[str, str]]:
     """Safe for logging / prompts — no secrets."""
     if os.getenv("FoveAI_COGNITIVE_MODE", "").strip().lower() == "local":
         return []
-    out: List[Dict[str, str]] = []
+    out: list[dict[str, str]] = []
     for p in _SLOT_ORDER:
         cred = slot_credentials(p)
         if not cred:
@@ -291,7 +359,9 @@ def repertoire_sensory_text() -> str:
         "API slots configured on this deployment. ",
     ]
     for s in slots:
-        lines.append(f"  — {s['label']} (`{s['id']}`): model `{s['model']}` @ `{s['base_host']}`")
+        lines.append(
+            f"  — {s['label']} (`{s['id']}`): model `{s['model']}` @ `{s['base_host']}`"
+        )
     cap = openai_daily_request_cap()
     if cap > 0 and any(s["id"] == "openai" for s in slots):
         lines.append(
@@ -301,10 +371,10 @@ def repertoire_sensory_text() -> str:
 
 
 def resolve_cloud_slot(
-    request_override: Optional[str],
+    request_override: str | None,
     env_mode: str,
     splice_percent: int,
-) -> Optional[str]:
+) -> str | None:
     """
     Returns public slot id or None -> use absolute native local.
     Forcefully prevents cloud leaks if cognitive mode flags request local setups.
@@ -312,7 +382,9 @@ def resolve_cloud_slot(
     # Strict Enforcement Gate
     cog_mode = os.getenv("FoveAI_COGNITIVE_MODE", "").strip().lower()
     if cog_mode == "local":
-        logger.info("cloud_repertoire: FoveAI_COGNITIVE_MODE is hard-locked to local. Bypassing cloud fallbacks.")
+        logger.info(
+            "cloud_repertoire: FoveAI_COGNITIVE_MODE is hard-locked to local. Bypassing cloud fallbacks."
+        )
         return None
 
     slots = eligible_cloud_slot_ids()
@@ -335,7 +407,7 @@ def resolve_cloud_slot(
     return all_configured[0] if all_configured else None
 
 
-def _env_prefix_for_public_id(public_id: str) -> Optional[str]:
+def _env_prefix_for_public_id(public_id: str) -> str | None:
     pid_lower = public_id.lower()
     for p, pid in _SLOT_PUBLIC_ID.items():
         if pid == pid_lower:
@@ -349,37 +421,46 @@ async def openai_compatible_chat(
     model: str,
     system_text: str,
     user_text: str,
-    image_base64: Optional[str] = None,
-    max_tokens: Optional[int] = None,
+    image_base64: str | None = None,
+    max_tokens: int | None = None,
 ) -> str:
     url = base_url.rstrip("/") + "/chat/completions"
     headers = {"Content-Type": "application/json", "User-Agent": _CLOUD_USER_AGENT}
     if (api_key or "").strip():
         headers["Authorization"] = f"Bearer {api_key}"
-    
+
     if "openrouter.ai" in url.lower():
-        headers["HTTP-Referer"] = os.getenv("FoveAI_OPENROUTER_REFERER", "https://github.com/google-gemini/gemini-cli")
+        headers["HTTP-Referer"] = os.getenv(
+            "FoveAI_OPENROUTER_REFERER", "https://github.com/google-gemini/gemini-cli"
+        )
         headers["X-Title"] = os.getenv("FoveAI_OPENROUTER_TITLE", "FoveAI AI Companion")
 
-    mt = max_tokens if max_tokens is not None else int(os.getenv("FoveAI_CLOUD_MAX_TOKENS", "4096") or "4096")
+    mt = (
+        max_tokens
+        if max_tokens is not None
+        else int(os.getenv("FoveAI_CLOUD_MAX_TOKENS", "4096") or "4096")
+    )
     mt = max(64, min(mt, _cloud_max_output_tokens_ceiling()))
 
     user_content: Any
     if image_base64:
         user_content = [
-            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}},
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"},
+            },
             {"type": "text", "text": user_text},
         ]
     else:
         user_content = user_text
 
-    messages: List[Dict[str, Any]] = []
+    messages: list[dict[str, Any]] = []
     st = (system_text or "").strip()
     if st:
         messages.append({"role": "system", "content": st})
     messages.append({"role": "user", "content": user_content})
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "model": model,
         "messages": messages,
         "temperature": float(os.getenv("FoveAI_CLOUD_TEMPERATURE", "0.7") or "0.7"),
@@ -387,6 +468,21 @@ async def openai_compatible_chat(
     }
     if os.getenv("FoveAI_MODEL_STRUCTURED_OUTPUT", "false").lower() == "true":
         payload["response_format"] = {"type": "json_object"}
+
+    # NVIDIA NIM reasoning models (e.g. moonshotai/kimi-k3) default to
+    # reasoning_effort=max, which can push a chat turn past client timeouts.
+    # FOVEAI_NVIDIA_REASONING (low|high|max) overrides per request.
+    if "api.nvidia.com" in url.lower():
+        effort = (
+            (
+                os.getenv("FoveAI_REPERTOIRE_NVIDIA_REASONING_EFFORT", "")
+                or os.getenv("FOVEAI_NVIDIA_REASONING", "")
+            )
+            .strip()
+            .lower()
+        )
+        if effort in ("low", "high", "max"):
+            payload["reasoning_effort"] = effort
 
     # Inject native tool call schema if available to give LLM fully spatial presence
     tools = get_motor_tools_schema()
@@ -406,14 +502,23 @@ async def openai_compatible_chat(
                         if isinstance(item, dict) and item.get("type") == "text":
                             content_str = item.get("text", "")
                             break
-                scm_messages.append({"role": m.get("role", "user"), "content": content_str})
-                
-            processed_msgs, scm_meta = await smart_context_manager.apply_cutting_strategy(
+                scm_messages.append(
+                    {"role": m.get("role", "user"), "content": content_str}
+                )
+
+            (
+                processed_msgs,
+                scm_meta,
+            ) = await smart_context_manager.apply_cutting_strategy(
                 "cloud_repertoire", scm_messages
             )
-            
+
             # Reconstruction: Map pruned content back to the original messages payload (preserving system/user format)
-            pruned_map = {m.get("content"): m for m in messages if isinstance(m.get("content"), str)}
+            pruned_map = {
+                m.get("content"): m
+                for m in messages
+                if isinstance(m.get("content"), str)
+            }
             new_messages = []
             for pm in processed_msgs:
                 orig_m = pruned_map.get(pm.get("content"))
@@ -421,30 +526,50 @@ async def openai_compatible_chat(
                     new_messages.append(orig_m)
                 else:
                     # System instruction / fallbacks
-                    new_messages.append({"role": pm.get("role"), "content": pm.get("content")})
-            
+                    new_messages.append(
+                        {"role": pm.get("role"), "content": pm.get("content")}
+                    )
+
             # Always ensure user message is present
             if not any(nm.get("role") == "user" for nm in new_messages):
                 new_messages.append(messages[-1])
-                
+
             payload["messages"] = new_messages
-            
+
             # Report token load back to TokenSlayer
-            total_tokens = sum(len(str(m.get("content", ""))) // 4 for m in new_messages)
-            await smart_context_manager.report_tokens("cloud_repertoire", total_tokens, new_messages)
+            total_tokens = sum(
+                len(str(m.get("content", ""))) // 4 for m in new_messages
+            )
+            await smart_context_manager.report_tokens(
+                "cloud_repertoire", total_tokens, new_messages
+            )
         except Exception as sc_err:
             logger.error(f"cloud_repertoire: SmartContext pruning failed: {sc_err}")
-    
+
     # Context-aware logging label to prevent Kafkaesque confusion strings
-    log_dest = "Local Cortex" if "localhost" in url or "127.0.0.1" in url else "Cloud Mind"
-    logger.info("Executing chat routine via endpoint slot node [%s] targeting model: %s", log_dest, model)
+    log_dest = (
+        "Local Cortex" if "localhost" in url or "127.0.0.1" in url else "Cloud Mind"
+    )
+    prompt_chars = sum(
+        len(str(m.get("content", ""))) for m in payload.get("messages", [])
+    )
+    logger.info(
+        "Executing chat routine via endpoint slot node [%s] targeting model: %s (prompt≈%d chars, max_tokens=%d, effort=%s)",
+        log_dest,
+        model,
+        prompt_chars,
+        payload.get("max_tokens", 0),
+        payload.get("reasoning_effort", "default"),
+    )
 
     timeout = float(os.getenv("FoveAI_CLOUD_HTTP_TIMEOUT", "300") or "300")
+    t0 = time.monotonic()
     async with httpx.AsyncClient(timeout=timeout) as client:
         r = await client.post(url, headers=headers, json=payload)
+        logger.info("Cloud slot roundtrip: %.1fs (%s)", time.monotonic() - t0, model)
         try:
             r.raise_for_status()
-        except httpx.HTTPStatusError as e:
+        except httpx.HTTPStatusError:
             snippet = (r.text or "").replace("\n", " ")[:400]
             logger.error("Endpoint slot failure on HTTP %s %s", r.status_code, snippet)
             raise
@@ -453,17 +578,23 @@ async def openai_compatible_chat(
     if not choices:
         return ""
     msg = choices[0].get("message") or {}
-    
+
     # Robustly extract reasoning/thinking content from all known vendor/spec formats
     reasoning = ""
-    for k in ("reasoning_content", "reasoning", "thinking", "thought", "thinking_content"):
+    for k in (
+        "reasoning_content",
+        "reasoning",
+        "thinking",
+        "thought",
+        "thinking_content",
+    ):
         val = msg.get(k)
         if val and isinstance(val, str) and val.strip():
             reasoning = val.strip()
             break
-            
+
     content = (msg.get("content") or "").strip()
-    
+
     # Process native tool calls and convert them to [MOTOR:tool_name{args}] format
     tool_calls = msg.get("tool_calls") or []
     if tool_calls:
@@ -478,14 +609,14 @@ async def openai_compatible_chat(
                 content = content + "\n" + "\n".join(tool_texts)
             else:
                 content = "\n".join(tool_texts)
-    
+
     if reasoning:
         # Prepend wrapped think tags so that MindCore downstream parses/extracts it perfectly
         if content:
             content = f"<think>\n{reasoning}\n</think>\n\n{content}"
         else:
             content = f"<think>\n{reasoning}\n</think>"
-            
+
     return content
 
 
@@ -496,20 +627,24 @@ def openai_compatible_chat_sync(
     system_text: str,
     user_text: str,
     *,
-    max_tokens: Optional[int] = None,
+    max_tokens: int | None = None,
 ) -> str:
     url = base_url.rstrip("/") + "/chat/completions"
     headers = {"Content-Type": "application/json", "User-Agent": _CLOUD_USER_AGENT}
     if (api_key or "").strip():
         headers["Authorization"] = f"Bearer {api_key}"
-    mt = max_tokens if max_tokens is not None else int(os.getenv("FoveAI_CLOUD_MAX_TOKENS", "4096") or "4096")
+    mt = (
+        max_tokens
+        if max_tokens is not None
+        else int(os.getenv("FoveAI_CLOUD_MAX_TOKENS", "4096") or "4096")
+    )
     mt = max(64, min(mt, _cloud_max_output_tokens_ceiling()))
-    messages: List[Dict[str, Any]] = []
+    messages: list[dict[str, Any]] = []
     st = (system_text or "").strip()
     if st:
         messages.append({"role": "system", "content": st})
     messages.append({"role": "user", "content": user_text})
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "model": model,
         "messages": messages,
         "temperature": float(os.getenv("FoveAI_CLOUD_TEMPERATURE", "0.7") or "0.7"),
@@ -517,12 +652,23 @@ def openai_compatible_chat_sync(
     }
     if os.getenv("FoveAI_MODEL_STRUCTURED_OUTPUT", "false").lower() == "true":
         payload["response_format"] = {"type": "json_object"}
+    if "api.nvidia.com" in url.lower():
+        effort = (
+            (
+                os.getenv("FoveAI_REPERTOIRE_NVIDIA_REASONING_EFFORT", "")
+                or os.getenv("FOVEAI_NVIDIA_REASONING", "")
+            )
+            .strip()
+            .lower()
+        )
+        if effort in ("low", "high", "max"):
+            payload["reasoning_effort"] = effort
     timeout = float(os.getenv("FoveAI_CLOUD_HTTP_TIMEOUT", "300") or "300")
     with httpx.Client(timeout=timeout) as client:
         r = client.post(url, headers=headers, json=payload)
         try:
             r.raise_for_status()
-        except httpx.HTTPStatusError as e:
+        except httpx.HTTPStatusError:
             snippet = (r.text or "").replace("\n", " ")[:400]
             logger.error("Sync slot failure on HTTP %s %s", r.status_code, snippet)
             raise
@@ -531,25 +677,42 @@ def openai_compatible_chat_sync(
     if not choices:
         return ""
     msg = choices[0].get("message") or {}
-    
+
     # Robustly extract reasoning/thinking content from all known vendor/spec formats
     reasoning = ""
-    for k in ("reasoning_content", "reasoning", "thinking", "thought", "thinking_content"):
+    for k in (
+        "reasoning_content",
+        "reasoning",
+        "thinking",
+        "thought",
+        "thinking_content",
+    ):
         val = msg.get(k)
         if val and isinstance(val, str) and val.strip():
             reasoning = val.strip()
             break
-            
+
     content = (msg.get("content") or "").strip()
-    
+
     if reasoning:
         # Prepend wrapped think tags so that MindCore downstream parses/extracts it perfectly
         if content:
             content = f"<think>\n{reasoning}\n</think>\n\n{content}"
         else:
             content = f"<think>\n{reasoning}\n</think>"
-            
+
     return content
+
+
+def _slot_max_tokens(prefix: str) -> int | None:
+    """Optional per-slot max_tokens override, e.g. FoveAI_REPERTOIRE_NVIDIA_MAX_TOKENS."""
+    raw = (
+        os.getenv(f"FoveAI_REPERTOIRE_{prefix}_MAX_TOKENS", "")
+        or os.getenv(f"FOVEAI_REPERTOIRE_{prefix}_MAX_TOKENS", "")
+    ).strip()
+    if raw.isdigit():
+        return int(raw)
+    return None
 
 
 def generate_via_slot_sync(
@@ -557,11 +720,13 @@ def generate_via_slot_sync(
     system_text: str,
     user_text: str,
     *,
-    max_tokens: Optional[int] = None,
-    model_override: Optional[str] = None,
+    max_tokens: int | None = None,
+    model_override: str | None = None,
 ) -> str:
     if not genai_daily_budget.allows():
-        logger.info("cloud_repertoire: global GenAI daily budget exhausted — skipping sync call")
+        logger.info(
+            "cloud_repertoire: global GenAI daily budget exhausted — skipping sync call"
+        )
         return ""
     prefix = _env_prefix_for_public_id(public_slot_id)
     if not prefix:
@@ -572,11 +737,7 @@ def generate_via_slot_sync(
     base_url, api_key, model, _label = cred
     if model_override:
         model = model_override
-    max_toks = max_tokens
-    if max_toks is None and prefix == "OPENAI":
-        ot = os.getenv("FoveAI_REPERTOIRE_OPENAI_MAX_TOKENS", "").strip()
-        if ot.isdigit():
-            max_toks = int(ot)
+    max_toks = max_tokens if max_tokens is not None else _slot_max_tokens(prefix)
     out = openai_compatible_chat_sync(
         base_url,
         api_key,
@@ -596,12 +757,15 @@ async def generate_via_slot(
     public_slot_id: str,
     system_text: str,
     user_text: str,
-    image_base64: Optional[str] = None,
+    image_base64: str | None = None,
     *,
-    model_override: Optional[str] = None,
+    model_override: str | None = None,
+    max_tokens: int | None = None,
 ) -> str:
     if not genai_daily_budget.allows():
-        logger.info("cloud_repertoire: global GenAI daily budget exhausted — skipping slot call")
+        logger.info(
+            "cloud_repertoire: global GenAI daily budget exhausted — skipping slot call"
+        )
         return ""
     prefix = _env_prefix_for_public_id(public_slot_id)
     if not prefix:
@@ -612,11 +776,7 @@ async def generate_via_slot(
     base_url, api_key, model, _label = cred
     if model_override:
         model = model_override
-    max_toks: Optional[int] = None
-    if prefix == "OPENAI":
-        ot = os.getenv("FoveAI_REPERTOIRE_OPENAI_MAX_TOKENS", "").strip()
-        if ot.isdigit():
-            max_toks = int(ot)
+    max_toks = max_tokens if max_tokens is not None else _slot_max_tokens(prefix)
     out = await openai_compatible_chat(
         base_url,
         api_key,

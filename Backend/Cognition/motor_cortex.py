@@ -1,7 +1,8 @@
 import json
-from typing import List, Dict, Any
+from typing import Any
 
-def get_motor_tools_schema() -> List[Dict[str, Any]]:
+
+def get_motor_tools_schema() -> list[dict[str, Any]]:
     """Returns the OpenAI-compatible JSON schema for Jen's physical motor tools."""
     return [
         {
@@ -14,24 +15,24 @@ def get_motor_tools_schema() -> List[Dict[str, Any]]:
                     "properties": {
                         "move_x": {
                             "type": "number",
-                            "description": "Left stick X-axis (strafe left/right). Value from -1.0 to 1.0."
+                            "description": "Left stick X-axis (strafe left/right). Value from -1.0 to 1.0.",
                         },
                         "move_y": {
                             "type": "number",
-                            "description": "Left stick Y-axis (walk forward/backward). Value from -1.0 to 1.0."
+                            "description": "Left stick Y-axis (walk forward/backward). Value from -1.0 to 1.0.",
                         },
                         "spin_x": {
                             "type": "number",
-                            "description": "Right stick X-axis (spin/turn left/right). Value from -1.0 to 1.0."
+                            "description": "Right stick X-axis (spin/turn left/right). Value from -1.0 to 1.0.",
                         },
                         "duration": {
                             "type": "number",
-                            "description": "How many seconds to hold this input before springing back to neutral (e.g. 1.0, 3.5)."
-                        }
+                            "description": "How many seconds to hold this input before springing back to neutral (e.g. 1.0, 3.5).",
+                        },
                     },
-                    "required": ["duration"]
-                }
-            }
+                    "required": ["duration"],
+                },
+            },
         },
         {
             "type": "function",
@@ -43,12 +44,12 @@ def get_motor_tools_schema() -> List[Dict[str, Any]]:
                     "properties": {
                         "distance": {
                             "type": "number",
-                            "description": "How far to walk in meters (e.g., 0.5 to 2.0). Keep this small for natural micro-movements."
+                            "description": "How far to walk in meters (e.g., 0.5 to 2.0). Keep this small for natural micro-movements.",
                         }
                     },
-                    "required": ["distance"]
-                }
-            }
+                    "required": ["distance"],
+                },
+            },
         },
         {
             "type": "function",
@@ -60,12 +61,12 @@ def get_motor_tools_schema() -> List[Dict[str, Any]]:
                     "properties": {
                         "target": {
                             "type": "string",
-                            "description": "The name of the target (e.g., 'sofa', 'window', 'desk', 'user')."
+                            "description": "The name of the target (e.g., 'sofa', 'window', 'desk', 'user').",
                         }
                     },
-                    "required": ["target"]
-                }
-            }
+                    "required": ["target"],
+                },
+            },
         },
         {
             "type": "function",
@@ -77,16 +78,16 @@ def get_motor_tools_schema() -> List[Dict[str, Any]]:
                     "properties": {
                         "emotion": {
                             "type": "string",
-                            "description": "The emotion to express. Valid values: happy, sad, angry, surprised, curious, thinking, neutral, calm, playful, love."
+                            "description": "The emotion to express. Valid values: happy, sad, angry, surprised, curious, thinking, neutral, calm, playful, love.",
                         },
                         "intensity": {
                             "type": "number",
-                            "description": "The strength of the emotion from 0.1 to 1.0."
-                        }
+                            "description": "The strength of the emotion from 0.1 to 1.0.",
+                        },
                     },
-                    "required": ["emotion"]
-                }
-            }
+                    "required": ["emotion"],
+                },
+            },
         },
         {
             "type": "function",
@@ -98,20 +99,17 @@ def get_motor_tools_schema() -> List[Dict[str, Any]]:
                     "properties": {
                         "gesture": {
                             "type": "string",
-                            "description": "The gesture to perform. Valid values: nod, tilt, look_away, double_take, shrug, lean_in."
+                            "description": "The gesture to perform. Valid values: nod, tilt, look_away, double_take, shrug, lean_in.",
                         }
                     },
-                    "required": ["gesture"]
-                }
-            }
-        }
+                    "required": ["gesture"],
+                },
+            },
+        },
     ]
 
-def format_sse_motor_event(tool_name: str, arguments: Dict[str, Any]) -> str:
+
+def format_sse_motor_event(tool_name: str, arguments: dict[str, Any]) -> str:
     """Formats a parsed tool call into a Server-Sent Event string for the frontend."""
-    payload = {
-        "type": "motor_action",
-        "tool": tool_name,
-        "args": arguments
-    }
+    payload = {"type": "motor_action", "tool": tool_name, "args": arguments}
     return f"data: {json.dumps(payload)}\n\n"

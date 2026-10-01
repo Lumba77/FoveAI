@@ -1,9 +1,10 @@
-import bpy
-import sys
 import json
+import sys
+
+import bpy
 
 # Get command line arguments
-argv = sys.argv[sys.argv.index("--") + 1:]
+argv = sys.argv[sys.argv.index("--") + 1 :]
 input_glb = argv[0]
 json_data = argv[1]
 output_glb = argv[2]
@@ -19,7 +20,7 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=input_glb)
 
 # Find mesh objects
-meshes = [o for o in bpy.data.objects if o.type == 'MESH']
+meshes = [o for o in bpy.data.objects if o.type == "MESH"]
 if not meshes:
     print("Error: No mesh found in GLB file")
     sys.exit(1)
@@ -30,10 +31,20 @@ mesh = meshes[0]
 vrm_shapes = [
     "Basis",
     # Visemes (for lip sync)
-    "aa", "ih", "ou", "ee", "oh",
+    "aa",
+    "ih",
+    "ou",
+    "ee",
+    "oh",
     # Expressions
-    "neutral", "joy", "angry", "sorrow", "fun",
-    "blink", "blink_l", "blink_r"
+    "neutral",
+    "joy",
+    "angry",
+    "sorrow",
+    "fun",
+    "blink",
+    "blink_l",
+    "blink_r",
 ]
 
 # Ensure we have shape keys
@@ -59,8 +70,8 @@ print(f"Total shape keys: {len(mesh.data.shape_keys.key_blocks)}")
 # Export
 bpy.ops.export_scene.gltf(
     filepath=output_glb,
-    export_format='GLB',
-    export_apply=False  # Keep shape keys
+    export_format="GLB",
+    export_apply=False,  # Keep shape keys
 )
 
 print(f"Face setup completed, saved to: {output_glb}")

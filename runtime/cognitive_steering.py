@@ -13,10 +13,9 @@ to the model — the profile selector simply steers the system prompt accordingl
 """
 
 import re
-from typing import Any, Dict, List, Optional, Tuple
-
 
 # ── Profile Selector ──────────────────────────────────────────────────────────
+
 
 class ProfileSelector:
     """
@@ -24,7 +23,7 @@ class ProfileSelector:
     Uses keyword scoring + modality signals (has_image, has_audio).
     """
 
-    def __init__(self, profiles: Dict):
+    def __init__(self, profiles: dict):
         self.profiles = profiles.get("profiles", {})
         self.default_profile = profiles.get("default_profile", "chat")
         self.auto_detect = profiles.get("auto_detect", True)
@@ -35,8 +34,8 @@ class ProfileSelector:
         has_image: bool = False,
         has_audio: bool = False,
         has_video: bool = False,
-        force_profile: Optional[str] = None,
-    ) -> Tuple[str, Dict]:
+        force_profile: str | None = None,
+    ) -> tuple[str, dict]:
         """
         Returns (profile_name, profile_config).
         Modality signals override keyword triggers.
@@ -55,7 +54,7 @@ class ProfileSelector:
 
         # Keyword scoring
         msg_lower = user_message.lower()
-        scores: Dict[str, int] = {}
+        scores: dict[str, int] = {}
         for name, cfg in self.profiles.items():
             triggers = cfg.get("triggers", [])
             score = sum(1 for t in triggers if t in msg_lower)
@@ -71,27 +70,28 @@ class ProfileSelector:
 
 # ── Cluster Activator ─────────────────────────────────────────────────────────
 
+
 class ClusterActivator:
     """
     Scores XRL semantic clusters against the input to select relevant ones.
     Uses keyword overlap (embedding-based scoring when llama embed is available).
     """
 
-    def __init__(self, clusters: Dict):
+    def __init__(self, clusters: dict):
         self.clusters = clusters  # bucket_name → list of {token, importance, count}
 
     def activate(
         self,
         user_message: str,
-        embedding: Optional[List[float]] = None,
+        embedding: list[float] | None = None,
         top_k: int = 3,
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Returns a list of activated token concepts from the top clusters.
         These are used to enrich the prompt prefix.
         """
         msg_words = set(re.findall(r"\b\w+\b", user_message.lower()))
-        bucket_scores: Dict[str, float] = {}
+        bucket_scores: dict[str, float] = {}
 
         for bucket, items in self.clusters.items():
             if not isinstance(items, list):
@@ -106,17 +106,22 @@ class ClusterActivator:
                 bucket_scores[bucket] = score
 
         # Sort buckets by score, pick top tokens
-        sorted_buckets = sorted(bucket_scores, key=bucket_scores.__getitem__, reverse=True)
+        sorted_buckets = sorted(
+            bucket_scores, key=bucket_scores.__getitem__, reverse=True
+        )
         activated_tokens = []
         for bucket in sorted_buckets[:top_k]:
             items = self.clusters.get(bucket, [])
-            top_items = sorted(items, key=lambda x: x.get("importance", 0), reverse=True)[:3]
+            top_items = sorted(
+                items, key=lambda x: x.get("importance", 0), reverse=True
+            )[:3]
             activated_tokens.extend(i["token"] for i in top_items if "token" in i)
 
-        return activated_tokens[:top_k * 3]
+        return activated_tokens[: top_k * 3]
 
 
 # ── Graph Traverser ───────────────────────────────────────────────────────────
+
 
 class GraphTraverser:
     """
@@ -124,15 +129,15 @@ class GraphTraverser:
     Breadth-first search from seed tokens found in the user message.
     """
 
-    def __init__(self, graph: Dict):
+    def __init__(self, graph: dict):
         # graph = {"nodes": {...}, "edges": [...]}
         self.nodes = graph.get("nodes", {})
         self.edges = graph.get("edges", [])
         # Build adjacency map: from_token → [(to_token, strength)]
-        self._adj: Dict[str, List[Tuple[str, float]]] = {}
+        self._adj: dict[str, list[tuple[str, float]]] = {}
         for edge in self.edges:
             frm = edge.get("from", "")
-            to  = edge.get("to", "")
+            to = edge.get("to", "")
             strength = edge.get("strength", 0.0)
             if frm:
                 self._adj.setdefault(frm, []).append((to, strength))
@@ -142,7 +147,7 @@ class GraphTraverser:
         user_message: str,
         depth: int = 2,
         max_concepts: int = 5,
-    ) -> List[str]:
+    ) -> list[str]:
         """
         BFS from message tokens through the semantic graph.
         Returns top related concept tokens to include as context hints.
@@ -157,7 +162,7 @@ class GraphTraverser:
 
         visited = set(seeds)
         frontier = list(seeds)
-        concepts: Dict[str, float] = {}
+        concepts: dict[str, float] = {}
 
         for _ in range(depth):
             next_frontier = []
@@ -177,20 +182,21 @@ class GraphTraverser:
 
 # ── Principia Applicator ──────────────────────────────────────────────────────
 
+
 class PrincipiaApplicator:
     """
     Injects XRL reasoning principia into the system prompt.
     The principia encode the distilled reasoning style of the source model.
     """
 
-    def __init__(self, principles: List[Dict]):
+    def __init__(self, principles: list[dict]):
         self.principles = principles
 
     def build_system_prefix(
         self,
-        profile_config: Dict,
-        activated_clusters: List[str],
-        graph_concepts: List[str],
+        profile_config: dict,
+        activated_clusters: list[str],
+        graph_concepts: list[str],
     ) -> str:
         """
         Assemble a rich system prompt that steers the small model
@@ -205,12 +211,16 @@ class PrincipiaApplicator:
 
         # 2. Semantic cluster hints (active concepts)
         if activated_clusters:
-            cluster_hint = "Active knowledge domains: " + ", ".join(activated_clusters[:5])
+            cluster_hint = "Active knowledge domains: " + ", ".join(
+                activated_clusters[:5]
+            )
             parts.append(cluster_hint)
 
         # 3. Graph concept hints
         if graph_concepts:
-            concept_hint = "Related concepts to consider: " + ", ".join(graph_concepts[:5])
+            concept_hint = "Related concepts to consider: " + ", ".join(
+                graph_concepts[:5]
+            )
             parts.append(concept_hint)
 
         # 4. XRL reasoning style from principia

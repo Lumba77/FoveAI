@@ -1,0 +1,199 @@
+# Cline Rules for LUMAX-lite
+
+## Authoritative Files - CHECK ON START
+
+**CRITICAL:** At the start of EVERY new session, you MUST read and review these files to stay informed about the current status of affairs:
+
+1. **repo-skeleton.md** - **READ FIRST.** Multi-tier structural mind map of the entire repo. Available in 3 tiers:
+   - `python Scripts/generate_repo_skeleton.py --tier micro` → **<500 tokens** (tree + ports + one-line summaries) — for local models with tiny context windows
+   - `python Scripts/generate_repo_skeleton.py --tier standard` → **~6.5K tokens** (imports + signatures) — default for cloud models
+   - `python Scripts/generate_repo_skeleton.py --tier full` → **~25K tokens** (full file contents) — when you need everything
+2. **uptodate.md** - Comprehensive status report with service architecture, recent changes, and startup commands
+3. **context.md** - Session history log with all tasks, investigations, and solutions
+4. **ARCHITECTURE.md** - System architecture map with service topology and data flows
+5. **LUMAX.md** - Project overview, technical context, and operational discipline
+6. **WORKFLOW.md** - Token-efficient workflow guide for maximizing Cognee usage
+7. **.tokenslayer-ignore** - Exclusion patterns for repo-skeleton.md generation. Edit this file to exclude unused/unimportant files from the skeleton. Regenerate with `python Scripts/generate_repo_skeleton.py`.
+
+## Project Context
+
+- **Architecture:** WSL2 Native Python Services (NO Docker)
+- **Services:** 10 Python virtual environments in `.venv/`
+- **Key Ports:** 8000 (Soul), 8002 (Memory), 8003 (Creative), 8009 (Cognee-KG), 8080 (Web UI), 8103 (TSProxy)
+- **MCP Integration:** v2.0.0 with Cognee knowledge graph (26 sessions indexed)
+- **TokenSlayer Proxy v2.0:** Context-window-aware tier selection, on-demand expansion, semantic summaries
+
+## Operational Rules
+
+1. **No Bulk Reading:** Max 3 files per turn unless approved
+2. **Incremental Logic:** Propose "Plan Mode" for complex plumbing before implementing
+3. **Watertight Logging:** Every successful task MUST be logged in `context.md` with timestamp and "User confirmation: solved"
+4. **Ignore Media:** Do NOT read `.tscn`, `.import`, or `.res` files unless debugging scene structure
+5. **Search First:** Use `search_lumax_memory` before reading files (see WORKFLOW.md)
+6. **Token Efficiency:** Leverage Cognee-indexed docs to minimize context usage
+
+## ☁️ CLOUD TOKEN CONSERVATION MODE (AUTOMATIC)
+To prevent excessive token billing and protect your API quota when calling cloud models, the agent MUST adhere to the following operational parameters:
+1. **Skeleton-First Reads**: Never read full source files over 20-30 lines. Always call TokenSlayer MCP (`analyze_files`) first to inspect structure, then use `expand_node` or targeted line range reads (`view_file` with StartLine/EndLine) for the exact code blocks.
+2. **Mind Map Entry**: Read the standard or micro tier of `repo-skeleton.md` at session start. Do not run broad workspace searches or list directories unless necessary.
+3. **Targeted Diffs**: Use targeted edit tools (`replace_file_content` or `multi_replace_file_content`) to modify code. Never request or output full file rewrites.
+4. **Tool Minimization**: Limit tool use to 1-2 essential actions per turn. Avoid chaining unnecessary read commands.
+5. **Proactive Session Resets**: If the session history length grows past 15-20 turns, prompt the user to start a new chat to purge context accumulation.
+6. **Concise Chat Communication**: Keep explanations minimal. Do not print large chunks of code or full file dumps in chat. Point the user to workspace file links or artifacts instead.
+
+## TokenSlayer Multi-Tier Compression
+
+TokenSlayer now supports 6 compression levels and 3 skeleton tiers:
+
+### Compression Levels (standalone CLI)
+| Level | Name | What it keeps | Reduction | Use case |
+|-------|------|--------------|-----------|----------|
+| 0 | Full | Everything | 0% | Debugging |
+| 1 | Light | Imports + signatures + bodies + comments | ~40-60% | Quick reference |
+| 2 | Medium | Imports + decorators + signatures + top-level vars | ~70-85% | Default |
+| 3 | Deep | Imports + signatures only | ~85-96% | Standard skeleton |
+| 4 | Ultra | Symbol table: file:line name(params) — no types/defaults | ~95-98% | Micro skeleton |
+| 5 | Atomic | Hash-based: file:line #hash — expand on demand | ~98-99.5% | Max compression |
+
+### Skeleton Tiers (repo-skeleton.md)
+| Tier | Level | Size | Tokens | When to use |
+|------|-------|------|--------|-------------|
+| micro | 4 (Ultra) | ~5 KB | ~1,350 | Local models with <4K context |
+| standard | 3 (Deep) | ~25 KB | ~6,500 | Cloud models with 4K-32K context |
+| full | 0 (Full) | ~100 KB | ~25,000 | When you need everything |
+
+### On-Demand Expansion
+The proxy server (port 8103) provides expansion endpoints:
+- `POST /api/expand` — Expand atomic hash or file:line reference
+- `GET /api/expand/{filepath}?line=N&context=3` — GET endpoint for easy agent calls
+- `POST /api/semantic-summary` — Generate one-line semantic summary via local LLM
+- `GET /api/tier-info?model=...&mode=...` — Get recommended tier for a model
+
+### Context-Window-Aware Tier Selection
+The proxy auto-detects the model's context window and selects the appropriate tier:
+- <4K → micro-skeleton (symbol table)
+- 4K-32K → standard skeleton (imports + signatures)
+- >32K → full skeleton (everything)
+
+## MCP Tools Available (23 tools)
+
+### Lumax Memory Tools (17 tools)
+| Tool | Description |
+|------|-------------|
+| `get_memory` | Retrieve conversation history |
+| `add_memory` | Add conversation turn (auto-compresses if >2000 chars) |
+| `get_session_context` | Get compressed context for new sessions |
+| `search_memory` | Search conversations by keyword |
+| `compress_search_results` | **Search ALL sources + compress via local LLM** — DEFAULT search method |
+| `summarize_context` | **Summarize any text** via local LLM — compress before sending to cloud model |
+| `check_local_llm` | Check if local LLM is available for compression |
+| `start_middleman` | **Auto-start LM Studio + load Qwen3.5-4B** for compression |
+| `import_history` | Import Cline/Gemini session history |
+| `import_doc` | Import documentation file into knowledge base |
+| `search_docs` | Search documentation knowledge base |
+| `list_docs` | List imported docs by category |
+| `index_directory` | **Index a project directory for code search** (auto-generates .MCP-ignore, smart filtering, .env redaction) |
+| `assess_directory` | **Smart directory assessment** — uses LLM to generate .MCP-ignore for what to skip/redact |
+| `search_codebase` | Search indexed codebase files for functions, classes, patterns |
+| `list_indexed` | List all indexed directories and file counts |
+| `get_sources` | Summary of imported sources and conversation counts |
+
+### TokenSlayer Tools (6 tools) — NEW
+| Tool | Description |
+|------|-------------|
+| `analyze_files` | **Extract compact structural skeletons** from 1+ files — 40-95% token reduction. Call this BEFORE reading any source file. |
+| `analyze_workspace` | **Recursively map a directory** into structural skeletons. Use for codebase onboarding. |
+| `analyze_dependency_chain` | **Follow imports from a seed file** (BFS up to depth). Understand cross-file connections. |
+| `expand_node` | **Expand a pruned skeleton node** back to full source. Use after skeleton when you need one specific function body. |
+| `get_stats` | **Cumulative savings statistics** — tokens saved, cost estimate, reduction %. |
+| `session_health` | **Context Rot Score** + model recommendation. Check if you should start fresh. |
+
+### TokenSlayer MCP Tool Usage — WHEN to call each tool
+
+| Tool | Call this when... | Do NOT call when... |
+|------|-------------------|---------------------|
+| `analyze_files` | You need to understand structure of 1+ files: "how is X structured", "where is Y defined", "what does this module export" | You already know which file + line range; a targeted read is cheaper |
+| `analyze_workspace` | Onboarding to unfamiliar codebase, "map this project", planning a change across many files | You only need a single file or symbol; use `analyze_files` or grep instead |
+| `analyze_dependency_chain` | You need to understand cross-file connections before a multi-file change: "how does this module connect to the rest" | You already know which files are involved; use `analyze_files` on those files |
+| `expand_node` | A skeleton contains a `/* EXPAND:nodeId */` tag and you need the full implementation of that specific function | You can read the file directly with a known line range |
+| `session_health` | User asks "how healthy is my session", "should I start fresh", "which model should I use" | You're in the middle of a task; finish first |
+| `get_stats` | User asks "how much has TokenSlayer saved", "what's the reduction percentage" | You need to understand code structure; use `analyze_files` instead |
+
+### Local LLM Middleman Pattern
+
+The MCP server uses **Qwen3.5-4B** (2.56GB) via LM Studio with 20% GPU offload as a local middleman. It auto-starts when the MCP server initializes.
+
+**DEFAULT workflow** (compression is automatic):
+1. **`compress_search_results`** → searches memory+docs+codebase → compresses via local LLM → returns summary (USE THIS as default search)
+2. **`search_memory`** / **`search_docs`** → returns raw results (use only when you need exact quotes)
+3. **`add_memory`** → auto-compresses entries >2000 chars via local LLM
+4. **`get_session_context`** → returns compressed context for new sessions
+5. **`summarize_context`** → manually compress any text before pasting to cloud model
+
+**Smart Codebase Indexing:**
+- **`index_directory`** auto-generates `.MCP-ignore` if missing — skips binary/media/cache dirs, redacts `.env` files
+- **`assess_directory`** uses local LLM to analyze directory structure and create a smart `.MCP-ignore`
+- Delete `.MCP-ignore` to force re-assessment on next index
+- Active directories are tracked in `.logs/active_dirs.json`
+
+**Proactive compression strategy:**
+- Use `compress_search_results` as your DEFAULT search — it's always more token-efficient
+- Use `index_directory` at session start to make code searchable without reading whole files
+- When context feels heavy (~10+ exchanges), use `summarize_context` to compress, then start fresh
+- `start_middleman` auto-starts LM Studio if it's not running
+
+## Startup Commands
+
+```bash
+# Start all services
+bash Scripts/start_all_wsl2.sh
+
+# Check service health
+curl http://localhost:8000/health  # Soul
+curl http://localhost:8002/health  # Memory
+curl http://localhost:8009/health  # Cognee
+
+# Quick status via Cognee
+curl -X POST http://localhost:8009/api/v1/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "current status", "topK": 3}'
+```
+
+## Ollama Cloud Model Optimization
+
+**Running:** DeepSeek V3/V4, GLM-5.1, and other OpenAI-compatible models via Ollama Cloud API.
+
+### Context Window Management (CRITICAL)
+
+These models have **limited context windows (~128k-200k tokens)** and **degrade in quality** during long sessions. Follow these rules:
+
+1. **Compact Context:** Never dump entire file contents into prompts. Read only what's needed (specific functions, not whole files).
+2. **Fresh Sessions:** If a task takes >15 exchanges, suggest the user start a new Cline session. Models get "tired" and make mistakes in long conversations.
+3. **Targeted Edits:** Use `replace_in_file` instead of rewriting entire files. This keeps the diff small and conserves context.
+4. **No Redundancy:** Don't re-read files you've already read in this session. Reference what you already know.
+5. **Summarize Early:** When context grows large, proactively summarize and suggest a fresh start rather than letting the model degrade.
+6. **Avoid Subagents:** Do NOT use `use_subagents` with multiple agents — this fills context fast and causes "prompt too long" errors.
+7. **Single Tool Per Turn:** Be deliberate. Each tool call adds to context. Don't chain unnecessary reads.
+
+### Model-Specific Notes
+
+- **DeepSeek V3/V4:** Strong coding model but loses focus after ~10k tokens of conversation. Best for focused, single-task sessions.
+- **GLM-5.1:** Good reasoning but limited context. Keep prompts concise.
+- **General:** These models don't have Claude's native ability to handle massive context. Treat them like they have a "working memory" that fills up.
+
+## Recent Changes (June 2026)
+
+- **MCP Server v3.1:** Upgraded middleman from Qwen2.5-0.5B to **Qwen3.5-4B** (2.56GB, 20% GPU offload) for smarter assessments and compression
+- **Smart codebase indexing:** `index_directory` auto-generates `.MCP-ignore` via LLM assessment, skips binary/media/cache dirs, redacts `.env` files (path only, no content)
+- **`assess_directory` tool:** New tool — scans directory structure, uses local LLM to generate smart `.MCP-ignore` files
+- **Reasoning model support:** Handles Qwen3.x/DeepSeek `reasoning_content` field — falls back to reasoning output when content is empty
+- **Comprehensive indexing:** LUMAX repo indexed — 2,234 source files, 22,000+ dirs skipped, 1 `.env` redacted, 0 errors
+- **Active directory tracking:** Indexed directories tracked in `.logs/active_dirs.json`
+- **Auto-start middleman:** LM Studio starts headlessly, unloads heavy models, loads Qwen3.5-4B with `--gpu 0.2`
+- **Auto-compression:** Memory entries >2000 chars auto-summarized via local LLM
+- **Default compression:** `compress_search_results` is the DEFAULT search (5.7x compression ratio confirmed)
+- **Cline patched for Ollama Cloud:** DeepSeek V3/V4, GLM-5, Qwen3, Llama4, Codestral, Devstral recognized
+- **Nag message removed:** "Less capable models" → neutral guidance
+- **Default context window:** 128k → 256k for OpenAI-compatible providers
+
+See **uptodate.md** for full details.

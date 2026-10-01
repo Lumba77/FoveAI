@@ -157,9 +157,12 @@ function patchMessages(messages, ringBlock, config, body = {}) {
     const patched = [...messages];
     const sysIdx = patched.findIndex(m => m.role === 'system');
 
+    // The debug context header goes FIRST — small models echo whatever the
+    // system prompt ends on, and a trailing `model:…; budget:…;` line gets
+    // regurgitated verbatim as the reply.
     const memoryBlock = ringBlock
-        ? `\n${ringBlock}\n${compact.block}${resumeContext}\n${contextHeader}`
-        : `\n${compact.block}${resumeContext}\n${contextHeader}`;
+        ? `\n${contextHeader}\n${ringBlock}\n${compact.block}${resumeContext}`
+        : `\n${contextHeader}\n${compact.block}${resumeContext}`;
 
     if (sysIdx !== -1) {
         // For coding tools: keep their own system prompt dominant; just append memory protocol.
@@ -174,13 +177,13 @@ function patchMessages(messages, ringBlock, config, body = {}) {
         } else {
             patched[sysIdx] = {
                 ...patched[sysIdx],
-                content: compact.block + '\n' + originalContent + (ringBlock ? `\n${ringBlock}` : '') + resumeContext + '\n' + contextHeader,
+                content: contextHeader + '\n' + compact.block + '\n' + originalContent + (ringBlock ? `\n${ringBlock}` : '') + resumeContext,
             };
         }
     } else {
         patched.unshift({
             role: 'system',
-            content: compact.block + (ringBlock ? `\n${ringBlock}` : '') + resumeContext + '\n' + contextHeader,
+            content: contextHeader + '\n' + compact.block + (ringBlock ? `\n${ringBlock}` : '') + resumeContext,
         });
     }
 

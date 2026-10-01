@@ -21,6 +21,7 @@ import { TokenSlayerTab } from './TokenSlayerTab';
 import { ForgeNurseryTab } from './ForgeNurseryTab';
 import { EnvironmentMappingTab } from './EnvironmentMappingTab';
 import { AvatarCamerasTab } from './AvatarCamerasTab';
+import { AvatarStudioTab } from './AvatarStudioTab';
 import { EnvironmentManagementTab } from './EnvironmentManagementTab';
 import { ControllersMappingTab } from './ControllersMappingTab';
 
@@ -1689,7 +1690,7 @@ export class Dashboard {
 
         const hasVisibleIntel = isVisible('cognition') || isVisible('thoughts') || isVisible('profile') || isVisible('swarm') || isVisible('agency');
         const hasVisibleProd = isVisible('dreamscape') || isVisible('modelhub') || isVisible('chronicle') || isVisible('monetizing');
-        const hasVisibleOps = isVisible('diagnosis') || isVisible('nucleus') || isVisible('vision') || isVisible('branding') || isVisible('webvm') || isVisible('videochat') || isVisible('settings') || isVisible('tokenslayer') || isVisible('forgenursery') || isVisible('envmapping') || isVisible('avatarcameras') || isVisible('envmanagement') || isVisible('controllers');
+        const hasVisibleOps = isVisible('diagnosis') || isVisible('nucleus') || isVisible('vision') || isVisible('branding') || isVisible('webvm') || isVisible('videochat') || isVisible('settings') || isVisible('tokenslayer') || isVisible('forgenursery') || isVisible('envmapping') || isVisible('avatarcameras') || isVisible('avatarstudio') || isVisible('envmanagement') || isVisible('controllers');
         const hasVisibleDev = isVisible('devtools') || isVisible('featuremap');
 
         const meterNames = ['cpu', 'gpu', 'vram', 'ram', 'in', 'out', 'io-r', 'io-w'];
@@ -1867,6 +1868,7 @@ export class Dashboard {
                         <div class="sub-item ${this.activeTab === 'forgeindex' ? 'active' : ''}" data-tab="forgeindex" style="${tabStyle('forgeindex')}">📋 Feature Inventory</div>
                         <div class="sub-item ${this.activeTab === 'envmapping' ? 'active' : ''}" data-tab="envmapping" style="${tabStyle('envmapping')}">🗺️ Env Mapping</div>
                         <div class="sub-item ${this.activeTab === 'avatarcameras' ? 'active' : ''}" data-tab="avatarcameras" style="${tabStyle('avatarcameras')}">📷 Avatar Cameras</div>
+                        <div class="sub-item ${this.activeTab === 'avatarstudio' ? 'active' : ''}" data-tab="avatarstudio" style="${tabStyle('avatarstudio')}">🎨 Avatar Studio</div>
                         <div class="sub-item ${this.activeTab === 'envmanagement' ? 'active' : ''}" data-tab="envmanagement" style="${tabStyle('envmanagement')}">🏠 Env Management</div>
                         <div class="sub-item ${this.activeTab === 'controllers' ? 'active' : ''}" data-tab="controllers" style="${tabStyle('controllers')}">🎮 Controllers</div>
                     </div>
@@ -2772,6 +2774,11 @@ export class Dashboard {
         } else if (this.activeTab === 'avatarcameras') {
             footer.style.display = 'none';
             AvatarCamerasTab.render(content as HTMLElement);
+        } else if (this.activeTab === 'avatarstudio') {
+            footer.style.display = 'none';
+            const studioTab = new AvatarStudioTab();
+            content.innerHTML = '';
+            content.appendChild(studioTab.getContainer());
         } else if (this.activeTab === 'envmanagement') {
             footer.style.display = 'none';
             EnvironmentManagementTab.render(content as HTMLElement);

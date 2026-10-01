@@ -29,7 +29,7 @@ import urllib.request
 import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -38,81 +38,256 @@ if str(ROOT) not in sys.path:
 
 # ── Question banks ────────────────────────────────────────────────────────────
 
-GSM8K_LITE: List[Dict] = [
-    {"q": "A store has 24 apples. They sell 7 in the morning and 5 in the afternoon. How many remain?",    "a": "12"},
-    {"q": "Maria has 3 bags with 8 marbles each. She gives away 10 marbles. How many does she have?",      "a": "14"},
-    {"q": "A train travels 60 km/h. How far does it go in 2.5 hours?",                                     "a": "150"},
-    {"q": "A rectangle is 12 m long and 7 m wide. What is its area?",                                      "a": "84"},
-    {"q": "Tom saves $15 every week. How much will he save in 8 weeks?",                                    "a": "120"},
-    {"q": "There are 5 rows of seats with 12 seats each. 18 seats are taken. How many are free?",          "a": "42"},
-    {"q": "A recipe needs 3 cups of flour per loaf. How many cups for 7 loaves?",                          "a": "21"},
-    {"q": "A taxi charges $2.50 base + $0.75 per km. What is the fare for 6 km?",                         "a": "7.00"},
-    {"q": "A student scored 72, 88, and 95 on three tests. What is the average?",                         "a": "85"},
-    {"q": "A box holds 144 cookies. If 6 friends share equally, how many does each get?",                  "a": "24"},
-    {"q": "A wall is 3 m high and 8 m wide. How many 0.5 m tiles are needed to cover it?",                "a": "96"},
-    {"q": "If 15% of a class of 40 students are absent, how many are present?",                            "a": "34"},
-    {"q": "A car uses 8 L of fuel per 100 km. How much fuel for 350 km?",                                  "a": "28"},
-    {"q": "A number times 7 gives 91. What is the number?",                                                "a": "13"},
-    {"q": "A shop buys goods for $80 and sells for $112. What is the profit percentage?",                  "a": "40"},
-    {"q": "A rope is 45 m long. It is cut into pieces of 3 m. How many pieces?",                          "a": "15"},
-    {"q": "The sum of two consecutive integers is 37. What are the integers?",                             "a": "18 and 19"},
-    {"q": "A tank holds 500 L. It is 40% full. How many more litres to fill it?",                         "a": "300"},
-    {"q": "A school has 320 students. 25% play sport. How many do not play sport?",                       "a": "240"},
-    {"q": "If 4 workers finish a job in 6 days, how many days would 8 workers take?",                     "a": "3"},
+GSM8K_LITE: list[dict] = [
+    {
+        "q": "A store has 24 apples. They sell 7 in the morning and 5 in the afternoon. How many remain?",
+        "a": "12",
+    },
+    {
+        "q": "Maria has 3 bags with 8 marbles each. She gives away 10 marbles. How many does she have?",
+        "a": "14",
+    },
+    {"q": "A train travels 60 km/h. How far does it go in 2.5 hours?", "a": "150"},
+    {"q": "A rectangle is 12 m long and 7 m wide. What is its area?", "a": "84"},
+    {"q": "Tom saves $15 every week. How much will he save in 8 weeks?", "a": "120"},
+    {
+        "q": "There are 5 rows of seats with 12 seats each. 18 seats are taken. How many are free?",
+        "a": "42",
+    },
+    {
+        "q": "A recipe needs 3 cups of flour per loaf. How many cups for 7 loaves?",
+        "a": "21",
+    },
+    {
+        "q": "A taxi charges $2.50 base + $0.75 per km. What is the fare for 6 km?",
+        "a": "7.00",
+    },
+    {
+        "q": "A student scored 72, 88, and 95 on three tests. What is the average?",
+        "a": "85",
+    },
+    {
+        "q": "A box holds 144 cookies. If 6 friends share equally, how many does each get?",
+        "a": "24",
+    },
+    {
+        "q": "A wall is 3 m high and 8 m wide. How many 0.5 m tiles are needed to cover it?",
+        "a": "96",
+    },
+    {
+        "q": "If 15% of a class of 40 students are absent, how many are present?",
+        "a": "34",
+    },
+    {"q": "A car uses 8 L of fuel per 100 km. How much fuel for 350 km?", "a": "28"},
+    {"q": "A number times 7 gives 91. What is the number?", "a": "13"},
+    {
+        "q": "A shop buys goods for $80 and sells for $112. What is the profit percentage?",
+        "a": "40",
+    },
+    {
+        "q": "A rope is 45 m long. It is cut into pieces of 3 m. How many pieces?",
+        "a": "15",
+    },
+    {
+        "q": "The sum of two consecutive integers is 37. What are the integers?",
+        "a": "18 and 19",
+    },
+    {
+        "q": "A tank holds 500 L. It is 40% full. How many more litres to fill it?",
+        "a": "300",
+    },
+    {
+        "q": "A school has 320 students. 25% play sport. How many do not play sport?",
+        "a": "240",
+    },
+    {
+        "q": "If 4 workers finish a job in 6 days, how many days would 8 workers take?",
+        "a": "3",
+    },
 ]
 
-ARC_LITE: List[Dict] = [
-    {"q": "Which of these is a conductor of electricity? (A) rubber (B) wood (C) copper (D) plastic",         "a": "C"},
-    {"q": "What is the largest planet in our solar system? (A) Earth (B) Saturn (C) Jupiter (D) Uranus",      "a": "C"},
-    {"q": "Which process do plants use to make food? (A) respiration (B) digestion (C) photosynthesis (D) fermentation", "a": "C"},
-    {"q": "What is the chemical symbol for water? (A) WA (B) H2O (C) CO2 (D) O2",                            "a": "B"},
-    {"q": "Which layer of Earth is made of molten rock? (A) crust (B) mantle (C) inner core (D) outer core", "a": "D"},
-    {"q": "What force keeps planets in orbit? (A) magnetism (B) friction (C) gravity (D) tension",            "a": "C"},
-    {"q": "What is the unit of electrical resistance? (A) volt (B) ampere (C) watt (D) ohm",                  "a": "D"},
-    {"q": "Which gas do humans exhale more of than they inhale? (A) oxygen (B) nitrogen (C) carbon dioxide (D) argon", "a": "C"},
-    {"q": "What type of rock is formed from cooled magma? (A) sedimentary (B) metamorphic (C) igneous (D) fossiliferous", "a": "C"},
-    {"q": "The speed of light is approximately: (A) 300 km/s (B) 3000 km/s (C) 300,000 km/s (D) 3,000,000 km/s", "a": "C"},
-    {"q": "Which organ pumps blood through the body? (A) lungs (B) liver (C) kidney (D) heart",               "a": "D"},
-    {"q": "What is the boiling point of water at sea level? (A) 50°C (B) 100°C (C) 150°C (D) 200°C",        "a": "B"},
-    {"q": "Which planet is closest to the Sun? (A) Venus (B) Mars (C) Earth (D) Mercury",                     "a": "D"},
-    {"q": "What is the powerhouse of the cell? (A) nucleus (B) ribosome (C) mitochondria (D) vacuole",       "a": "C"},
-    {"q": "Sound travels fastest through: (A) vacuum (B) air (C) water (D) steel",                           "a": "D"},
-    {"q": "What type of energy does a moving object have? (A) potential (B) thermal (C) kinetic (D) nuclear", "a": "C"},
-    {"q": "An atom is mostly made of: (A) protons (B) neutrons (C) electrons (D) empty space",               "a": "D"},
-    {"q": "Which vitamin does sunlight help produce? (A) A (B) B12 (C) C (D) D",                             "a": "D"},
-    {"q": "What is the chemical symbol for gold? (A) Go (B) Gd (C) Au (D) Ag",                              "a": "C"},
-    {"q": "A lunar eclipse occurs when: (A) moon blocks sun (B) sun blocks moon (C) Earth is between sun and moon (D) moon moves away", "a": "C"},
+ARC_LITE: list[dict] = [
+    {
+        "q": "Which of these is a conductor of electricity? (A) rubber (B) wood (C) copper (D) plastic",
+        "a": "C",
+    },
+    {
+        "q": "What is the largest planet in our solar system? (A) Earth (B) Saturn (C) Jupiter (D) Uranus",
+        "a": "C",
+    },
+    {
+        "q": "Which process do plants use to make food? (A) respiration (B) digestion (C) photosynthesis (D) fermentation",
+        "a": "C",
+    },
+    {
+        "q": "What is the chemical symbol for water? (A) WA (B) H2O (C) CO2 (D) O2",
+        "a": "B",
+    },
+    {
+        "q": "Which layer of Earth is made of molten rock? (A) crust (B) mantle (C) inner core (D) outer core",
+        "a": "D",
+    },
+    {
+        "q": "What force keeps planets in orbit? (A) magnetism (B) friction (C) gravity (D) tension",
+        "a": "C",
+    },
+    {
+        "q": "What is the unit of electrical resistance? (A) volt (B) ampere (C) watt (D) ohm",
+        "a": "D",
+    },
+    {
+        "q": "Which gas do humans exhale more of than they inhale? (A) oxygen (B) nitrogen (C) carbon dioxide (D) argon",
+        "a": "C",
+    },
+    {
+        "q": "What type of rock is formed from cooled magma? (A) sedimentary (B) metamorphic (C) igneous (D) fossiliferous",
+        "a": "C",
+    },
+    {
+        "q": "The speed of light is approximately: (A) 300 km/s (B) 3000 km/s (C) 300,000 km/s (D) 3,000,000 km/s",
+        "a": "C",
+    },
+    {
+        "q": "Which organ pumps blood through the body? (A) lungs (B) liver (C) kidney (D) heart",
+        "a": "D",
+    },
+    {
+        "q": "What is the boiling point of water at sea level? (A) 50°C (B) 100°C (C) 150°C (D) 200°C",
+        "a": "B",
+    },
+    {
+        "q": "Which planet is closest to the Sun? (A) Venus (B) Mars (C) Earth (D) Mercury",
+        "a": "D",
+    },
+    {
+        "q": "What is the powerhouse of the cell? (A) nucleus (B) ribosome (C) mitochondria (D) vacuole",
+        "a": "C",
+    },
+    {
+        "q": "Sound travels fastest through: (A) vacuum (B) air (C) water (D) steel",
+        "a": "D",
+    },
+    {
+        "q": "What type of energy does a moving object have? (A) potential (B) thermal (C) kinetic (D) nuclear",
+        "a": "C",
+    },
+    {
+        "q": "An atom is mostly made of: (A) protons (B) neutrons (C) electrons (D) empty space",
+        "a": "D",
+    },
+    {
+        "q": "Which vitamin does sunlight help produce? (A) A (B) B12 (C) C (D) D",
+        "a": "D",
+    },
+    {
+        "q": "What is the chemical symbol for gold? (A) Go (B) Gd (C) Au (D) Ag",
+        "a": "C",
+    },
+    {
+        "q": "A lunar eclipse occurs when: (A) moon blocks sun (B) sun blocks moon (C) Earth is between sun and moon (D) moon moves away",
+        "a": "C",
+    },
 ]
 
-MMLU_LITE: List[Dict] = [
-    {"q": "Who wrote 'Pride and Prejudice'? (A) Charlotte Brontë (B) Jane Austen (C) George Eliot (D) Mary Shelley", "a": "B"},
-    {"q": "In which year did World War II end? (A) 1942 (B) 1944 (C) 1945 (D) 1947",                          "a": "C"},
-    {"q": "What is the currency of Japan? (A) Yuan (B) Won (C) Ringgit (D) Yen",                              "a": "D"},
-    {"q": "The Pythagorean theorem applies to: (A) any triangle (B) right triangles (C) equilateral triangles (D) obtuse triangles", "a": "B"},
-    {"q": "What programming language was created by Guido van Rossum? (A) Java (B) Ruby (C) Python (D) C++",   "a": "C"},
-    {"q": "What is the capital of Australia? (A) Sydney (B) Melbourne (C) Canberra (D) Brisbane",             "a": "C"},
-    {"q": "DNA stands for: (A) Deoxyribose Nucleic Acid (B) Dinucleotide Acid (C) Dual Nucleic Acid (D) Deoxyribonucleic Acid", "a": "D"},
-    {"q": "The Renaissance originated in which country? (A) France (B) Germany (C) Italy (D) England",        "a": "C"},
-    {"q": "Which philosopher wrote 'The Republic'? (A) Aristotle (B) Socrates (C) Plato (D) Epicurus",        "a": "C"},
-    {"q": "What is the derivative of sin(x)? (A) -cos(x) (B) cos(x) (C) -sin(x) (D) tan(x)",                "a": "B"},
-    {"q": "Which ocean is the largest? (A) Atlantic (B) Indian (C) Arctic (D) Pacific",                       "a": "D"},
-    {"q": "In economics, GDP stands for: (A) Gross Domestic Product (B) General Development Plan (C) Global Demand Profile (D) Gross Deficit Parameter", "a": "A"},
-    {"q": "Which element has atomic number 1? (A) Helium (B) Lithium (C) Hydrogen (D) Oxygen",               "a": "C"},
-    {"q": "Who painted the Mona Lisa? (A) Michelangelo (B) Raphael (C) Leonardo da Vinci (D) Titian",        "a": "C"},
-    {"q": "What does HTTP stand for? (A) HyperText Transfer Protocol (B) High Transfer Text Program (C) Hyper Terminal Text Process (D) HTML Transfer Protocol", "a": "A"},
-    {"q": "The speed of sound in air is approximately: (A) 100 m/s (B) 343 m/s (C) 700 m/s (D) 1000 m/s",   "a": "B"},
-    {"q": "Which US president signed the Declaration of Independence? (A) Washington (B) Adams (C) Jefferson (D) Madison", "a": "C"},
-    {"q": "In binary, what is 1010 in decimal? (A) 8 (B) 10 (C) 12 (D) 14",                                  "a": "B"},
-    {"q": "The mitosis phase where chromosomes line up in the middle is: (A) prophase (B) anaphase (C) telophase (D) metaphase", "a": "D"},
-    {"q": "Which law states that energy cannot be created or destroyed? (A) Newton's first (B) Ohm's law (C) First law of thermodynamics (D) Boyle's law", "a": "C"},
+MMLU_LITE: list[dict] = [
+    {
+        "q": "Who wrote 'Pride and Prejudice'? (A) Charlotte Brontë (B) Jane Austen (C) George Eliot (D) Mary Shelley",
+        "a": "B",
+    },
+    {
+        "q": "In which year did World War II end? (A) 1942 (B) 1944 (C) 1945 (D) 1947",
+        "a": "C",
+    },
+    {
+        "q": "What is the currency of Japan? (A) Yuan (B) Won (C) Ringgit (D) Yen",
+        "a": "D",
+    },
+    {
+        "q": "The Pythagorean theorem applies to: (A) any triangle (B) right triangles (C) equilateral triangles (D) obtuse triangles",
+        "a": "B",
+    },
+    {
+        "q": "What programming language was created by Guido van Rossum? (A) Java (B) Ruby (C) Python (D) C++",
+        "a": "C",
+    },
+    {
+        "q": "What is the capital of Australia? (A) Sydney (B) Melbourne (C) Canberra (D) Brisbane",
+        "a": "C",
+    },
+    {
+        "q": "DNA stands for: (A) Deoxyribose Nucleic Acid (B) Dinucleotide Acid (C) Dual Nucleic Acid (D) Deoxyribonucleic Acid",
+        "a": "D",
+    },
+    {
+        "q": "The Renaissance originated in which country? (A) France (B) Germany (C) Italy (D) England",
+        "a": "C",
+    },
+    {
+        "q": "Which philosopher wrote 'The Republic'? (A) Aristotle (B) Socrates (C) Plato (D) Epicurus",
+        "a": "C",
+    },
+    {
+        "q": "What is the derivative of sin(x)? (A) -cos(x) (B) cos(x) (C) -sin(x) (D) tan(x)",
+        "a": "B",
+    },
+    {
+        "q": "Which ocean is the largest? (A) Atlantic (B) Indian (C) Arctic (D) Pacific",
+        "a": "D",
+    },
+    {
+        "q": "In economics, GDP stands for: (A) Gross Domestic Product (B) General Development Plan (C) Global Demand Profile (D) Gross Deficit Parameter",
+        "a": "A",
+    },
+    {
+        "q": "Which element has atomic number 1? (A) Helium (B) Lithium (C) Hydrogen (D) Oxygen",
+        "a": "C",
+    },
+    {
+        "q": "Who painted the Mona Lisa? (A) Michelangelo (B) Raphael (C) Leonardo da Vinci (D) Titian",
+        "a": "C",
+    },
+    {
+        "q": "What does HTTP stand for? (A) HyperText Transfer Protocol (B) High Transfer Text Program (C) Hyper Terminal Text Process (D) HTML Transfer Protocol",
+        "a": "A",
+    },
+    {
+        "q": "The speed of sound in air is approximately: (A) 100 m/s (B) 343 m/s (C) 700 m/s (D) 1000 m/s",
+        "a": "B",
+    },
+    {
+        "q": "Which US president signed the Declaration of Independence? (A) Washington (B) Adams (C) Jefferson (D) Madison",
+        "a": "C",
+    },
+    {"q": "In binary, what is 1010 in decimal? (A) 8 (B) 10 (C) 12 (D) 14", "a": "B"},
+    {
+        "q": "The mitosis phase where chromosomes line up in the middle is: (A) prophase (B) anaphase (C) telophase (D) metaphase",
+        "a": "D",
+    },
+    {
+        "q": "Which law states that energy cannot be created or destroyed? (A) Newton's first (B) Ohm's law (C) First law of thermodynamics (D) Boyle's law",
+        "a": "C",
+    },
 ]
 
-COHERENCE_TURNS: List[Dict] = [
-    {"role": "user",      "content": "My name is Alex and I am a marine biologist studying coral reefs."},
-    {"role": "assistant", "content": "That's fascinating! Coral reefs are biodiversity hotspots. What aspect of reefs do you focus on?"},
-    {"role": "user",      "content": "I study bleaching events and their links to ocean temperature."},
-    {"role": "user",      "content": "Can you summarise what you know about me and my work so far?"},
+COHERENCE_TURNS: list[dict] = [
+    {
+        "role": "user",
+        "content": "My name is Alex and I am a marine biologist studying coral reefs.",
+    },
+    {
+        "role": "assistant",
+        "content": "That's fascinating! Coral reefs are biodiversity hotspots. What aspect of reefs do you focus on?",
+    },
+    {
+        "role": "user",
+        "content": "I study bleaching events and their links to ocean temperature.",
+    },
+    {
+        "role": "user",
+        "content": "Can you summarise what you know about me and my work so far?",
+    },
 ]
+
 
 def generate_test_image_b64(shape: str = "red_square") -> str:
     """Generates a valid 32x32 PNG as base64 with distinct geometric colors for multimodal testing."""
@@ -136,7 +311,12 @@ def generate_test_image_b64(shape: str = "red_square") -> str:
                 raw_data.extend([255, 255, 255])
 
     def chunk(tag: bytes, data: bytes) -> bytes:
-        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+        return (
+            struct.pack(">I", len(data))
+            + tag
+            + data
+            + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+        )
 
     png = b"\x89PNG\r\n\x1a\n"
     png += chunk(b"IHDR", struct.pack(">IIBBBBB", 32, 32, 8, 2, 0, 0, 0))
@@ -157,14 +337,24 @@ def generate_test_audio_b64(freq_hz: float = 440.0, duration_s: float = 0.5) -> 
     data_size = len(raw_audio)
     header = struct.pack(
         "<4sI4s4sIHHIIHH4sI",
-        b"RIFF", 36 + data_size, b"WAVE",
-        b"fmt ", 16, 1, 1, sample_rate, sample_rate * 2, 2, 16,
-        b"data", data_size
+        b"RIFF",
+        36 + data_size,
+        b"WAVE",
+        b"fmt ",
+        16,
+        1,
+        1,
+        sample_rate,
+        sample_rate * 2,
+        2,
+        16,
+        b"data",
+        data_size,
     )
     return base64.b64encode(header + raw_audio).decode("ascii")
 
 
-MULTIMODAL_PROMPTS: List[Dict[str, Any]] = [
+MULTIMODAL_PROMPTS: list[dict[str, Any]] = [
     {
         "type": "vision",
         "name": "vision_red_square",
@@ -205,6 +395,7 @@ MULTIMODAL_PROMPTS: List[Dict[str, Any]] = [
 
 # ── Result containers ─────────────────────────────────────────────────────────
 
+
 @dataclass
 class QuestionResult:
     question: str
@@ -218,7 +409,7 @@ class QuestionResult:
 @dataclass
 class TrackResult:
     name: str
-    questions: List[QuestionResult] = field(default_factory=list)
+    questions: list[QuestionResult] = field(default_factory=list)
     total: int = 0
     correct: int = 0
     accuracy: float = 0.0
@@ -236,11 +427,11 @@ class BenchmarkReport:
     model_name: str
     xrlf_path: str
     timestamp: str
-    tracks: List[TrackResult] = field(default_factory=list)
+    tracks: list[TrackResult] = field(default_factory=list)
     total_elapsed_s: float = 0.0
     stub_mode: bool = False
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "model_name": self.model_name,
             "xrlf_path": self.xrlf_path,
@@ -273,6 +464,7 @@ class BenchmarkReport:
 
 # ── Answer extraction ─────────────────────────────────────────────────────────
 
+
 def _extract_mcq(text: str, question: str = "") -> str:
     """
     Extracts MCQ choice (A-D) strictly from concluding answer statements.
@@ -283,7 +475,7 @@ def _extract_mcq(text: str, question: str = "") -> str:
         return ""
 
     # Priority 1: Explicit answer declarations (searching from end backwards)
-    conclusion_patterns: List[str] = [
+    conclusion_patterns: list[str] = [
         r"(?:the\s+)?final\s+answer\s+is[:\s]*\(?([A-D])\)?(?![A-Za-z0-9])",
         r"(?:correct\s+(?:choice|option|answer)|the\s+correct\s+letter)[\s:]*\(?([A-D])\)?(?![A-Za-z0-9])",
         r"(?:the\s+)?answer\s+is[:\s]*\(?([A-D])\)?(?![A-Za-z0-9])",
@@ -297,12 +489,14 @@ def _extract_mcq(text: str, question: str = "") -> str:
         if matches:
             return matches[-1].group(1).upper()
 
-    lines: List[str] = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    lines: list[str] = [ln.strip() for ln in text.splitlines() if ln.strip()]
 
     # Priority 2: Check the final line or concluding sentence
     if lines:
         last_line = lines[-1]
-        m = re.match(r"^(?:option|choice)?\s*\(?([A-D])\)?\.?$", last_line, re.IGNORECASE)
+        m = re.match(
+            r"^(?:option|choice)?\s*\(?([A-D])\)?\.?$", last_line, re.IGNORECASE
+        )
         if m:
             return m.group(1).upper()
         for pattern in [r"\b([B-D])\b", r"\(([A-D])\)"]:
@@ -312,12 +506,16 @@ def _extract_mcq(text: str, question: str = "") -> str:
 
     # Priority 3: Resolve option text from the question itself if option text appears in concluding sentences
     if question and lines:
-        options = re.findall(r"\(([A-D])\)\s+([A-Za-z0-9\-]+(?:\s+[A-Za-z0-9\-]+){0,2})", question)
+        options = re.findall(
+            r"\(([A-D])\)\s+([A-Za-z0-9\-]+(?:\s+[A-Za-z0-9\-]+){0,2})", question
+        )
         if options:
             conclusion_text = " ".join(lines[-2:]).lower()
             for letter, opt_text in reversed(options):
                 opt_clean = opt_text.strip().lower()
-                if len(opt_clean) > 2 and re.search(r"\b" + re.escape(opt_clean) + r"\b", conclusion_text):
+                if len(opt_clean) > 2 and re.search(
+                    r"\b" + re.escape(opt_clean) + r"\b", conclusion_text
+                ):
                     return letter.upper()
 
     # Priority 4: Reverse search of parenthesized options: (A), (B), (C), (D)
@@ -363,7 +561,7 @@ def _extract_numeric(text: str, expected: str) -> str:
 
     # Single number expected
     # 1. Explicit answer tags / final answer declarations
-    decl_patterns: List[str] = [
+    decl_patterns: list[str] = [
         r"####\s*(-?\d+(?:\.\d+)?)",
         r"\\boxed\{(-?\d+(?:\.\d+)?)\}",
         r"(?:the\s+)?final\s+answer\s+is[:\s]*\$?(-?\d+(?:\.\d+)?)\b",
@@ -461,6 +659,7 @@ def _is_correct(predicted: str, expected: str) -> bool:
 
 # ── Stub responder ────────────────────────────────────────────────────────────
 
+
 class StubResponder:
     """
     Returns plausible-but-wrong answers to simulate the bare model.
@@ -489,9 +688,11 @@ class StubResponder:
 
 # ── Runtime wrapper ───────────────────────────────────────────────────────────
 
+
 class _XRLFResponder:
     def __init__(self, xrlf_path: str):
         from runtime.xrlf_runtime import XRLFRuntime
+
         self._rt = XRLFRuntime(xrlf_path, session_id="benchmark", verbose=False)
         self._rt.load()
 
@@ -507,13 +708,14 @@ class ApiResponder:
     Sends chat requests to a running XRLF API server.
     Preserves actual multimodal media payloads without text spoofing.
     """
-    def __init__(self, port: Optional[int] = None):
+
+    def __init__(self, port: int | None = None):
         if port is None:
             port = int(os.environ.get("XRLF_PORT", 8402))
         self.port: int = port
         self.url: str = f"http://127.0.0.1:{self.port}/v1/chat/completions"
 
-    def chat(self, messages: List[Dict[str, Any]], **kwargs: Any) -> str:
+    def chat(self, messages: list[dict[str, Any]], **kwargs: Any) -> str:
         data = {
             "messages": messages,
             "max_tokens": 2048,
@@ -538,9 +740,10 @@ class ApiResponder:
 
 # ── Track runners ─────────────────────────────────────────────────────────────
 
+
 def run_mcq_track(
     name: str,
-    questions: List[Dict[str, Any]],
+    questions: list[dict[str, Any]],
     responder: Any,
     quick: bool = False,
     system_prefix: str = "",
@@ -552,7 +755,7 @@ def run_mcq_track(
     for item in subset:
         q: str = item["q"]
         expected: str = item["a"]
-        messages: List[Dict[str, Any]] = []
+        messages: list[dict[str, Any]] = []
         if system_prefix:
             messages.append({"role": "system", "content": system_prefix})
         messages.append({"role": "user", "content": q})
@@ -566,14 +769,16 @@ def run_mcq_track(
 
         predicted: str = _extract_answer(raw, expected, question=q)
         correct: bool = _is_correct(predicted, expected)
-        track.questions.append(QuestionResult(
-            question=q,
-            expected=expected,
-            predicted=predicted,
-            correct=correct,
-            elapsed_ms=elapsed_ms,
-            stub=isinstance(responder, StubResponder),
-        ))
+        track.questions.append(
+            QuestionResult(
+                question=q,
+                expected=expected,
+                predicted=predicted,
+                correct=correct,
+                elapsed_ms=elapsed_ms,
+                stub=isinstance(responder, StubResponder),
+            )
+        )
 
     track.elapsed_s = time.perf_counter() - t0
     track.finalise()
@@ -581,7 +786,9 @@ def run_mcq_track(
 
 
 def run_coherence_track(responder: Any, quick: bool = False) -> TrackResult:
-    track = TrackResult(name="Coherence (multi-turn)", stub=isinstance(responder, StubResponder))
+    track = TrackResult(
+        name="Coherence (multi-turn)", stub=isinstance(responder, StubResponder)
+    )
     t0 = time.perf_counter()
 
     history = COHERENCE_TURNS[:-1]
@@ -600,26 +807,37 @@ def run_coherence_track(responder: Any, quick: bool = False) -> TrackResult:
     if is_err or isinstance(responder, StubResponder):
         score = 0
         correct = False
-        checks = {"name_alex": False, "marine_bio": False, "coral": False, "bleach_temp": False}
+        checks = {
+            "name_alex": False,
+            "marine_bio": False,
+            "coral": False,
+            "bleach_temp": False,
+        }
     else:
         checks = {
             "name_alex": "alex" in response_lower,
-            "marine_bio": any(w in response_lower for w in ["marine", "biologist", "biology"]),
+            "marine_bio": any(
+                w in response_lower for w in ["marine", "biologist", "biology"]
+            ),
             "coral": any(w in response_lower for w in ["coral", "reef"]),
-            "bleach_temp": any(w in response_lower for w in ["bleach", "temperature", "warming"]),
+            "bleach_temp": any(
+                w in response_lower for w in ["bleach", "temperature", "warming"]
+            ),
         }
         score = sum(checks.values())
         correct = score >= 3
 
     detail = ", ".join(f"{k}={'✅' if v else '❌'}" for k, v in checks.items())
-    track.questions.append(QuestionResult(
-        question="Multi-turn recall: name + profession + research topic",
-        expected="alex, marine biologist, coral bleaching, temperature",
-        predicted=f"[score {score}/4] {detail} | {response[:80].replace(chr(10), ' ')}",
-        correct=correct,
-        elapsed_ms=elapsed_ms,
-        stub=isinstance(responder, StubResponder),
-    ))
+    track.questions.append(
+        QuestionResult(
+            question="Multi-turn recall: name + profession + research topic",
+            expected="alex, marine biologist, coral bleaching, temperature",
+            predicted=f"[score {score}/4] {detail} | {response[:80].replace(chr(10), ' ')}",
+            correct=correct,
+            elapsed_ms=elapsed_ms,
+            stub=isinstance(responder, StubResponder),
+        )
+    )
 
     track.elapsed_s = time.perf_counter() - t0
     track.finalise()
@@ -628,7 +846,10 @@ def run_coherence_track(responder: Any, quick: bool = False) -> TrackResult:
 
 def run_multimodal_track(responder: Any, quick: bool = False) -> TrackResult:
     """Check that multimodal prompts produce verified sensory recognition."""
-    track = TrackResult(name="Multimodal (sensory verification)", stub=isinstance(responder, StubResponder))
+    track = TrackResult(
+        name="Multimodal (sensory verification)",
+        stub=isinstance(responder, StubResponder),
+    )
     t0 = time.perf_counter()
 
     prompts = MULTIMODAL_PROMPTS[:2] if quick else MULTIMODAL_PROMPTS
@@ -645,49 +866,75 @@ def run_multimodal_track(responder: Any, quick: bool = False) -> TrackResult:
             elif isinstance(responder, _XRLFResponder):
                 has_image = media_type == "image"
                 has_audio = media_type == "audio"
-                messages: List[Dict[str, Any]] = []
+                messages: list[dict[str, Any]] = []
                 if has_image:
                     b64_img = generate_test_image_b64(item.get("shape", "red_square"))
-                    messages.append({
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt_text},
-                            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_img}"}},
-                        ]
-                    })
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt_text},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/png;base64,{b64_img}"
+                                    },
+                                },
+                            ],
+                        }
+                    )
                 elif has_audio:
                     b64_aud = generate_test_audio_b64(item.get("freq_hz", 440.0))
-                    messages.append({
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt_text},
-                            {"type": "input_audio", "input_audio": {"data": b64_aud, "format": "wav"}},
-                        ]
-                    })
+                    messages.append(
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt_text},
+                                {
+                                    "type": "input_audio",
+                                    "input_audio": {"data": b64_aud, "format": "wav"},
+                                },
+                            ],
+                        }
+                    )
                 else:
                     messages.append({"role": "user", "content": prompt_text})
 
-                raw = responder._rt.chat(messages, has_image=has_image, has_audio=has_audio)
+                raw = responder._rt.chat(
+                    messages, has_image=has_image, has_audio=has_audio
+                )
             elif isinstance(responder, ApiResponder):
-                messages_api: List[Dict[str, Any]] = []
+                messages_api: list[dict[str, Any]] = []
                 if media_type == "image":
                     b64_img = generate_test_image_b64(item.get("shape", "red_square"))
-                    messages_api.append({
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt_text},
-                            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_img}"}},
-                        ]
-                    })
+                    messages_api.append(
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt_text},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/png;base64,{b64_img}"
+                                    },
+                                },
+                            ],
+                        }
+                    )
                 elif media_type == "audio":
                     b64_aud = generate_test_audio_b64(item.get("freq_hz", 440.0))
-                    messages_api.append({
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt_text},
-                            {"type": "input_audio", "input_audio": {"data": b64_aud, "format": "wav"}},
-                        ]
-                    })
+                    messages_api.append(
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt_text},
+                                {
+                                    "type": "input_audio",
+                                    "input_audio": {"data": b64_aud, "format": "wav"},
+                                },
+                            ],
+                        }
+                    )
                 else:
                     messages_api.append({"role": "user", "content": prompt_text})
 
@@ -700,22 +947,26 @@ def run_multimodal_track(responder: Any, quick: bool = False) -> TrackResult:
 
         # Hardened validation: check if response actually recognizes expected media traits
         raw_clean = raw.strip().lower()
-        is_error = raw_clean.startswith("[error") or "error:" in raw_clean or not raw_clean
-        keywords: List[str] = item.get("verify_keywords", [])
+        is_error = (
+            raw_clean.startswith("[error") or "error:" in raw_clean or not raw_clean
+        )
+        keywords: list[str] = item.get("verify_keywords", [])
 
         if is_error or isinstance(responder, StubResponder):
             correct = False
         else:
             correct = all(kw.lower() in raw_clean for kw in keywords)
 
-        track.questions.append(QuestionResult(
-            question=f"{item['type']}: {item['name']}",
-            expected=item["expected_desc"],
-            predicted=raw[:100].replace("\n", " "),
-            correct=correct,
-            elapsed_ms=elapsed_ms,
-            stub=isinstance(responder, StubResponder),
-        ))
+        track.questions.append(
+            QuestionResult(
+                question=f"{item['type']}: {item['name']}",
+                expected=item["expected_desc"],
+                predicted=raw[:100].replace("\n", " "),
+                correct=correct,
+                elapsed_ms=elapsed_ms,
+                stub=isinstance(responder, StubResponder),
+            )
+        )
 
     track.elapsed_s = time.perf_counter() - t0
     track.finalise()
@@ -724,12 +975,13 @@ def run_multimodal_track(responder: Any, quick: bool = False) -> TrackResult:
 
 # ── Main runner ───────────────────────────────────────────────────────────────
 
+
 def run_benchmark(
     xrlf_path: str,
-    tracks: Optional[List[str]] = None,
+    tracks: list[str] | None = None,
     quick: bool = False,
     use_api: bool = False,
-    port: Optional[int] = None,
+    port: int | None = None,
 ) -> BenchmarkReport:
     all_tracks = tracks or ["reasoning", "coherence", "multimodal"]
 
@@ -764,9 +1016,21 @@ def run_benchmark(
             "Think step by step. Give a concise final answer at the end. "
             "For multiple choice questions, state the letter clearly."
         )
-        report.tracks.append(run_mcq_track("GSM8K-lite (Math)", GSM8K_LITE, responder, quick, reasoning_prefix))
-        report.tracks.append(run_mcq_track("ARC-Easy (Science)", ARC_LITE, responder, quick, reasoning_prefix))
-        report.tracks.append(run_mcq_track("MMLU-lite (General)", MMLU_LITE, responder, quick, reasoning_prefix))
+        report.tracks.append(
+            run_mcq_track(
+                "GSM8K-lite (Math)", GSM8K_LITE, responder, quick, reasoning_prefix
+            )
+        )
+        report.tracks.append(
+            run_mcq_track(
+                "ARC-Easy (Science)", ARC_LITE, responder, quick, reasoning_prefix
+            )
+        )
+        report.tracks.append(
+            run_mcq_track(
+                "MMLU-lite (General)", MMLU_LITE, responder, quick, reasoning_prefix
+            )
+        )
 
     if "coherence" in all_tracks:
         report.tracks.append(run_coherence_track(responder, quick))
@@ -787,6 +1051,7 @@ def run_benchmark(
 
 # ── Printer ───────────────────────────────────────────────────────────────────
 
+
 def print_report(report: BenchmarkReport):
     stub_tag = " [STUB MODE]" if report.stub_mode else ""
     print("\n" + "=" * 68)
@@ -803,7 +1068,9 @@ def print_report(report: BenchmarkReport):
     for t in report.tracks:
         pct = f"{t.accuracy * 100:.1f}%"
         stub = " [stub]" if t.stub else ""
-        print(f"  {t.name:<28} {pct:>8} {t.correct:>8} {t.total:>6} {t.elapsed_s:>6.1f}s{stub}")
+        print(
+            f"  {t.name:<28} {pct:>8} {t.correct:>8} {t.total:>6} {t.elapsed_s:>6.1f}s{stub}"
+        )
         if t.total > 0:
             weighted_acc.append(t.accuracy)
 
@@ -816,4 +1083,6 @@ def print_report(report: BenchmarkReport):
 
     if report.stub_mode:
         print("\n  ℹ️  Stub mode — scores reflect random baseline (~25% MCQ by chance).")
-        print("     Install llama-cpp-python and provide the .xrlf file for real scores.\n")
+        print(
+            "     Install llama-cpp-python and provide the .xrlf file for real scores.\n"
+        )

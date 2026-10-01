@@ -22,7 +22,7 @@ import logging
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger("FoveAI.XRLF")
 
@@ -40,7 +40,7 @@ def make_envelope(
     payload: dict[str, Any],
     *,
     status: str = "ok",
-    request_id: Optional[str] = None,
+    request_id: str | None = None,
 ) -> dict[str, Any]:
     """Build a compliant XRLF 3.0 response envelope."""
     envelope: dict[str, Any] = {
@@ -60,7 +60,7 @@ def make_error_envelope(
     message: str,
     *,
     event: str = "error",
-    request_id: Optional[str] = None,
+    request_id: str | None = None,
 ) -> dict[str, Any]:
     """Build a compliant XRLF 3.0 error envelope."""
     return make_envelope(
@@ -82,7 +82,9 @@ def make_health_payload() -> dict[str, Any]:
     }
 
 
-def validate_inbound(data: dict[str, Any]) -> tuple[Optional[str], dict[str, Any], Optional[str]]:
+def validate_inbound(
+    data: dict[str, Any],
+) -> tuple[str | None, dict[str, Any], str | None]:
     """Validate an inbound XRLF envelope.
 
     Returns:

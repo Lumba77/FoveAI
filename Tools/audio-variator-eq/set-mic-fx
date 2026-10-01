@@ -1,0 +1,186 @@
+#!/usr/bin/env python3
+"""
+set-mic-fx — CLI & Engine for the FoveAI input-FX pedalboard.
+Live-modulates Calf Gate / EQ / Compressor / Saturator / VintageDelay / Reverb
+inside the "mic_fx" PipeWire node. Zero-dropout, no restarts.
+Also manages the "FoveAI Aux Input" virtual port (null sink -> monitor source).
+"""
+
+import argparse
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+STATE_PATH = Path.home() / ".config" / "pipewire" / "mic-fx-state.json"
+AUX_SINK = "foveai_aux_in"
+
+DEFAULT_STATE = {
+    "noise": 0.0,    # 0-100  noise gate intensity (0 = fully open)
+    "clarity": 0.0,  # 0-100  presence boost + rumble cut
+    "voxpress": 0.0, # 0-100  vocal compressor / leveller
+    "drive": 0.0,    # 0-100  saturator grit (guitar-pedal style)
+    "echo": 0.0,     # 0-100  vintage delay wet level
+    "voxrev": 0.0,   # 0-100  vocal reverb wet level
+    "aux": False,    # aux virtual input port enabled
+}
+
+
+def load_state() -> dict:
+    state = dict(DEFAULT_STATE)
+    if STATE_PATH.exists():
+        try:
+            state.update(json.loads(STATE_PATH.read_text(encoding="utf-8")))
+        except Exception:
+            pass
+    return state
+
+
+def save_state(state: dict):
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    STATE_PATH.write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+
+def get_fx_node_id() -> int:
+    try:
+        out = subprocess.check_output(["pw-dump"], timeout=2).decode()
+        for obj in json.loads(out):
+            if obj.get("type") == "PipeWire:Interface:Node":
+                props = obj.get("info", {}).get("props", {})
+                if props.get("node.name") == "mic_fx_capture":  # stream node carrying DSP controls
+                    return obj["id"]
+    except Exception:
+        pass
+    return None
+
+
+def set_live_prop(node_id: int, param_name: str, val):
+    if not node_id:
+        return
+    payload = json.dumps({"params": [param_name, val]})
+    subprocess.run(["pw-cli", "s", str(node_id), "Props", payload],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def _pct(state, key):
+    return max(0.0, min(100.0, float(state.get(key, 0.0)))) / 100.0
+
+
+def apply_all_live(state: dict):
+    node_id = get_fx_node_id()
+    if not node_id:
+        return False
+
+    # NOISE CUT: real gate — threshold -60 dB (open) .. ~-16 dB, deeper cut as it rises
+    noise = _pct(state, "noise")
+    set_live_prop(node_id, "gate:Threshold", round(0.0009 + noise * 0.15, 6))
+    set_live_prop(node_id, "gate:Range", round(0.01 - noise * 0.0095, 6))
+    # plus rumble highpass 20..160 Hz + hiss shelf 0..-4 dB at 9 kHz
+    set_live_prop(node_id, "hp:Freq", round(20.0 + noise * 140.0, 1))
+    set_live_prop(node_id, "hiss:Gain", round(-noise * 4.0, 2))
+
+    # CLARITY: presence peak at 3.2 kHz (0..+8 dB) + low-shelf rumble cut (0..-4 dB)
+    clarity = _pct(state, "clarity")
+    set_live_prop(node_id, "clar:Gain", round(clarity * 8.0, 2))
+    set_live_prop(node_id, "ls:Gain", round(-clarity * 4.0, 2))
+
+    # VOXPRESS: vocal leveller — threshold 0 dB (idle) .. -35 dB, ratio 1..4, makeup 0..10 dB
+    vp = _pct(state, "voxpress")
+    set_live_prop(node_id, "comp:Threshold", round(-vp * 35.0, 1))
+    set_live_prop(node_id, "comp:Ratio", round(1.0 + vp * 3.0, 2))
+    set_live_prop(node_id, "comp:Makeup", round(vp * 10.0, 1))
+
+    # DRIVE: soft-clip saturator — drive gain 1..7, wet mix 0..0.7
+    dr = _pct(state, "drive")
+    set_live_prop(node_id, "drive:Drive", round(1.0 + dr * 6.0, 2))
+    set_live_prop(node_id, "drive:Mix", round(dr * 0.7, 3))
+
+    # ECHO: slap-delay wet level (dry stays 1.0)
+    ec = _pct(state, "echo")
+    set_live_prop(node_id, "mix:Gain 3", round(ec * 0.6, 3))
+
+    # VOX REV: convolver wet level (dry stays 1.0), quadratic taper
+    rv = _pct(state, "voxrev")
+    set_live_prop(node_id, "mix:Gain 2", round(rv * rv * 0.35, 4))
+    return True
+
+
+def _aux_module_id():
+    try:
+        out = subprocess.check_output(
+            ["pactl", "list", "short", "modules"], text=True, timeout=5)
+        for line in out.splitlines():
+            if AUX_SINK in line:
+                return line.split("\t")[0].strip()
+    except Exception:
+        pass
+    return None
+
+
+def set_aux(enabled: bool) -> bool:
+    mod = _aux_module_id()
+    if enabled and not mod:
+        subprocess.run(
+            ["pactl", "load-module", "module-null-sink",
+             f"sink_name={AUX_SINK}",
+             "sink_properties=device.description='FoveAI Aux Input'"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif not enabled and mod:
+        subprocess.run(["pactl", "unload-module", mod],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return _aux_module_id() is not None
+
+
+def main():
+    parser = argparse.ArgumentParser(description="FoveAI input-FX pedalboard engine")
+    parser.add_argument("--json", action="store_true", help="Output current state as JSON")
+    parser.add_argument("--status", action="store_true", help="Show text status")
+    parser.add_argument("--noise", type=float, help="Noise gate intensity (0-100 %)")
+    parser.add_argument("--clarity", type=float, help="Voice clarity boost (0-100 %)")
+    parser.add_argument("--voxpress", type=float, help="Vocal compressor (0-100 %)")
+    parser.add_argument("--drive", type=float, help="Saturator drive (0-100 %)")
+    parser.add_argument("--echo", type=float, help="Vintage delay level (0-100 %)")
+    parser.add_argument("--voxrev", type=float, help="Vocal reverb level (0-100 %)")
+    parser.add_argument("--aux", choices=["on", "off", "toggle"],
+                        help="FoveAI Aux Input virtual port")
+    args = parser.parse_args()
+
+    if args.json:
+        s = load_state()
+        s["aux"] = _aux_module_id() is not None
+        print(json.dumps(s))
+        return
+    if args.status:
+        s = load_state()
+        print(" ".join(f"{k}={v}" for k, v in s.items()),
+              "node:", "online" if get_fx_node_id() else "offline",
+              "aux:", "on" if _aux_module_id() else "off")
+        return
+
+    state = load_state()
+    changed = False
+    for key in ("noise", "clarity", "voxpress", "drive", "echo", "voxrev"):
+        val = getattr(args, key)
+        if val is not None:
+            state[key] = max(0.0, min(100.0, val))
+            changed = True
+
+    if args.aux is not None:
+        want = (not _aux_module_id()) if args.aux == "toggle" else (args.aux == "on")
+        state["aux"] = set_aux(want)
+
+    if changed:
+        save_state(state)
+        if not apply_all_live(state):
+            print("mic_fx node not found — is pipewire loaded with mic-fx.conf?", file=sys.stderr)
+            sys.exit(1)
+    if changed or args.aux is not None:
+        save_state(state)
+        print(json.dumps(state))
+        return
+
+    parser.print_help()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,5 +1,6 @@
 """Generate corrected ScreenWatch.ts"""
-content = '''/**
+
+content = """/**
  * SCREEN WATCH - Avatar co-watches user's screen
  * Captures display via getDisplayMedia, downloads subtitles from OpenSubtitles
  */
@@ -147,10 +148,11 @@ export class ScreenWatch {
   isRunning(): boolean { return this.active; }
   dispose(): void { this.stop(); }
 }
-'''
+"""
 
 import os
-out = r'c:\Users\lumba\Program\FoveAI\frontend\XR_Vessel\src\senses\ScreenWatch.ts'
-with open(out, 'w', encoding='utf-8') as f:
+
+out = r"c:\Users\lumba\Program\FoveAI\frontend\XR_Vessel\src\senses\ScreenWatch.ts"
+with open(out, "w", encoding="utf-8") as f:
     f.write(content)
-print(f'ScreenWatch.ts written: {os.path.getsize(out)} bytes')
+print(f"ScreenWatch.ts written: {os.path.getsize(out)} bytes")

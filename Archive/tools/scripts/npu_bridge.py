@@ -1,12 +1,11 @@
-import os
-import sys
-import time
 import logging
+import os
+import time
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import List, Optional
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -16,7 +15,9 @@ app = FastAPI(title="FoveAI Windows NPU/GPU Acceleration Bridge")
 
 # Define the absolute local path to your ONNX optimized model directory
 # Example model: microsoft/Phi-3-mini-4k-instruct-onnx (DirectML variant)
-MODEL_PATH = os.getenv("FoveAI_NPU_MODEL_PATH", "D:/Lumax/models/ONNX/phi3-mini-dml").strip()
+MODEL_PATH = os.getenv(
+    "FoveAI_NPU_MODEL_PATH", "D:/Lumax/models/ONNX/phi3-mini-dml"
+).strip()
 
 has_ort_genai = False
 model = None
@@ -25,33 +26,43 @@ tokenizer = None
 try:
     # Use the official ONNX Runtime Generative AI sub-architecture
     import onnxruntime_genai as og
+
     has_ort_genai = True
     logger.info("onnxruntime_genai module detected successfully.")
-    
+
     if os.path.exists(MODEL_PATH) and any(os.listdir(MODEL_PATH)):
         logger.info(f"Loading local ONNX model from: {MODEL_PATH} ...")
         start_time = time.time()
         # Initialize the model directly on the DirectX 12 / DirectML hardware accelerator
         model = og.Model(MODEL_PATH)
         tokenizer = og.Tokenizer(model)
-        logger.info(f"Model loaded onto DirectML hardware pipeline in {time.time() - start_time:.2f}s.")
+        logger.info(
+            f"Model loaded onto DirectML hardware pipeline in {time.time() - start_time:.2f}s."
+        )
     else:
-        logger.warning(f"Model directory empty or missing at '{MODEL_PATH}'. Running in structural MOCK mode.")
+        logger.warning(
+            f"Model directory empty or missing at '{MODEL_PATH}'. Running in structural MOCK mode."
+        )
 except ImportError:
-    logger.warning("onnxruntime_genai NOT installed. Run: pip install --pre onnxruntime-genai-directml")
+    logger.warning(
+        "onnxruntime_genai NOT installed. Run: pip install --pre onnxruntime-genai-directml"
+    )
 except Exception as e:
     logger.error(f"Failed to initialize DirectML hardware execution session: {e}")
+
 
 class ChatMessage(BaseModel):
     role: str
     content: str
 
+
 class ChatCompletionRequest(BaseModel):
     model: str
-    messages: List[ChatMessage]
-    stream: Optional[bool] = False
-    max_tokens: Optional[int] = 512
-    temperature: Optional[float] = 0.7
+    messages: list[ChatMessage]
+    stream: bool | None = False
+    max_tokens: int | None = 512
+    temperature: float | None = 0.7
+
 
 @app.get("/v1/models")
 async def list_models():
@@ -61,15 +72,18 @@ async def list_models():
                 "id": "windows-npu-phi-silica",
                 "object": "model",
                 "owned_by": "microsoft",
-                "permission": []
+                "permission": [],
             }
         ]
     }
 
+
 @app.post("/v1/chat/completions")
 async def chat_completions(req: ChatCompletionRequest):
-    logger.info(f"Routing transaction to DirectML Engine Node. Model request string: {req.model}")
-    
+    logger.info(
+        f"Routing transaction to DirectML Engine Node. Model request string: {req.model}"
+    )
+
     # 1. Verification Gate for Unconfigured Environments
     if not has_ort_genai or model is None:
         fallback_text = (
@@ -93,17 +107,19 @@ async def chat_completions(req: ChatCompletionRequest):
 
         # 3. Tokenize input strings into hardware-native tensors
         input_tokens = tokenizer.encode(full_prompt)
-        
+
         # 4. Bind compilation params to the generator execution thread
         params = og.GeneratorParams(model)
-        params.set_search_option("max_length", len(input_tokens) + (req.max_tokens or 512))
+        params.set_search_option(
+            "max_length", len(input_tokens) + (req.max_tokens or 512)
+        )
         params.set_search_option("temperature", req.temperature or 0.7)
         params.input_ids = input_tokens
 
         # 5. Execute synchronous loop generation over the target device processing units
         generator = og.Generator(model, params)
         generated_tokens = []
-        
+
         while not generator.is_done():
             generator.compute_logits()
             generator.generate_next_token()
@@ -113,7 +129,7 @@ async def chat_completions(req: ChatCompletionRequest):
 
         # 6. Decode output arrays back into clean human text strings
         reply = tokenizer.decode(generated_tokens)
-        
+
     except Exception as e:
         logger.error(f"Execution failure during DirectML tensor generation pass: {e}")
         reply = f"Internal execution error on local DirectML hardware engine node: {e}"
@@ -131,19 +147,13 @@ def _build_openai_response(model_name: str, content_text: str) -> dict:
         "choices": [
             {
                 "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": content_text.strip()
-                },
-                "finish_reason": "stop"
+                "message": {"role": "assistant", "content": content_text.strip()},
+                "finish_reason": "stop",
             }
         ],
-        "usage": {
-            "prompt_tokens": 0,
-            "completion_tokens": 0,
-            "total_tokens": 0
-        }
+        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
     }
+
 
 if __name__ == "__main__":
     # Exposed on port 11436 across all interface bridges for seamless WSL2 accessibility

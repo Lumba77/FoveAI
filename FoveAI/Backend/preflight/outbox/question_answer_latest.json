@@ -1,0 +1,5 @@
+{
+  "timestamp_utc": "2026-04-07T19:09:13.395300+00:00",
+  "question": "why has our dockerized ollama difficulties exporting the standard port for it?",
+  "answer": "## Watchdog fallback investigation\n- Solver reason: solver-exception:[Errno -3] Temporary failure in name resolution\n- Failing services: ['SOUL']\n- Likely causes: []\n- Safe next checks: ['Verify lumax_turbochat container exists and is on lumax_local network.', 'Check solver runtime command/env: LUMAX_LOCAL_RUNNER_CMD and LUMAX_SENTRY_SOLVER_CMD.', 'Keep bridge maintenance active; compare failure signatures across 3 cycles.']\n- Evidence keys: service_inspect=['SOUL', 'EARS', 'MOUTH', 'TURBO', 'OPS'], recent_logs=['SOUL', 'EARS', 'MOUTH', 'TURBO', 'OPS']\n"
+}

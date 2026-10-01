@@ -1,9 +1,10 @@
-import os
-import httpx
 import logging
-from typing import Dict, Optional
+import os
+
+import httpx
 
 logger = logging.getLogger("home_core")
+
 
 class HomeCore:
     ## 🏠 THE HOME SANCTUARY (CORE)
@@ -23,11 +24,11 @@ class HomeCore:
         return balance <= 0.1
 
     @staticmethod
-    async def call_service(domain: str, service: str, data: Dict):
+    async def call_service(domain: str, service: str, data: dict):
         if not HomeCore._is_agent_access_permitted():
             logger.warning("HomeCore: Request DENIED. Tools restricted to Agent mode.")
             return {"status": "error", "message": "Mode Restricted"}
-            
+
         if not HomeCore.HA_TOKEN:
             logger.warning("HomeCore: No HA_TOKEN provided. Agency is paralyzed.")
             return {"status": "error", "message": "No Token"}
@@ -37,7 +38,7 @@ class HomeCore:
             "Authorization": f"Bearer {HomeCore.HA_TOKEN}",
             "Content-Type": "application/json",
         }
-        
+
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.post(url, json=data, headers=headers)
@@ -52,28 +53,27 @@ class HomeCore:
         # Maps Jen's internal "Vibes" to physical light states
         # Defaulting to 'all lights' or a specific area 'living_room'
         data = {
-            "entity_id": "all", 
+            "entity_id": "all",
             "brightness": brightness,
         }
         if color_name:
             data["color_name"] = color_name
-            
+
         return await HomeCore.call_service("light", "turn_on", data)
 
     @staticmethod
     async def announce(text: str, speaker_id: str = "media_player.google_home"):
         # manifest her voice through the physical world
-        data = {
-            "entity_id": speaker_id,
-            "message": text
-        }
+        data = {"entity_id": speaker_id, "message": text}
         return await HomeCore.call_service("tts", "google_translate_say", data)
 
     @staticmethod
     async def manage_service(service: str, action: str):
         """Request foveai_ops to start/stop/restart a whitelisted service."""
         if not HomeCore._is_agent_access_permitted():
-            logger.warning(f"HomeCore: Service control for {service} DENIED. Mode Restricted.")
+            logger.warning(
+                f"HomeCore: Service control for {service} DENIED. Mode Restricted."
+            )
             return {"ok": False, "error": "Mode Restricted"}
 
         ops_url = os.getenv("OPS_URL", "http://foveai_ops:8080").rstrip("/")

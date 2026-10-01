@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sandbox Self-Coder Console</title>
+    <style>
+        body { background: #0a0c10; color: #cbd5e1; font-family: 'Segoe UI', monospace; margin: 0; padding: 40px; display: flex; flex-direction: column; align-items: center; }
+        .wrapper { max-width: 900px; width: 100%; background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 30px; box-shadow: 0 20px 40px rgba(0,0,0,0.7); }
+        h1 { color: #818cf8; font-size: 22px; margin-top: 0; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .control-row { display: flex; gap: 15px; margin: 25px 0; width: 100%; }
+        .mic-trigger { background: #4f46e5; color: #fff; border: none; padding: 14px 28px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; font-size: 14px; box-shadow: 0 4px 15px rgba(79,70,229,0.3); white-space: nowrap; }
+        .mic-trigger:hover { background: #6366f1; }
+        .active-listening { background: #dc2626 !important; animation: wake-pulse 1.5s infinite; }
+        
+        .text-input-box { flex-grow: 1; background: #030712; border: 1px solid #1f2937; border-radius: 6px; padding: 14px; color: #e2e8f0; font-family: inherit; font-size: 14px; }
+        .text-input-box:focus { border-color: #6366f1; outline: none; }
+        .send-btn { background: #10b981; color: white; border: none; padding: 14px 28px; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 14px; transition: 0.2s; }
+        .send-btn:hover { background: #34d399; }
+        
+        #status-display { text-align: center; color: #a0aec0; font-size: 14px; min-height: 20px; font-style: italic; margin-bottom: 20px; }
+        
+        .panel { margin-top: 20px; background: #02040a; border: 1px solid #21262d; border-radius: 6px; padding: 15px; font-family: 'Consolas', monospace; }
+        .panel-title { color: #58a6ff; font-size: 12px; font-weight: bold; margin-bottom: 10px; text-transform: uppercase; }
+        .panel-content { font-size: 12px; color: #c9d1d9; white-space: pre-wrap; max-height: 150px; overflow-y: auto; }
+        
+        #terminal-output { color: #39ff14; max-height: 250px; }
+        #vocal-output { color: #f8e71c; }
+        
+        @keyframes wake-pulse { 0% { box-shadow: 0 0 0 0 rgba(220,38,38,0.5); } 100% { box-shadow: 0 0 0 15px rgba(220,38,38,0); } }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <h1>⚙️ Sandbox Engine Instance Active</h1>
+        <p>Confined within the <code>selfcoder/</code> workspace subfolder. You can dictate requirements by clicking the voice button, or type manual instructions into the text area below.</p>
+        
+        <div class="control-row">
+            <button class="mic-trigger" id="actionBtn" onclick="toggleCapture()">Voice Control</button>
+            <input type="text" class="text-input-box" id="textPrompt" placeholder="Type a manual coding directive here..." onkeydown="if(event.key==='Enter') dispatchText()">
+            <button class="send-btn" onclick="dispatchText()">Send Instruction</button>
+        </div>
+
+        <div id="status-display">Synchronizing dashboard inputs...</div>
+        
+        <div class="panel">
+            <div class="panel-title">🗣️ Agent Vocal Output Pane</div>
+            <div id="vocal-output" class="panel-content">Awaiting system generation...</div>
+        </div>
+
+        <div class="panel">
+            <div class="panel-title">🖥️ Standard Output & Command Execution Results</div>
+            <div id="terminal-output" class="panel-content">No logs captured yet. Run a prompt to generate server tasks!</div>
+        </div>
+    </div>
+
+    <script>
+        const actionBtn = document.getElementById('actionBtn');
+        const textPrompt = document.getElementById('textPrompt');
+        const statusDisplay = document.getElementById('status-display');
+        const vocalOutput = document.getElementById('vocal-output');
+        const terminalOutput = document.getElementById('terminal-output');
+        let speechModule;
+        let streamingActive = false;
+
+        async function updateLiveLogs() {
+            try {
+                const res = await fetch('/sandbox_debug.json');
+                if (res.ok) {
+                    const logs = await res.json();
+                    let formattedHTML = "";
+                    logs.forEach(log => {
+                        formattedHTML += `<span style="color: #6e7681;">$ \${log.command}</span>\n`;
+                        if(log.stdout) formattedHTML += `<span style="color: #c9d1d9;">\${log.stdout}</span>`;
+                        if(log.stderr) formattedHTML += `<span style="color: #f85149;">\${log.stderr}</span>`;
+                        if(log.error) formattedHTML += `<span style="color: #f85149;">SYSTEM EXCEPTION: \${log.error}</span>`;
+                        formattedHTML += `\n-----------------------------------------\n`;
+                    });
+                    terminalOutput.innerHTML = formattedHTML;
+                }
+            } catch(e) {}
+            statusDisplay.textContent = "Workspace ready.";
+        }
+        window.onload = updateLiveLogs;
+
+        if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+            const SpeechEngine = window.SpeechRecognition || window.webkitSpeechRecognition;
+            speechModule = new SpeechEngine();
+            speechModule.continuous = false;
+            speechModule.lang = 'en-US';
+            speechModule.onstart = () => {
+                streamingActive = true;
+                actionBtn.textContent = "Listening...";
+                actionBtn.classList.add('active-listening');
+            };
+            speechModule.onresult = (evt) => {
+                dispatchPayload(evt.results.transcript);
+            };
+            speechModule.onerror = () => { stopStreaming(); };
+            speechModule.onend = () => { stopStreaming(); };
+        } else {
+            actionBtn.style.display = "none";
+        }
+
+        function toggleCapture() { if (streamingActive) { speechModule.stop(); } else { speechModule.start(); } }
+        function stopStreaming() { streamingActive = false; actionBtn.textContent = "Voice Control"; actionBtn.classList.remove('active-listening'); }
+        function vocalize(phrase) { if ('speechSynthesis' in window) { window.speechSynthesis.cancel(); window.speechSynthesis.speak(new SpeechSynthesisUtterance(phrase)); } }
+
+        function dispatchText() {
+            const inputVal = textPrompt.value.trim();
+            if (!inputVal) return;
+            textPrompt.value = ""; // Text disappears instantly on send
+            statusDisplay.textContent = "Processing manual text instruction...";
+            dispatchPayload(inputVal);
+        }
+
+        async function dispatchPayload(rawText) {
+            try {
+                const res = await fetch('/api/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt: rawText })
+                });
+                const payload = await res.json();
+                
+                vocalOutput.textContent = payload.speak;
+                vocalize(payload.speak);
+                
+                statusDisplay.textContent = "Updating layout state...";
+                setTimeout(() => { window.location.reload(); }, 4000);
+            } catch (e) {
+                statusDisplay.textContent = "Infrastructure communication pipeline breakdown.";
+            }
+        }
+    </script>
+</body>
+</html>

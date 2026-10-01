@@ -1,8 +1,8 @@
 import asyncio
 import base64
 import copy
-import json
 import hashlib
+import json
 import logging
 import os
 import secrets
@@ -10,16 +10,15 @@ import subprocess
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
-from fastapi import Body, Depends, FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, FileResponse, Response
-from pydantic import BaseModel, Field
-from starlette.middleware.sessions import SessionMiddleware
 import httpx
 import uvicorn
-
+from fastapi import Body, Depends, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from feature_inventory_parser import parse_feature_inventory_markdown
+from pydantic import BaseModel, Field
+from starlette.middleware.sessions import SessionMiddleware
 
 # Configure Logging (routine request logs: uvicorn access_log off by default)
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "WARNING"))
@@ -27,7 +26,11 @@ logger = logging.getLogger("WebAppBridge")
 
 
 def _uvicorn_log_level() -> str:
-    raw = os.getenv("FoveAI_UVICORN_LOG_LEVEL", os.getenv("LOG_LEVEL", "WARNING")).strip().upper()
+    raw = (
+        os.getenv("FoveAI_UVICORN_LOG_LEVEL", os.getenv("LOG_LEVEL", "WARNING"))
+        .strip()
+        .upper()
+    )
     m = {
         "CRITICAL": "critical",
         "ERROR": "error",
@@ -40,7 +43,12 @@ def _uvicorn_log_level() -> str:
 
 
 def _uvicorn_access_log() -> bool:
-    return os.getenv("FoveAI_UVICORN_ACCESS_LOG", "0").strip().lower() in ("1", "true", "yes", "on")
+    return os.getenv("FoveAI_UVICORN_ACCESS_LOG", "0").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
 
 
 # --- Web UI gate ---
@@ -48,7 +56,9 @@ def _uvicorn_access_log() -> bool:
 # Local dev without a password: FoveAI_WEBUI_ALLOW_INSECURE=1 (never on public networks).
 WEBUI_PASSWORD = os.getenv("FoveAI_WEBUI_PASSWORD", "").strip()
 WEBUI_SESSION_SECRET = os.getenv("FoveAI_WEBUI_SESSION_SECRET", "").strip()
-WEBUI_ALLOW_INSECURE = os.getenv("FoveAI_WEBUI_ALLOW_INSECURE", "0").strip().lower() in (
+WEBUI_ALLOW_INSECURE = os.getenv(
+    "FoveAI_WEBUI_ALLOW_INSECURE", "0"
+).strip().lower() in (
     "1",
     "true",
     "yes",
@@ -197,16 +207,20 @@ async def health() -> dict[str, Any]:
 # Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ANNOUNCEMENTS_PATH = os.path.join(BASE_DIR, "announcements.json")
-UI_CONFIG_PATH = os.getenv("FoveAI_UI_CONFIG_PATH", os.path.join(BASE_DIR, "foveai_ui_config.json"))
+UI_CONFIG_PATH = os.getenv(
+    "FoveAI_UI_CONFIG_PATH", os.path.join(BASE_DIR, "foveai_ui_config.json")
+)
 LEGACY_BRANDING_PATH = os.path.join(BASE_DIR, "webui_branding.json")
 SOUL_URL = os.getenv("SOUL_URL", "http://foveai_soul:8402").rstrip("/")
 EARS_URL = os.getenv("EARS_URL", "http://foveai_ears:8001").rstrip("/")
 MOUTH_URL = os.getenv("MOUTH_URL", "http://foveai_body:8002").rstrip("/")
-CREATIVE_URL = os.getenv("CREATIVE_SERVICE_URL", "http://foveai_creativity:8003").rstrip("/")
+CREATIVE_URL = os.getenv(
+    "CREATIVE_SERVICE_URL", "http://foveai_creativity:8003"
+).rstrip("/")
 TURBO_URL = os.getenv("TURBO_URL", "http://foveai_turbochat:8005").rstrip("/")
-CHATTERBOX_INTERNAL_URL = os.getenv("FoveAI_CHATTERBOX_HTTP_URL", "http://foveai_chatterbox_resemble:8004").rstrip(
-    "/"
-)
+CHATTERBOX_INTERNAL_URL = os.getenv(
+    "FoveAI_CHATTERBOX_HTTP_URL", "http://foveai_chatterbox_resemble:8004"
+).rstrip("/")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://foveai_ollama_backup:11434").rstrip("/")
 _FoveAI_DREAM_PROXY_TIMEOUT = float(os.getenv("FoveAI_DREAM_PROXY_TIMEOUT_SEC", "600"))
 _WEBUI_PORT = int(os.getenv("WEBUI_PORT", "8080"))
@@ -216,7 +230,12 @@ _PIPELINE_DUMMY_WAV_B64 = base64.b64encode(
     b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00"
     b"\x44\xac\x00\x00\x44\xac\x00\x00\x01\x00\x08\x00data\x00\x00\x00\x00"
 ).decode("ascii")
-_SOUL_PIPELINE_ERR_MARKERS = ("cognition error", "error:", "exceed context", "context window")
+_SOUL_PIPELINE_ERR_MARKERS = (
+    "cognition error",
+    "error:",
+    "exceed context",
+    "context window",
+)
 
 _feature_inventory_cache: tuple[str, float, dict[str, Any]] | None = None
 
@@ -287,6 +306,7 @@ class GpuTtsStackBody(BaseModel):
 
     mode: Literal["turbo", "chatterbox_ui"]
 
+
 # Shared across browser + VR: identity strings. Web-only (nav, auth, PWA) lives under "web".
 GLOBAL_KEYS = frozenset({"site_name", "slogan", "ready_message"})
 
@@ -310,7 +330,9 @@ _BRAND_NAV_KEYS = frozenset(
         "FEATUREMAP",
     )
 )
-_BRAND_GROUP_KEYS = frozenset(("cognition", "manifestation", "agency", "laboratory", "utilities"))
+_BRAND_GROUP_KEYS = frozenset(
+    ("cognition", "manifestation", "agency", "laboratory", "utilities")
+)
 
 
 def _default_branding() -> dict[str, Any]:
@@ -389,7 +411,9 @@ def _default_desktop() -> dict[str, Any]:
     }
 
 
-def _merge_client_stub_dict(defaults: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+def _merge_client_stub_dict(
+    defaults: dict[str, Any], overlay: dict[str, Any]
+) -> dict[str, Any]:
     """Shallow merge for open-ended mobile/desktop sections."""
     out = copy.deepcopy(defaults)
     if not isinstance(overlay, dict):
@@ -447,7 +471,9 @@ def _migrate_legacy_flat_to_ui_config(leg: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _merge_godot_vr_dicts(defaults: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+def _merge_godot_vr_dicts(
+    defaults: dict[str, Any], overlay: dict[str, Any]
+) -> dict[str, Any]:
     out = copy.deepcopy(defaults)
     if not isinstance(overlay, dict):
         return out
@@ -464,7 +490,9 @@ def _merge_godot_vr_dicts(defaults: dict[str, Any], overlay: dict[str, Any]) -> 
     return out
 
 
-def _merge_ui_config_with_defaults(defaults: dict[str, Any], loaded: dict[str, Any]) -> dict[str, Any]:
+def _merge_ui_config_with_defaults(
+    defaults: dict[str, Any], loaded: dict[str, Any]
+) -> dict[str, Any]:
     out = copy.deepcopy(defaults)
     out["version"] = int(loaded.get("version", 1))
     lg = loaded.get("global")
@@ -492,7 +520,9 @@ def _merge_ui_config_with_defaults(defaults: dict[str, Any], loaded: dict[str, A
             elif k in def_flat and k not in ("nav_groups", "nav_tabs"):
                 merged_web[k] = _clamp_str(v)
         out["web"] = merged_web
-    out["godot_vr"] = _merge_godot_vr_dicts(defaults["godot_vr"], loaded.get("godot_vr") or {})
+    out["godot_vr"] = _merge_godot_vr_dicts(
+        defaults["godot_vr"], loaded.get("godot_vr") or {}
+    )
     out["mobile"] = _merge_client_stub_dict(
         out.get("mobile") or _default_mobile(),
         loaded.get("mobile") or {},
@@ -521,7 +551,9 @@ def _load_ui_config() -> dict[str, Any]:
             if isinstance(leg, dict) and "version" not in leg:
                 d = _migrate_legacy_flat_to_ui_config(leg)
                 _save_ui_config(d)
-                logger.info("Migrated %s to unified %s", LEGACY_BRANDING_PATH, UI_CONFIG_PATH)
+                logger.info(
+                    "Migrated %s to unified %s", LEGACY_BRANDING_PATH, UI_CONFIG_PATH
+                )
         except Exception as e:
             logger.warning("legacy webui_branding.json unreadable: %s", e)
     return d
@@ -563,7 +595,9 @@ def _effective_web_flat(cfg: dict[str, Any]) -> dict[str, Any]:
     return base
 
 
-def _merge_flat_patch_into_ui_config(cfg: dict[str, Any], patch: dict[str, Any]) -> dict[str, Any]:
+def _merge_flat_patch_into_ui_config(
+    cfg: dict[str, Any], patch: dict[str, Any]
+) -> dict[str, Any]:
     out = copy.deepcopy(cfg)
     g = dict(out.get("global") or {})
     w = dict(out.get("web") or {})
@@ -593,6 +627,7 @@ def _merge_flat_patch_into_ui_config(cfg: dict[str, Any], patch: dict[str, Any])
 
 def _load_branding() -> dict[str, Any]:
     return _effective_web_flat(_load_ui_config())
+
 
 _DEFAULT_ANNOUNCEMENTS = {
     "items": [
@@ -632,6 +667,7 @@ def _load_announcements():
             logger.warning("announcements.json unreadable: %s", e)
     return dict(_DEFAULT_ANNOUNCEMENTS)
 
+
 @app.get("/", response_class=HTMLResponse)
 async def get_index() -> FileResponse:
     """Serve shell HTML; avoid stale copies in the browser after `git pull` or local edits."""
@@ -639,6 +675,7 @@ async def get_index() -> FileResponse:
         os.path.join(BASE_DIR, "index.html"),
         headers={"Cache-Control": "no-cache, must-revalidate"},
     )
+
 
 @app.get("/manifest.json")
 async def get_manifest():
@@ -654,9 +691,9 @@ async def get_manifest():
             {
                 "src": "https://img.icons8.com/neon/512/artificial-intelligence.png",
                 "sizes": "512x512",
-                "type": "image/png"
+                "type": "image/png",
             }
-        ]
+        ],
     }
 
 
@@ -693,6 +730,7 @@ async def get_ui_config() -> dict[str, Any]:
         "effective_web": _effective_web_flat(cfg),
     }
 
+
 @app.post("/api/chat")
 async def proxy_chat(request: Request, _auth: None = Depends(require_webui_login)):
     data = await request.json()
@@ -700,12 +738,14 @@ async def proxy_chat(request: Request, _auth: None = Depends(require_webui_login
         resp = await client.post(f"{SOUL_URL}/compagent", json=data)
         return resp.json()
 
+
 @app.post("/api/stt")
 async def proxy_stt(request: Request, _auth: None = Depends(require_webui_login)):
     data = await request.json()
     async with httpx.AsyncClient(timeout=60.0) as client:
         resp = await client.post(f"{EARS_URL}/stt", json=data)
         return resp.json()
+
 
 @app.get("/api/announcements")
 async def get_announcements(_auth: None = Depends(require_webui_login)):
@@ -719,22 +759,29 @@ async def proxy_vitals(_auth: None = Depends(require_webui_login)):
         resp = await client.get(f"{SOUL_URL}/vitals")
         return resp.json()
 
+
 @app.get("/api/soul/dna")
 async def proxy_get_soul_dna(_auth: None = Depends(require_webui_login)):
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.get(f"{SOUL_URL}/soul_dna")
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
 @app.post("/api/update_soul")
-async def proxy_update_soul(request: Request, _auth: None = Depends(require_webui_login)):
+async def proxy_update_soul(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     data = await request.json()
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(f"{SOUL_URL}/update_soul", json=data)
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
@@ -743,7 +790,9 @@ async def proxy_soul_runtime_status(_auth: None = Depends(require_webui_login)):
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.get(f"{SOUL_URL}/soul_runtime_status")
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
@@ -752,27 +801,37 @@ async def proxy_soul_ps(_auth: None = Depends(require_webui_login)):
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.get(f"{SOUL_URL}/api/ps")
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
 @app.post("/api/soul/switch_model")
-async def proxy_soul_switch_model(request: Request, _auth: None = Depends(require_webui_login)):
+async def proxy_soul_switch_model(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     data = await request.json()
     async with httpx.AsyncClient(timeout=300.0) as client:
         resp = await client.post(f"{SOUL_URL}/switch_model", json=data)
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
 @app.post("/api/soul/runtime_config")
-async def proxy_soul_runtime_config(request: Request, _auth: None = Depends(require_webui_login)):
+async def proxy_soul_runtime_config(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     data = await request.json()
     async with httpx.AsyncClient(timeout=300.0) as client:
         resp = await client.post(f"{SOUL_URL}/soul_runtime_config", json=data)
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
@@ -780,12 +839,15 @@ async def proxy_soul_runtime_config(request: Request, _auth: None = Depends(requ
 # Forward /api/agent/* from WebUI (port 8080) to XRLF runtime (port 8402)
 # so the Agency Tab START/STOP buttons and status polling work from the browser.
 
+
 @app.get("/api/agent/status")
 async def proxy_agent_status(_auth: None = Depends(require_webui_login)):
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.get(f"{SOUL_URL}/api/agent/status")
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
@@ -794,7 +856,9 @@ async def proxy_agent_start(_auth: None = Depends(require_webui_login)):
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(f"{SOUL_URL}/api/agent/start")
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
@@ -803,26 +867,38 @@ async def proxy_agent_stop(_auth: None = Depends(require_webui_login)):
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(f"{SOUL_URL}/api/agent/stop")
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
 @app.get("/api/agent/messages")
-async def proxy_agent_messages(limit: int = 20, _auth: None = Depends(require_webui_login)):
+async def proxy_agent_messages(
+    limit: int = 20, _auth: None = Depends(require_webui_login)
+):
     async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.get(f"{SOUL_URL}/api/agent/messages", params={"limit": limit})
+        resp = await client.get(
+            f"{SOUL_URL}/api/agent/messages", params={"limit": limit}
+        )
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
 @app.post("/api/agent/messages/mark")
-async def proxy_agent_mark_messages(request: Request, _auth: None = Depends(require_webui_login)):
+async def proxy_agent_mark_messages(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     data = await request.json()
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(f"{SOUL_URL}/api/agent/messages/mark", json=data)
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
@@ -831,25 +907,39 @@ async def proxy_agent_plans(_auth: None = Depends(require_webui_login)):
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.get(f"{SOUL_URL}/api/agent/plans")
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
 @app.get("/api/agent/thoughts")
-async def proxy_agent_thoughts(limit: int = 20, _auth: None = Depends(require_webui_login)):
+async def proxy_agent_thoughts(
+    limit: int = 20, _auth: None = Depends(require_webui_login)
+):
     async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.get(f"{SOUL_URL}/api/agent/thoughts", params={"limit": limit})
+        resp = await client.get(
+            f"{SOUL_URL}/api/agent/thoughts", params={"limit": limit}
+        )
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
 @app.get("/api/agent/actions")
-async def proxy_agent_actions(limit: int = 20, _auth: None = Depends(require_webui_login)):
+async def proxy_agent_actions(
+    limit: int = 20, _auth: None = Depends(require_webui_login)
+):
     async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.get(f"{SOUL_URL}/api/agent/actions", params={"limit": limit})
+        resp = await client.get(
+            f"{SOUL_URL}/api/agent/actions", params={"limit": limit}
+        )
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
@@ -858,36 +948,50 @@ async def proxy_agent_context(_auth: None = Depends(require_webui_login)):
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.get(f"{SOUL_URL}/api/agent/context")
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
 @app.post("/api/agent/message")
-async def proxy_agent_enqueue_message(request: Request, _auth: None = Depends(require_webui_login)):
+async def proxy_agent_enqueue_message(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     data = await request.json()
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(f"{SOUL_URL}/api/agent/message", json=data)
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
 @app.post("/api/agent/plan")
-async def proxy_agent_create_plan(request: Request, _auth: None = Depends(require_webui_login)):
+async def proxy_agent_create_plan(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     data = await request.json()
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(f"{SOUL_URL}/api/agent/plan", json=data)
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
 @app.get("/api/agent/plan/{plan_id}")
-async def proxy_agent_get_plan(plan_id: str, _auth: None = Depends(require_webui_login)):
+async def proxy_agent_get_plan(
+    plan_id: str, _auth: None = Depends(require_webui_login)
+):
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.get(f"{SOUL_URL}/api/agent/plan/{plan_id}")
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
@@ -896,17 +1000,23 @@ async def proxy_agent_get_memory(key: str, _auth: None = Depends(require_webui_l
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.get(f"{SOUL_URL}/api/agent/memory/{key}")
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
 @app.post("/api/agent/memory")
-async def proxy_agent_set_memory(request: Request, _auth: None = Depends(require_webui_login)):
+async def proxy_agent_set_memory(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     data = await request.json()
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(f"{SOUL_URL}/api/agent/memory", json=data)
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
@@ -915,19 +1025,21 @@ async def proxy_agent_queue_stats(_auth: None = Depends(require_webui_login)):
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.get(f"{SOUL_URL}/api/agent/queue/stats")
         if resp.status_code != 200:
-            raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+            raise HTTPException(
+                status_code=resp.status_code, detail=(resp.text or "")[:2000]
+            )
         return resp.json()
 
 
 async def _fetch_creativity_health(
     client: httpx.AsyncClient,
-) -> tuple[Optional[dict[str, Any]], Optional[str], Optional[str], Optional[int]]:
+) -> tuple[dict[str, Any] | None, str | None, str | None, int | None]:
     """Try GET /health then GET /api/health on foveai_creativity.
 
     Returns (json_or_none, error_text_or_none, resolved_url_or_none, last_http_status).
     """
-    last_err: Optional[str] = None
-    last_code: Optional[int] = None
+    last_err: str | None = None
+    last_code: int | None = None
     for path in ("/health", "/api/health"):
         url = f"{CREATIVE_URL}{path}"
         try:
@@ -947,7 +1059,9 @@ async def _fetch_creativity_health(
 
 
 @app.get("/api/creativity/status")
-async def proxy_creativity_status(_auth: None = Depends(require_webui_login)) -> dict[str, Any]:
+async def proxy_creativity_status(
+    _auth: None = Depends(require_webui_login),
+) -> dict[str, Any]:
     async with httpx.AsyncClient(timeout=8.0) as client:
         try:
             resp = await client.get(f"{CREATIVE_URL}/openapi.json")
@@ -958,19 +1072,25 @@ async def proxy_creativity_status(_auth: None = Depends(require_webui_login)) ->
             "url": CREATIVE_URL,
             "status_code": resp.status_code,
         }
-        health_json, health_err, health_url, _hc = await _fetch_creativity_health(client)
+        health_json, health_err, health_url, _hc = await _fetch_creativity_health(
+            client
+        )
         if health_json is not None:
             out["health"] = health_json
             if health_url:
                 out["health_url"] = health_url
         else:
             out["health"] = None
-            out["health_error"] = health_err or "GET /health and /api/health failed on creativity service"
+            out["health_error"] = (
+                health_err or "GET /health and /api/health failed on creativity service"
+            )
     return out
 
 
 @app.get("/api/creativity/health")
-async def proxy_creativity_health(_auth: None = Depends(require_webui_login)) -> dict[str, Any]:
+async def proxy_creativity_health(
+    _auth: None = Depends(require_webui_login),
+) -> dict[str, Any]:
     """Model paths and SDXL / SD1.4 ONNX hints from foveai_creativity GET /health."""
     async with httpx.AsyncClient(timeout=8.0) as client:
         health_json, err_text, _url, last_code = await _fetch_creativity_health(client)
@@ -985,11 +1105,15 @@ async def proxy_creativity_health(_auth: None = Depends(require_webui_login)) ->
 
 
 @app.get("/api/dream/catalog")
-async def proxy_dream_catalog(_auth: None = Depends(require_webui_login)) -> dict[str, Any]:
+async def proxy_dream_catalog(
+    _auth: None = Depends(require_webui_login),
+) -> dict[str, Any]:
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.get(f"{CREATIVE_URL}/api/dream/catalog")
     if resp.status_code != 200:
-        raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+        raise HTTPException(
+            status_code=resp.status_code, detail=(resp.text or "")[:2000]
+        )
     return resp.json()
 
 
@@ -1012,7 +1136,12 @@ def _diagnostic_probe_specs() -> list[tuple[str, str, str, bool]]:
         ("mouth", "Mouth (TTS router)", f"{MOUTH_URL}/health", False),
         ("creative", "Creativity (dream)", f"{CREATIVE_URL}/health", False),
         ("turbo", "Turbo XTTS (GPU stack)", f"{TURBO_URL}/health", True),
-        ("chatterbox", "Chatterbox (Resemble API)", f"{CHATTERBOX_INTERNAL_URL}/openapi.json", True),
+        (
+            "chatterbox",
+            "Chatterbox (Resemble API)",
+            f"{CHATTERBOX_INTERNAL_URL}/openapi.json",
+            True,
+        ),
         ("ollama", "Ollama", f"{OLLAMA_HOST}/api/tags", True),
     ]
 
@@ -1055,16 +1184,16 @@ async def _diagnostic_probe_one(
 
 
 class DiagnosticRunBody(BaseModel):
-    ids: Optional[list[str]] = None
+    ids: list[str] | None = None
 
 
 class DiagnosticsTtsBody(BaseModel):
     text: str = Field(default="Lumax voice check.", max_length=4096)
-    voice: Optional[str] = Field(default=None, max_length=512)
+    voice: str | None = Field(default=None, max_length=512)
     engine: str = Field(default="TURBO", max_length=64)
 
 
-async def _run_diagnostics(ids: Optional[list[str]]) -> dict[str, Any]:
+async def _run_diagnostics(ids: list[str] | None) -> dict[str, Any]:
     specs = _diagnostic_probe_specs()
     want = set(ids) if ids else None
     to_run = [s for s in specs if want is None or s[0] in want]
@@ -1078,7 +1207,9 @@ async def _run_diagnostics(ids: Optional[list[str]]) -> dict[str, Any]:
 
 
 @app.get("/api/diagnostics/checks")
-async def diagnostics_checks(_auth: None = Depends(require_webui_login)) -> dict[str, Any]:
+async def diagnostics_checks(
+    _auth: None = Depends(require_webui_login),
+) -> dict[str, Any]:
     specs = _diagnostic_probe_specs()
     return {
         "checks": [{"id": s[0], "label": s[1], "optional": s[3]} for s in specs],
@@ -1086,7 +1217,9 @@ async def diagnostics_checks(_auth: None = Depends(require_webui_login)) -> dict
 
 
 @app.get("/api/diagnostics/run")
-async def diagnostics_run_get(_auth: None = Depends(require_webui_login)) -> dict[str, Any]:
+async def diagnostics_run_get(
+    _auth: None = Depends(require_webui_login),
+) -> dict[str, Any]:
     return await _run_diagnostics(None)
 
 
@@ -1100,7 +1233,9 @@ async def diagnostics_run_post(
 
 
 @app.post("/api/diagnostics/pipeline")
-async def diagnostics_pipeline(_auth: None = Depends(require_webui_login)) -> dict[str, Any]:
+async def diagnostics_pipeline(
+    _auth: None = Depends(require_webui_login),
+) -> dict[str, Any]:
     """
     End-to-end: EARS STT (tiny WAV) → soul /compagent → Mouth TTS (TURBO).
     Same spirit as tests/smoke_stt_thinking_tts.py from the Web UI bridge.
@@ -1119,8 +1254,19 @@ async def diagnostics_pipeline(_auth: None = Depends(require_webui_login)) -> di
             )
             ms = int((time.monotonic() - t0) * 1000)
             if r_stt.status_code != 200:
-                steps.append({"id": "stt", "ok": False, "detail": f"HTTP {r_stt.status_code}", "ms": ms})
-                return {"ok": False, "steps": steps, "note": "pipeline_stopped_after_stt"}
+                steps.append(
+                    {
+                        "id": "stt",
+                        "ok": False,
+                        "detail": f"HTTP {r_stt.status_code}",
+                        "ms": ms,
+                    }
+                )
+                return {
+                    "ok": False,
+                    "steps": steps,
+                    "note": "pipeline_stopped_after_stt",
+                }
             stt_body = r_stt.json()
             tr = (stt_body.get("text") or "").strip()
             used_fallback = not tr or tr.startswith("[")
@@ -1130,13 +1276,24 @@ async def diagnostics_pipeline(_auth: None = Depends(require_webui_login)) -> di
                 {
                     "id": "stt",
                     "ok": True,
-                    "detail": ("empty transcript → default prompt" if used_fallback else f"transcript {len(tr)} chars"),
+                    "detail": (
+                        "empty transcript → default prompt"
+                        if used_fallback
+                        else f"transcript {len(tr)} chars"
+                    ),
                     "ms": ms,
                 }
             )
         except Exception as e:
             ms = int((time.monotonic() - t0) * 1000)
-            steps.append({"id": "stt", "ok": False, "detail": f"{type(e).__name__}: {e}", "ms": ms})
+            steps.append(
+                {
+                    "id": "stt",
+                    "ok": False,
+                    "detail": f"{type(e).__name__}: {e}",
+                    "ms": ms,
+                }
+            )
             return {"ok": False, "steps": steps, "note": "pipeline_stopped_after_stt"}
 
         t0 = time.monotonic()
@@ -1152,13 +1309,30 @@ async def diagnostics_pipeline(_auth: None = Depends(require_webui_login)) -> di
             )
             ms = int((time.monotonic() - t0) * 1000)
             if r_soul.status_code != 200:
-                steps.append({"id": "soul", "ok": False, "detail": f"HTTP {r_soul.status_code}", "ms": ms})
-                return {"ok": False, "steps": steps, "note": "pipeline_stopped_after_soul"}
+                steps.append(
+                    {
+                        "id": "soul",
+                        "ok": False,
+                        "detail": f"HTTP {r_soul.status_code}",
+                        "ms": ms,
+                    }
+                )
+                return {
+                    "ok": False,
+                    "steps": steps,
+                    "note": "pipeline_stopped_after_soul",
+                }
             soul = r_soul.json()
             reply = (soul.get("response") or "").strip()
             if not reply:
-                steps.append({"id": "soul", "ok": False, "detail": "empty response", "ms": ms})
-                return {"ok": False, "steps": steps, "note": "pipeline_stopped_after_soul"}
+                steps.append(
+                    {"id": "soul", "ok": False, "detail": "empty response", "ms": ms}
+                )
+                return {
+                    "ok": False,
+                    "steps": steps,
+                    "note": "pipeline_stopped_after_soul",
+                }
             low = reply.lower()
             if any(m in low for m in _SOUL_PIPELINE_ERR_MARKERS):
                 steps.append(
@@ -1170,7 +1344,11 @@ async def diagnostics_pipeline(_auth: None = Depends(require_webui_login)) -> di
                         "preview": reply[:240],
                     }
                 )
-                return {"ok": False, "steps": steps, "note": "pipeline_stopped_after_soul"}
+                return {
+                    "ok": False,
+                    "steps": steps,
+                    "note": "pipeline_stopped_after_soul",
+                }
             steps.append(
                 {
                     "id": "soul",
@@ -1182,7 +1360,14 @@ async def diagnostics_pipeline(_auth: None = Depends(require_webui_login)) -> di
             )
         except Exception as e:
             ms = int((time.monotonic() - t0) * 1000)
-            steps.append({"id": "soul", "ok": False, "detail": f"{type(e).__name__}: {e}", "ms": ms})
+            steps.append(
+                {
+                    "id": "soul",
+                    "ok": False,
+                    "detail": f"{type(e).__name__}: {e}",
+                    "ms": ms,
+                }
+            )
             return {"ok": False, "steps": steps, "note": "pipeline_stopped_after_soul"}
 
         tts_text = reply[:500]
@@ -1190,7 +1375,11 @@ async def diagnostics_pipeline(_auth: None = Depends(require_webui_login)) -> di
         try:
             r_tts = await client.post(
                 f"{MOUTH_URL}/tts",
-                json={"text": tts_text, "voice": "female_american1-lumba", "engine": "TURBO"},
+                json={
+                    "text": tts_text,
+                    "voice": "female_american1-lumba",
+                    "engine": "TURBO",
+                },
                 timeout=240.0,
             )
             ms = int((time.monotonic() - t0) * 1000)
@@ -1204,11 +1393,29 @@ async def diagnostics_pipeline(_auth: None = Depends(require_webui_login)) -> di
                         "ms": ms,
                     }
                 )
-                return {"ok": False, "steps": steps, "note": "pipeline_stopped_after_tts"}
-            steps.append({"id": "tts", "ok": True, "detail": f"WAV {n_bytes} bytes (TURBO)", "ms": ms})
+                return {
+                    "ok": False,
+                    "steps": steps,
+                    "note": "pipeline_stopped_after_tts",
+                }
+            steps.append(
+                {
+                    "id": "tts",
+                    "ok": True,
+                    "detail": f"WAV {n_bytes} bytes (TURBO)",
+                    "ms": ms,
+                }
+            )
         except Exception as e:
             ms = int((time.monotonic() - t0) * 1000)
-            steps.append({"id": "tts", "ok": False, "detail": f"{type(e).__name__}: {e}", "ms": ms})
+            steps.append(
+                {
+                    "id": "tts",
+                    "ok": False,
+                    "detail": f"{type(e).__name__}: {e}",
+                    "ms": ms,
+                }
+            )
             return {"ok": False, "steps": steps, "note": "pipeline_stopped_after_tts"}
 
     return {"ok": True, "steps": steps}
@@ -1227,9 +1434,16 @@ async def diagnostics_tts(
         resp = await client.post(f"{MOUTH_URL}/tts", json=payload)
     ct = resp.headers.get("content-type", "application/octet-stream")
     if resp.status_code != 200:
-        raise HTTPException(status_code=resp.status_code, detail=(resp.text or "")[:2000])
+        raise HTTPException(
+            status_code=resp.status_code, detail=(resp.text or "")[:2000]
+        )
     b64 = base64.b64encode(resp.content).decode("ascii")
-    return {"ok": True, "content_type": ct, "audio_base64": b64, "bytes": len(resp.content)}
+    return {
+        "ok": True,
+        "content_type": ct,
+        "audio_base64": b64,
+        "bytes": len(resp.content),
+    }
 
 
 def _upstream_tts_error(method: str, resp: httpx.Response) -> HTTPException:
@@ -1250,7 +1464,9 @@ async def proxy_get_tts_backend(_auth: None = Depends(require_webui_login)):
 
 
 @app.put("/api/tts/backend")
-async def proxy_put_tts_backend(request: Request, _auth: None = Depends(require_webui_login)):
+async def proxy_put_tts_backend(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     data = await request.json()
     async with httpx.AsyncClient(timeout=15.0) as client:
         resp = await client.put(f"{MOUTH_URL}/tts/backend", json=data)
@@ -1262,7 +1478,9 @@ async def proxy_put_tts_backend(request: Request, _auth: None = Depends(require_
 def _write_tts_backend_marker(mode: str) -> None:
     p = Path(_REPO_ROOT) / "Backend" / "preflight" / "tts_backend"
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(("chatterbox" if mode == "chatterbox_ui" else "turbo") + "\n", encoding="utf-8")
+    p.write_text(
+        ("chatterbox" if mode == "chatterbox_ui" else "turbo") + "\n", encoding="utf-8"
+    )
 
 
 def _browser_request_hostname(request: Request) -> str:
@@ -1288,7 +1506,9 @@ def _browser_request_scheme(request: Request) -> str:
 
 
 @app.get("/api/chatterbox/ui_url")
-async def api_chatterbox_ui_url(request: Request, _auth: None = Depends(require_webui_login)):
+async def api_chatterbox_ui_url(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     """URL for embedding Resemble Chatterbox Web UI (iframe). Override with FoveAI_CHATTERBOX_UI_URL."""
     override = os.getenv("FoveAI_CHATTERBOX_UI_URL", "").strip()
     if override:
@@ -1321,12 +1541,17 @@ def _compose_timeout_sec(for_chatterbox_up: bool) -> int:
 
 
 def _chatterbox_build_context_root() -> Path:
-    rel = os.getenv("CHATTERBOX_TTS_SERVER_ROOT", "./tools/Chatterbox-TTS-Server").strip()
+    rel = os.getenv(
+        "CHATTERBOX_TTS_SERVER_ROOT", "./tools/Chatterbox-TTS-Server"
+    ).strip()
     return Path(_REPO_ROOT) / rel
 
 
 def _chatterbox_dockerfile_name() -> str:
-    return os.getenv("CHATTERBOX_RESEMBLE_DOCKERFILE", "Dockerfile").strip() or "Dockerfile"
+    return (
+        os.getenv("CHATTERBOX_RESEMBLE_DOCKERFILE", "Dockerfile").strip()
+        or "Dockerfile"
+    )
 
 
 def _validate_chatterbox_build_inputs() -> None:
@@ -1410,8 +1635,12 @@ async def _tts_gpu_stack_run(body: GpuTtsStackBody) -> dict[str, Any]:
             )
         out = ((r.stdout or "") + "\n" + (r.stderr or "")).strip()
         if r.returncode != 0:
-            logger.warning("tts gpu_stack compose failed rc=%s: %s", r.returncode, out[:12000])
-            raise HTTPException(status_code=500, detail=(out or "docker compose failed")[:12000])
+            logger.warning(
+                "tts gpu_stack compose failed rc=%s: %s", r.returncode, out[:12000]
+            )
+            raise HTTPException(
+                status_code=500, detail=(out or "docker compose failed")[:12000]
+            )
         if out:
             logger.info("tts gpu_stack compose ok: %s", out[-2000:])
         _write_tts_backend_marker(body.mode)
@@ -1420,7 +1649,9 @@ async def _tts_gpu_stack_run(body: GpuTtsStackBody) -> dict[str, Any]:
             "ok": True,
             "mode": body.mode,
             "backend_file": "chatterbox" if body.mode == "chatterbox_ui" else "turbo",
-            "container_name": "foveai_chatterbox_resemble" if body.mode == "chatterbox_ui" else "foveai_turbochat",
+            "container_name": "foveai_chatterbox_resemble"
+            if body.mode == "chatterbox_ui"
+            else "foveai_turbochat",
             "compose_log_tail": tail,
         }
     except HTTPException:
@@ -1431,12 +1662,16 @@ async def _tts_gpu_stack_run(body: GpuTtsStackBody) -> dict[str, Any]:
 
 
 @app.post("/api/tts/gpu_stack")
-async def api_tts_gpu_stack(body: GpuTtsStackBody, _auth: None = Depends(require_webui_login)):
+async def api_tts_gpu_stack(
+    body: GpuTtsStackBody, _auth: None = Depends(require_webui_login)
+):
     return await _tts_gpu_stack_run(body)
 
 
 @app.post("/api/tts/gpu-stack")
-async def api_tts_gpu_stack_hyphen(body: GpuTtsStackBody, _auth: None = Depends(require_webui_login)):
+async def api_tts_gpu_stack_hyphen(
+    body: GpuTtsStackBody, _auth: None = Depends(require_webui_login)
+):
     return await _tts_gpu_stack_run(body)
 
 

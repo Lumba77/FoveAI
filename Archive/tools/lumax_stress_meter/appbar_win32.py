@@ -8,7 +8,6 @@ from __future__ import annotations
 import ctypes
 import sys
 from ctypes import wintypes
-
 from tkinter import TclError
 
 if sys.platform != "win32":
@@ -53,7 +52,9 @@ def _hwnd_from_tk(w) -> int:
     return int(w.winfo_id())
 
 
-def register_appbar(hwnd: int, edge: int = ABE_BOTTOM, callback_msg: int = WM_USER + 88) -> bool:
+def register_appbar(
+    hwnd: int, edge: int = ABE_BOTTOM, callback_msg: int = WM_USER + 88
+) -> bool:
     abd = APPBARDATA()
     abd.cbSize = ctypes.sizeof(APPBARDATA)
     abd.hWnd = hwnd
@@ -71,7 +72,7 @@ def remove_appbar(hwnd: int) -> None:
 
 def query_set_top_band(hwnd: int, height_px: int) -> tuple[int, int, int, int]:
     """
-    After ABM_NEW, query/set top edge. 
+    After ABM_NEW, query/set top edge.
     """
     cx = user32.GetSystemMetrics(0)
     cy = user32.GetSystemMetrics(1)

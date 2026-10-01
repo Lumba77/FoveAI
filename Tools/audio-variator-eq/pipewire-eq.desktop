@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Equalizer
+Comment=3-Band System Equalizer for PipeWire
+Exec=/home/lumba/.local/bin/pipewire-eq-gui
+Icon=audio-equalizer
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;Mixer;
+StartupNotify=true

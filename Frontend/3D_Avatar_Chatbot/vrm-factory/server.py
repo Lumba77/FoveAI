@@ -1,10 +1,10 @@
-import subprocess
-import os
 import shutil
-from fastapi import FastAPI, UploadFile, File
+import subprocess
+from pathlib import Path
+
+from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pathlib import Path
 
 app = FastAPI(title="VRM Factory API", version="1.0.0")
 
@@ -19,6 +19,7 @@ app.add_middleware(
 TEMP_DIR = Path("temp")
 TEMP_DIR.mkdir(exist_ok=True)
 
+
 def run_blender(script, *args):
     """Helper to run Blender Headless"""
     cmd = ["blender", "-b", "-P", f"scripts/{script}", "--"] + list(args)
@@ -27,9 +28,11 @@ def run_blender(script, *args):
         raise Exception(f"Blender script failed: {result.stderr}")
     return result
 
+
 @app.get("/")
 async def root():
     return {"status": "VRM Factory API is running", "version": "1.0.0"}
+
 
 @app.post("/convert-to-vrm/")
 async def convert_to_vrm(file: UploadFile = File(...)):
@@ -55,17 +58,23 @@ async def convert_to_vrm(file: UploadFile = File(...)):
         # Step 2: Vision Analysis (Deep Learning)
         print("--- Step 2: Vision Analysis (Deep Learning) ---")
         json_path = TEMP_DIR / f"{base_name}.json"
-        subprocess.run(["python", "vision_brain.py", str(img_path), str(json_path)], check=True)
+        subprocess.run(
+            ["python", "vision_brain.py", str(img_path), str(json_path)], check=True
+        )
 
         # Step 3: Smart Rigging
         print("--- Step 3: Smart Rigging ---")
         rigged_path = TEMP_DIR / f"{base_name}_rigged.glb"
-        run_blender("02_smart_rig.py", str(input_path), str(json_path), str(rigged_path))
+        run_blender(
+            "02_smart_rig.py", str(input_path), str(json_path), str(rigged_path)
+        )
 
         # Step 4: Face Setup
         print("--- Step 4: Face Setup ---")
         face_path = TEMP_DIR / f"{base_name}_face.glb"
-        run_blender("03_face_setup.py", str(rigged_path), str(json_path), str(face_path))
+        run_blender(
+            "03_face_setup.py", str(rigged_path), str(json_path), str(face_path)
+        )
 
         # Step 5: VRM Export
         print("--- Step 5: VRM Export ---")
@@ -79,14 +88,12 @@ async def convert_to_vrm(file: UploadFile = File(...)):
             "status": "success",
             "message": "Conversion completed successfully",
             "vrm_filename": final_vrm.name,
-            "download_url": f"/download-vrm/{final_vrm.name}"
+            "download_url": f"/download-vrm/{final_vrm.name}",
         }
 
     except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e)
-        }
+        return {"status": "error", "message": str(e)}
+
 
 @app.get("/download-vrm/{filename}")
 async def download_vrm(filename: str):
@@ -96,21 +103,16 @@ async def download_vrm(filename: str):
         return {"status": "error", "message": "File not found"}
 
     return FileResponse(
-        path=file_path,
-        media_type="application/octet-stream",
-        filename=filename
+        path=file_path, media_type="application/octet-stream", filename=filename
     )
+
 
 @app.delete("/cleanup/{filename}")
 async def cleanup_file(filename: str):
     """Clean up temporary files"""
     try:
         base_name = Path(filename).stem
-        patterns = [
-            f"{base_name}.*",
-            f"{base_name}_rigged.*",
-            f"{base_name}_face.*"
-        ]
+        patterns = [f"{base_name}.*", f"{base_name}_rigged.*", f"{base_name}_face.*"]
 
         for pattern in patterns:
             for file_path in TEMP_DIR.glob(pattern):
@@ -120,6 +122,8 @@ async def cleanup_file(filename: str):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -1,5 +1,6 @@
-import bpy
 import os
+
+import bpy
 
 # Install VRM addon if zip file exists
 addon_path = "/app/addons/VRM_Addon_for_Blender.zip"

@@ -1,0 +1,15 @@
+[Unit]
+Description=FoveAI Foveated Memory Proxy & Active Recall (:8400)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/lumba/FoveAI/foveated-memory
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+Environment=NODE_ENV=production
+Environment=PORT=8400
+
+[Install]
+WantedBy=default.target

@@ -55,10 +55,12 @@ async def setup(self) -> None:
     transport = httpx.ASGITransport(app=app_module.app)
     self._client = httpx.AsyncClient(transport=transport, base_url="http://test")
 
+
 async def teardown(self) -> None:
     await self._client.aclose()
     # Clean up the manually-initialized resources
     import myapp.main as app_module
+
     if hasattr(app_module, "db_conn") and app_module.db_conn:
         app_module.db_conn.close()
 ```
@@ -69,6 +71,7 @@ If the app uses shared mutable state (in-memory SQLite, file-based DB, global ca
 
 ```python
 import asyncio
+
 
 class AppRunnable(pixie.Runnable[AppArgs]):
     _client: httpx.AsyncClient
@@ -82,6 +85,7 @@ class AppRunnable(pixie.Runnable[AppArgs]):
 
     async def setup(self) -> None:
         from myapp.main import app
+
         transport = httpx.ASGITransport(app=app)
         self._client = httpx.AsyncClient(transport=transport, base_url="http://test")
 

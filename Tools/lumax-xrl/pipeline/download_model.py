@@ -19,15 +19,17 @@ Options:
     --quant-type    Quantization type (default: moq-2.0)
 """
 
+import argparse
+import hashlib
+import json
+import logging
 import os
 import sys
-import json
-import hashlib
-import argparse
-import logging
 from pathlib import Path
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+)
 logger = logging.getLogger("70xrl-downloader")
 
 # ─── Paths ───────────────────────────────────────────────────────────
@@ -42,7 +44,14 @@ FORGE_NURSERY = Path(__file__).parent.parent / "nursery"
 
 # ─── Download Logic ─────────────────────────────────────────────────
 
-def download_model(model_id: str, output_dir: str, revision: str = "main", token: str = None, verify: bool = True):
+
+def download_model(
+    model_id: str,
+    output_dir: str,
+    revision: str = "main",
+    token: str = None,
+    verify: bool = True,
+):
     """Download a model from HuggingFace Hub as safetensors."""
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -118,7 +127,7 @@ def _verify_checksums(model_path: str):
     # Verify each safetensors file
     for safetensors_file in model_dir.glob("*.safetensors"):
         fname = safetensors_file.name
-        if fname in expected_hashes and expected_hashes[fname]:
+        if expected_hashes.get(fname):
             logger.info(f"   Verifying {fname}...")
             sha256 = hashlib.sha256()
             with open(safetensors_file, "rb") as f:
@@ -126,7 +135,7 @@ def _verify_checksums(model_path: str):
                     sha256.update(chunk)
             actual_hash = sha256.hexdigest()
             if actual_hash == expected_hashes[fname]:
-                logger.info(f"      ✅ Checksum OK")
+                logger.info("      ✅ Checksum OK")
             else:
                 logger.warning(f"      ⚠️ Checksum MISMATCH for {fname}")
 
@@ -134,6 +143,7 @@ def _verify_checksums(model_path: str):
 
 
 # ─── GGUF Conversion ─────────────────────────────────────────────────
+
 
 def convert_to_gguf(model_path: str, output_path: str = None):
     """Convert HF safetensors model to GGUF FP16 format."""
@@ -151,10 +161,14 @@ def convert_to_gguf(model_path: str, output_path: str = None):
     logger.info(f"🔄 Converting {model_path} → GGUF FP16: {output_path}")
 
     import subprocess
+
     cmd = [
-        sys.executable, str(convert_script),
-        "--outfile", output_path,
-        "--outtype", "f16",
+        sys.executable,
+        str(convert_script),
+        "--outfile",
+        output_path,
+        "--outtype",
+        "f16",
         model_path,
     ]
 
@@ -171,11 +185,14 @@ def convert_to_gguf(model_path: str, output_path: str = None):
 
 # ─── MoQ Quantization ───────────────────────────────────────────────
 
-def quantize_gguf(input_path: str, quant_type: str = "moq-2.0", output_path: str = None):
+
+def quantize_gguf(
+    input_path: str, quant_type: str = "moq-2.0", output_path: str = None
+):
     """Apply MoQ quantization to a GGUF model."""
     # Import the Forge Nursery quantizer
     sys.path.insert(0, str(FORGE_NURSERY))
-    from quantizer import ForgeQuantizer, QUANT_TYPES
+    from quantizer import QUANT_TYPES, ForgeQuantizer
 
     if quant_type not in QUANT_TYPES:
         logger.error(f"Unknown quant type: {quant_type}")
@@ -208,17 +225,28 @@ def quantize_gguf(input_path: str, quant_type: str = "moq-2.0", output_path: str
 
 # ─── CLI ─────────────────────────────────────────────────────────────
 
+
 def main():
     parser = argparse.ArgumentParser(description="70XRL Model Downloader & Converter")
     parser.add_argument("--model", required=True, help="HuggingFace model ID")
     parser.add_argument("--output", help="Output directory for downloaded model")
     parser.add_argument("--revision", default="main", help="Model revision/branch")
     parser.add_argument("--token", help="HuggingFace token for gated models")
-    parser.add_argument("--no-verify", action="store_true", help="Skip checksum verification")
-    parser.add_argument("--convert", action="store_true", help="Also convert to GGUF FP16")
-    parser.add_argument("--quantize", action="store_true", help="Also apply MoQ quantization")
+    parser.add_argument(
+        "--no-verify", action="store_true", help="Skip checksum verification"
+    )
+    parser.add_argument(
+        "--convert", action="store_true", help="Also convert to GGUF FP16"
+    )
+    parser.add_argument(
+        "--quantize", action="store_true", help="Also apply MoQ quantization"
+    )
     parser.add_argument("--quant-type", default="moq-2.0", help="Quantization type")
-    parser.add_argument("--pipeline", action="store_true", help="Run full pipeline: download → convert → quantize")
+    parser.add_argument(
+        "--pipeline",
+        action="store_true",
+        help="Run full pipeline: download → convert → quantize",
+    )
 
     args = parser.parse_args()
 

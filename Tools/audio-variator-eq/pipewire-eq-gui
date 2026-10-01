@@ -1,0 +1,239 @@
+#!/usr/bin/env python3
+"""
+pipewire-eq-gui — Lightweight 3-Band Equalizer GUI for PipeWire.
+Modulates Bass, Mid, and Treble frequencies LIVE with ZERO latency,
+using PipeWire's real-time SPA parameter controls (no service restart!).
+"""
+
+import gi
+gi.require_version('Gtk', '3.0')
+gi.require_version('Gdk', '3.0')
+from gi.repository import Gtk, Gdk, GLib
+import json
+import re
+import subprocess
+from pathlib import Path
+
+CONF_PATH = Path.home() / ".config" / "pipewire" / "pipewire.conf.d" / "sink-eq.conf"
+
+BANDS = {
+    "bass": {"node": "eq_band_1", "freq": "100 Hz", "name": "Bass"},
+    "mid": {"node": "eq_band_3", "freq": "1 kHz", "name": "Mid"},
+    "treble": {"node": "eq_band_5", "freq": "8 kHz", "name": "Treble"},
+}
+
+CSS = b"""
+window {
+    background-color: #242424;
+    color: #e0e0e0;
+}
+.band-title {
+    font-weight: bold;
+    font-size: 13px;
+    color: #ffffff;
+}
+.band-freq {
+    font-size: 11px;
+    color: #888888;
+}
+.val-label {
+    font-weight: bold;
+    font-size: 12px;
+    color: #4da6ff;
+}
+scale {
+    margin: 8px 12px;
+}
+scale trough {
+    background-color: #383838;
+    border-radius: 4px;
+}
+scale highlight {
+    background-color: #2e78c8;
+    border-radius: 4px;
+}
+button {
+    background: #333333;
+    color: #cccccc;
+    border: 1px solid #444444;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 11px;
+}
+button:hover {
+    background: #444444;
+    color: #ffffff;
+}
+"""
+
+
+def get_eq_node_id() -> int:
+    try:
+        out = subprocess.check_output(["pw-dump"], timeout=2).decode()
+        for obj in json.loads(out):
+            if obj.get("type") == "PipeWire:Interface:Node":
+                props = obj.get("info", {}).get("props", {})
+                if props.get("node.name") == "effect_input.eq":
+                    return obj["id"]
+    except Exception:
+        pass
+    return None
+
+
+def set_live_gain(node_id: int, band_param: str, gain_db: float):
+    if not node_id:
+        return
+    payload = json.dumps({"params": [f"{band_param}:Gain", float(gain_db)]})
+    subprocess.run(["pw-cli", "s", str(node_id), "Props", payload], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def load_gains() -> dict:
+    if not CONF_PATH.exists():
+        return {b: 0.0 for b in BANDS}
+    content = CONF_PATH.read_text(encoding="utf-8")
+    results = {}
+    for key, info in BANDS.items():
+        node_id = info["node"]
+        pattern = rf'name\s*=\s*{node_id}.*?control\s*=\s*\{{([^}}]+)\}}'
+        m = re.search(pattern, content, re.DOTALL)
+        if m:
+            gm = re.search(r'"Gain"\s*=\s*([+-]?[0-9]*\.?[0-9]+)', m.group(1))
+            results[key] = float(gm.group(1)) if gm else 0.0
+        else:
+            results[key] = 0.0
+    return results
+
+
+def persist_gains_to_file(gains: dict):
+    if not CONF_PATH.exists():
+        return
+    content = CONF_PATH.read_text(encoding="utf-8")
+    for key, val in gains.items():
+        node_id = BANDS[key]["node"]
+        def repl(m):
+            return re.sub(r'"Gain"\s*=\s*[+-]?[0-9]*\.?[0-9]+', f'"Gain" = {val:.1f}', m.group(0))
+        pattern = rf'name\s*=\s*{node_id}.*?control\s*=\s*\{{[^}}]+\}}'
+        content = re.sub(pattern, repl, content, count=1, flags=re.DOTALL)
+    CONF_PATH.write_text(content, encoding="utf-8")
+
+
+class EqualizerWindow(Gtk.Window):
+    def __init__(self):
+        super().__init__(title="Equalizer")
+        self.set_default_size(320, 360)
+        self.set_position(Gtk.WindowPosition.CENTER)
+        self.set_resizable(False)
+
+        # Style provider
+        provider = Gtk.CssProvider()
+        provider.load_from_data(CSS)
+        Gtk.StyleContext.add_provider_for_screen(
+            Gdk.Screen.get_default(),
+            provider,
+            Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+
+        self.eq_node_id = get_eq_node_id()
+        self.sliders = {}
+        self.val_labels = {}
+        current_gains = load_gains()
+
+        # Layout
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
+        vbox.set_margin_top(16)
+        vbox.set_margin_bottom(16)
+        vbox.set_margin_start(16)
+        vbox.set_margin_end(16)
+        self.add(vbox)
+
+        # Sliders HBox
+        hbox_sliders = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=20)
+        hbox_sliders.set_homogeneous(True)
+        vbox.pack_start(hbox_sliders, True, True, 0)
+
+        for key in ["bass", "mid", "treble"]:
+            info = BANDS[key]
+            band_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+            band_box.set_halign(Gtk.Align.CENTER)
+
+            lbl_name = Gtk.Label(label=info["name"])
+            lbl_name.get_style_context().add_class("band-title")
+            lbl_freq = Gtk.Label(label=info["freq"])
+            lbl_freq.get_style_context().add_class("band-freq")
+
+            val_lbl = Gtk.Label(label=f"{current_gains[key]:+.1f} dB")
+            val_lbl.get_style_context().add_class("val-label")
+            self.val_labels[key] = val_lbl
+
+            adj = Gtk.Adjustment(
+                value=current_gains[key],
+                lower=-12.0,
+                upper=12.0,
+                step_increment=0.5,
+                page_increment=2.0
+            )
+            scale = Gtk.Scale(orientation=Gtk.Orientation.VERTICAL, adjustment=adj)
+            scale.set_inverted(True)
+            scale.set_size_request(40, 160)
+            scale.set_draw_value(False)
+            scale.add_mark(0.0, Gtk.PositionType.RIGHT, "0")
+            scale.connect("value-changed", self.on_slider_changed, key)
+            self.sliders[key] = scale
+
+            band_box.pack_start(lbl_name, False, False, 0)
+            band_box.pack_start(lbl_freq, False, False, 0)
+            band_box.pack_start(val_lbl, False, False, 2)
+            band_box.pack_start(scale, True, True, 0)
+
+            hbox_sliders.pack_start(band_box, True, True, 0)
+
+        # Quick Presets Buttons
+        btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        btn_box.set_halign(Gtk.Align.CENTER)
+        vbox.pack_start(btn_box, False, False, 4)
+
+        btn_flat = Gtk.Button(label="Flat")
+        btn_flat.connect("clicked", lambda w: self.apply_preset(0.0, 0.0, 0.0))
+        btn_box.pack_start(btn_flat, False, False, 0)
+
+        btn_bass_cut = Gtk.Button(label="Bass Cut")
+        btn_bass_cut.connect("clicked", lambda w: self.apply_preset(-4.5, 0.0, +1.0))
+        btn_box.pack_start(btn_bass_cut, False, False, 0)
+
+        btn_voice = Gtk.Button(label="Voice")
+        btn_voice.connect("clicked", lambda w: self.apply_preset(-3.0, +3.0, +1.5))
+        btn_box.pack_start(btn_voice, False, False, 0)
+
+        btn_box.show_all()
+        vbox.show_all()
+
+    def on_slider_changed(self, scale, key):
+        val = round(scale.get_value() * 2) / 2.0
+        self.val_labels[key].set_text(f"{val:+.1f} dB")
+
+        # Live real-time parameter update (instant, no restart, no audio dropout!)
+        if not self.eq_node_id:
+            self.eq_node_id = get_eq_node_id()
+        set_live_gain(self.eq_node_id, BANDS[key]["node"], val)
+
+        # Also persist to file for next boot
+        gains = {k: round(self.sliders[k].get_value() * 2) / 2.0 for k in BANDS}
+        persist_gains_to_file(gains)
+
+    def apply_preset(self, bass, mid, treble):
+        self.sliders["bass"].set_value(bass)
+        self.sliders["mid"].set_value(mid)
+        self.sliders["treble"].set_value(treble)
+
+
+def main():
+    # Make sure default sink is set to the EQ sink
+    subprocess.run(["pactl", "set-default-sink", "effect_input.eq"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    win = EqualizerWindow()
+    win.connect("destroy", Gtk.main_quit)
+    win.show_all()
+    Gtk.main()
+
+
+if __name__ == "__main__":
+    main()

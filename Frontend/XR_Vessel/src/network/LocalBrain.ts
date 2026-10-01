@@ -61,7 +61,7 @@ export class LocalBrain {
 
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 120000);
+            const timeoutId = setTimeout(() => controller.abort(), 300000);
             const response = await fetch(targetUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

@@ -13,15 +13,15 @@ Usage:
     scrolls = watcher.gather()  # returns all scroll texts
     prompt = watcher.build_scroll_context(scrolls)  # formatted for injection
 """
-import time
-from pathlib import Path
-from typing import Dict, List, Optional
+
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass
 class Scroll:
     """A single dragon scroll — a unit of drop-in knowledge."""
+
     path: Path
     domain: str
     priority: str
@@ -42,10 +42,10 @@ class ScrollWatcher:
 
     def __init__(self, scrolls_dir: Path):
         self.scrolls_dir = Path(scrolls_dir)
-        self._cache: Dict[str, Scroll] = {}
+        self._cache: dict[str, Scroll] = {}
         self._last_scan: float = 0
 
-    def gather(self, force_rescan: bool = False) -> List[Scroll]:
+    def gather(self, force_rescan: bool = False) -> list[Scroll]:
         """
         Scan the scrolls directory and return all scrolls,
         ordered by priority then by filename.
@@ -55,34 +55,38 @@ class ScrollWatcher:
 
         # Check if rescan is needed
         latest_mtime = max(
-            (f.stat().st_mtime for f in self.scrolls_dir.rglob("*.xrlf")
-             if f.is_file()),
-            default=0
+            (
+                f.stat().st_mtime
+                for f in self.scrolls_dir.rglob("*.xrlf")
+                if f.is_file()
+            ),
+            default=0,
         )
         if not force_rescan and latest_mtime <= self._last_scan and self._cache:
             return list(self._cache.values())
 
         # Scan all scroll files
-        scrolls: List[Scroll] = []
+        scrolls: list[Scroll] = []
         for scroll_path in sorted(self.scrolls_dir.rglob("*.xrlf")):
             if not scroll_path.is_file():
                 continue
             content = scroll_path.read_text(encoding="utf-8")
             meta = self._parse_scroll_meta(content)
-            scrolls.append(Scroll(
-                path=scroll_path,
-                domain=meta.get("domain", "unknown"),
-                priority=meta.get("priority", "normal"),
-                scroll_id=meta.get("id", scroll_path.stem),
-                content=content,
-                modified=scroll_path.stat().st_mtime,
-            ))
+            scrolls.append(
+                Scroll(
+                    path=scroll_path,
+                    domain=meta.get("domain", "unknown"),
+                    priority=meta.get("priority", "normal"),
+                    scroll_id=meta.get("id", scroll_path.stem),
+                    content=content,
+                    modified=scroll_path.stat().st_mtime,
+                )
+            )
 
         # Sort by priority, then by path
-        scrolls.sort(key=lambda s: (
-            self.PRIORITY_ORDER.get(s.priority, 3),
-            str(s.path)
-        ))
+        scrolls.sort(
+            key=lambda s: (self.PRIORITY_ORDER.get(s.priority, 3), str(s.path))
+        )
 
         # Update cache
         self._cache = {s.scroll_id: s for s in scrolls}
@@ -90,8 +94,9 @@ class ScrollWatcher:
 
         return scrolls
 
-    def build_scroll_context(self, scrolls: Optional[List[Scroll]] = None,
-                             max_chars: int = 8000) -> str:
+    def build_scroll_context(
+        self, scrolls: list[Scroll] | None = None, max_chars: int = 8000
+    ) -> str:
         """
         Build a text block from all scrolls, formatted for injection
         into the system prompt. Truncates to max_chars to respect
@@ -125,7 +130,7 @@ class ScrollWatcher:
 
         return "\n".join(parts)
 
-    def _parse_scroll_meta(self, content: str) -> Dict[str, str]:
+    def _parse_scroll_meta(self, content: str) -> dict[str, str]:
         """Extract id, domain, priority from the <scroll> opening tag."""
         meta = {}
         # Look for <scroll id="..." domain="..." priority="...">
@@ -158,13 +163,16 @@ class ScrollWatcher:
         if not self.scrolls_dir.exists():
             return False
         latest = max(
-            (f.stat().st_mtime for f in self.scrolls_dir.rglob("*.xrlf")
-             if f.is_file()),
-            default=0
+            (
+                f.stat().st_mtime
+                for f in self.scrolls_dir.rglob("*.xrlf")
+                if f.is_file()
+            ),
+            default=0,
         )
         return latest > self._last_scan
 
-    def list_scrolls(self) -> List[Dict]:
+    def list_scrolls(self) -> list[dict]:
         """Return a summary of all scrolls in the cave."""
         scrolls = self.gather()
         return [

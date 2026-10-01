@@ -20,18 +20,15 @@ optionally re-packed back into the XRLF file at session end.
 """
 
 import json
-import math
-import os
 import re
 import sqlite3
 import struct
 import time
 from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from memory.tfidf_store import TFIDFStore
-
 
 # ── Database schema ───────────────────────────────────────────────────────────
 
@@ -102,13 +99,13 @@ class MembraneEngine:
         db_path: str,
         session_id: str = "default",
         token_budget: int = 2048,
-        ring_config: Optional[Dict] = None,
+        ring_config: dict | None = None,
     ):
         self.db_path = str(db_path)
         self.session_id = session_id
         self.token_budget = token_budget
         self.ring_config = ring_config or _default_ring_config()
-        self._db: Optional[sqlite3.Connection] = None
+        self._db: sqlite3.Connection | None = None
         self._tfidf = TFIDFStore()
         self._turn_index = 0
         self._loaded = False
@@ -126,8 +123,7 @@ class MembraneEngine:
 
         # Load existing turns into TF-IDF index
         rows = self._db.execute(
-            "SELECT id, content FROM turns WHERE session_id=?",
-            (self.session_id,)
+            "SELECT id, content FROM turns WHERE session_id=?", (self.session_id,)
         ).fetchall()
         for row in rows:
             self._tfidf.index(str(row["id"]), row["content"])
@@ -135,11 +131,13 @@ class MembraneEngine:
         # Set turn_index
         row = self._db.execute(
             "SELECT MAX(turn_index) as mx FROM turns WHERE session_id=?",
-            (self.session_id,)
+            (self.session_id,),
         ).fetchone()
         self._turn_index = (row["mx"] or 0) + 1
         self._loaded = True
-        print(f"  MembraneEngine loaded: {self.db_path}  (session={self.session_id}, turns={self._turn_index})")
+        print(
+            f"  MembraneEngine loaded: {self.db_path}  (session={self.session_id}, turns={self._turn_index})"
+        )
         return self
 
     def close(self):
@@ -153,9 +151,9 @@ class MembraneEngine:
         self,
         role: str,
         content: str,
-        tags: Optional[List[str]] = None,
-        ring_id: Optional[int] = None,
-        ring_label: Optional[str] = None,
+        tags: list[str] | None = None,
+        ring_id: int | None = None,
+        ring_label: str | None = None,
     ) -> int:
         """Store one conversation turn. Returns the turn id."""
         self._require_loaded()
@@ -168,7 +166,16 @@ class MembraneEngine:
         cur = self._db.execute(
             """INSERT INTO turns (session_id, role, content, turn_index, timestamp, tags, ring, ring_label)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (self.session_id, role, content, self._turn_index, now, tags_json, ring_id, ring_label),
+            (
+                self.session_id,
+                role,
+                content,
+                self._turn_index,
+                now,
+                tags_json,
+                ring_id,
+                ring_label,
+            ),
         )
         self._db.commit()
         turn_id = cur.lastrowid
@@ -180,11 +187,11 @@ class MembraneEngine:
         """Persist identity/persona data (ring 0)."""
         self._db.execute(
             "INSERT OR REPLACE INTO identity (key, value, updated_at) VALUES (?, ?, ?)",
-            (key, value, time.time())
+            (key, value, time.time()),
         )
         self._db.commit()
 
-    def get_identity(self, key: str) -> Optional[str]:
+    def get_identity(self, key: str) -> str | None:
         row = self._db.execute(
             "SELECT value FROM identity WHERE key=?", (key,)
         ).fetchone()
@@ -192,7 +199,7 @@ class MembraneEngine:
 
     # ── Retrieval ─────────────────────────────────────────────────────────────
 
-    def semantic_search(self, query: str, top_k: int = 5) -> List[Dict]:
+    def semantic_search(self, query: str, top_k: int = 5) -> list[dict]:
         """TF-IDF semantic search over stored turns."""
         self._require_loaded()
         hits = self._tfidf.search(query, top_k)
@@ -200,15 +207,17 @@ class MembraneEngine:
         for doc_id, score in hits:
             row = self._db.execute(
                 "SELECT role, content, turn_index, timestamp FROM turns WHERE id=?",
-                (int(doc_id),)
+                (int(doc_id),),
             ).fetchone()
             if row:
-                results.append({
-                    "role": row["role"],
-                    "content": row["content"],
-                    "turn_index": row["turn_index"],
-                    "score": score,
-                })
+                results.append(
+                    {
+                        "role": row["role"],
+                        "content": row["content"],
+                        "turn_index": row["turn_index"],
+                        "score": score,
+                    }
+                )
         return results
 
     # ── Ring 7: Constellations ─────────────────────────────────────────────
@@ -217,18 +226,18 @@ class MembraneEngine:
     # threshold crystallize into constellation rows — named clusters of
     # interlinked memories representing well-travelled thought patterns.
 
-    CONSTELLATION_MIN_EDGE = 3.0    # co-recalls before an edge is "travelled"
-    CONSTELLATION_MIN_MEMBERS = 3   # smallest cluster worth crystallizing
-    CONCLUSION_MIN_TOUCHED = 5      # surfaces before a cluster is "settled"
+    CONSTELLATION_MIN_EDGE = 3.0  # co-recalls before an edge is "travelled"
+    CONSTELLATION_MIN_MEMBERS = 3  # smallest cluster worth crystallizing
+    CONCLUSION_MIN_TOUCHED = 5  # surfaces before a cluster is "settled"
 
-    def _traverse(self, turn_ids: List[int]) -> None:
+    def _traverse(self, turn_ids: list[int]) -> None:
         """Strengthen co-recall edges for a set of turns recalled together."""
         ids = sorted(set(int(t) for t in turn_ids))
         if len(ids) < 2:
             return
         now = time.time()
         for i, a in enumerate(ids):
-            for b in ids[i + 1:]:
+            for b in ids[i + 1 :]:
                 self._db.execute(
                     """INSERT INTO co_recall (a, b, weight, updated_at)
                        VALUES (?, ?, 1.0, ?)
@@ -253,8 +262,8 @@ class MembraneEngine:
         if not rows:
             return
 
-        adjacency: Dict[int, set] = defaultdict(set)
-        edge_weight: Dict[int, float] = defaultdict(float)
+        adjacency: dict[int, set] = defaultdict(set)
+        edge_weight: dict[int, float] = defaultdict(float)
         for r in rows:
             adjacency[r["a"]].add(r["b"])
             adjacency[r["b"]].add(r["a"])
@@ -262,7 +271,7 @@ class MembraneEngine:
             edge_weight[r["b"]] += r["weight"]
 
         seen: set = set()
-        components: List[set] = []
+        components: list[set] = []
         for node in adjacency:
             if node in seen:
                 continue
@@ -280,7 +289,9 @@ class MembraneEngine:
         now = time.time()
         existing = {
             row["id"]: set(json.loads(row["members"]))
-            for row in self._db.execute("SELECT id, members FROM constellations").fetchall()
+            for row in self._db.execute(
+                "SELECT id, members FROM constellations"
+            ).fetchall()
         }
         for comp in components:
             member_ids = sorted(comp)
@@ -306,16 +317,44 @@ class MembraneEngine:
         self._db.commit()
 
     _STOPWORDS = {
-        "the", "a", "an", "and", "or", "to", "of", "in", "on", "for", "is",
-        "it", "that", "this", "you", "i", "we", "with", "at", "be", "as",
-        "are", "was", "were", "have", "has", "not", "but", "what", "how",
+        "the",
+        "a",
+        "an",
+        "and",
+        "or",
+        "to",
+        "of",
+        "in",
+        "on",
+        "for",
+        "is",
+        "it",
+        "that",
+        "this",
+        "you",
+        "i",
+        "we",
+        "with",
+        "at",
+        "be",
+        "as",
+        "are",
+        "was",
+        "were",
+        "have",
+        "has",
+        "not",
+        "but",
+        "what",
+        "how",
     }
 
-    def _constellation_label(self, member_ids: List[int]) -> str:
+    def _constellation_label(self, member_ids: list[int]) -> str:
         """Label a constellation from the most common content terms."""
         q = "SELECT content FROM turns WHERE id IN (%s)" % ",".join(
-            "?" * len(member_ids))
-        words: Dict[str, int] = defaultdict(int)
+            "?" * len(member_ids)
+        )
+        words: dict[str, int] = defaultdict(int)
         for row in self._db.execute(q, member_ids).fetchall():
             for w in re.findall(r"[a-zA-Z]{4,}", row["content"].lower()):
                 if w not in self._STOPWORDS:
@@ -323,7 +362,7 @@ class MembraneEngine:
         top = [w for w, _ in sorted(words.items(), key=lambda kv: -kv[1])[:3]]
         return " / ".join(top) if top else "unnamed cluster"
 
-    def _constellations_for(self, query: str, recalled_ids: List[int]) -> List[Dict]:
+    def _constellations_for(self, query: str, recalled_ids: list[int]) -> list[dict]:
         """Constellations relevant to this turn: containing a recalled member,
         or whose label shares a term with the query.
 
@@ -336,8 +375,11 @@ class MembraneEngine:
         ).fetchall()
         if not rows:
             return []
-        q_terms = {w for w in re.findall(r"[a-zA-Z]{4,}", query.lower())
-                   if w not in self._STOPWORDS}
+        q_terms = {
+            w
+            for w in re.findall(r"[a-zA-Z]{4,}", query.lower())
+            if w not in self._STOPWORDS
+        }
         recalled = set(recalled_ids)
         hits = []
         for row in rows:
@@ -351,15 +393,17 @@ class MembraneEngine:
                     (row["id"],),
                 )
                 touched = row["touched"] + 1
-                hits.append({
-                    "id": row["id"],
-                    "label": row["label"],
-                    "size": len(members),
-                    "weight": round(row["weight"], 1),
-                    "touched": touched,
-                    "settled": touched >= self.CONCLUSION_MIN_TOUCHED,
-                    "excerpt": excerpt,
-                })
+                hits.append(
+                    {
+                        "id": row["id"],
+                        "label": row["label"],
+                        "size": len(members),
+                        "weight": round(row["weight"], 1),
+                        "touched": touched,
+                        "settled": touched >= self.CONCLUSION_MIN_TOUCHED,
+                        "excerpt": excerpt,
+                    }
+                )
         if hits:
             self._db.commit()
         return hits[:4]
@@ -369,18 +413,21 @@ class MembraneEngine:
         if not members:
             return ""
         # most-connected member = the densest part of the cluster
-        q = ("SELECT a, b FROM co_recall WHERE a IN (%s) OR b IN (%s)"
-             % (",".join("?" * len(members)), ",".join("?" * len(members))))
-        degree: Dict[int, float] = defaultdict(float)
+        q = "SELECT a, b FROM co_recall WHERE a IN (%s) OR b IN (%s)" % (
+            ",".join("?" * len(members)),
+            ",".join("?" * len(members)),
+        )
+        degree: dict[int, float] = defaultdict(float)
         for r in self._db.execute(q, list(members) + list(members)).fetchall():
             degree[r["a"]] += 1
             degree[r["b"]] += 1
         core = max(members, key=lambda m: degree.get(m, 0))
         row = self._db.execute(
-            "SELECT content FROM turns WHERE id=?", (core,)).fetchone()
+            "SELECT content FROM turns WHERE id=?", (core,)
+        ).fetchone()
         return _truncate(row["content"], 100) if row else ""
 
-    def get_root(self) -> Optional[Dict]:
+    def get_root(self) -> dict | None:
         """The most-travelled constellation — the inward anchor (basing).
 
         What the persona keeps returning to. Injected near identity so the
@@ -393,12 +440,14 @@ class MembraneEngine:
         if not row:
             return None
         return {
-            "id": row["id"], "label": row["label"],
+            "id": row["id"],
+            "label": row["label"],
             "size": len(json.loads(row["members"])),
-            "weight": row["weight"], "touched": row["touched"],
+            "weight": row["weight"],
+            "touched": row["touched"],
         }
 
-    def expand_constellation(self, handle) -> Optional[Dict]:
+    def expand_constellation(self, handle) -> dict | None:
         """Heuristic endpoint: resolve a constellation handle (id or label
         fragment) to its full member contents — the <zoom> target."""
         self._require_loaded()
@@ -406,49 +455,59 @@ class MembraneEngine:
         if isinstance(handle, int) or (isinstance(handle, str) and handle.isdigit()):
             row = self._db.execute(
                 "SELECT id, label, members FROM constellations WHERE id=?",
-                (int(handle),)).fetchone()
+                (int(handle),),
+            ).fetchone()
         else:
             row = self._db.execute(
                 "SELECT id, label, members FROM constellations WHERE label LIKE ?",
-                (f"%{handle}%",)).fetchone()
+                (f"%{handle}%",),
+            ).fetchone()
         if not row:
             return None
         member_ids = json.loads(row["members"])
-        q = "SELECT id, role, content, turn_index FROM turns WHERE id IN (%s)" % ",".join(
-            "?" * len(member_ids))
+        q = (
+            "SELECT id, role, content, turn_index FROM turns WHERE id IN (%s)"
+            % ",".join("?" * len(member_ids))
+        )
         members = [dict(r) for r in self._db.execute(q, member_ids).fetchall()]
         return {"id": row["id"], "label": row["label"], "members": members}
 
-    def get_constellations(self) -> List[Dict]:
+    def get_constellations(self) -> list[dict]:
         """All crystallized constellations, strongest first."""
         self._require_loaded()
         rows = self._db.execute(
             "SELECT id, label, members, weight, touched, updated_at FROM constellations ORDER BY weight DESC"
         ).fetchall()
         return [
-            {"id": r["id"], "label": r["label"],
-             "members": json.loads(r["members"]),
-             "weight": r["weight"], "touched": r["touched"],
-             "updated_at": r["updated_at"]}
+            {
+                "id": r["id"],
+                "label": r["label"],
+                "members": json.loads(r["members"]),
+                "weight": r["weight"],
+                "touched": r["touched"],
+                "updated_at": r["updated_at"],
+            }
             for r in rows
         ]
 
-    def get_recent_turns(self, n: int = 8) -> List[Dict]:
+    def get_recent_turns(self, n: int = 8) -> list[dict]:
         """Get the last n turns (ring 2 — recent verbatim)."""
         rows = self._db.execute(
             """SELECT role, content, turn_index FROM turns
                WHERE session_id=?
                ORDER BY turn_index DESC LIMIT ?""",
-            (self.session_id, n)
+            (self.session_id, n),
         ).fetchall()
         return [dict(r) for r in reversed(rows)]
 
-    def get_by_ring(self, ring_id: int, limit: Optional[int] = None) -> List[Dict]:
+    def get_by_ring(self, ring_id: int, limit: int | None = None) -> list[dict]:
         """Return all turns in a specific ring, optionally limited."""
         self._require_loaded()
         ring_id = int(ring_id)
-        query = "SELECT * FROM turns WHERE session_id=? AND ring=? ORDER BY turn_index ASC"
-        params: List[Any] = [self.session_id, ring_id]
+        query = (
+            "SELECT * FROM turns WHERE session_id=? AND ring=? ORDER BY turn_index ASC"
+        )
+        params: list[Any] = [self.session_id, ring_id]
         if limit is not None:
             query += " LIMIT ?"
             params.append(int(limit))
@@ -457,8 +516,16 @@ class MembraneEngine:
 
     @staticmethod
     def ring_label_for_id(ring_id: int) -> str:
-        labels = ["identity", "task", "recent", "working", "background",
-                  "archive", "deep", "constellation"]
+        labels = [
+            "identity",
+            "task",
+            "recent",
+            "working",
+            "background",
+            "archive",
+            "deep",
+            "constellation",
+        ]
         idx = int(ring_id)
         if 0 <= idx < len(labels):
             return labels[idx]
@@ -469,7 +536,7 @@ class MembraneEngine:
     def weave_context(
         self,
         current_query: str,
-        token_budget: Optional[int] = None,
+        token_budget: int | None = None,
     ) -> str:
         """
         Build the 7-ring foveated context block to inject before generation.
@@ -480,7 +547,7 @@ class MembraneEngine:
         """
         self._require_loaded()
         budget = token_budget or self.token_budget
-        rings: List[str] = []
+        rings: list[str] = []
 
         # Ring 0 — Identity
         identity_val = self.get_identity("system_context") or ""
@@ -492,7 +559,7 @@ class MembraneEngine:
         root = self.get_root()
         if root:
             rings.append(
-                f"[Root — familiar ground] \"{root['label']}\" "
+                f'[Root — familiar ground] "{root["label"]}" '
                 f"({root['size']} linked memories, {root['touched']}x revisited)"
             )
 
@@ -501,24 +568,26 @@ class MembraneEngine:
         if recent:
             recent_parts = []
             for t in recent:
-                role = t['role']
-                content = _truncate(t['content'], 150)
+                role = t["role"]
+                content = _truncate(t["content"], 150)
                 # Format as context notes, not dialogue
-                if role == 'user':
-                    recent_parts.append(f"- User previously said: \"{content}\"")
+                if role == "user":
+                    recent_parts.append(f'- User previously said: "{content}"')
                 else:
-                    recent_parts.append(f"- Assistant previously responded: \"{content}\"")
+                    recent_parts.append(
+                        f'- Assistant previously responded: "{content}"'
+                    )
             rings.append("[Recent context]\n" + "\n".join(recent_parts))
 
         # Ring 5 — Archive (TF-IDF recall against current query)
-        recalled_ids: List[int] = []
+        recalled_ids: list[int] = []
         if current_query:
             recalled = self.semantic_search(current_query, top_k=3)
             if recalled:
                 recall_parts = []
                 for r in recalled:
-                    content = _truncate(r['content'], 120)
-                    recall_parts.append(f"- \"{content}\"")
+                    content = _truncate(r["content"], 120)
+                    recall_parts.append(f'- "{content}"')
                 rings.append("[Recalled from memory]\n" + "\n".join(recall_parts))
                 recalled_ids = [int(r["turn_index"]) for r in recalled]
                 # resolve turn_index -> row id for co-recall edges
@@ -540,16 +609,17 @@ class MembraneEngine:
                 forming = [c for c in consts if not c["settled"]]
                 if settled:
                     rings.append(
-                        "[Conclusions — settled knowledge]\n" + "\n".join(
-                            f"- {c['label']}: \"{c['excerpt']}\"" for c in settled
+                        "[Conclusions — settled knowledge]\n"
+                        + "\n".join(
+                            f'- {c["label"]}: "{c["excerpt"]}"' for c in settled
                         )
                     )
                 if forming:
                     rings.append(
                         "[Constellations — well-travelled patterns you can expand via c:<id>]\n"
                         + "\n".join(
-                            f"- c:{c['id']} \"{c['label']}\" — {c['size']} linked memories"
-                            + (f" · core: \"{c['excerpt']}\"" if c.get("excerpt") else "")
+                            f'- c:{c["id"]} "{c["label"]}" — {c["size"]} linked memories'
+                            + (f' · core: "{c["excerpt"]}"' if c.get("excerpt") else "")
                             for c in forming
                         )
                     )
@@ -589,26 +659,33 @@ class MembraneEngine:
         cols = self._db.execute("PRAGMA table_info(turns)").fetchall()
         col_names = {row[1] for row in cols}
         if "ring_label" not in col_names:
-            self._db.execute("ALTER TABLE turns ADD COLUMN ring_label TEXT DEFAULT 'recent'")
+            self._db.execute(
+                "ALTER TABLE turns ADD COLUMN ring_label TEXT DEFAULT 'recent'"
+            )
         summary_cols = self._db.execute("PRAGMA table_info(summaries)").fetchall()
         summary_names = {row[1] for row in summary_cols}
         if "ring_label" not in summary_names:
-            self._db.execute("ALTER TABLE summaries ADD COLUMN ring_label TEXT DEFAULT 'recent'")
+            self._db.execute(
+                "ALTER TABLE summaries ADD COLUMN ring_label TEXT DEFAULT 'recent'"
+            )
         const_cols = self._db.execute("PRAGMA table_info(constellations)").fetchall()
         if "touched" not in {row[1] for row in const_cols}:
-            self._db.execute("ALTER TABLE constellations ADD COLUMN touched INTEGER DEFAULT 0")
+            self._db.execute(
+                "ALTER TABLE constellations ADD COLUMN touched INTEGER DEFAULT 0"
+            )
 
 
 # ── Ring config default ───────────────────────────────────────────────────────
 
-def _default_ring_config() -> Dict:
+
+def _default_ring_config() -> dict:
     return {
-        "ring_0": {"label": "identity",   "max_tokens": 128,  "ttl_turns": None},
-        "ring_1": {"label": "task",       "max_tokens": 256,  "ttl_turns": None},
-        "ring_2": {"label": "recent",     "max_tokens": 512,  "ttl_turns": 8},
-        "ring_3": {"label": "working",    "max_tokens": 512,  "ttl_turns": 32},
-        "ring_4": {"label": "background", "max_tokens": 384,  "ttl_turns": 128},
-        "ring_5": {"label": "archive",    "max_tokens": 256,  "ttl_turns": None},
+        "ring_0": {"label": "identity", "max_tokens": 128, "ttl_turns": None},
+        "ring_1": {"label": "task", "max_tokens": 256, "ttl_turns": None},
+        "ring_2": {"label": "recent", "max_tokens": 512, "ttl_turns": 8},
+        "ring_3": {"label": "working", "max_tokens": 512, "ttl_turns": 32},
+        "ring_4": {"label": "background", "max_tokens": 384, "ttl_turns": 128},
+        "ring_5": {"label": "archive", "max_tokens": 256, "ttl_turns": None},
         "ring_7": {"label": "constellation", "max_tokens": 192, "ttl_turns": None},
     }
 

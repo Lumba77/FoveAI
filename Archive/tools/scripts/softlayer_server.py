@@ -20,16 +20,17 @@ Or integrate into the existing XRLF server by importing SoftLayerWatcher.
 
 import asyncio
 import json
-import os
 import time
+from collections.abc import Callable
+from pathlib import Path
+
 import watchdog.events
 import watchdog.observers
-from pathlib import Path
-from typing import Optional, Callable
 
 # ── SoftLayer directory ─────────────────────────────────────────────────────
 
 SOFTLAYER_DIR = Path(__file__).parent.parent / "softlayer"
+
 
 class SoftLayerWatcher:
     """Watches the softlayer/ directory and pushes updates to WS clients."""
@@ -72,7 +73,7 @@ class SoftLayerWatcher:
             self._cache[name] = source
             print(f"[SoftLayer] Cached: {name}.js ({len(source)} bytes)", flush=True)
 
-    def get_module(self, name: str) -> Optional[str]:
+    def get_module(self, name: str) -> str | None:
         """Get a module's source code by name."""
         if name in self._cache:
             return self._cache[name]
@@ -95,16 +96,20 @@ class SoftLayerWatcher:
         try:
             source = filepath.read_text(encoding="utf-8")
             self._cache[name] = source
-            print(f"[SoftLayer] Hot-reload: {name}.js ({len(source)} bytes)", flush=True)
+            print(
+                f"[SoftLayer] Hot-reload: {name}.js ({len(source)} bytes)", flush=True
+            )
 
             # Push to all WS clients
-            msg = json.dumps({
-                "event": "softlayer.update",
-                "payload": {
-                    "module": name,
-                    "source": source,
+            msg = json.dumps(
+                {
+                    "event": "softlayer.update",
+                    "payload": {
+                        "module": name,
+                        "source": source,
+                    },
                 }
-            })
+            )
             await self.ws_broadcast(msg)
         except Exception as e:
             print(f"[SoftLayer] Reload error for {name}: {e}", flush=True)
@@ -144,6 +149,7 @@ class _SoftLayerHandler(watchdog.events.FileSystemEventHandler):
 
 # ── HTTP serving (for initial module load) ──────────────────────────────────
 
+
 def setup_softlayer_routes(app, watcher: SoftLayerWatcher):
     """Add softlayer routes to a FastAPI/Starlette app."""
 
@@ -154,7 +160,9 @@ def setup_softlayer_routes(app, watcher: SoftLayerWatcher):
     async def get_softlayer_module(module_name: str):
         source = watcher.get_module(module_name)
         if source is None:
-            raise HTTPException(status_code=404, detail=f"Module '{module_name}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Module '{module_name}' not found"
+            )
         return PlainTextResponse(source, media_type="application/javascript")
 
     @app.get("/softlayer")
@@ -163,6 +171,7 @@ def setup_softlayer_routes(app, watcher: SoftLayerWatcher):
 
 
 # ── Standalone mode ─────────────────────────────────────────────────────────
+
 
 async def standalone():
     """Run standalone with a simple HTTP server + file watcher."""
@@ -182,17 +191,21 @@ async def standalone():
     config = uvicorn.Config(app, host="0.0.0.0", port=8402, log_level="warning")
     server = uvicorn.Server(config)
 
-    print(f"""
+    print(
+        f"""
   ╔══════════════════════════════════════════════════╗
   ║  FoveAI SoftLayer Server                         ║
   ╠══════════════════════════════════════════════════╣
-  ║  Modules: {str(watcher.softlayer_dir):<40s} ║
+  ║  Modules: {watcher.softlayer_dir!s:<40s} ║
   ║  HTTP: http://0.0.0.0:8402/softlayer/            ║
-  ║  Watch: {'ON' if watcher.observer else 'OFF':<44s} ║
+  ║  Watch: {"ON" if watcher.observer else "OFF":<44s} ║
   ╚══════════════════════════════════════════════════╝
-    """, flush=True)
+    """,
+        flush=True,
+    )
 
     await server.serve()
+
 
 if __name__ == "__main__":
     asyncio.run(standalone())

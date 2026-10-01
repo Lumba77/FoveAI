@@ -1,0 +1,38 @@
+{
+  "site_name": "Lumax",
+  "page_title": "Lumax — Your everything for life",
+  "slogan": "Your everything for life.",
+  "manifest_short_name": "Lumax",
+  "auth_blurb": "Sign in once to unlock this console; your browser keeps the session until it expires or site data is cleared. Optional cloud features may ask you to sign in separately.",
+  "auth_continue_button": "Continue",
+  "consent_title": "Privacy",
+  "consent_body": "Session and environment data may be used to improve your companion’s behavior. Treat sensitive inputs accordingly. You can stop using the UI at any time.",
+  "consent_button": "I understand",
+  "header_status_prefix": "Godot · VR ·",
+  "footer_stack": "Stack: local + optional cloud",
+  "nav_groups": {
+    "cognition": "Cognition",
+    "manifestation": "Manifestation",
+    "agency": "Agency",
+    "laboratory": "Laboratory",
+    "utilities": "Utilities"
+  },
+  "nav_tabs": {
+    "SANCTUARY": "CHRONICLE",
+    "NEURAL": "ETHOS (PERSONA)",
+    "THOUGHTS": "LOGOS (COG)",
+    "IMAGINE": "DREAMSCAPE (ART)",
+    "VISION": "SPECTRAL VIEW",
+    "VESSEL": "VESSEL RIG",
+    "AGENCY": "AUTONOMOUS",
+    "SOCIAL": "MULTIVERSE",
+    "COWORK": "RATATOSK (CODE)",
+    "NUCLEUS": "NUCLEUS (DEBUG)",
+    "UTILS": "ANNOUNCE BOARD",
+    "BRANDING": "LABEL EDITOR"
+  },
+  "chat_placeholder": "Transmit thoughts to Jen...",
+  "utils_title": "Announcements",
+  "utils_blurb": "Operational notices and reminders. Content is served from announcements.json next to the Web UI (editable on disk).",
+  "ready_message": "Connected. Lumax Web UI is ready."
+}

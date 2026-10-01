@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FoveAI — User Settings</title>
+<link rel="stylesheet" href="/settings.css">
+<style>
+  .usp-card { max-width: 560px; margin: 1rem auto; }
+  .usp-card h2 { margin-top: 0; }
+  .feat-list { display: flex; flex-wrap: wrap; gap: .4rem; }
+  .feat-list .pill { font-size: .72rem; }
+  #uspLog { font-size: .8rem; }
+  .row input[type=text], .row input[type=password] {
+    flex: 1; padding: .45rem .7rem; border: 1px solid var(--border);
+    border-radius: 6px; background: rgba(0,0,0,.35); color: var(--text); font-family: inherit;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>👤 FoveAI — Your Settings</h1>
+    <div class="status">
+      <a href="/settings.html" class="pill" id="adminLink" style="display:none; text-decoration:none;">🎛️ Admin Panel</a>
+      <span id="whoami" class="pill">not signed in</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="grid" style="max-width:640px; margin:0 auto;">
+
+      <section class="card card-full usp-card" id="cardLogin">
+        <h2>Sign in</h2>
+        <div class="row"><label>Username</label><input id="u" type="text" autocomplete="username"></div>
+        <div class="row"><label>Password</label><input id="p" type="password" autocomplete="current-password"></div>
+        <div class="row"><button class="primary" onclick="login()">Sign in</button></div>
+      </section>
+
+      <section class="card card-full usp-card" id="cardProfile" style="display:none;">
+        <h2>Profile</h2>
+        <div class="row"><label>Account</label><span id="pUser" class="pill online">—</span></div>
+        <div class="row"><label>Role</label><span id="pRole" class="pill">—</span></div>
+        <div class="row"><label>Memory workspace</label><span id="pWs" class="pill">—</span></div>
+        <div class="row"><label>Display name</label><input id="pName" type="text"></div>
+        <div class="row"><button onclick="saveProfile()">Save display name</button></div>
+        <div class="row"><label>New password</label><input id="pPass" type="password" autocomplete="new-password"></div>
+        <div class="row"><button onclick="savePassword()">Change password</button></div>
+        <div class="row"><button class="danger" onclick="logout()">Sign out</button></div>
+      </section>
+
+      <section class="card card-full usp-card" id="cardFeatures" style="display:none;">
+        <h2>Your features</h2>
+        <div class="feat-list" id="featList"></div>
+      </section>
+
+      <section class="card card-full usp-card" id="cardVoice" style="display:none;">
+        <h2>🎙️ Voice</h2>
+        <div class="row"><label>Voice output (TTS)</label>
+          <div class="btn-grid"><button onclick="utoggle('voice', true)">On</button><button onclick="utoggle('voice', false)">Off</button></div>
+        </div>
+        <div class="row"><label>Microphone</label>
+          <div class="btn-grid"><button onclick="utoggle('mic', true)">On</button><button onclick="utoggle('mic', false)">Off</button></div>
+        </div>
+      </section>
+
+      <section class="card card-full usp-card" id="cardByok" style="display:none;">
+        <h2>☁️ Bring your own model</h2>
+        <p style="font-size:.78rem; color:var(--text-muted); margin-top:0;">
+          Connect your own cloud API key — the request still runs through the full XRLF
+          pipeline (your memory, compression, persona). The bill goes to your provider, not us.
+        </p>
+        <details style="font-size:.78rem; margin-bottom:.6rem; border:1px solid var(--border); border-radius:6px; padding:.45rem .6rem; background:rgba(0,0,0,.2);">
+          <summary style="cursor:pointer; color:var(--accent);">🔑 Get a free NVIDIA key — no card, ~2 min</summary>
+          <ol style="margin:.5rem 0 .2rem; padding-left:1.2rem; color:var(--text-muted); line-height:1.5;">
+            <li>Go to <a href="https://build.nvidia.com" target="_blank" rel="noopener" style="color:var(--accent);">build.nvidia.com</a> and sign in (Google/email works).</li>
+            <li>Open any model page → <b>Get API Key</b> → <b>Generate Key</b>. Copy the <code>nvapi-…</code> key.</li>
+            <li>Pick <b>NVIDIA NIM</b> below, paste the key, set a default model, save.</li>
+          </ol>
+          <div style="font-size:.72rem; color:var(--text-muted);">
+            Free dev tier — your own allowance, no FoveAI quota used. Models we've verified:
+            <code>nvidia/nemotron-3-super-120b-a12b</code> (big, smart),
+            <code>deepseek-ai/deepseek-v4-flash-0731</code> (fast coder),
+            <code>openai/gpt-oss-20b</code> (small, quick).
+            Any model id from build.nvidia.com works via <code>byok/&lt;model&gt;</code>.
+          </div>
+        </details>
+        <div id="byokStatus" style="font-size:.8rem; margin-bottom:.5rem;"></div>
+        <div class="row"><label>Provider</label>
+          <select id="byokProvider" style="flex:1; padding:.45rem; background:rgba(0,0,0,.35); color:var(--text); border:1px solid var(--border); border-radius:6px; font-family:inherit;">
+            <option value="openai">OpenAI</option>
+            <option value="nvidia">NVIDIA NIM (free tier)</option>
+            <option value="ollama">Ollama Cloud</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="custom">Custom (OpenAI-compatible)</option>
+          </select>
+        </div>
+        <div class="row"><label>API key</label><input id="byokKey" type="password" placeholder="sk-… / nvapi-…" autocomplete="off"></div>
+        <div class="row"><label>Base URL <span style="color:var(--text-muted);font-size:.7rem;">(custom only)</span></label><input id="byokUrl" type="text" placeholder="https://…/v1"></div>
+        <div class="row"><label>Default model</label><input id="byokModel" type="text" placeholder="e.g. gpt-4o-mini, kimi-k3"></div>
+        <div id="byokModelHint" style="font-size:.72rem; color:var(--text-muted); margin-top:-.3rem;"></div>
+        <div class="row">
+          <button class="primary" onclick="saveByok()">Save key</button>
+          <button class="danger" onclick="clearByok()">Remove</button>
+        </div>
+        <div style="font-size:.75rem; color:var(--text-muted);">
+          Use in chat/model pickers as <code>byok</code> (your default model) or <code>byok/&lt;model&gt;</code>.
+        </div>
+      </section>
+
+      <section class="card card-full usp-card" id="cardFeedback" style="display:none;">
+        <h2>💬 Feedback</h2>
+        <div id="questionList"></div>
+        <div class="row" style="flex-direction:column; align-items:stretch;">
+          <label>Send feedback to the admin</label>
+          <textarea id="fbText" rows="3" style="width:100%; padding:.5rem; border:1px solid var(--border); border-radius:6px; background:rgba(0,0,0,.35); color:var(--text); font-family:inherit;"></textarea>
+        </div>
+        <div class="row"><button class="primary" onclick="sendFeedback()">Send</button></div>
+      </section>
+
+      <section class="card card-full usp-card" id="cardBeta" style="display:none;">
+        <h2>🧪 Beta <a href="/beta.html" style="float:right; font-size:.75rem; font-weight:normal; color:var(--accent,#6cf);">what is this? →</a></h2>
+        <div class="btn-grid" style="margin-bottom:.8rem;">
+          <button id="betaTabDl" class="primary" onclick="betaTab('dl')">Downloads</button>
+          <button id="betaTabSvc" onclick="betaTab('svc')">Services</button>
+        </div>
+
+        <div id="betaDl">
+          <div style="border:1px solid var(--border); border-radius:8px; padding:.7rem .9rem; margin-bottom:.6rem;">
+            <div style="font-size:.9rem; font-weight:600;">Jenna — VS Code companion</div>
+            <div style="font-size:.78rem; color:var(--text-muted); margin:.3rem 0 .5rem;">
+              The FoveAI IDE bridge: chat, memory, repo scans and agentic code edits in your editor.
+            </div>
+            <a class="pill online" style="text-decoration:none;" href="/downloads/foveai-vibe-coder-0.6.0.vsix" download>
+              ⬇ foveai-vibe-coder-0.6.0.vsix
+            </a>
+            <div style="font-size:.75rem; color:var(--text-muted); margin-top:.5rem;">
+              Install: Extensions panel → ⋯ → <em>Install from VSIX…</em>, or
+              <code>code --install-extension foveai-vibe-coder-0.6.0.vsix</code>
+            </div>
+            <div style="font-size:.75rem; color:var(--text-muted); margin-top:.5rem; border-top:1px dashed var(--border); padding-top:.5rem;">
+              <b>Make it yours:</b> set <code>jenna.foveatedMemoryUrl</code> to this server's address
+              (e.g. <code>https://xarel.net</code>), then run <b>FoveAI — Sign In</b> from the command
+              palette with your account — chat and memory land in your personal workspace.
+            </div>
+          </div>
+        </div>
+
+        <div id="betaSvc" style="display:none;">
+          <div id="svcList"></div>
+        </div>
+      </section>
+
+      <div class="log" id="uspLog"></div>
+    </div>
+  </main>
+
+<script>
+  const HOST = location.hostname || '127.0.0.1';
+  const IS_IP = /^[\d.]+$/.test(HOST) || HOST === 'localhost' || HOST.includes(':');
+  const API = IS_IP ? `http://${HOST}:8400` : location.origin;
+  let TOKEN = localStorage.getItem('foveai_panel_token') || null;
+  let ME = null;
+
+  const logEl = document.getElementById('uspLog');
+  function log(m) { logEl.textContent += `\n[${new Date().toLocaleTimeString()}] ${m}`; logEl.scrollTop = logEl.scrollHeight; }
+  const ah = (e) => ({ ...(e||{}), ...(TOKEN ? { Authorization: 'Bearer ' + TOKEN } : {}) });
+
+  async function refresh() {
+    if (!TOKEN) { showLoggedOut(); return; }
+    try {
+      const r = await fetch(`${API}/api/auth/me`, { headers: ah() });
+      if (!r.ok) { TOKEN = null; localStorage.removeItem('foveai_panel_token'); showLoggedOut(); return; }
+      ME = await r.json();
+      if (!ME.account) { showLoggedOut(); return; }   // legacy bearer — this page is for accounts
+      const a = ME.account;
+      document.getElementById('whoami').textContent = `${a.displayName || a.username} · ${a.role}`;
+      document.getElementById('pUser').textContent = a.username;
+      document.getElementById('pRole').textContent = a.role;
+      document.getElementById('pWs').textContent = a.workspaceId || '—';
+      document.getElementById('pName').value = a.displayName || '';
+      document.getElementById('featList').innerHTML = (a.features || [])
+        .map(f => `<span class="pill">${f}</span>`).join('') || '<span class="pill">none</span>';
+      if (ME.usage?.cloud) {
+        document.getElementById('featList').innerHTML +=
+          `<span class="pill" style="opacity:.8;">cloud today: ${ME.usage.cloud.used}/${ME.usage.cloud.cap}</span>`;
+      }
+      if (a.role === 'admin') document.getElementById('adminLink').style.display = 'inline-block';
+      document.getElementById('cardLogin').style.display = 'none';
+      for (const id of ['cardProfile','cardFeatures','cardVoice','cardFeedback','cardBeta','cardByok']) document.getElementById(id).style.display = 'block';
+      loadQuestions();
+      loadServices();
+      loadByok();
+    } catch (e) { log('me failed: ' + e.message); }
+  }
+
+  function showLoggedOut() {
+    document.getElementById('whoami').textContent = 'not signed in';
+    document.getElementById('cardLogin').style.display = 'block';
+    for (const id of ['cardProfile','cardFeatures','cardVoice','cardFeedback','cardBeta','cardByok']) document.getElementById(id).style.display = 'none';
+  }
+
+  const BYOK_HINTS = {
+    openai:     'e.g. gpt-4o-mini, gpt-4o — platform.openai.com/api-keys',
+    nvidia:     'e.g. nvidia/nemotron-3-super-120b-a12b — free key at build.nvidia.com',
+    ollama:     'e.g. gpt-oss:120b-cloud — ollama.com → Settings → Keys',
+    openrouter: 'e.g. openai/gpt-4o-mini — openrouter.ai/keys (some models free)',
+    custom:     'any OpenAI-compatible endpoint — set Base URL above',
+  };
+  function byokProviderChanged() {
+    const p = document.getElementById('byokProvider').value;
+    const hint = BYOK_HINTS[p] || '';
+    document.getElementById('byokModelHint').textContent = hint ? `💡 ${hint}` : '';
+    document.getElementById('byokUrl').parentElement.style.display = p === 'custom' ? '' : 'none';
+  }
+  document.getElementById('byokProvider').addEventListener('change', byokProviderChanged);
+
+  async function loadByok() {
+    try {
+      const r = await fetch(`${API}/api/byok`, { headers: ah() });
+      if (!r.ok) return;
+      const { byok } = await r.json();
+      const el = document.getElementById('byokStatus');
+      if (byok) {
+        el.innerHTML = `✅ Connected: <b>${byok.provider}</b> · key <code>${byok.keyHint}</code>` +
+          (byok.model ? ` · default <code>${byok.model}</code>` : '');
+        document.getElementById('byokProvider').value = byok.provider;
+        document.getElementById('byokUrl').value = byok.baseUrl || '';
+        document.getElementById('byokModel').value = byok.model || '';
+      } else {
+        el.textContent = 'No key configured — requests stay on the local model.';
+      }
+      byokProviderChanged();
+    } catch {}
+  }
+
+  async function saveByok() {
+    const body = {
+      provider: document.getElementById('byokProvider').value,
+      apiKey: document.getElementById('byokKey').value.trim(),
+      baseUrl: document.getElementById('byokUrl').value.trim() || undefined,
+      model: document.getElementById('byokModel').value.trim() || undefined,
+    };
+    if (!body.apiKey) { log('api key required'); return; }
+    const r = await fetch(`${API}/api/byok`, { method:'PUT', headers: ah({'Content-Type':'application/json'}), body: JSON.stringify(body) });
+    const d = await r.json().catch(()=>null);
+    log(r.ok ? 'cloud key saved' : 'save failed: ' + (d?.error || r.status));
+    if (r.ok) { document.getElementById('byokKey').value = ''; loadByok(); }
+  }
+
+  async function clearByok() {
+    const r = await fetch(`${API}/api/byok`, { method:'DELETE', headers: ah() });
+    log(r.ok ? 'cloud key removed' : 'remove failed: ' + r.status);
+    loadByok();
+  }
+
+  function betaTab(which) {
+    document.getElementById('betaDl').style.display = which === 'dl' ? 'block' : 'none';
+    document.getElementById('betaSvc').style.display = which === 'svc' ? 'block' : 'none';
+    document.getElementById('betaTabDl').className = which === 'dl' ? 'primary' : '';
+    document.getElementById('betaTabSvc').className = which === 'svc' ? 'primary' : '';
+  }
+
+  // Member-reachable services — probed live so the list shows what's up.
+  async function loadServices() {
+    const svcs = [
+      { name: 'Multigate — main app', url: '/', probe: `${API}/api/status` },
+      { name: 'Your settings', url: '/user-settings.html', probe: null },
+      { name: 'Admin panel', url: '/settings.html', probe: null, admin: true },
+    ];
+    const el = document.getElementById('svcList');
+    const rows = [];
+    for (const s of svcs) {
+      if (s.admin && ME?.account?.role !== 'admin') continue;
+      let state = '';
+      if (s.probe) {
+        try { const r = await fetch(s.probe, { headers: ah(), signal: AbortSignal.timeout(3000) }); state = r.ok ? 'online' : 'offline'; }
+        catch { state = 'offline'; }
+      }
+      rows.push(`<div class="row"><label>${s.name}</label>
+        ${state ? `<span class="pill ${state === 'online' ? 'online' : 'offline'}">${state}</span>` : ''}
+        <a class="pill" style="text-decoration:none;" href="${s.url}">open →</a></div>`);
+    }
+    el.innerHTML = rows.join('');
+  }
+
+  async function loadQuestions() {
+    try {
+      const r = await fetch(`${API}/api/feedback/questions`, { headers: ah() });
+      if (!r.ok) return;
+      const { questions } = await r.json();
+      const el = document.getElementById('questionList');
+      el.innerHTML = (questions || []).map(q => `
+        <div style="border:1px solid var(--border); border-radius:8px; padding:.6rem .8rem; margin-bottom:.6rem;">
+          <div style="font-size:.85rem; margin-bottom:.4rem;">❓ ${q.text.replace(/</g,'&lt;')}</div>
+          <textarea id="qa_${q.id}" rows="2" placeholder="Your answer…" style="width:100%; padding:.4rem; border:1px solid var(--border); border-radius:6px; background:rgba(0,0,0,.35); color:var(--text); font-family:inherit;"></textarea>
+          <button style="margin-top:.4rem;" onclick="answerQuestion('${q.id}')">Answer</button>
+        </div>`).join('');
+    } catch {}
+  }
+
+  async function answerQuestion(qid) {
+    const text = document.getElementById('qa_' + qid).value.trim();
+    if (!text) return;
+    const r = await fetch(`${API}/api/feedback`, { method:'POST', headers: ah({'Content-Type':'application/json'}), body: JSON.stringify({ text, questionId: qid }) });
+    log(r.ok ? 'answer sent' : 'send failed: ' + r.status);
+    if (r.ok) document.getElementById('qa_' + qid).value = '';
+  }
+
+  async function sendFeedback() {
+    const text = document.getElementById('fbText').value.trim();
+    if (!text) return;
+    const r = await fetch(`${API}/api/feedback`, { method:'POST', headers: ah({'Content-Type':'application/json'}), body: JSON.stringify({ text }) });
+    log(r.ok ? 'feedback sent — thank you' : 'send failed: ' + r.status);
+    if (r.ok) document.getElementById('fbText').value = '';
+  }
+
+  async function login() {
+    const u = document.getElementById('u').value.trim(), p = document.getElementById('p').value;
+    const r = await fetch(`${API}/api/auth/login`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username:u, password:p}) });
+    const d = await r.json();
+    if (!r.ok || !d.token) { log('login failed: ' + (d?.error || r.status)); return; }
+    TOKEN = d.token;
+    localStorage.setItem('foveai_panel_token', TOKEN);
+    log('signed in');
+    refresh();
+  }
+
+  async function logout() {
+    if (TOKEN) await fetch(`${API}/api/auth/logout`, { method:'POST', headers: ah() }).catch(()=>{});
+    TOKEN = null; localStorage.removeItem('foveai_panel_token');
+    showLoggedOut(); log('signed out');
+  }
+
+  async function saveProfile() {
+    const r = await fetch(`${API}/api/auth/users/${ME.account.username}`, {
+      method:'PATCH', headers: ah({'Content-Type':'application/json'}),
+      body: JSON.stringify({ displayName: document.getElementById('pName').value.trim() }) });
+    log(r.ok ? 'display name saved' : 'save failed: ' + r.status);
+    refresh();
+  }
+
+  async function savePassword() {
+    const pw = document.getElementById('pPass').value;
+    if (pw.length < 4) { log('password too short (min 4)'); return; }
+    const r = await fetch(`${API}/api/auth/users/${ME.account.username}`, {
+      method:'PATCH', headers: ah({'Content-Type':'application/json'}),
+      body: JSON.stringify({ password: pw }) });
+    log(r.ok ? 'password changed' : 'change failed: ' + r.status);
+    document.getElementById('pPass').value = '';
+  }
+
+  async function utoggle(name, value) {
+    const r = await fetch(`${API}/api/toggle`, { method:'POST', headers: ah({'Content-Type':'application/json'}), body: JSON.stringify({name, value}) });
+    log(`${name} => ${value} (${r.status})`);
+  }
+
+  refresh();
+</script>
+</body>
+</html>

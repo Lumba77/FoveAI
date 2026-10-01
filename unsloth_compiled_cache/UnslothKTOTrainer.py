@@ -22,43 +22,115 @@ __UNSLOTH_VERSIONING__
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from torch import Tensor
-import torch
-import torch.nn as nn
-from torch.nn import functional as F
-from unsloth_zoo.temporary_patches.common import torch_compile
-from typing import Any, List, Optional, Tuple, Union, Dict, Set, Callable
-from trl.trainer.kto_trainer import (Any, AutoModelForCausalLM, BaseImageProcessor, Callable, DPODataCollatorWithPadding, DataCollator, DataLoader, Dataset, EvalLoopOutput, F, FeatureExtractionMixin, KTOConfig, KTOTrainer, Literal, Optional, PartialState, Path, PeftModel, PreTrainedModel, PreTrainedTokenizerBase, ProcessorMixin, SequentialSampler, Trainer, TrainerCallback, TrainingArguments, Union, _get_kl_dataset, _process_tokens, _tokenize, autocast, concatenate_datasets, contextmanager, create_reference_model, defaultdict, disable_dropout_in_model, generate_model_card, get_comet_experiment_url, has_length, inspect, is_comet_available, is_liger_kernel_available, is_peft_available, is_wandb_available, itemgetter, log_table_to_comet_experiment, logger, logging, maybe_apply_chat_template, maybe_extract_prompt, maybe_unpair_preference_dataset, nn, np, nullcontext, os, pad_to_length, pd, peft_module_casting_to_bf16, prepare_deepspeed, prepare_model_for_kbit_training, random, selective_log_softmax, textwrap, torch, tqdm, AutoModelForCausalLM, BaseImageProcessor, Callable, DPODataCollatorWithPadding, DataCollator, Dataset, EvalLoopOutput, F, FeatureExtractionMixin, KTOConfig, KTOTrainer, Optional, PartialState, PeftModel, PreTrainedModel, PreTrainedTokenizerBase, ProcessorMixin, Trainer, TrainerCallback, TrainingArguments, Union, autocast, concatenate_datasets, create_reference_model, defaultdict, disable_dropout_in_model, inspect, is_comet_available, is_liger_kernel_available, is_peft_available, is_wandb_available, logger, maybe_apply_chat_template, maybe_extract_prompt, maybe_unpair_preference_dataset, nn, np, os, peft_module_casting_to_bf16, prepare_deepspeed, prepare_model_for_kbit_training, torch, F, Optional, PeftModel, PreTrainedModel, Trainer, is_peft_available, logger, os, torch, F, nn, np, os, selective_log_softmax, torch)
-
-
-import os
-import math
-import logging
-from typing import *
-from dataclasses import dataclass, field
-from packaging.version import Version
-import torch
-import numpy as np
-from contextlib import nullcontext
-from torch.nn import functional as F
-import inspect
-from transformers import DataCollatorForSeq2Seq, DataCollatorForLanguageModeling as TransformersDataCollatorForLanguageModeling
-from transformers.training_args import ParallelMode
-from unsloth_zoo.device_type import DEVICE_TYPE, device_synchronize
-
 # Wrap trainer with padding to right and enable training mode
 import functools
+import inspect
+import logging
+import math
+import os
+from collections.abc import Callable
+from contextlib import nullcontext
+from dataclasses import dataclass, field
 from types import MethodType
+from typing import *
+from typing import Any, Optional, Union
+
+import torch
+from packaging.version import Version
+from torch import nn
+from torch.nn import functional as F
+from transformers import (
+    DataCollatorForLanguageModeling as TransformersDataCollatorForLanguageModeling,
+)
+from transformers import (
+    DataCollatorForSeq2Seq,
+)
+from transformers.training_args import ParallelMode
+from trl.trainer.kto_trainer import (
+    Any,
+    AutoModelForCausalLM,
+    BaseImageProcessor,
+    Callable,
+    DataCollator,
+    DataLoader,
+    Dataset,
+    DPODataCollatorWithPadding,
+    EvalLoopOutput,
+    F,
+    FeatureExtractionMixin,
+    KTOConfig,
+    Literal,
+    Optional,
+    PartialState,
+    Path,
+    PeftModel,
+    PreTrainedModel,
+    PreTrainedTokenizerBase,
+    ProcessorMixin,
+    SequentialSampler,
+    Trainer,
+    TrainerCallback,
+    TrainingArguments,
+    Union,
+    _get_kl_dataset,
+    _process_tokens,
+    _tokenize,
+    autocast,
+    concatenate_datasets,
+    contextmanager,
+    create_reference_model,
+    defaultdict,
+    disable_dropout_in_model,
+    generate_model_card,
+    get_comet_experiment_url,
+    has_length,
+    inspect,
+    is_comet_available,
+    is_liger_kernel_available,
+    is_peft_available,
+    is_wandb_available,
+    itemgetter,
+    log_table_to_comet_experiment,
+    logger,
+    logging,
+    maybe_apply_chat_template,
+    maybe_extract_prompt,
+    maybe_unpair_preference_dataset,
+    nn,
+    nullcontext,
+    os,
+    pad_to_length,
+    pd,
+    peft_module_casting_to_bf16,
+    prepare_deepspeed,
+    prepare_model_for_kbit_training,
+    random,
+    selective_log_softmax,
+    textwrap,
+    torch,
+    tqdm,
+)
+
 try:
-    from unsloth_zoo.gradient_checkpointing import reset_unsloth_gradient_checkpointing_buffers
+    from unsloth_zoo.gradient_checkpointing import (
+        reset_unsloth_gradient_checkpointing_buffers,
+    )
 except:
-    def reset_unsloth_gradient_checkpointing_buffers(): pass
+
+    def reset_unsloth_gradient_checkpointing_buffers():
+        pass
+
+
 # Canonical reset lives in unsloth.models._utils so the SFT auto-packing wrapper and the plain
 # Trainer loop can import the same helper; fall back to a no-op only if it can't be imported.
 try:
     from unsloth.models._utils import _unsloth_reset_stray_compile_cache
 except Exception:
-    def _unsloth_reset_stray_compile_cache(self): pass
+
+    def _unsloth_reset_stray_compile_cache(self):
+        pass
+
+
 def prepare_for_training_mode(f):
     @functools.wraps(f)
     def wrapper(self, *args, **kwargs):
@@ -72,14 +144,15 @@ def prepare_for_training_mode(f):
         # evaluate() / log() still work after train() completes.
         # HF's WandbCallback.setup() will call wandb.init() for the new run.
         # See: https://github.com/unslothai/unsloth/issues/3954
-        if getattr(self, '_unsloth_training_completed', False):
+        if getattr(self, "_unsloth_training_completed", False):
             try:
                 import wandb
+
                 if wandb.run is not None:
                     wandb.finish()
                     # Reset HF's WandbCallback so it calls wandb.init() for the new run
                     for cb in self.callback_handler.callbacks:
-                        if type(cb).__name__ == 'WandbCallback':
+                        if type(cb).__name__ == "WandbCallback":
                             cb._initialized = False
                             break
             except:
@@ -87,14 +160,14 @@ def prepare_for_training_mode(f):
         # Enable training mode
         _was_training = None
         # Get gradient checkpointing setting from training arguments
-        use_gc = getattr(self.args, 'gradient_checkpointing', True)
-        if hasattr(self, 'model') and hasattr(self.model, "training"):
+        use_gc = getattr(self.args, "gradient_checkpointing", True)
+        if hasattr(self, "model") and hasattr(self.model, "training"):
             _was_training = self.model.training
-        if hasattr(self, 'model') and hasattr(self.model, "for_training"):
+        if hasattr(self, "model") and hasattr(self.model, "for_training"):
             self.model.for_training(use_gradient_checkpointing=use_gc)
         output = f(self, *args, **kwargs)
         # Restore previous mode when possible
-        if hasattr(self, 'model') and hasattr(self.model, "for_inference"):
+        if hasattr(self, "model") and hasattr(self.model, "for_inference"):
             if _was_training is False:
                 self.model.for_inference()
             elif _was_training is True and hasattr(self.model, "for_training"):
@@ -108,18 +181,25 @@ def prepare_for_training_mode(f):
         # finish this W&B run before starting a new one
         self._unsloth_training_completed = True
         return output
+
     return wrapper
-pass
+
+
 
 torch_compile_options = {
-    "epilogue_fusion"   : True,
-    "max_autotune"      : False,
-    "shape_padding"     : True,
-    "trace.enabled"     : False,
-    "triton.cudagraphs" : False,
+    "epilogue_fusion": True,
+    "max_autotune": False,
+    "shape_padding": True,
+    "trace.enabled": False,
+    "triton.cudagraphs": False,
 }
 
-@torch.compile(dynamic = True, fullgraph = True, options = torch_compile_options,)
+
+@torch.compile(
+    dynamic=True,
+    fullgraph=True,
+    options=torch_compile_options,
+)
 def chunked_hidden_states_selective_log_softmax(
     hidden_states: torch.Tensor,
     lm_head: torch.Tensor,
@@ -147,51 +227,66 @@ def chunked_hidden_states_selective_log_softmax(
         if logit_scale_divide != 0.0:
             chunk_logits = chunk_logits / logit_scale_divide
         if logit_softcapping != 0.0:
-            chunk_logits = logit_softcapping * torch.tanh(chunk_logits / logit_softcapping)
+            chunk_logits = logit_softcapping * torch.tanh(
+                chunk_logits / logit_softcapping
+            )
 
         chunk_logits = chunk_logits.to(torch.float32)
 
         if temperature != 1.0:
             chunk_logits = chunk_logits / temperature
 
-        selected_logits = torch.gather(chunk_logits, dim=-1, index=chunk_index.unsqueeze(-1)).squeeze(-1)
+        selected_logits = torch.gather(
+            chunk_logits, dim=-1, index=chunk_index.unsqueeze(-1)
+        ).squeeze(-1)
         logsumexp_values = torch.logsumexp(chunk_logits, dim=-1)
         per_token_logps = selected_logits - logsumexp_values
         all_per_token_logps.append(per_token_logps)
 
     all_per_token_logps = torch.concat(all_per_token_logps)
 
-    all_per_token_logps = all_per_token_logps.reshape((hidden_states.shape[0], hidden_states.shape[1]))
+    all_per_token_logps = all_per_token_logps.reshape(
+        (hidden_states.shape[0], hidden_states.shape[1])
+    )
     return all_per_token_logps
 
-@torch.compile(dynamic = True, fullgraph = True, options = torch_compile_options,)
+
+@torch.compile(
+    dynamic=True,
+    fullgraph=True,
+    options=torch_compile_options,
+)
 def chunked_selective_log_softmax(
     logits,
     index,
     temperature: float = 1.0,
     chunks: int = 4,
 ):
-    chunked_logits = torch.chunk(logits.reshape(-1, logits.shape[-1]), chunks = chunks, dim = 0)
-    chunked_index  = torch.chunk(index.reshape(-1), chunks = chunks, dim = 0)
+    chunked_logits = torch.chunk(
+        logits.reshape(-1, logits.shape[-1]), chunks=chunks, dim=0
+    )
+    chunked_index = torch.chunk(index.reshape(-1), chunks=chunks, dim=0)
     all_per_token_logps = []
     # Per-chunk selective_log_softmax.
     for chunk_logits, chunk_index in zip(chunked_logits, chunked_index):
         chunk_logits = chunk_logits.to(torch.float32)
         if temperature != 1.0:
             chunk_logits = chunk_logits / temperature
-        selected_logits = torch.gather(chunk_logits, dim = -1, index = chunk_index.unsqueeze(-1)).squeeze(-1)
-        logsumexp_values = torch.logsumexp(chunk_logits, dim = -1)
+        selected_logits = torch.gather(
+            chunk_logits, dim=-1, index=chunk_index.unsqueeze(-1)
+        ).squeeze(-1)
+        logsumexp_values = torch.logsumexp(chunk_logits, dim=-1)
         per_token_logps = selected_logits - logsumexp_values
         all_per_token_logps.append(per_token_logps)
-    pass
     all_per_token_logps = torch.concat(all_per_token_logps)
-    all_per_token_logps = all_per_token_logps.reshape((logits.shape[0], logits.shape[1]))
+    all_per_token_logps = all_per_token_logps.reshape(
+        (logits.shape[0], logits.shape[1])
+    )
     return all_per_token_logps
 
+
 def calculate_pad_tokens_in_prompt(
-    input_ids: torch.Tensor,
-    logits_to_keep: int,
-    pad_token_id: int
+    input_ids: torch.Tensor, logits_to_keep: int, pad_token_id: int
 ) -> torch.Tensor:
     """Count left-padded tokens per sequence, e.g. [pad, pad, pad, cat] -> 3."""
     if logits_to_keep >= input_ids.shape[1]:
@@ -199,17 +294,18 @@ def calculate_pad_tokens_in_prompt(
 
     prompt_section = input_ids[:, :-logits_to_keep]
 
-    padding_mask = (prompt_section == pad_token_id)
+    padding_mask = prompt_section == pad_token_id
 
     pad_token_counts = padding_mask.sum(dim=1)
 
     return pad_token_counts
 
+
 def create_completion_attention_mask(
     completion_input_ids: torch.Tensor,
     left_pad_tokens_per_prompt: torch.Tensor,
     max_left_pad: int,
-    pad_token_id: int
+    pad_token_id: int,
 ) -> torch.Tensor:
     """Build a completion mask that zeros leading prompt and trailing pad tokens.
 
@@ -224,24 +320,24 @@ def create_completion_attention_mask(
     indices = torch.arange(completion_len, device=device).unsqueeze(0)
     shift_mask = indices >= num_tokens_to_mask.unsqueeze(1)
 
-    non_padding_mask = (completion_input_ids != pad_token_id)
+    non_padding_mask = completion_input_ids != pad_token_id
 
     final_mask = shift_mask & non_padding_mask
 
     return final_mask
 
+
 def left_pack_padding(tensor: torch.Tensor, pad_id: int) -> torch.Tensor:
     """Move all padding tokens in each sequence to the right."""
-    mask = (tensor != pad_id)
+    mask = tensor != pad_id
     # stable=True since the binary mask is unordered.
     sorted_indices = torch.argsort(mask, dim=1, descending=True, stable=True)
     packed_tensor = torch.gather(tensor, 1, sorted_indices)
     return packed_tensor
 
+
 def align_logprobs_with_mask(
-    logprob_tensor: torch.Tensor,
-    attention_mask: torch.Tensor,
-    pad_value: float = 0.0
+    logprob_tensor: torch.Tensor, attention_mask: torch.Tensor, pad_value: float = 0.0
 ) -> torch.Tensor:
     """Align a log probability tensor with a given attention mask."""
 
@@ -253,7 +349,7 @@ def align_logprobs_with_mask(
         attention_mask.shape,
         fill_value=pad_value,
         dtype=logprob_tensor.dtype,
-        device=device
+        device=device,
     )
 
     left_pad_counts = torch.argmax(attention_mask, dim=1)
@@ -262,7 +358,9 @@ def align_logprobs_with_mask(
     dest_indices = left_pad_counts.unsqueeze(1) + cols
 
     # Destination row indices, shape [batch_size, logprob_seq_len].
-    row_indices = torch.arange(batch_size, device=device).unsqueeze(1).expand_as(dest_indices)
+    row_indices = (
+        torch.arange(batch_size, device=device).unsqueeze(1).expand_as(dest_indices)
+    )
 
     # Keep only in-bounds destinations, then scatter via advanced indexing.
     valid_mask = dest_indices < mask_seq_len
@@ -272,6 +370,7 @@ def align_logprobs_with_mask(
     padded_logprobs[valid_rows, valid_cols] = valid_vals
 
     return padded_logprobs
+
 
 def align_completion_tool_mask(
     tool_mask: torch.Tensor,
@@ -294,13 +393,9 @@ def align_completion_tool_mask(
         )
     return completion_mask * aligned_tool_mask.to(dtype=completion_mask.dtype)
 
+
 def autotune_batch_and_chunks(
-    total_input_rows,
-    seq_len,
-    hidden_size,
-    vocab_size,
-    dtype_bytes=16,
-    multiplier=None
+    total_input_rows, seq_len, hidden_size, vocab_size, dtype_bytes=16, multiplier=None
 ):
     if multiplier is None:
         final_m = max(4, seq_len // 4096)
@@ -309,7 +404,7 @@ def autotune_batch_and_chunks(
 
     if torch.cuda.is_available():
         free_bytes, _ = torch.cuda.mem_get_info()
-        limit_gb = (free_bytes / (1024**3))*.80
+        limit_gb = (free_bytes / (1024**3)) * 0.80
     elif hasattr(torch, "xpu") and torch.xpu.is_available():
         # XPU: estimate free memory as total - reserved.
         total_mem = torch.xpu.get_device_properties(0).total_memory
@@ -322,11 +417,13 @@ def autotune_batch_and_chunks(
 
     bytes_to_gb = 1024**3
 
-    b_vals = torch.arange(total_input_rows, 0, -1, device='cpu', dtype=torch.float32)
+    b_vals = torch.arange(total_input_rows, 0, -1, device="cpu", dtype=torch.float32)
 
     hidden_gb = (b_vals * seq_len * hidden_size * dtype_bytes) / bytes_to_gb
 
-    base_logits = ((b_vals/total_input_rows) * b_vals * seq_len * vocab_size * dtype_bytes) / bytes_to_gb
+    base_logits = (
+        (b_vals / total_input_rows) * b_vals * seq_len * vocab_size * dtype_bytes
+    ) / bytes_to_gb
     logits_gb = base_logits / final_m
 
     total_mem_gb = hidden_gb + logits_gb
@@ -335,13 +432,14 @@ def autotune_batch_and_chunks(
     valid_indices = torch.nonzero(valid_mask, as_tuple=False)
 
     if valid_indices.shape[0] == 0:
-        #This means your GPU will OOM
+        # This means your GPU will OOM
         return 4, final_m
 
     best_idx = valid_indices[0].item()
     final_b = int(b_vals[best_idx].item())
 
     return final_b, final_m
+
 
 def sanitize_logprob(logprob):
     """Local port of trl.scripts.vllm_serve.sanitize_logprob.
@@ -353,10 +451,12 @@ def sanitize_logprob(logprob):
         )
         return None
     return value
+
+
 @dataclass
 class UnslothKTOConfig(KTOConfig):
     """
-    
+
     Configuration class for the [`KTOTrainer`].
 
     This class includes only the parameters that are specific to KTO training. For a full list of training arguments,
@@ -421,356 +521,374 @@ class UnslothKTOConfig(KTOConfig):
         base_model_attribute_name (`str`, *optional*, defaults to `"model"`):
             Name of the attribute in the model that contains the base model. This is used to get the base model from
             the model when the model does not have a `get_decoder` method in the case when `use_liger_loss` is `True`.
-    
+
     """
+
     vllm_sampling_params: Optional[Any] = field(
-        default = None,
-        metadata = {'help': 'vLLM SamplingParams'},
+        default=None,
+        metadata={"help": "vLLM SamplingParams"},
     )
-    unsloth_num_chunks : Optional[int] = field(
-        default = -1,
-        metadata = {'help': 'Chunk size to reduce memory usage. -1 is most efficient.'},
+    unsloth_num_chunks: Optional[int] = field(
+        default=-1,
+        metadata={"help": "Chunk size to reduce memory usage. -1 is most efficient."},
     )
-    unsloth_logit_chunk_multiplier : Optional[int] = field(
-            default = None,
-            metadata = {'help': 'Multiplier for chunked logit computations.'},
-        )
-    unsloth_grpo_mini_batch : Optional[int] = field(
-        default = None,
-        metadata = {'help': 'Mini batch size for GRPO hidden state accumulation. Default is None unless user defines it.'},
+    unsloth_logit_chunk_multiplier: Optional[int] = field(
+        default=None,
+        metadata={"help": "Multiplier for chunked logit computations."},
     )
-    max_seq_length : Optional[int] = field(
-        default = None,
-        metadata = {'help': 'Maximum sequence length to truncate to.'},
+    unsloth_grpo_mini_batch: Optional[int] = field(
+        default=None,
+        metadata={
+            "help": "Mini batch size for GRPO hidden state accumulation. Default is None unless user defines it."
+        },
     )
+    max_seq_length: Optional[int] = field(
+        default=None,
+        metadata={"help": "Maximum sequence length to truncate to."},
+    )
+
     def __init__(
         self,
-        output_dir = None,
-        overwrite_output_dir = None,
-        do_train = False,
-        do_eval = False,
-        do_predict = False,
-        eval_strategy = 'no',
-        prediction_loss_only = False,
-        per_device_train_batch_size = 4,
-        per_device_eval_batch_size = 4,
-        per_gpu_train_batch_size = None,
-        per_gpu_eval_batch_size = None,
-        gradient_accumulation_steps = 2,
-        eval_accumulation_steps = 2,
-        eval_delay = 0,
-        torch_empty_cache_steps = 250,
-        learning_rate = 5e-05,
-        weight_decay = 0.001,
-        adam_beta1 = 0.9,
-        adam_beta2 = 0.999,
-        adam_epsilon = 1e-08,
-        max_grad_norm = 1.0,
-        num_train_epochs = 3.0,
-        max_steps = -1,
-        lr_scheduler_type = 'linear',
-        lr_scheduler_kwargs = None,
-        warmup_ratio = 0.1,
-        warmup_steps = 0,
-        log_level = 'passive',
-        log_level_replica = 'warning',
-        log_on_each_node = True,
-        logging_dir = None,
-        logging_strategy = 'steps',
-        logging_first_step = False,
-        logging_steps = 1,
-        logging_nan_inf_filter = False,
-        save_strategy = 'steps',
-        save_steps = 500,
-        save_total_limit = None,
-        save_safetensors = True,
-        save_on_each_node = False,
-        save_only_model = False,
-        restore_callback_states_from_checkpoint = False,
-        no_cuda = False,
-        use_cpu = False,
-        use_mps_device = False,
-        seed = 3407,
-        data_seed = 3407,
-        jit_mode_eval = False,
-        bf16 = False,
-        fp16 = False,
-        fp16_opt_level = 'O1',
-        half_precision_backend = 'auto',
-        bf16_full_eval = False,
-        fp16_full_eval = False,
-        tf32 = None,
-        local_rank = -1,
-        ddp_backend = None,
-        tpu_num_cores = None,
-        tpu_metrics_debug = False,
-        debug = '',
-        dataloader_drop_last = False,
-        eval_steps = None,
-        dataloader_num_workers = 0,
-        dataloader_prefetch_factor = None,
-        past_index = -1,
-        run_name = None,
-        disable_tqdm = None,
-        remove_unused_columns = True,
-        label_names = None,
-        load_best_model_at_end = False,
-        metric_for_best_model = None,
-        greater_is_better = None,
-        ignore_data_skip = False,
-        fsdp = None,
-        fsdp_min_num_params = 0,
-        fsdp_config = None,
-        fsdp_transformer_layer_cls_to_wrap = None,
-        accelerator_config = None,
-        parallelism_config = None,
-        deepspeed = None,
-        label_smoothing_factor = 0.0,
-        optim = 'adamw_8bit',
-        optim_args = None,
-        adafactor = False,
-        group_by_length = False,
-        length_column_name = 'length',
-        report_to = 'none',
-        project = 'huggingface',
-        trackio_space_id = 'trackio',
-        ddp_find_unused_parameters = None,
-        ddp_bucket_cap_mb = None,
-        ddp_broadcast_buffers = None,
-        dataloader_pin_memory = True,
-        dataloader_persistent_workers = False,
-        skip_memory_metrics = True,
-        use_legacy_prediction_loop = False,
-        push_to_hub = False,
-        resume_from_checkpoint = None,
-        hub_model_id = None,
-        hub_strategy = 'every_save',
-        hub_token = None,
-        hub_private_repo = None,
-        hub_always_push = False,
-        hub_revision = None,
-        gradient_checkpointing = True,
-        gradient_checkpointing_kwargs = None,
-        include_inputs_for_metrics = False,
-        eval_do_concat_batches = True,
-        fp16_backend = 'auto',
-        push_to_hub_model_id = None,
-        push_to_hub_organization = None,
-        push_to_hub_token = None,
-        mp_parameters = '',
-        auto_find_batch_size = False,
-        full_determinism = False,
-        torchdynamo = None,
-        ray_scope = 'last',
-        ddp_timeout = 1800,
-        torch_compile = False,
-        torch_compile_backend = None,
-        torch_compile_mode = None,
-        include_tokens_per_second = False,
-        include_num_input_tokens_seen = False,
-        neftune_noise_alpha = None,
-        optim_target_modules = None,
-        batch_eval_metrics = False,
-        eval_on_start = False,
-        use_liger_kernel = False,
-        liger_kernel_config = None,
-        eval_use_gather_object = False,
-        average_tokens_across_devices = True,
-        max_length = 1024,
-        max_prompt_length = 512,
-        max_completion_length = None,
-        beta = 0.1,
-        loss_type = 'kto',
-        desirable_weight = 1.0,
-        undesirable_weight = 1.0,
-        label_pad_token_id = -100,
-        padding_value = None,
-        truncation_mode = 'keep_end',
-        generate_during_eval = False,
-        is_encoder_decoder = None,
-        disable_dropout = True,
-        precompute_ref_log_probs = False,
-        model_init_kwargs = None,
-        ref_model_init_kwargs = None,
-        dataset_num_proc = None,
-        use_liger_loss = False,
-        base_model_attribute_name = 'model',
-        vllm_sampling_params = None,
-        unsloth_num_chunks = -1,
-        unsloth_logit_chunk_multiplier = None,
-        unsloth_grpo_mini_batch = None,
-        max_seq_length = None,
+        output_dir=None,
+        overwrite_output_dir=None,
+        do_train=False,
+        do_eval=False,
+        do_predict=False,
+        eval_strategy="no",
+        prediction_loss_only=False,
+        per_device_train_batch_size=4,
+        per_device_eval_batch_size=4,
+        per_gpu_train_batch_size=None,
+        per_gpu_eval_batch_size=None,
+        gradient_accumulation_steps=2,
+        eval_accumulation_steps=2,
+        eval_delay=0,
+        torch_empty_cache_steps=250,
+        learning_rate=5e-05,
+        weight_decay=0.001,
+        adam_beta1=0.9,
+        adam_beta2=0.999,
+        adam_epsilon=1e-08,
+        max_grad_norm=1.0,
+        num_train_epochs=3.0,
+        max_steps=-1,
+        lr_scheduler_type="linear",
+        lr_scheduler_kwargs=None,
+        warmup_ratio=0.1,
+        warmup_steps=0,
+        log_level="passive",
+        log_level_replica="warning",
+        log_on_each_node=True,
+        logging_dir=None,
+        logging_strategy="steps",
+        logging_first_step=False,
+        logging_steps=1,
+        logging_nan_inf_filter=False,
+        save_strategy="steps",
+        save_steps=500,
+        save_total_limit=None,
+        save_safetensors=True,
+        save_on_each_node=False,
+        save_only_model=False,
+        restore_callback_states_from_checkpoint=False,
+        no_cuda=False,
+        use_cpu=False,
+        use_mps_device=False,
+        seed=3407,
+        data_seed=3407,
+        jit_mode_eval=False,
+        bf16=False,
+        fp16=False,
+        fp16_opt_level="O1",
+        half_precision_backend="auto",
+        bf16_full_eval=False,
+        fp16_full_eval=False,
+        tf32=None,
+        local_rank=-1,
+        ddp_backend=None,
+        tpu_num_cores=None,
+        tpu_metrics_debug=False,
+        debug="",
+        dataloader_drop_last=False,
+        eval_steps=None,
+        dataloader_num_workers=0,
+        dataloader_prefetch_factor=None,
+        past_index=-1,
+        run_name=None,
+        disable_tqdm=None,
+        remove_unused_columns=True,
+        label_names=None,
+        load_best_model_at_end=False,
+        metric_for_best_model=None,
+        greater_is_better=None,
+        ignore_data_skip=False,
+        fsdp=None,
+        fsdp_min_num_params=0,
+        fsdp_config=None,
+        fsdp_transformer_layer_cls_to_wrap=None,
+        accelerator_config=None,
+        parallelism_config=None,
+        deepspeed=None,
+        label_smoothing_factor=0.0,
+        optim="adamw_8bit",
+        optim_args=None,
+        adafactor=False,
+        group_by_length=False,
+        length_column_name="length",
+        report_to="none",
+        project="huggingface",
+        trackio_space_id="trackio",
+        ddp_find_unused_parameters=None,
+        ddp_bucket_cap_mb=None,
+        ddp_broadcast_buffers=None,
+        dataloader_pin_memory=True,
+        dataloader_persistent_workers=False,
+        skip_memory_metrics=True,
+        use_legacy_prediction_loop=False,
+        push_to_hub=False,
+        resume_from_checkpoint=None,
+        hub_model_id=None,
+        hub_strategy="every_save",
+        hub_token=None,
+        hub_private_repo=None,
+        hub_always_push=False,
+        hub_revision=None,
+        gradient_checkpointing=True,
+        gradient_checkpointing_kwargs=None,
+        include_inputs_for_metrics=False,
+        eval_do_concat_batches=True,
+        fp16_backend="auto",
+        push_to_hub_model_id=None,
+        push_to_hub_organization=None,
+        push_to_hub_token=None,
+        mp_parameters="",
+        auto_find_batch_size=False,
+        full_determinism=False,
+        torchdynamo=None,
+        ray_scope="last",
+        ddp_timeout=1800,
+        torch_compile=False,
+        torch_compile_backend=None,
+        torch_compile_mode=None,
+        include_tokens_per_second=False,
+        include_num_input_tokens_seen=False,
+        neftune_noise_alpha=None,
+        optim_target_modules=None,
+        batch_eval_metrics=False,
+        eval_on_start=False,
+        use_liger_kernel=False,
+        liger_kernel_config=None,
+        eval_use_gather_object=False,
+        average_tokens_across_devices=True,
+        max_length=1024,
+        max_prompt_length=512,
+        max_completion_length=None,
+        beta=0.1,
+        loss_type="kto",
+        desirable_weight=1.0,
+        undesirable_weight=1.0,
+        label_pad_token_id=-100,
+        padding_value=None,
+        truncation_mode="keep_end",
+        generate_during_eval=False,
+        is_encoder_decoder=None,
+        disable_dropout=True,
+        precompute_ref_log_probs=False,
+        model_init_kwargs=None,
+        ref_model_init_kwargs=None,
+        dataset_num_proc=None,
+        use_liger_loss=False,
+        base_model_attribute_name="model",
+        vllm_sampling_params=None,
+        unsloth_num_chunks=-1,
+        unsloth_logit_chunk_multiplier=None,
+        unsloth_grpo_mini_batch=None,
+        max_seq_length=None,
         **kwargs,
     ):
-        if learning_rate < 1e-7: print(f'Unsloth: Your learning rate of `{learning_rate}` is too small and less than 1e-7! Consider increasing it, otherwise gradient updates will be close to 0!')
-        if learning_rate > 1: print(f'Unsloth: Your learning rate of `{learning_rate}` is way too larger > 1! Consider decreasing it to 1e-1, otherwise gradient updates will explode!')
+        if learning_rate < 1e-7:
+            print(
+                f"Unsloth: Your learning rate of `{learning_rate}` is too small and less than 1e-7! Consider increasing it, otherwise gradient updates will be close to 0!"
+            )
+        if learning_rate > 1:
+            print(
+                f"Unsloth: Your learning rate of `{learning_rate}` is way too larger > 1! Consider decreasing it to 1e-1, otherwise gradient updates will explode!"
+            )
         if num_train_epochs is None:
-            num_train_epochs = 3.0  # Default to 3 epochs if None, max_steps will override
-        if output_dir is None and save_strategy == 'steps' and save_steps == 500:
-            output_dir = 'unsloth_training_checkpoints'
-            save_strategy = 'no'
+            num_train_epochs = (
+                3.0  # Default to 3 epochs if None, max_steps will override
+            )
+        if output_dir is None and save_strategy == "steps" and save_steps == 500:
+            output_dir = "unsloth_training_checkpoints"
+            save_strategy = "no"
         import multiprocessing as _mp
+
         if dataset_num_proc is None:
-            if _mp.get_start_method() != 'fork':
+            if _mp.get_start_method() != "fork":
                 dataset_num_proc = None
             else:
                 import psutil
-                dataset_num_proc = min(max((psutil.cpu_count() or 1)+4, 2), 64)
+
+                dataset_num_proc = min(max((psutil.cpu_count() or 1) + 4, 2), 64)
                 memory_gb_left = psutil.virtual_memory().available / (1024**3)
-                if memory_gb_left <= 2: dataset_num_proc = 1
-                else: dataset_num_proc = min(dataset_num_proc, int(memory_gb_left))
-        
+                if memory_gb_left <= 2:
+                    dataset_num_proc = 1
+                else:
+                    dataset_num_proc = min(dataset_num_proc, int(memory_gb_left))
+
         super().__init__(
-            output_dir = output_dir,
-            overwrite_output_dir = overwrite_output_dir,
-            do_train = do_train,
-            do_eval = do_eval,
-            do_predict = do_predict,
-            eval_strategy = eval_strategy,
-            prediction_loss_only = prediction_loss_only,
-            per_device_train_batch_size = per_device_train_batch_size,
-            per_device_eval_batch_size = per_device_eval_batch_size,
-            per_gpu_train_batch_size = per_gpu_train_batch_size,
-            per_gpu_eval_batch_size = per_gpu_eval_batch_size,
-            gradient_accumulation_steps = gradient_accumulation_steps,
-            eval_accumulation_steps = eval_accumulation_steps,
-            eval_delay = eval_delay,
-            torch_empty_cache_steps = torch_empty_cache_steps,
-            learning_rate = learning_rate,
-            weight_decay = weight_decay,
-            adam_beta1 = adam_beta1,
-            adam_beta2 = adam_beta2,
-            adam_epsilon = adam_epsilon,
-            max_grad_norm = max_grad_norm,
-            num_train_epochs = num_train_epochs,
-            max_steps = max_steps,
-            lr_scheduler_type = lr_scheduler_type,
-            lr_scheduler_kwargs = lr_scheduler_kwargs,
-            warmup_ratio = warmup_ratio,
-            warmup_steps = warmup_steps,
-            log_level = log_level,
-            log_level_replica = log_level_replica,
-            log_on_each_node = log_on_each_node,
-            logging_dir = logging_dir,
-            logging_strategy = logging_strategy,
-            logging_first_step = logging_first_step,
-            logging_steps = logging_steps,
-            logging_nan_inf_filter = logging_nan_inf_filter,
-            save_strategy = save_strategy,
-            save_steps = save_steps,
-            save_total_limit = save_total_limit,
-            save_safetensors = save_safetensors,
-            save_on_each_node = save_on_each_node,
-            save_only_model = save_only_model,
-            restore_callback_states_from_checkpoint = restore_callback_states_from_checkpoint,
-            no_cuda = no_cuda,
-            use_cpu = use_cpu,
-            use_mps_device = use_mps_device,
-            seed = seed,
-            data_seed = data_seed,
-            jit_mode_eval = jit_mode_eval,
-            bf16 = bf16,
-            fp16 = fp16,
-            fp16_opt_level = fp16_opt_level,
-            half_precision_backend = half_precision_backend,
-            bf16_full_eval = bf16_full_eval,
-            fp16_full_eval = fp16_full_eval,
-            tf32 = tf32,
-            local_rank = local_rank,
-            ddp_backend = ddp_backend,
-            tpu_num_cores = tpu_num_cores,
-            tpu_metrics_debug = tpu_metrics_debug,
-            debug = debug,
-            dataloader_drop_last = dataloader_drop_last,
-            eval_steps = eval_steps,
-            dataloader_num_workers = dataloader_num_workers,
-            dataloader_prefetch_factor = dataloader_prefetch_factor,
-            past_index = past_index,
-            run_name = run_name,
-            disable_tqdm = disable_tqdm,
-            remove_unused_columns = remove_unused_columns,
-            label_names = label_names,
-            load_best_model_at_end = load_best_model_at_end,
-            metric_for_best_model = metric_for_best_model,
-            greater_is_better = greater_is_better,
-            ignore_data_skip = ignore_data_skip,
-            fsdp = fsdp,
-            fsdp_min_num_params = fsdp_min_num_params,
-            fsdp_config = fsdp_config,
-            fsdp_transformer_layer_cls_to_wrap = fsdp_transformer_layer_cls_to_wrap,
-            accelerator_config = accelerator_config,
-            parallelism_config = parallelism_config,
-            deepspeed = deepspeed,
-            label_smoothing_factor = label_smoothing_factor,
-            optim = optim,
-            optim_args = optim_args,
-            adafactor = adafactor,
-            group_by_length = group_by_length,
-            length_column_name = length_column_name,
-            report_to = report_to,
-            project = project,
-            trackio_space_id = trackio_space_id,
-            ddp_find_unused_parameters = ddp_find_unused_parameters,
-            ddp_bucket_cap_mb = ddp_bucket_cap_mb,
-            ddp_broadcast_buffers = ddp_broadcast_buffers,
-            dataloader_pin_memory = dataloader_pin_memory,
-            dataloader_persistent_workers = dataloader_persistent_workers,
-            skip_memory_metrics = skip_memory_metrics,
-            use_legacy_prediction_loop = use_legacy_prediction_loop,
-            push_to_hub = push_to_hub,
-            resume_from_checkpoint = resume_from_checkpoint,
-            hub_model_id = hub_model_id,
-            hub_strategy = hub_strategy,
-            hub_token = hub_token,
-            hub_private_repo = hub_private_repo,
-            hub_always_push = hub_always_push,
-            hub_revision = hub_revision,
-            gradient_checkpointing = gradient_checkpointing,
-            gradient_checkpointing_kwargs = gradient_checkpointing_kwargs,
-            include_inputs_for_metrics = include_inputs_for_metrics,
-            eval_do_concat_batches = eval_do_concat_batches,
-            fp16_backend = fp16_backend,
-            push_to_hub_model_id = push_to_hub_model_id,
-            push_to_hub_organization = push_to_hub_organization,
-            push_to_hub_token = push_to_hub_token,
-            mp_parameters = mp_parameters,
-            auto_find_batch_size = auto_find_batch_size,
-            full_determinism = full_determinism,
-            torchdynamo = torchdynamo,
-            ray_scope = ray_scope,
-            ddp_timeout = ddp_timeout,
-            torch_compile = torch_compile,
-            torch_compile_backend = torch_compile_backend,
-            torch_compile_mode = torch_compile_mode,
-            include_tokens_per_second = include_tokens_per_second,
-            include_num_input_tokens_seen = include_num_input_tokens_seen,
-            neftune_noise_alpha = neftune_noise_alpha,
-            optim_target_modules = optim_target_modules,
-            batch_eval_metrics = batch_eval_metrics,
-            eval_on_start = eval_on_start,
-            use_liger_kernel = use_liger_kernel,
-            liger_kernel_config = liger_kernel_config,
-            eval_use_gather_object = eval_use_gather_object,
-            average_tokens_across_devices = average_tokens_across_devices,
-            max_length = max_length,
-            max_prompt_length = max_prompt_length,
-            max_completion_length = max_completion_length,
-            beta = beta,
-            loss_type = loss_type,
-            desirable_weight = desirable_weight,
-            undesirable_weight = undesirable_weight,
-            label_pad_token_id = label_pad_token_id,
-            padding_value = padding_value,
-            truncation_mode = truncation_mode,
-            generate_during_eval = generate_during_eval,
-            is_encoder_decoder = is_encoder_decoder,
-            disable_dropout = disable_dropout,
-            precompute_ref_log_probs = precompute_ref_log_probs,
-            model_init_kwargs = model_init_kwargs,
-            ref_model_init_kwargs = ref_model_init_kwargs,
-            dataset_num_proc = dataset_num_proc,
-            use_liger_loss = use_liger_loss,
-            base_model_attribute_name = base_model_attribute_name,**kwargs)
+            output_dir=output_dir,
+            overwrite_output_dir=overwrite_output_dir,
+            do_train=do_train,
+            do_eval=do_eval,
+            do_predict=do_predict,
+            eval_strategy=eval_strategy,
+            prediction_loss_only=prediction_loss_only,
+            per_device_train_batch_size=per_device_train_batch_size,
+            per_device_eval_batch_size=per_device_eval_batch_size,
+            per_gpu_train_batch_size=per_gpu_train_batch_size,
+            per_gpu_eval_batch_size=per_gpu_eval_batch_size,
+            gradient_accumulation_steps=gradient_accumulation_steps,
+            eval_accumulation_steps=eval_accumulation_steps,
+            eval_delay=eval_delay,
+            torch_empty_cache_steps=torch_empty_cache_steps,
+            learning_rate=learning_rate,
+            weight_decay=weight_decay,
+            adam_beta1=adam_beta1,
+            adam_beta2=adam_beta2,
+            adam_epsilon=adam_epsilon,
+            max_grad_norm=max_grad_norm,
+            num_train_epochs=num_train_epochs,
+            max_steps=max_steps,
+            lr_scheduler_type=lr_scheduler_type,
+            lr_scheduler_kwargs=lr_scheduler_kwargs,
+            warmup_ratio=warmup_ratio,
+            warmup_steps=warmup_steps,
+            log_level=log_level,
+            log_level_replica=log_level_replica,
+            log_on_each_node=log_on_each_node,
+            logging_dir=logging_dir,
+            logging_strategy=logging_strategy,
+            logging_first_step=logging_first_step,
+            logging_steps=logging_steps,
+            logging_nan_inf_filter=logging_nan_inf_filter,
+            save_strategy=save_strategy,
+            save_steps=save_steps,
+            save_total_limit=save_total_limit,
+            save_safetensors=save_safetensors,
+            save_on_each_node=save_on_each_node,
+            save_only_model=save_only_model,
+            restore_callback_states_from_checkpoint=restore_callback_states_from_checkpoint,
+            no_cuda=no_cuda,
+            use_cpu=use_cpu,
+            use_mps_device=use_mps_device,
+            seed=seed,
+            data_seed=data_seed,
+            jit_mode_eval=jit_mode_eval,
+            bf16=bf16,
+            fp16=fp16,
+            fp16_opt_level=fp16_opt_level,
+            half_precision_backend=half_precision_backend,
+            bf16_full_eval=bf16_full_eval,
+            fp16_full_eval=fp16_full_eval,
+            tf32=tf32,
+            local_rank=local_rank,
+            ddp_backend=ddp_backend,
+            tpu_num_cores=tpu_num_cores,
+            tpu_metrics_debug=tpu_metrics_debug,
+            debug=debug,
+            dataloader_drop_last=dataloader_drop_last,
+            eval_steps=eval_steps,
+            dataloader_num_workers=dataloader_num_workers,
+            dataloader_prefetch_factor=dataloader_prefetch_factor,
+            past_index=past_index,
+            run_name=run_name,
+            disable_tqdm=disable_tqdm,
+            remove_unused_columns=remove_unused_columns,
+            label_names=label_names,
+            load_best_model_at_end=load_best_model_at_end,
+            metric_for_best_model=metric_for_best_model,
+            greater_is_better=greater_is_better,
+            ignore_data_skip=ignore_data_skip,
+            fsdp=fsdp,
+            fsdp_min_num_params=fsdp_min_num_params,
+            fsdp_config=fsdp_config,
+            fsdp_transformer_layer_cls_to_wrap=fsdp_transformer_layer_cls_to_wrap,
+            accelerator_config=accelerator_config,
+            parallelism_config=parallelism_config,
+            deepspeed=deepspeed,
+            label_smoothing_factor=label_smoothing_factor,
+            optim=optim,
+            optim_args=optim_args,
+            adafactor=adafactor,
+            group_by_length=group_by_length,
+            length_column_name=length_column_name,
+            report_to=report_to,
+            project=project,
+            trackio_space_id=trackio_space_id,
+            ddp_find_unused_parameters=ddp_find_unused_parameters,
+            ddp_bucket_cap_mb=ddp_bucket_cap_mb,
+            ddp_broadcast_buffers=ddp_broadcast_buffers,
+            dataloader_pin_memory=dataloader_pin_memory,
+            dataloader_persistent_workers=dataloader_persistent_workers,
+            skip_memory_metrics=skip_memory_metrics,
+            use_legacy_prediction_loop=use_legacy_prediction_loop,
+            push_to_hub=push_to_hub,
+            resume_from_checkpoint=resume_from_checkpoint,
+            hub_model_id=hub_model_id,
+            hub_strategy=hub_strategy,
+            hub_token=hub_token,
+            hub_private_repo=hub_private_repo,
+            hub_always_push=hub_always_push,
+            hub_revision=hub_revision,
+            gradient_checkpointing=gradient_checkpointing,
+            gradient_checkpointing_kwargs=gradient_checkpointing_kwargs,
+            include_inputs_for_metrics=include_inputs_for_metrics,
+            eval_do_concat_batches=eval_do_concat_batches,
+            fp16_backend=fp16_backend,
+            push_to_hub_model_id=push_to_hub_model_id,
+            push_to_hub_organization=push_to_hub_organization,
+            push_to_hub_token=push_to_hub_token,
+            mp_parameters=mp_parameters,
+            auto_find_batch_size=auto_find_batch_size,
+            full_determinism=full_determinism,
+            torchdynamo=torchdynamo,
+            ray_scope=ray_scope,
+            ddp_timeout=ddp_timeout,
+            torch_compile=torch_compile,
+            torch_compile_backend=torch_compile_backend,
+            torch_compile_mode=torch_compile_mode,
+            include_tokens_per_second=include_tokens_per_second,
+            include_num_input_tokens_seen=include_num_input_tokens_seen,
+            neftune_noise_alpha=neftune_noise_alpha,
+            optim_target_modules=optim_target_modules,
+            batch_eval_metrics=batch_eval_metrics,
+            eval_on_start=eval_on_start,
+            use_liger_kernel=use_liger_kernel,
+            liger_kernel_config=liger_kernel_config,
+            eval_use_gather_object=eval_use_gather_object,
+            average_tokens_across_devices=average_tokens_across_devices,
+            max_length=max_length,
+            max_prompt_length=max_prompt_length,
+            max_completion_length=max_completion_length,
+            beta=beta,
+            loss_type=loss_type,
+            desirable_weight=desirable_weight,
+            undesirable_weight=undesirable_weight,
+            label_pad_token_id=label_pad_token_id,
+            padding_value=padding_value,
+            truncation_mode=truncation_mode,
+            generate_during_eval=generate_during_eval,
+            is_encoder_decoder=is_encoder_decoder,
+            disable_dropout=disable_dropout,
+            precompute_ref_log_probs=precompute_ref_log_probs,
+            model_init_kwargs=model_init_kwargs,
+            ref_model_init_kwargs=ref_model_init_kwargs,
+            dataset_num_proc=dataset_num_proc,
+            use_liger_loss=use_liger_loss,
+            base_model_attribute_name=base_model_attribute_name,
+            **kwargs,
+        )
         self.vllm_sampling_params = vllm_sampling_params
         self.unsloth_num_chunks = unsloth_num_chunks
         if unsloth_grpo_mini_batch is not None:
@@ -778,13 +896,14 @@ class UnslothKTOConfig(KTOConfig):
                 self.unsloth_grpo_mini_batch = unsloth_grpo_mini_batch
             else:
                 raise ValueError(
-                    f"Unsloth GRPO mini batch size needs to be less than or equal to the effective generation batch size, "
-                    f"which is self.per_device_train_batch_size * gradient_accumulation_steps."
+                    "Unsloth GRPO mini batch size needs to be less than or equal to the effective generation batch size, "
+                    "which is self.per_device_train_batch_size * gradient_accumulation_steps."
                 )
         self.unsloth_logit_chunk_multiplier = unsloth_logit_chunk_multiplier
         self.max_seq_length = max_seq_length
 
-pass
+
+
 
 class _UnslothKTOTrainer(Trainer):
     r""""""
@@ -799,13 +918,23 @@ class _UnslothKTOTrainer(Trainer):
         train_dataset: Optional[Dataset] = None,
         eval_dataset: Optional[Union[Dataset, dict[str, Dataset]]] = None,
         processing_class: Optional[
-            Union[PreTrainedTokenizerBase, BaseImageProcessor, FeatureExtractionMixin, ProcessorMixin]
+            Union[
+                PreTrainedTokenizerBase,
+                BaseImageProcessor,
+                FeatureExtractionMixin,
+                ProcessorMixin,
+            ]
         ] = None,
         data_collator: Optional[DataCollator] = None,
         model_init: Optional[Callable[[], PreTrainedModel]] = None,
         callbacks: Optional[list[TrainerCallback]] = None,
-        optimizers: tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (None, None),
-        preprocess_logits_for_metrics: Optional[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = None,
+        optimizers: tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR] = (
+            None,
+            None,
+        ),
+        preprocess_logits_for_metrics: Optional[
+            Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
+        ] = None,
         peft_config: Optional[dict] = None,
         compute_metrics: Optional[Callable[[EvalLoopOutput], dict]] = None,
         model_adapter_name: Optional[str] = None,
@@ -823,7 +952,9 @@ class _UnslothKTOTrainer(Trainer):
         if args.model_init_kwargs is None:
             model_init_kwargs = {}
         elif not isinstance(model, str):
-            raise ValueError("You passed model_kwargs to the KTOTrainer. But your model is already instantiated.")
+            raise ValueError(
+                "You passed model_kwargs to the KTOTrainer. But your model is already instantiated."
+            )
         else:
             model_init_kwargs = args.model_init_kwargs
             dtype = model_init_kwargs.get("dtype")
@@ -860,7 +991,9 @@ class _UnslothKTOTrainer(Trainer):
             model = AutoModelForCausalLM.from_pretrained(model, **model_init_kwargs)
 
         if isinstance(ref_model, str):
-            ref_model = AutoModelForCausalLM.from_pretrained(ref_model, **ref_model_init_kwargs)
+            ref_model = AutoModelForCausalLM.from_pretrained(
+                ref_model, **ref_model_init_kwargs
+            )
 
         # Initialize this variable to False. This helps tracking the case when `peft_module_casting_to_bf16`
         # has been called in order to properly call autocast if needed.
@@ -875,17 +1008,23 @@ class _UnslothKTOTrainer(Trainer):
             if isinstance(model, PeftModel):
                 model = model.merge_and_unload()
 
-            if getattr(model, "is_loaded_in_8bit", False) or getattr(model, "is_loaded_in_4bit", False):
+            if getattr(model, "is_loaded_in_8bit", False) or getattr(
+                model, "is_loaded_in_4bit", False
+            ):
                 _support_gc_kwargs = hasattr(
                     args, "gradient_checkpointing_kwargs"
                 ) and "gradient_checkpointing_kwargs" in list(
                     inspect.signature(prepare_model_for_kbit_training).parameters
                 )
 
-                prepare_model_kwargs = {"use_gradient_checkpointing": args.gradient_checkpointing}
+                prepare_model_kwargs = {
+                    "use_gradient_checkpointing": args.gradient_checkpointing
+                }
 
                 if _support_gc_kwargs:
-                    prepare_model_kwargs["gradient_checkpointing_kwargs"] = args.gradient_checkpointing_kwargs
+                    prepare_model_kwargs["gradient_checkpointing_kwargs"] = (
+                        args.gradient_checkpointing_kwargs
+                    )
 
                 model = prepare_model_for_kbit_training(model, **prepare_model_kwargs)
             elif args.gradient_checkpointing:
@@ -897,7 +1036,9 @@ class _UnslothKTOTrainer(Trainer):
                     def make_inputs_require_grad(module, input, output):
                         output.requires_grad_(True)
 
-                    model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
+                    model.get_input_embeddings().register_forward_hook(
+                        make_inputs_require_grad
+                    )
 
             # get peft model with the given config
             model = model
@@ -918,9 +1059,13 @@ class _UnslothKTOTrainer(Trainer):
                 def make_inputs_require_grad(module, input, output):
                     output.requires_grad_(True)
 
-                model.get_input_embeddings().register_forward_hook(make_inputs_require_grad)
+                model.get_input_embeddings().register_forward_hook(
+                    make_inputs_require_grad
+                )
 
-        if args.generate_during_eval and not (is_wandb_available() or is_comet_available()):
+        if args.generate_during_eval and not (
+            is_wandb_available() or is_comet_available()
+        ):
             raise ValueError(
                 "`generate_during_eval=True` requires Weights and Biases or Comet to be installed."
                 " Please install `wandb` or `comet-ml` to resolve."
@@ -929,7 +1074,9 @@ class _UnslothKTOTrainer(Trainer):
         if model is not None:
             self.is_encoder_decoder = model.config.is_encoder_decoder
         elif args.is_encoder_decoder is None:
-            raise ValueError("When no model is provided, you need to pass the parameter is_encoder_decoder.")
+            raise ValueError(
+                "When no model is provided, you need to pass the parameter is_encoder_decoder."
+            )
         else:
             self.is_encoder_decoder = args.is_encoder_decoder
 
@@ -1006,7 +1153,11 @@ class _UnslothKTOTrainer(Trainer):
         self.max_length = max_length
         self.generate_during_eval = args.generate_during_eval
         self.label_pad_token_id = args.label_pad_token_id
-        self.padding_value = args.padding_value if args.padding_value is not None else processing_class.pad_token_id
+        self.padding_value = (
+            args.padding_value
+            if args.padding_value is not None
+            else processing_class.pad_token_id
+        )
         self.max_prompt_length = max_prompt_length
         self.truncation_mode = args.truncation_mode
         self.max_completion_length = max_completion_length
@@ -1054,7 +1205,9 @@ class _UnslothKTOTrainer(Trainer):
         with PartialState().main_process_first():
             # Extract the prompt if needed
             train_dataset = train_dataset.map(
-                maybe_extract_prompt, num_proc=args.dataset_num_proc, desc="Extracting prompt from train dataset"
+                maybe_extract_prompt,
+                num_proc=args.dataset_num_proc,
+                desc="Extracting prompt from train dataset",
             )
             # Unpair the dataset if needed
             train_dataset = maybe_unpair_preference_dataset(
@@ -1069,7 +1222,9 @@ class _UnslothKTOTrainer(Trainer):
             )
             if eval_dataset is not None:
                 eval_dataset = eval_dataset.map(
-                    maybe_extract_prompt, num_proc=args.dataset_num_proc, desc="Extracting prompt from eval dataset"
+                    maybe_extract_prompt,
+                    num_proc=args.dataset_num_proc,
+                    desc="Extracting prompt from eval dataset",
                 )
                 eval_dataset = maybe_unpair_preference_dataset(
                     eval_dataset, args.dataset_num_proc, desc="Unpairing eval dataset"
@@ -1147,12 +1302,18 @@ class _UnslothKTOTrainer(Trainer):
                     _process_tokens,
                     fn_kwargs=fn_kwargs,
                     num_proc=args.dataset_num_proc,
-                    remove_columns=[c for c in train_kl_dataset.column_names if c in train_dataset.column_names],
+                    remove_columns=[
+                        c
+                        for c in train_kl_dataset.column_names
+                        if c in train_dataset.column_names
+                    ],
                     desc="Processing tokenized train KL dataset",
                 )
 
                 # merge the datasets
-                train_dataset = concatenate_datasets([train_dataset, train_kl_dataset], axis=1)
+                train_dataset = concatenate_datasets(
+                    [train_dataset, train_kl_dataset], axis=1
+                )
 
                 if eval_dataset is not None:
                     # Get KL dataset
@@ -1168,26 +1329,51 @@ class _UnslothKTOTrainer(Trainer):
                         _process_tokens,
                         fn_kwargs=fn_kwargs,
                         num_proc=args.dataset_num_proc,
-                        remove_columns=[c for c in eval_kl_dataset.column_names if c in eval_dataset.column_names],
+                        remove_columns=[
+                            c
+                            for c in eval_kl_dataset.column_names
+                            if c in eval_dataset.column_names
+                        ],
                         desc="Processing tokenized eval KL dataset",
                     )
 
                     # merge the datasets
-                    eval_dataset = concatenate_datasets([eval_dataset, eval_kl_dataset], axis=1)
+                    eval_dataset = concatenate_datasets(
+                        [eval_dataset, eval_kl_dataset], axis=1
+                    )
 
             # calculate dataset desirability balance
             num_desirable = max(sum(train_dataset["label"]), 1)
-            num_undesirable = max(len(train_dataset["label"]) - num_desirable, 1)  # "label" is binary
+            num_undesirable = max(
+                len(train_dataset["label"]) - num_desirable, 1
+            )  # "label" is binary
 
             if num_desirable != num_undesirable:
                 # The lower and upper bounds come from Eq. [8] of https://huggingface.co/papers/2402.01306
-                des_weight_lower_bound = round((num_undesirable * self.undesirable_weight / num_desirable) * 1, 2)
-                des_weight_upper_bound = round((num_undesirable * self.undesirable_weight / num_desirable) * 1.33, 2)
-                und_weight_lower_bound = round((num_desirable * self.desirable_weight / num_undesirable) / 1.33, 2)
-                und_weight_upper_bound = round((num_desirable * self.desirable_weight / num_undesirable) / 1, 2)
+                des_weight_lower_bound = round(
+                    (num_undesirable * self.undesirable_weight / num_desirable) * 1, 2
+                )
+                des_weight_upper_bound = round(
+                    (num_undesirable * self.undesirable_weight / num_desirable) * 1.33,
+                    2,
+                )
+                und_weight_lower_bound = round(
+                    (num_desirable * self.desirable_weight / num_undesirable) / 1.33, 2
+                )
+                und_weight_upper_bound = round(
+                    (num_desirable * self.desirable_weight / num_undesirable) / 1, 2
+                )
 
-                des_weight_in_range = des_weight_lower_bound <= self.desirable_weight <= des_weight_upper_bound
-                und_weight_in_range = und_weight_lower_bound <= self.undesirable_weight <= und_weight_upper_bound
+                des_weight_in_range = (
+                    des_weight_lower_bound
+                    <= self.desirable_weight
+                    <= des_weight_upper_bound
+                )
+                und_weight_in_range = (
+                    und_weight_lower_bound
+                    <= self.undesirable_weight
+                    <= und_weight_upper_bound
+                )
 
                 if not (des_weight_in_range or und_weight_in_range):
                     logger.warning(
@@ -1229,7 +1415,10 @@ class _UnslothKTOTrainer(Trainer):
 
         # Deepspeed Zero-3 does not support precompute_ref_log_probs
         if self.is_deepspeed_enabled:
-            if self.accelerator.state.deepspeed_plugin.zero_stage == 3 and self.precompute_ref_log_probs:
+            if (
+                self.accelerator.state.deepspeed_plugin.zero_stage == 3
+                and self.precompute_ref_log_probs
+            ):
                 raise ValueError(
                     "You cannot use `precompute_ref_log_probs=True` with Deepspeed ZeRO-3. Please set `precompute_ref_log_probs=False`."
                 )
@@ -1243,7 +1432,9 @@ class _UnslothKTOTrainer(Trainer):
             if self.is_deepspeed_enabled:
                 self.ref_model = prepare_deepspeed(self.ref_model, self.accelerator)
             else:
-                self.ref_model = self.accelerator.prepare_model(self.ref_model, evaluation_mode=True)
+                self.ref_model = self.accelerator.prepare_model(
+                    self.ref_model, evaluation_mode=True
+                )
 
         # Import Liger loss if enabled
         if self.args.use_liger_loss:
@@ -1267,7 +1458,9 @@ class _UnslothKTOTrainer(Trainer):
                     "You cannot use `use_liger_loss=True` with Peft models. Please set `use_liger_loss=False`."
                 )
             self.kto_loss_fn = LigerFusedLinearKTOLoss(
-                ignore_index=self.label_pad_token_id, beta=self.beta, use_ref_model=(self.ref_model is not None)
+                ignore_index=self.label_pad_token_id,
+                beta=self.beta,
+                use_ref_model=(self.ref_model is not None),
             )
 
     @contextmanager
@@ -1301,27 +1494,39 @@ class _UnslothKTOTrainer(Trainer):
             }
 
             # prepare dataloader
-            data_loader = self.accelerator.prepare(DataLoader(self.train_dataset, **dataloader_params))
+            data_loader = self.accelerator.prepare(
+                DataLoader(self.train_dataset, **dataloader_params)
+            )
             reference_completion_logps = []
             reference_KL_logps = []
 
-            for padded_batch in tqdm(iterable=data_loader, desc="Train dataset reference log probs"):
-                reference_completion_logp, reference_KL_logp = self.compute_reference_log_probs(padded_batch)
+            for padded_batch in tqdm(
+                iterable=data_loader, desc="Train dataset reference log probs"
+            ):
+                reference_completion_logp, reference_KL_logp = (
+                    self.compute_reference_log_probs(padded_batch)
+                )
 
-                reference_completion_logp = self.accelerator.gather_for_metrics(reference_completion_logp)
+                reference_completion_logp = self.accelerator.gather_for_metrics(
+                    reference_completion_logp
+                )
                 reference_completion_logps.append(reference_completion_logp.cpu())
 
                 if self.calculate_KL:
-                    reference_KL_logp = self.accelerator.gather_for_metrics(reference_KL_logp)
+                    reference_KL_logp = self.accelerator.gather_for_metrics(
+                        reference_KL_logp
+                    )
                     reference_KL_logps.append(reference_KL_logp.cpu())
 
             self.train_dataset = self.train_dataset.add_column(
-                name="reference_logps", column=torch.cat(reference_completion_logps).float().numpy()
+                name="reference_logps",
+                column=torch.cat(reference_completion_logps).float().numpy(),
             )
 
             if self.calculate_KL:
                 self.train_dataset = self.train_dataset.add_column(
-                    name="reference_KL_logps", column=torch.cat(reference_KL_logps).float().numpy()
+                    name="reference_KL_logps",
+                    column=torch.cat(reference_KL_logps).float().numpy(),
                 )
 
             self._precomputed_train_ref_log_probs = True
@@ -1353,27 +1558,39 @@ class _UnslothKTOTrainer(Trainer):
             }
 
             # prepare dataloader
-            data_loader = self.accelerator.prepare(DataLoader(eval_dataset, **dataloader_params))
+            data_loader = self.accelerator.prepare(
+                DataLoader(eval_dataset, **dataloader_params)
+            )
 
             reference_completion_logps = []
             reference_KL_logps = []
 
-            for padded_batch in tqdm(iterable=data_loader, desc="Eval dataset reference log probs"):
-                reference_completion_logp, reference_KL_logp = self.compute_reference_log_probs(padded_batch)
+            for padded_batch in tqdm(
+                iterable=data_loader, desc="Eval dataset reference log probs"
+            ):
+                reference_completion_logp, reference_KL_logp = (
+                    self.compute_reference_log_probs(padded_batch)
+                )
 
-                reference_completion_logp = self.accelerator.gather_for_metrics(reference_completion_logp)
+                reference_completion_logp = self.accelerator.gather_for_metrics(
+                    reference_completion_logp
+                )
                 reference_completion_logps.append(reference_completion_logp.cpu())
 
                 if self.calculate_KL:
-                    reference_KL_logp = self.accelerator.gather_for_metrics(reference_KL_logp)
+                    reference_KL_logp = self.accelerator.gather_for_metrics(
+                        reference_KL_logp
+                    )
                     reference_KL_logps.append(reference_KL_logp.cpu())
 
             eval_dataset = eval_dataset.add_column(
-                name="reference_logps", column=torch.cat(reference_completion_logps).float().numpy()
+                name="reference_logps",
+                column=torch.cat(reference_completion_logps).float().numpy(),
             )
             if self.calculate_KL:
                 eval_dataset = eval_dataset.add_column(
-                    name="reference_KL_logps", column=torch.cat(reference_KL_logps).float().numpy()
+                    name="reference_KL_logps",
+                    column=torch.cat(reference_KL_logps).float().numpy(),
                 )
 
             # Save calculated reference_chosen_logps and reference_rejected_logps to the eval_dataset for subsequent runs
@@ -1392,7 +1609,9 @@ class _UnslothKTOTrainer(Trainer):
                         completion_logits = self.model(
                             padded_batch["prompt_input_ids"],
                             attention_mask=padded_batch["prompt_attention_mask"],
-                            decoder_input_ids=padded_batch.get("completion_decoder_input_ids"),
+                            decoder_input_ids=padded_batch.get(
+                                "completion_decoder_input_ids"
+                            ),
                             labels=padded_batch["completion_labels"],
                         ).logits
 
@@ -1400,7 +1619,9 @@ class _UnslothKTOTrainer(Trainer):
                             KL_logits = self.model(
                                 padded_batch["KL_prompt_input_ids"],
                                 attention_mask=padded_batch["KL_prompt_attention_mask"],
-                                decoder_input_ids=padded_batch.get("KL_completion_decoder_input_ids"),
+                                decoder_input_ids=padded_batch.get(
+                                    "KL_completion_decoder_input_ids"
+                                ),
                                 labels=padded_batch["KL_completion_labels"],
                             ).logits
                     else:
@@ -1412,14 +1633,18 @@ class _UnslothKTOTrainer(Trainer):
                         if self.calculate_KL:
                             KL_logits = self.model(
                                 padded_batch["KL_completion_input_ids"],
-                                attention_mask=padded_batch["KL_completion_attention_mask"],
+                                attention_mask=padded_batch[
+                                    "KL_completion_attention_mask"
+                                ],
                             ).logits
             else:
                 if self.is_encoder_decoder:
                     completion_logits = self.ref_model(
                         padded_batch["prompt_input_ids"],
                         attention_mask=padded_batch["prompt_attention_mask"],
-                        decoder_input_ids=padded_batch.get("completion_decoder_input_ids"),
+                        decoder_input_ids=padded_batch.get(
+                            "completion_decoder_input_ids"
+                        ),
                         labels=padded_batch["completion_labels"],
                     ).logits
 
@@ -1427,12 +1652,15 @@ class _UnslothKTOTrainer(Trainer):
                         KL_logits = self.ref_model(
                             padded_batch["KL_prompt_input_ids"],
                             attention_mask=padded_batch["KL_prompt_attention_mask"],
-                            decoder_input_ids=padded_batch.get("KL_completion_decoder_input_ids"),
+                            decoder_input_ids=padded_batch.get(
+                                "KL_completion_decoder_input_ids"
+                            ),
                             labels=padded_batch["KL_completion_labels"],
                         ).logits
                 else:
                     completion_logits = self.ref_model(
-                        padded_batch["completion_input_ids"], attention_mask=padded_batch["completion_attention_mask"]
+                        padded_batch["completion_input_ids"],
+                        attention_mask=padded_batch["completion_attention_mask"],
                     ).logits
 
                     if self.calculate_KL:
@@ -1519,7 +1747,9 @@ class _UnslothKTOTrainer(Trainer):
 
     def forward(
         self, model: nn.Module, batch: dict[str, Union[list, torch.LongTensor]]
-    ) -> tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
+    ) -> tuple[
+        torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor
+    ]:
         KL_logps = self._compute_kl_logps(model, batch)
 
         model_kwargs = (
@@ -1554,8 +1784,12 @@ class _UnslothKTOTrainer(Trainer):
                 "examples for which an output sequence was predicted."
             )
 
-        chosen_idx = [i for i in range(completion_logps.shape[0]) if batch["label"][i] is True]
-        rejected_idx = [i for i in range(completion_logps.shape[0]) if batch["label"][i] is False]
+        chosen_idx = [
+            i for i in range(completion_logps.shape[0]) if batch["label"][i] is True
+        ]
+        rejected_idx = [
+            i for i in range(completion_logps.shape[0]) if batch["label"][i] is False
+        ]
 
         chosen_logps = completion_logps[chosen_idx, ...]
         rejected_logps = completion_logps[rejected_idx, ...]
@@ -1564,9 +1798,22 @@ class _UnslothKTOTrainer(Trainer):
         rejected_logits = completion_logits[rejected_idx, ...]
 
         if self.aux_loss_enabled:
-            return (chosen_logps, rejected_logps, chosen_logits, rejected_logits, KL_logps, outputs.aux_loss)
+            return (
+                chosen_logps,
+                rejected_logps,
+                chosen_logits,
+                rejected_logits,
+                KL_logps,
+                outputs.aux_loss,
+            )
         else:
-            return (chosen_logps, rejected_logps, chosen_logits, rejected_logits, KL_logps)
+            return (
+                chosen_logps,
+                rejected_logps,
+                chosen_logits,
+                rejected_logits,
+                KL_logps,
+            )
 
     def kto_loss(
         self,
@@ -1576,7 +1823,9 @@ class _UnslothKTOTrainer(Trainer):
         reference_chosen_logps: torch.FloatTensor,
         reference_rejected_logps: torch.FloatTensor,
         reference_KL_logps: torch.FloatTensor,
-    ) -> tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
+    ) -> tuple[
+        torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor
+    ]:
         """Compute the KTO loss for a batch of policy and reference model log probabilities.
 
         Args:
@@ -1624,7 +1873,10 @@ class _UnslothKTOTrainer(Trainer):
             chosen_rewards = torch.Tensor([]).to(self.accelerator.device)
 
         # Rejected losses
-        if policy_rejected_logps.shape[0] != 0 or reference_rejected_logps.shape[0] != 0:
+        if (
+            policy_rejected_logps.shape[0] != 0
+            or reference_rejected_logps.shape[0] != 0
+        ):
             rejected_logratios = policy_rejected_logps - reference_rejected_logps
 
             if self.loss_type == "kto":
@@ -1639,7 +1891,10 @@ class _UnslothKTOTrainer(Trainer):
             rejected_rewards = torch.Tensor([]).to(self.accelerator.device)
 
         losses = torch.cat(
-            (self.desirable_weight * chosen_losses, self.undesirable_weight * rejected_losses),
+            (
+                self.desirable_weight * chosen_losses,
+                self.undesirable_weight * rejected_losses,
+            ),
             0,
         )
 
@@ -1751,7 +2006,9 @@ class _UnslothKTOTrainer(Trainer):
             if hasattr(model, "get_decoder") and model.get_decoder() is not None:
                 base_model = model.get_decoder()
             else:
-                base_attr = getattr(model, "base_model_prefix", self.args.base_model_attribute_name)
+                base_attr = getattr(
+                    model, "base_model_prefix", self.args.base_model_attribute_name
+                )
                 base_model = getattr(model, base_attr, model)
             outputs = base_model(
                 batch["completion_input_ids"],
@@ -1761,10 +2018,17 @@ class _UnslothKTOTrainer(Trainer):
             )
 
             # reference model
-            if hasattr(self.ref_model, "get_decoder") and self.ref_model.get_decoder() is not None:
+            if (
+                hasattr(self.ref_model, "get_decoder")
+                and self.ref_model.get_decoder() is not None
+            ):
                 ref_base_model = self.ref_model.get_decoder()
             else:
-                ref_attr = getattr(self.ref_model, "base_model_prefix", self.args.base_model_attribute_name)
+                ref_attr = getattr(
+                    self.ref_model,
+                    "base_model_prefix",
+                    self.args.base_model_attribute_name,
+                )
                 ref_base_model = getattr(self.ref_model, ref_attr, self.ref_model)
             ref_outputs = ref_base_model(
                 batch["completion_input_ids"],
@@ -1786,11 +2050,15 @@ class _UnslothKTOTrainer(Trainer):
                 rejected_rewards_sum,
             ),
         ) = self.kto_loss_fn(
-            _input=outputs.last_hidden_state[:, :-1] if not self.is_encoder_decoder else outputs.last_hidden_state,
+            _input=outputs.last_hidden_state[:, :-1]
+            if not self.is_encoder_decoder
+            else outputs.last_hidden_state,
             lin_weight=lm_head.weight,
             target=batch["completion_labels"][:, 1:],
             bias=lm_head.bias if hasattr(lm_head, "bias") else None,
-            preference_labels=torch.tensor(batch["label"], dtype=torch.bool).to(self.accelerator.device),
+            preference_labels=torch.tensor(batch["label"], dtype=torch.bool).to(
+                self.accelerator.device
+            ),
             ref_input=ref_outputs.last_hidden_state[:, :-1]
             if not self.is_encoder_decoder
             else outputs.last_hidden_state,
@@ -1821,7 +2089,10 @@ class _UnslothKTOTrainer(Trainer):
     ):
         """Compute the KTO loss and other metrics for the given batch of inputs for train or test."""
         metrics = {}
-        batch = {k: (v.to(self.accelerator.device) if isinstance(v, torch.Tensor) else v) for k, v in batch.items()}
+        batch = {
+            k: (v.to(self.accelerator.device) if isinstance(v, torch.Tensor) else v)
+            for k, v in batch.items()
+        }
 
         labels = torch.tensor(batch["label"])
         num_chosen = labels.sum().to(self.accelerator.device)
@@ -1853,8 +2124,16 @@ class _UnslothKTOTrainer(Trainer):
 
             # if reference_logps in batch use them, otherwise use the reference model
             if "reference_logps" in batch:
-                chosen_idx = [i for i in range(batch["reference_logps"].shape[0]) if batch["label"][i] is True]
-                rejected_idx = [i for i in range(batch["reference_logps"].shape[0]) if batch["label"][i] is False]
+                chosen_idx = [
+                    i
+                    for i in range(batch["reference_logps"].shape[0])
+                    if batch["label"][i] is True
+                ]
+                rejected_idx = [
+                    i
+                    for i in range(batch["reference_logps"].shape[0])
+                    if batch["label"][i] is False
+                ]
 
                 reference_chosen_logps = batch["reference_logps"][chosen_idx, ...]
                 reference_rejected_logps = batch["reference_logps"][rejected_idx, ...]
@@ -1894,29 +2173,43 @@ class _UnslothKTOTrainer(Trainer):
         metrics["kl"] = kl.item()
 
         all_num_chosen = self.accelerator.gather_for_metrics(num_chosen).sum().item()
-        all_num_rejected = self.accelerator.gather_for_metrics(num_rejected).sum().item()
+        all_num_rejected = (
+            self.accelerator.gather_for_metrics(num_rejected).sum().item()
+        )
 
         if all_num_chosen > 0:
             metrics["rewards/chosen_sum"] = (
-                self.accelerator.gather_for_metrics(chosen_rewards.nansum()).nansum().item()
+                self.accelerator.gather_for_metrics(chosen_rewards.nansum())
+                .nansum()
+                .item()
             )
             metrics["logps/chosen_sum"] = (
-                self.accelerator.gather_for_metrics(policy_chosen_logps.nansum()).nansum().item()
+                self.accelerator.gather_for_metrics(policy_chosen_logps.nansum())
+                .nansum()
+                .item()
             )
             metrics["logits/chosen_sum"] = (
-                self.accelerator.gather_for_metrics(policy_chosen_logits.nansum()).nansum().item()
+                self.accelerator.gather_for_metrics(policy_chosen_logits.nansum())
+                .nansum()
+                .item()
             )
             metrics["count/chosen"] = all_num_chosen
 
         if all_num_rejected > 0:
             metrics["rewards/rejected_sum"] = (
-                self.accelerator.gather_for_metrics(rejected_rewards.nansum()).nansum().item()
+                self.accelerator.gather_for_metrics(rejected_rewards.nansum())
+                .nansum()
+                .item()
             )
             metrics["logps/rejected_sum"] = (
-                self.accelerator.gather_for_metrics(policy_rejected_logps.nansum()).nansum().item()
+                self.accelerator.gather_for_metrics(policy_rejected_logps.nansum())
+                .nansum()
+                .item()
             )
             metrics["logits/rejected_sum"] = (
-                self.accelerator.gather_for_metrics(policy_rejected_logits.nansum()).nansum().item()
+                self.accelerator.gather_for_metrics(policy_rejected_logits.nansum())
+                .nansum()
+                .item()
             )
             metrics["count/rejected"] = all_num_rejected
 
@@ -1934,7 +2227,9 @@ class _UnslothKTOTrainer(Trainer):
         num_items_in_batch=None,
     ) -> Union[torch.Tensor, tuple[torch.Tensor, dict[str, torch.Tensor]]]:
         compute_loss_context_manager = (
-            autocast(self.accelerator.device.type) if self._peft_has_been_casted_to_bf16 else nullcontext()
+            autocast(self.accelerator.device.type)
+            if self._peft_has_been_casted_to_bf16
+            else nullcontext()
         )
 
         with compute_loss_context_manager:
@@ -1950,24 +2245,32 @@ class _UnslothKTOTrainer(Trainer):
             return (loss, metrics)
         return loss
 
-    def store_metrics(self, metrics: dict[str, float], train_eval: Literal["train", "eval"] = "train") -> None:
+    def store_metrics(
+        self, metrics: dict[str, float], train_eval: Literal["train", "eval"] = "train"
+    ) -> None:
         for key, value in metrics.items():
             self._stored_metrics[train_eval][key].append(value)
 
-    def _get_train_sampler(self, dataset: Optional[Dataset] = None) -> Optional[torch.utils.data.Sampler]:
+    def _get_train_sampler(
+        self, dataset: Optional[Dataset] = None
+    ) -> Optional[torch.utils.data.Sampler]:
         if dataset is None:
             dataset = self.train_dataset
         if dataset is None or not has_length(dataset):
             return None
         return SequentialSampler(dataset)
 
-    def generate_from_model_and_ref(self, model, batch: dict[str, torch.LongTensor]) -> tuple[str, str]:
+    def generate_from_model_and_ref(
+        self, model, batch: dict[str, torch.LongTensor]
+    ) -> tuple[str, str]:
         """Generate samples from the model and reference model for the given batch of inputs."""
 
         # If one uses `generate_during_eval` with peft + bf16, we need to explicitly call generate with
         # the torch amp context manager as some hidden states are silently casted to full precision.
         generate_context_manager = (
-            autocast(self.accelerator.device.type) if self._peft_has_been_casted_to_bf16 else nullcontext()
+            autocast(self.accelerator.device.type)
+            if self._peft_has_been_casted_to_bf16
+            else nullcontext()
         )
 
         with generate_context_manager:
@@ -2001,11 +2304,19 @@ class _UnslothKTOTrainer(Trainer):
                         pad_token_id=self.processing_class.pad_token_id,
                     )
 
-        policy_output = pad_to_length(policy_output, self.max_length, self.processing_class.pad_token_id)
-        policy_output_decoded = self.processing_class.batch_decode(policy_output, skip_special_tokens=True)
+        policy_output = pad_to_length(
+            policy_output, self.max_length, self.processing_class.pad_token_id
+        )
+        policy_output_decoded = self.processing_class.batch_decode(
+            policy_output, skip_special_tokens=True
+        )
 
-        reference_output = pad_to_length(reference_output, self.max_length, self.processing_class.pad_token_id)
-        reference_output_decoded = self.processing_class.batch_decode(reference_output, skip_special_tokens=True)
+        reference_output = pad_to_length(
+            reference_output, self.max_length, self.processing_class.pad_token_id
+        )
+        reference_output_decoded = self.processing_class.batch_decode(
+            reference_output, skip_special_tokens=True
+        )
 
         return policy_output_decoded, reference_output_decoded
 
@@ -2023,7 +2334,9 @@ class _UnslothKTOTrainer(Trainer):
                 ignore_keys = []
 
         prediction_context_manager = (
-            autocast(self.accelerator.device.type) if self._peft_has_been_casted_to_bf16 else nullcontext()
+            autocast(self.accelerator.device.type)
+            if self._peft_has_been_casted_to_bf16
+            else nullcontext()
         )
         with torch.no_grad(), prediction_context_manager:
             loss, metrics = self.get_batch_loss_metrics(model, inputs)
@@ -2066,27 +2379,39 @@ class _UnslothKTOTrainer(Trainer):
         if self.generate_during_eval:
             # Generate random indices within the range of the total number of samples
             num_samples = len(dataloader.dataset)
-            random_indices = random.sample(range(num_samples), k=self.args.eval_batch_size)
+            random_indices = random.sample(
+                range(num_samples), k=self.args.eval_batch_size
+            )
 
             # Use dataloader.dataset.select to get the random batch without iterating over the DataLoader
             random_batch_dataset = dataloader.dataset.select(random_indices)
             random_batch = self.data_collator(random_batch_dataset)
             random_batch = self._prepare_inputs(random_batch)
 
-            target_labels = torch.tensor(random_batch["label"], dtype=torch.bool, device=self.accelerator.device)
+            target_labels = torch.tensor(
+                random_batch["label"], dtype=torch.bool, device=self.accelerator.device
+            )
             target_indices = torch.where(~target_labels)[0]
             target_batch = {
                 "prompt_input_ids": random_batch["prompt_input_ids"][target_indices],
-                "prompt_attention_mask": random_batch["prompt_attention_mask"][target_indices],
+                "prompt_attention_mask": random_batch["prompt_attention_mask"][
+                    target_indices
+                ],
                 "prompt": itemgetter(*target_indices)(random_batch["prompt"]),
             }
-            policy_output_decoded, ref_output_decoded = self.generate_from_model_and_ref(self.model, target_batch)
+            policy_output_decoded, ref_output_decoded = (
+                self.generate_from_model_and_ref(self.model, target_batch)
+            )
 
             table = pd.DataFrame(
                 columns=["Prompt", "Policy", "Ref Model"],
                 data=[
                     [prompt, pol[len(prompt) :], ref[len(prompt) :]]
-                    for prompt, pol, ref in zip(target_batch["prompt"], policy_output_decoded, ref_output_decoded)
+                    for prompt, pol, ref in zip(
+                        target_batch["prompt"],
+                        policy_output_decoded,
+                        ref_output_decoded,
+                    )
                 ],
             )
             if "wandb" in self.args.report_to:
@@ -2100,7 +2425,11 @@ class _UnslothKTOTrainer(Trainer):
 
         # Base evaluation
         initial_output = super().evaluation_loop(
-            dataloader, description, prediction_loss_only, ignore_keys, metric_key_prefix
+            dataloader,
+            description,
+            prediction_loss_only,
+            ignore_keys,
+            metric_key_prefix,
         )
 
         return initial_output
@@ -2122,10 +2451,18 @@ class _UnslothKTOTrainer(Trainer):
         # accumulate average metrics from sums and lengths
         for split in ["chosen", "rejected"]:
             if f"count/{split}" in self._stored_metrics[train_eval]:
-                count_sum = torch.Tensor(self._stored_metrics[train_eval][f"count/{split}"]).sum().item()
+                count_sum = (
+                    torch.Tensor(self._stored_metrics[train_eval][f"count/{split}"])
+                    .sum()
+                    .item()
+                )
                 for metric in ["rewards", "logps", "logits"]:
                     logs[f"{prefix}{metric}/{split}"] = (
-                        torch.Tensor(self._stored_metrics[train_eval][f"{metric}/{split}_sum"]).sum().item()
+                        torch.Tensor(
+                            self._stored_metrics[train_eval][f"{metric}/{split}_sum"]
+                        )
+                        .sum()
+                        .item()
                         / count_sum
                     )
                     # delete obsolete metric
@@ -2133,7 +2470,9 @@ class _UnslothKTOTrainer(Trainer):
                 del self._stored_metrics[train_eval][f"count/{split}"]
         # calculate reward margin
         if f"{prefix}rewards/chosen" in logs and f"{prefix}rewards/rejected" in logs:
-            logs[f"{prefix}rewards/margins"] = logs[f"{prefix}rewards/chosen"] - logs[f"{prefix}rewards/rejected"]
+            logs[f"{prefix}rewards/margins"] = (
+                logs[f"{prefix}rewards/chosen"] - logs[f"{prefix}rewards/rejected"]
+            )
         # Add averaged stored metrics to logs
         for key, metrics in self._stored_metrics[train_eval].items():
             logs[f"{prefix}{key}"] = torch.Tensor(metrics).mean().item()
@@ -2169,7 +2508,9 @@ class _UnslothKTOTrainer(Trainer):
         if not self.is_world_process_zero():
             return
 
-        if hasattr(self.model.config, "_name_or_path") and not os.path.isdir(self.model.config._name_or_path):
+        if hasattr(self.model.config, "_name_or_path") and not os.path.isdir(
+            self.model.config._name_or_path
+        ):
             base_model = self.model.config._name_or_path
         else:
             base_model = None
@@ -2205,7 +2546,9 @@ class _UnslothKTOTrainer(Trainer):
             hub_model_id=self.hub_model_id,
             dataset_name=dataset_name,
             tags=tags,
-            wandb_url=wandb.run.url if is_wandb_available() and wandb.run is not None else None,
+            wandb_url=wandb.run.url
+            if is_wandb_available() and wandb.run is not None
+            else None,
             comet_url=get_comet_experiment_url(),
             trainer_name="KTO",
             trainer_citation=citation,
@@ -2214,9 +2557,11 @@ class _UnslothKTOTrainer(Trainer):
         )
 
         model_card.save(os.path.join(self.args.output_dir, "README.md"))
+
+
 class UnslothKTOTrainer(_UnslothKTOTrainer):
     """
-    
+
     Initialize KTOTrainer.
 
     Args:
@@ -2259,101 +2604,142 @@ class UnslothKTOTrainer(_UnslothKTOTrainer):
             Name of the train target PEFT adapter, when using LoRA with multiple adapters.
         ref_adapter_name (`str`, defaults to `None`):
             Name of the reference PEFT adapter, when using LoRA with multiple adapters.
-    
+
     """
+
     def __init__(
         self,
-        model = None,
-        ref_model = None,
-        args = None,
-        train_dataset = None,
-        eval_dataset = None,
-        processing_class = None,
-        data_collator = None,
-        model_init = None,
-        callbacks = None,
-        preprocess_logits_for_metrics = None,
-        peft_config = None,
-        compute_metrics = None,
-        model_adapter_name = None,
-        ref_adapter_name = None,
-        **kwargs
+        model=None,
+        ref_model=None,
+        args=None,
+        train_dataset=None,
+        eval_dataset=None,
+        processing_class=None,
+        data_collator=None,
+        model_init=None,
+        callbacks=None,
+        preprocess_logits_for_metrics=None,
+        peft_config=None,
+        compute_metrics=None,
+        model_adapter_name=None,
+        ref_adapter_name=None,
+        **kwargs,
     ):
-        if args is None: args = UnslothKTOConfig()
-        use_bf16 = getattr(args, 'bf16', False)
-        if type(use_bf16) is not bool: use_bf16 = False
-        use_fp16 = getattr(args, 'fp16', False)
-        if type(use_fp16) is not bool: use_fp16 = False
+        if args is None:
+            args = UnslothKTOConfig()
+        use_bf16 = getattr(args, "bf16", False)
+        if type(use_bf16) is not bool:
+            use_bf16 = False
+        use_fp16 = getattr(args, "fp16", False)
+        if type(use_fp16) is not bool:
+            use_fp16 = False
         force_float32 = False
-        full_finetuning = os.environ.get('UNSLOTH_ENABLE_FULL_FINETUNING', '0') == '1'
-        if not full_finetuning and (os.environ.get('UNSLOTH_FORCE_FLOAT32', '0') == '1'):
-            print('Unsloth: Switching to float32 training since model cannot work with float16')
+        full_finetuning = os.environ.get("UNSLOTH_ENABLE_FULL_FINETUNING", "0") == "1"
+        if not full_finetuning and (
+            os.environ.get("UNSLOTH_FORCE_FLOAT32", "0") == "1"
+        ):
+            print(
+                "Unsloth: Switching to float32 training since model cannot work with float16"
+            )
             force_float32 = True
-        mixed_precision_dtype = os.environ.get('UNSLOTH_MIXED_PRECISION', 'float32')
-        dtype = getattr(model.config, 'dtype', None) or getattr(model.config, 'torch_dtype', None)
-        if dtype is None: dtype = model.get_input_embeddings().weight.dtype
+        mixed_precision_dtype = os.environ.get("UNSLOTH_MIXED_PRECISION", "float32")
+        dtype = getattr(model.config, "dtype", None) or getattr(
+            model.config, "torch_dtype", None
+        )
+        if dtype is None:
+            dtype = model.get_input_embeddings().weight.dtype
         from unsloth_zoo.utils import _get_dtype
+
         dtype = _get_dtype(dtype)
         float16 = dtype == torch.float16
-        if not force_float32 and (float16 and use_bf16): raise TypeError('Unsloth: Model is in float16 precision but you want to use bfloat16 precision. Set fp16 to `True` and bf16 to `False`')
-        if not force_float32 and (not float16 and use_fp16): raise TypeError('Unsloth: Model is in bfloat16 precision but you want to use float16 precision. Set fp16 to `False` and bf16 to `True`')
+        if not force_float32 and (float16 and use_bf16):
+            raise TypeError(
+                "Unsloth: Model is in float16 precision but you want to use bfloat16 precision. Set fp16 to `True` and bf16 to `False`"
+            )
+        if not force_float32 and (not float16 and use_fp16):
+            raise TypeError(
+                "Unsloth: Model is in bfloat16 precision but you want to use float16 precision. Set fp16 to `False` and bf16 to `True`"
+            )
         if force_float32:
             # Forced float32 training
             args.fp16 = False
             args.bf16 = False
-            os.environ['ACCELERATE_MIXED_PRECISION'] = 'no'
-            if hasattr(args, 'mixed_precision'): args.mixed_precision = 'no'
+            os.environ["ACCELERATE_MIXED_PRECISION"] = "no"
+            if hasattr(args, "mixed_precision"):
+                args.mixed_precision = "no"
             # args.mixed_precision is a new argument which needs to be set now
-        elif (not use_bf16 and not use_fp16) and mixed_precision_dtype == 'float32':
+        elif (not use_bf16 and not use_fp16) and mixed_precision_dtype == "float32":
             # Mixed precision training
             args.fp16 = float16
             args.bf16 = not float16
-            os.environ['ACCELERATE_MIXED_PRECISION'] = 'fp16' if float16 else 'bf16'
-            if hasattr(args, 'mixed_precision'): args.mixed_precision = 'fp16' if float16 else 'bf16'
+            os.environ["ACCELERATE_MIXED_PRECISION"] = "fp16" if float16 else "bf16"
+            if hasattr(args, "mixed_precision"):
+                args.mixed_precision = "fp16" if float16 else "bf16"
             # args.mixed_precision is a new argument which needs to be set now
-        elif mixed_precision_dtype == 'bfloat16':
+        elif mixed_precision_dtype == "bfloat16":
             # Both False since bfloat16 full finetuning doesn't do any autocasting.
             args.fp16 = False
             args.bf16 = False
-            os.environ['ACCELERATE_MIXED_PRECISION'] = 'no'
-            if hasattr(args, 'mixed_precision'): args.mixed_precision = 'no'
+            os.environ["ACCELERATE_MIXED_PRECISION"] = "no"
+            if hasattr(args, "mixed_precision"):
+                args.mixed_precision = "no"
             # args.mixed_precision is a new argument which needs to be set now
-        
-        if getattr(args, 'eval_dataset', None) is not None and getattr(args, 'eval_strategy', 'no') == 'no':
-            args.eval_strategy = 'steps'
-            if getattr(args, 'eval_steps', None) is None: args.eval_steps = 0.1
-        ga_steps = getattr(args, 'gradient_accumulation_steps', None)
+
+        if (
+            getattr(args, "eval_dataset", None) is not None
+            and getattr(args, "eval_strategy", "no") == "no"
+        ):
+            args.eval_strategy = "steps"
+            if getattr(args, "eval_steps", None) is None:
+                args.eval_steps = 0.1
+        ga_steps = getattr(args, "gradient_accumulation_steps", None)
         if ga_steps is not None and ga_steps > 1:
             from transformers import __version__ as transformers_version
-            if Version(transformers_version) <= Version('4.45.2'):
-                print('**** Unsloth: Please use our fixed gradient_accumulation_steps by updating transformers, TRL and Unsloth!\n'
-                      '`pip install --upgrade --no-cache-dir --force-reinstall --no-deps unsloth transformers trl unsloth_zoo`')
-        if getattr(args, 'eval_strategy', 'no') != 'no':
-            eval_bsz = getattr(args, 'per_device_eval_batch_size', 8)
-            if eval_bsz == 8 and args.per_device_train_batch_size < eval_bsz: args.per_device_eval_batch_size = args.per_device_train_batch_size
-            if getattr(args, 'eval_accumulation_steps', None) is None and ga_steps is not None: args.eval_accumulation_steps = ga_steps
-        fp16_full_eval = getattr(args, 'fp16_full_eval', False)
-        if type(fp16_full_eval) is not bool: fp16_full_eval = False
-        bf16_full_eval = getattr(args, 'bf16_full_eval', False)
-        if type(bf16_full_eval) is not bool: bf16_full_eval = False
-        if args.fp16 and bf16_full_eval: args.bf16_full_eval = False; args.fp16_full_eval = True
-        if args.bf16 and fp16_full_eval: args.bf16_full_eval = True; args.fp16_full_eval = False
+
+            if Version(transformers_version) <= Version("4.45.2"):
+                print(
+                    "**** Unsloth: Please use our fixed gradient_accumulation_steps by updating transformers, TRL and Unsloth!\n"
+                    "`pip install --upgrade --no-cache-dir --force-reinstall --no-deps unsloth transformers trl unsloth_zoo`"
+                )
+        if getattr(args, "eval_strategy", "no") != "no":
+            eval_bsz = getattr(args, "per_device_eval_batch_size", 8)
+            if eval_bsz == 8 and args.per_device_train_batch_size < eval_bsz:
+                args.per_device_eval_batch_size = args.per_device_train_batch_size
+            if (
+                getattr(args, "eval_accumulation_steps", None) is None
+                and ga_steps is not None
+            ):
+                args.eval_accumulation_steps = ga_steps
+        fp16_full_eval = getattr(args, "fp16_full_eval", False)
+        if type(fp16_full_eval) is not bool:
+            fp16_full_eval = False
+        bf16_full_eval = getattr(args, "bf16_full_eval", False)
+        if type(bf16_full_eval) is not bool:
+            bf16_full_eval = False
+        if args.fp16 and bf16_full_eval:
+            args.bf16_full_eval = False
+            args.fp16_full_eval = True
+        if args.bf16 and fp16_full_eval:
+            args.bf16_full_eval = True
+            args.fp16_full_eval = False
         if force_float32:
             args.bf16_full_eval = False
             args.fp16_full_eval = False
-        elif os.environ.get('UNSLOTH_MIXED_PRECISION', 'float32') == 'bfloat16':
+        elif os.environ.get("UNSLOTH_MIXED_PRECISION", "float32") == "bfloat16":
             args.bf16_full_eval = True
             args.fp16_full_eval = False
         elif not bf16_full_eval and not fp16_full_eval:
             args.bf16_full_eval = args.bf16
             args.fp16_full_eval = args.fp16
         _output_logits = False
-        if locals().get('compute_metrics', None) is not None: _output_logits = True
-        if locals().get('preprocess_logits_for_metrics', None) is not None: _output_logits = True
+        if locals().get("compute_metrics", None) is not None:
+            _output_logits = True
+        if locals().get("preprocess_logits_for_metrics", None) is not None:
+            _output_logits = True
         if _output_logits:
-            os.environ['UNSLOTH_RETURN_LOGITS'] = '1'
+            os.environ["UNSLOTH_RETURN_LOGITS"] = "1"
         if model is not None:
-            _warnings_issued = getattr(model, 'warnings_issued', None)
+            _warnings_issued = getattr(model, "warnings_issued", None)
             if _warnings_issued is None:
                 model.warnings_issued = {}
             elif not isinstance(_warnings_issued, dict):
@@ -2361,119 +2747,166 @@ class UnslothKTOTrainer(_UnslothKTOTrainer):
                     model.warnings_issued = dict(_warnings_issued)
                 except Exception:
                     model.warnings_issued = {}
-        if 'max_seq_length' not in locals() and not hasattr(args, 'max_seq_length'):
+        if "max_seq_length" not in locals() and not hasattr(args, "max_seq_length"):
             pass
         else:
-            model_max_seq_length = getattr(model, 'max_seq_length', None)
-            args_max_seq_length  = getattr(args,  'max_seq_length', None)
+            model_max_seq_length = getattr(model, "max_seq_length", None)
+            args_max_seq_length = getattr(args, "max_seq_length", None)
             if args_max_seq_length is None and model_max_seq_length is not None:
                 max_seq_length = model.max_seq_length
-                if hasattr(args, 'max_seq_length'): args.max_seq_length = max_seq_length
+                if hasattr(args, "max_seq_length"):
+                    args.max_seq_length = max_seq_length
             elif args_max_seq_length is not None and model_max_seq_length is not None:
                 if args_max_seq_length > model_max_seq_length:
-                    print('Unsloth: You set `max_seq_length` as ' + str(args_max_seq_length) + ' but '
-                           'the maximum the model supports is ' + str(model_max_seq_length) + '. We shall reduce it.')
+                    print(
+                        "Unsloth: You set `max_seq_length` as "
+                        + str(args_max_seq_length)
+                        + " but "
+                        "the maximum the model supports is "
+                        + str(model_max_seq_length)
+                        + ". We shall reduce it."
+                    )
                     args.max_seq_length = model_max_seq_length
-        if model is not None and hasattr(model, 'for_training'):
-            model.for_training(use_gradient_checkpointing=getattr(args, 'gradient_checkpointing', True))
-        if 'tokenizer' in locals() and hasattr(tokenizer, 'padding_side'): tokenizer.padding_side = 'right'
-        if 'processing_class' in locals():
-            if hasattr(processing_class, 'padding_side'): processing_class.padding_side = 'right'
-            if hasattr(processing_class, 'tokenizer') and hasattr(processing_class.tokenizer, 'padding_side'): processing_class.tokenizer.padding_side = 'right'
-        __tokenizer = processing_class if 'processing_class' in locals() else tokenizer
+        if model is not None and hasattr(model, "for_training"):
+            model.for_training(
+                use_gradient_checkpointing=getattr(args, "gradient_checkpointing", True)
+            )
+        if "tokenizer" in locals() and hasattr(tokenizer, "padding_side"):
+            tokenizer.padding_side = "right"
+        if "processing_class" in locals():
+            if hasattr(processing_class, "padding_side"):
+                processing_class.padding_side = "right"
+            if hasattr(processing_class, "tokenizer") and hasattr(
+                processing_class.tokenizer, "padding_side"
+            ):
+                processing_class.tokenizer.padding_side = "right"
+        __tokenizer = processing_class if "processing_class" in locals() else tokenizer
         from unsloth_zoo.vision_utils import UnslothVisionDataCollator
+
         if not isinstance(data_collator, UnslothVisionDataCollator):
-            if isinstance(data_collator, DataCollatorForSeq2Seq) and 'labels' not in train_dataset.column_names:
+            if (
+                isinstance(data_collator, DataCollatorForSeq2Seq)
+                and "labels" not in train_dataset.column_names
+            ):
                 data_collator = TransformersDataCollatorForLanguageModeling(
                     __tokenizer,
-                    mlm = False,
-                    mlm_probability = 0.0,
-                    pad_to_multiple_of = getattr(args, 'pad_to_multiple_of', None),
+                    mlm=False,
+                    mlm_probability=0.0,
+                    pad_to_multiple_of=getattr(args, "pad_to_multiple_of", None),
                 )
-            elif isinstance(data_collator, TransformersDataCollatorForLanguageModeling) and 'labels' in train_dataset.column_names:
+            elif (
+                isinstance(data_collator, TransformersDataCollatorForLanguageModeling)
+                and "labels" in train_dataset.column_names
+            ):
                 data_collator = DataCollatorForSeq2Seq(
                     __tokenizer,
-                    pad_to_multiple_of = getattr(args, 'pad_to_multiple_of', None),
+                    pad_to_multiple_of=getattr(args, "pad_to_multiple_of", None),
                 )
         else:
-            if hasattr(args, 'remove_unused_columns'): args.remove_unused_columns = False
-            if hasattr(args, 'dataset_text_field'): args.dataset_text_field = ''
-            if hasattr(args, 'dataset_kwargs'): args.dataset_kwargs = {'skip_prepare_dataset': True}
+            if hasattr(args, "remove_unused_columns"):
+                args.remove_unused_columns = False
+            if hasattr(args, "dataset_text_field"):
+                args.dataset_text_field = ""
+            if hasattr(args, "dataset_kwargs"):
+                args.dataset_kwargs = {"skip_prepare_dataset": True}
         if not isinstance(data_collator, UnslothVisionDataCollator):
-            if not hasattr(__tokenizer, 'pad') and hasattr(__tokenizer, 'tokenizer'):
+            if not hasattr(__tokenizer, "pad") and hasattr(__tokenizer, "tokenizer"):
                 if isinstance(data_collator, DataCollatorForSeq2Seq):
                     data_collator = DataCollatorForSeq2Seq(
                         __tokenizer.tokenizer,
-                        pad_to_multiple_of = getattr(args, 'pad_to_multiple_of', None),
+                        pad_to_multiple_of=getattr(args, "pad_to_multiple_of", None),
                     )
-                elif isinstance(data_collator, TransformersDataCollatorForLanguageModeling):
+                elif isinstance(
+                    data_collator, TransformersDataCollatorForLanguageModeling
+                ):
                     data_collator = TransformersDataCollatorForLanguageModeling(
                         __tokenizer.tokenizer,
-                        mlm = False,
-                        mlm_probability = 0.0,
-                        pad_to_multiple_of = getattr(args, 'pad_to_multiple_of', None),
+                        mlm=False,
+                        mlm_probability=0.0,
+                        pad_to_multiple_of=getattr(args, "pad_to_multiple_of", None),
                     )
         other_metrics = []
-        
+
         from unsloth_zoo.logging_utils import PatchRLStatistics
-        PatchRLStatistics('kto_trainer', other_metrics)
-        
+
+        PatchRLStatistics("kto_trainer", other_metrics)
+
         # [TODO] Fix up DataParallel multiplying batch sizes
         # [TODO] DDP works, but DP seems to not work? [TODO]
-        if getattr(args, "parallel_mode", None) == ParallelMode.NOT_DISTRIBUTED and args.n_gpu > 1:
+        if (
+            getattr(args, "parallel_mode", None) == ParallelMode.NOT_DISTRIBUTED
+            and args.n_gpu > 1
+        ):
             if getattr(args, "_n_gpu", 1) != 1:
                 args._n_gpu = 1
         if "model" in locals() and hasattr(model, "for_training"):
-            model.for_training(use_gradient_checkpointing=getattr(args, 'gradient_checkpointing', True))
+            model.for_training(
+                use_gradient_checkpointing=getattr(args, "gradient_checkpointing", True)
+            )
         super().__init__(
-            model = model,
-            ref_model = ref_model,
-            args = args,
-            train_dataset = train_dataset,
-            eval_dataset = eval_dataset,
-            processing_class = processing_class,
-            data_collator = data_collator,
-            model_init = model_init,
-            callbacks = callbacks,
-            preprocess_logits_for_metrics = preprocess_logits_for_metrics,
-            peft_config = peft_config,
-            compute_metrics = compute_metrics,
-            model_adapter_name = model_adapter_name,
-            ref_adapter_name = ref_adapter_name,**kwargs)
+            model=model,
+            ref_model=ref_model,
+            args=args,
+            train_dataset=train_dataset,
+            eval_dataset=eval_dataset,
+            processing_class=processing_class,
+            data_collator=data_collator,
+            model_init=model_init,
+            callbacks=callbacks,
+            preprocess_logits_for_metrics=preprocess_logits_for_metrics,
+            peft_config=peft_config,
+            compute_metrics=compute_metrics,
+            model_adapter_name=model_adapter_name,
+            ref_adapter_name=ref_adapter_name,
+            **kwargs,
+        )
         if "model" in locals() and hasattr(model, "for_inference"):
             model.for_inference()
-        if hasattr(self, 'neftune_hook_handle'):
+        if hasattr(self, "neftune_hook_handle"):
             self.neftune_hook_handle.remove()
-            if hasattr(self, 'neftune_hook_handle'): del self.neftune_hook_handle
-        if getattr(args, 'neftune_noise_alpha', None) is not None:
+            if hasattr(self, "neftune_hook_handle"):
+                del self.neftune_hook_handle
+        if getattr(args, "neftune_noise_alpha", None) is not None:
             model.get_input_embeddings().neftune_noise_alpha = self.neftune_noise_alpha
-        pass
-        if hasattr(self, 'accelerator'):
+        if hasattr(self, "accelerator"):
             scaler = self.accelerator.scaler
             current_model = model
-            while hasattr(current_model, 'model'):
+            while hasattr(current_model, "model"):
                 current_model.accelerator_scaler = scaler
                 current_model = current_model.model
             current_model.accelerator_scaler = scaler
-        pass
-        if hasattr(self, 'train'):
-            self.train = MethodType(prepare_for_training_mode(self.__class__.train), self)
-        pass
-        if hasattr(self, 'llm') and self.llm is not None and hasattr(self.llm, 'get_tokenizer'):
+        if hasattr(self, "train"):
+            self.train = MethodType(
+                prepare_for_training_mode(self.__class__.train), self
+            )
+        if (
+            hasattr(self, "llm")
+            and self.llm is not None
+            and hasattr(self.llm, "get_tokenizer")
+        ):
             _vllm_tok = self.llm.get_tokenizer()
-            _pc = getattr(self, 'processing_class', None) or getattr(self, 'tokenizer', None)
-            if _vllm_tok is not None and _pc is not None and getattr(_pc, 'chat_template', None) is not None and getattr(_vllm_tok, 'chat_template', None) is None:
+            _pc = getattr(self, "processing_class", None) or getattr(
+                self, "tokenizer", None
+            )
+            if (
+                _vllm_tok is not None
+                and _pc is not None
+                and getattr(_pc, "chat_template", None) is not None
+                and getattr(_vllm_tok, "chat_template", None) is None
+            ):
                 _vllm_tok.chat_template = _pc.chat_template
-        pass
-        
-pass
+
+
 
 
 if hasattr(logger, "addFilter"):
     import logging
-    class HideLoggingMessage(logging.Filter):
-        def __init__(self, text): self.text = text
-        def filter(self, x): return not (self.text in x.getMessage())
-    pass
-    logger.addFilter(HideLoggingMessage("`use_cache=True`"))
 
+    class HideLoggingMessage(logging.Filter):
+        def __init__(self, text):
+            self.text = text
+
+        def filter(self, x):
+            return not (self.text in x.getMessage())
+
+    logger.addFilter(HideLoggingMessage("`use_cache=True`"))

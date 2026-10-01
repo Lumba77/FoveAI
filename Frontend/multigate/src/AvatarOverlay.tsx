@@ -58,7 +58,7 @@ export default function AvatarOverlay({ show = false, talking = false }) {
   if (!show) return null;
 
   return (
-    <div style={{
+    <div className="avatar-overlay-container" style={{
       position: 'absolute',
       bottom: '100px', // Rest right on top of the chat input wrapper
       right: '40px',   // Float on the right side

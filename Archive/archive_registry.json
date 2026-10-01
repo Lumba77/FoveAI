@@ -1,0 +1,902 @@
+[
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\avatar_profile_store.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\avatar_profile_store.py",
+        "assessment": "Appears to be: This code defines a script that sets up a configuration file for persisting and managing the identity of an avatar (AI vessel)"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\genai_daily_budget.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\genai_daily_budget.py",
+        "assessment": "\"\"\"\nAppears to be a configuration function for limiting daily cloud_GenAI completion budgets for the cloud_repertoire (soul + lumax_ops sent"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\generate_high_fidelity_map.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\generate_high_fidelity_map.py",
+        "assessment": "Appears to be: This code appears to be setting up an API endpoint for a High-Fidelity Map project, which uses a custom tile map style"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\generate_master_blueprint.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\generate_master_blueprint.py",
+        "assessment": "Appears to be... A Python script that creates a visual representation of the Canny Template structure, which appears to be a 3D model of"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\generate_tiled_map.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\generate_tiled_map.py",
+        "assessment": "Appears to be, the code defines a script that sets up a directory structure for an API request to retrieve images from a server, and defines a"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\generate_weaver_map.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\generate_weaver_map.py",
+        "assessment": "Appears to be... a Python script that generates a simple Canny edge detection image, likely used in a data visualization or machine learning context, by"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\HomeCore.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\HomeCore.py",
+        "assessment": "Appears to be a custom Home Assistant core module that restricts access to HomeCore tools based on a balance threshold for Agent-leaning profiles and authenticates"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\ollama_http.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\ollama_http.py",
+        "assessment": "Appears to be a function that returns an HTTP authentication token for the Ollama API, which can be used for both Ollama Cloud and"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\slow_burn_runner.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\slow_burn_runner.py",
+        "assessment": "This code appears to be a simple script that sets up a periodic HTTP POST request to a specific URL, sending data in JSON format. The script is"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\test_api.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\test_api.py",
+        "assessment": "Appears to be a simple API endpoint that returns a generic \"Ready!\" message when accessed via the root URL."
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\test_dream_extraction.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\test_dream_extraction.py",
+        "assessment": "Appears to be, this code is a utility function that removes aggressive or distracting tags from a given string, effectively sanitizing the input text to prevent"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\visualize_relay.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\visualize_relay.py",
+        "assessment": "Appears to be a Python script that generates a simple 3D representation of a relay topology using PIL, creating a dream-like image with 3"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\__init__.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\__init__.py",
+        "assessment": "Appears to be a simple yet efficient implementation of a dictionary-based data structure in Python, utilizing a combination of `dict` and `set` data"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Creativity\\invokeai_catalog_bridge.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Creativity\\invokeai_catalog_bridge.py",
+        "assessment": "Appears to be: This code appears to be a script that enables merging of ControlNet rows from an InvokeAI models CSV export into the Lumax"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Creativity\\spandrel_upscale.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Creativity\\spandrel_upscale.py",
+        "assessment": "Appears to be a utility function that loads a spandrel model based on a checkpoint file, specifically for use in the \"Dreamscape enhance\""
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Creativity\\start_creative_with_env.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Creativity\\start_creative_with_env.py",
+        "assessment": "Appears to be it loads environment variables from a .env file, such as LUMAX_INVOKEAI_MODELS_ROOT and LUMAX_IN"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\preflight\\json_util.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\preflight\\json_util.py",
+        "assessment": "Appears to be a module or function that provides a way to load and parse playbook files using either JSON5 (if the package is installed) or"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\preflight\\__init__.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\preflight\\__init__.py",
+        "assessment": "The \"Lumax\" backend preflight package appears to be a Python module designed to perform a basic preflight operation on files before they are processed"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Frontend\\XR_Vessel\\src\\counter.ts",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Frontend\\XR_Vessel\\src\\counter.ts",
+        "assessment": "Appears to be a JavaScript function that sets up a simple HTML button element with a counter that increments by one every time it is clicked."
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Frontend\\XR_Vessel\\src\\senses\\MultiVision.ts",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Frontend\\XR_Vessel\\src\\senses\\MultiVision.ts",
+        "assessment": "Appears to be an asynchronous function that takes a WebGL renderer as input, captures a rendered image of the scene, converts it to a base64-encoded"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Frontend\\XR_Vessel\\src\\senses\\RoomSpatialContext.ts",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Frontend\\XR_Vessel\\src\\senses\\RoomSpatialContext.ts",
+        "assessment": "Appears to be a utility class that generates a snapshot of a mixed reality (MR) headset's spatial context, including its position, orientation, and"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\avatar_profile_store.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\avatar_profile_store.py",
+        "assessment": "Appears to be a configuration file or script for managing the persisted avatar (AI vessel) identity, specifying the default path to the avatar_profile.json file"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\genai_daily_budget.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\genai_daily_budget.py",
+        "assessment": "Appears to be a code snippet that defines constants and functions used for managing a daily cap on OpenAI-compatible GenAI completions, specifically for cloud"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\generate_high_fidelity_map.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\generate_high_fidelity_map.py",
+        "assessment": "Appears to be, this code is a Python script that creates a high-fidelity image by generating a tile map representation of a virtual reality (VR"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\generate_master_blueprint.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\generate_master_blueprint.py",
+        "assessment": "Here is a 1-sentence description of what the code does:\nThis script creates a schematic template for a pedagogical diagram based on a C"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\generate_tiled_map.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\generate_tiled_map.py",
+        "assessment": "Appears to be a script that populates a directory structure for a VR environment by retrieving data from a remote API and populating specific directories within a"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\generate_weaver_map.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\generate_weaver_map.py",
+        "assessment": "This code appears to be generating a simple animated Canny Blueprint image by creating a background image with various nodes (such as \"FOUNDER\", \"ARCH"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\HomeCore.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\HomeCore.py",
+        "assessment": "Appears to be a custom Home Assistant core module that implements a simple authorization mechanism, restricting access to the core based on the user's Agent-leaning profile"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\ollama_http.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\ollama_http.py",
+        "assessment": "Appears to be a function that returns a dictionary with an \"Authorization\" key containing a Bearer token for an Ollama API key."
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\slow_burn_runner.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\slow_burn_runner.py",
+        "assessment": "Appears to be: A periodic script that sends a POST request to a specific URL every interval seconds, with optional headers including a secret key."
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\test_api.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\test_api.py",
+        "assessment": "Appears to be a simple API that returns a JSON response indicating that the application is ready to handle requests."
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\test_dream_extraction.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\test_dream_extraction.py",
+        "assessment": "Appears to be a code snippet that cleans up and sanitizes the output of an Agentic XML structure in a MindCore response, removing any un"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\visualize_relay.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\visualize_relay.py",
+        "assessment": "Appears to be, this code is a Python script designed to generate a 3D illustration of a 3-node relay topology using a custom drawing"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\__init__.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\__init__.py",
+        "assessment": "...a collection of 64-bit floating-point numbers, which appears to be a snapshot of the values of a mathematical library's API, stored in a"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Creativity\\invokeai_catalog_bridge.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Creativity\\invokeai_catalog_bridge.py",
+        "assessment": "Here is a 1-sentence description of the code:\n\nThis code merges a CSV file containing InvokeAI-style inventory data into a Lumax Dream catalog"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Creativity\\spandrel_upscale.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Creativity\\spandrel_upscale.py",
+        "assessment": "Appears to be a custom custom archiver (archivist) that manages and loads spandrel models, specifically designed for Dreamscape-enhanced image"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Creativity\\start_creative_with_env.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Creativity\\start_creative_with_env.py",
+        "assessment": "This code appears to be a Python script that loads environment variables from a `.env` file into the `LUMAX_INVOKEAI_MODELS_ROOT"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\preflight\\json_util.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\preflight\\json_util.py",
+        "assessment": "Appears to be a Python module for loading and manipulating playbook files in a way that automatically detects whether the `json5` package is installed or not"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\preflight\\__init__.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\preflight\\__init__.py",
+        "assessment": "Appears to be a Python script that appears to be a preflight package for the Lumax backend."
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Forge\\tools\\go-llm-proxy\\README.md",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Forge\\tools\\go-llm-proxy\\README.md",
+        "assessment": "This code appears to be a single-binary LLM proxy, a tool that connects various coding assistants and AI agents to local and upstream models, providing access"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\README.md",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\README.md",
+        "assessment": "This plugin appears to be an integration of Google's Gemini AI models into the Godot editor interface, providing features such as a dock panel for sending prompts"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\ConsentBridge\\ms_oauth.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\ConsentBridge\\ms_oauth.py",
+        "assessment": "Here is a 1-sentence description of the code:\nAppears to be an authentication and token management system that handles Microsoft Graph OAuth 2."
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\album_art_generator.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\album_art_generator.py",
+        "assessment": "\"\"\"\nAppears to be a Python script designed to generate album and song artwork for musicians, utilizing a comprehensive workflow that incorporates data from the Famous Album Covers"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\album_art_studio.html",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\album_art_studio.html",
+        "assessment": "Appears to be a CSS code snippet used to define custom color and gradient styles for a web page, including a radial and linear gradient background image,"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\feature_inventory_parser.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\feature_inventory_parser.py",
+        "assessment": "Appears to be the script attempts to parse the content of the FEATURE_INVENTORY.md file into a JSON object for use in the Web UI feature map"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\gemini.md",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\gemini.md",
+        "assessment": "Appears to be: The code provides specific instructions for a developer to follow, detailing the steps to implement the Gemini Queen project, including the consolidation of"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\README.md",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\README.md",
+        "assessment": "Appears to be a web application that provides a high-performance, sovereign Mixed Reality interface for the LUMAX Matchbox, a browser-native \"brain"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\src\\counter.ts",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\src\\counter.ts",
+        "assessment": "Appears to be a JavaScript function that increments a counter by 1 on every click on a specified button element, displaying the current counter value in real"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\src\\senses\\MultiVision.ts",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\src\\senses\\MultiVision.ts",
+        "assessment": "Appears to be a class that creates a promise-based function to capture a 3D scene rendered by a WebGLRenderer instance and returns a base64"
+    },
+    {
+        "timestamp": "2026-07-07 00:04:27",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\src\\senses\\RoomSpatialContext.ts",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\src\\senses\\RoomSpatialContext.ts",
+        "assessment": "Appears to be a class that creates an object representing a Mixed Reality (MR) session with basic camera and headset information."
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\avatar_profile_store.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\avatar_profile_store.py",
+        "assessment": "Appears to be: This code defines a script that sets up a configuration file for persisting and managing the identity of an avatar (AI vessel)"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\genai_daily_budget.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\genai_daily_budget.py",
+        "assessment": "\"\"\"\nAppears to be a configuration function for limiting daily cloud_GenAI completion budgets for the cloud_repertoire (soul + lumax_ops sent"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\generate_high_fidelity_map.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\generate_high_fidelity_map.py",
+        "assessment": "Appears to be: This code appears to be setting up an API endpoint for a High-Fidelity Map project, which uses a custom tile map style"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\generate_master_blueprint.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\generate_master_blueprint.py",
+        "assessment": "Appears to be... A Python script that creates a visual representation of the Canny Template structure, which appears to be a 3D model of"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\generate_tiled_map.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\generate_tiled_map.py",
+        "assessment": "Appears to be, the code defines a script that sets up a directory structure for an API request to retrieve images from a server, and defines a"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\generate_weaver_map.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\generate_weaver_map.py",
+        "assessment": "Appears to be... a Python script that generates a simple Canny edge detection image, likely used in a data visualization or machine learning context, by"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\HomeCore.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\HomeCore.py",
+        "assessment": "Appears to be a custom Home Assistant core module that restricts access to HomeCore tools based on a balance threshold for Agent-leaning profiles and authenticates"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\ollama_http.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\ollama_http.py",
+        "assessment": "Appears to be a function that returns an HTTP authentication token for the Ollama API, which can be used for both Ollama Cloud and"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\slow_burn_runner.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\slow_burn_runner.py",
+        "assessment": "This code appears to be a simple script that sets up a periodic HTTP POST request to a specific URL, sending data in JSON format. The script is"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\test_api.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\test_api.py",
+        "assessment": "Appears to be a simple API endpoint that returns a generic \"Ready!\" message when accessed via the root URL."
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\test_dream_extraction.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\test_dream_extraction.py",
+        "assessment": "Appears to be, this code is a utility function that removes aggressive or distracting tags from a given string, effectively sanitizing the input text to prevent"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\visualize_relay.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\visualize_relay.py",
+        "assessment": "Appears to be a Python script that generates a simple 3D representation of a relay topology using PIL, creating a dream-like image with 3"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\__init__.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\__init__.py",
+        "assessment": "Appears to be a simple yet efficient implementation of a dictionary-based data structure in Python, utilizing a combination of `dict` and `set` data"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Creativity\\invokeai_catalog_bridge.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Creativity\\invokeai_catalog_bridge.py",
+        "assessment": "Appears to be: This code appears to be a script that enables merging of ControlNet rows from an InvokeAI models CSV export into the Lumax"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Creativity\\spandrel_upscale.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Creativity\\spandrel_upscale.py",
+        "assessment": "Appears to be a utility function that loads a spandrel model based on a checkpoint file, specifically for use in the \"Dreamscape enhance\""
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Creativity\\start_creative_with_env.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Creativity\\start_creative_with_env.py",
+        "assessment": "Appears to be it loads environment variables from a .env file, such as LUMAX_INVOKEAI_MODELS_ROOT and LUMAX_IN"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\preflight\\json_util.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\preflight\\json_util.py",
+        "assessment": "Appears to be a module or function that provides a way to load and parse playbook files using either JSON5 (if the package is installed) or"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\preflight\\__init__.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\preflight\\__init__.py",
+        "assessment": "The \"Lumax\" backend preflight package appears to be a Python module designed to perform a basic preflight operation on files before they are processed"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Frontend\\XR_Vessel\\src\\counter.ts",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Frontend\\XR_Vessel\\src\\counter.ts",
+        "assessment": "Appears to be a JavaScript function that sets up a simple HTML button element with a counter that increments by one every time it is clicked."
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Frontend\\XR_Vessel\\src\\senses\\MultiVision.ts",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Frontend\\XR_Vessel\\src\\senses\\MultiVision.ts",
+        "assessment": "Appears to be an asynchronous function that takes a WebGL renderer as input, captures a rendered image of the scene, converts it to a base64-encoded"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Frontend\\XR_Vessel\\src\\senses\\RoomSpatialContext.ts",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Frontend\\XR_Vessel\\src\\senses\\RoomSpatialContext.ts",
+        "assessment": "Appears to be a utility class that generates a snapshot of a mixed reality (MR) headset's spatial context, including its position, orientation, and"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\avatar_profile_store.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\avatar_profile_store.py",
+        "assessment": "Appears to be a configuration file or script for managing the persisted avatar (AI vessel) identity, specifying the default path to the avatar_profile.json file"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\genai_daily_budget.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\genai_daily_budget.py",
+        "assessment": "Appears to be a code snippet that defines constants and functions used for managing a daily cap on OpenAI-compatible GenAI completions, specifically for cloud"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\generate_high_fidelity_map.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\generate_high_fidelity_map.py",
+        "assessment": "Appears to be, this code is a Python script that creates a high-fidelity image by generating a tile map representation of a virtual reality (VR"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\generate_master_blueprint.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\generate_master_blueprint.py",
+        "assessment": "Here is a 1-sentence description of what the code does:\nThis script creates a schematic template for a pedagogical diagram based on a C"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\generate_tiled_map.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\generate_tiled_map.py",
+        "assessment": "Appears to be a script that populates a directory structure for a VR environment by retrieving data from a remote API and populating specific directories within a"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\generate_weaver_map.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\generate_weaver_map.py",
+        "assessment": "This code appears to be generating a simple animated Canny Blueprint image by creating a background image with various nodes (such as \"FOUNDER\", \"ARCH"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\HomeCore.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\HomeCore.py",
+        "assessment": "Appears to be a custom Home Assistant core module that implements a simple authorization mechanism, restricting access to the core based on the user's Agent-leaning profile"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\ollama_http.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\ollama_http.py",
+        "assessment": "Appears to be a function that returns a dictionary with an \"Authorization\" key containing a Bearer token for an Ollama API key."
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\slow_burn_runner.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\slow_burn_runner.py",
+        "assessment": "Appears to be: A periodic script that sends a POST request to a specific URL every interval seconds, with optional headers including a secret key."
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\test_api.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\test_api.py",
+        "assessment": "Appears to be a simple API that returns a JSON response indicating that the application is ready to handle requests."
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\test_dream_extraction.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\test_dream_extraction.py",
+        "assessment": "Appears to be a code snippet that cleans up and sanitizes the output of an Agentic XML structure in a MindCore response, removing any un"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\visualize_relay.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\visualize_relay.py",
+        "assessment": "Appears to be, this code is a Python script designed to generate a 3D illustration of a 3-node relay topology using a custom drawing"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\__init__.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\__init__.py",
+        "assessment": "...a collection of 64-bit floating-point numbers, which appears to be a snapshot of the values of a mathematical library's API, stored in a"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Creativity\\invokeai_catalog_bridge.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Creativity\\invokeai_catalog_bridge.py",
+        "assessment": "Here is a 1-sentence description of the code:\n\nThis code merges a CSV file containing InvokeAI-style inventory data into a Lumax Dream catalog"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Creativity\\spandrel_upscale.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Creativity\\spandrel_upscale.py",
+        "assessment": "Appears to be a custom custom archiver (archivist) that manages and loads spandrel models, specifically designed for Dreamscape-enhanced image"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Creativity\\start_creative_with_env.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Creativity\\start_creative_with_env.py",
+        "assessment": "This code appears to be a Python script that loads environment variables from a `.env` file into the `LUMAX_INVOKEAI_MODELS_ROOT"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\preflight\\json_util.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\preflight\\json_util.py",
+        "assessment": "Appears to be a Python module for loading and manipulating playbook files in a way that automatically detects whether the `json5` package is installed or not"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\preflight\\__init__.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\preflight\\__init__.py",
+        "assessment": "Appears to be a Python script that appears to be a preflight package for the Lumax backend."
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Forge\\tools\\go-llm-proxy\\README.md",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Forge\\tools\\go-llm-proxy\\README.md",
+        "assessment": "This code appears to be a single-binary LLM proxy, a tool that connects various coding assistants and AI agents to local and upstream models, providing access"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\README.md",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\README.md",
+        "assessment": "This plugin appears to be an integration of Google's Gemini AI models into the Godot editor interface, providing features such as a dock panel for sending prompts"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\ConsentBridge\\ms_oauth.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\ConsentBridge\\ms_oauth.py",
+        "assessment": "Here is a 1-sentence description of the code:\nAppears to be an authentication and token management system that handles Microsoft Graph OAuth 2."
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\album_art_generator.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\album_art_generator.py",
+        "assessment": "\"\"\"\nAppears to be a Python script designed to generate album and song artwork for musicians, utilizing a comprehensive workflow that incorporates data from the Famous Album Covers"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\album_art_studio.html",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\album_art_studio.html",
+        "assessment": "Appears to be a CSS code snippet used to define custom color and gradient styles for a web page, including a radial and linear gradient background image,"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\feature_inventory_parser.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\feature_inventory_parser.py",
+        "assessment": "Appears to be the script attempts to parse the content of the FEATURE_INVENTORY.md file into a JSON object for use in the Web UI feature map"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\gemini.md",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\gemini.md",
+        "assessment": "Appears to be: The code provides specific instructions for a developer to follow, detailing the steps to implement the Gemini Queen project, including the consolidation of"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\README.md",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\README.md",
+        "assessment": "Appears to be a web application that provides a high-performance, sovereign Mixed Reality interface for the LUMAX Matchbox, a browser-native \"brain"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\src\\counter.ts",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\src\\counter.ts",
+        "assessment": "Appears to be a JavaScript function that increments a counter by 1 on every click on a specified button element, displaying the current counter value in real"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\src\\senses\\MultiVision.ts",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\src\\senses\\MultiVision.ts",
+        "assessment": "Appears to be a class that creates a promise-based function to capture a 3D scene rendered by a WebGLRenderer instance and returns a base64"
+    },
+    {
+        "timestamp": "2026-07-07 04:01:22",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\src\\senses\\RoomSpatialContext.ts",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\src\\senses\\RoomSpatialContext.ts",
+        "assessment": "Appears to be a class that creates an object representing a Mixed Reality (MR) session with basic camera and headset information."
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\avatar_profile_store.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\avatar_profile_store.py",
+        "assessment": "Appears to be: This code defines a script that sets up a configuration file for persisting and managing the identity of an avatar (AI vessel)"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\genai_daily_budget.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\genai_daily_budget.py",
+        "assessment": "\"\"\"\nAppears to be a configuration function for limiting daily cloud_GenAI completion budgets for the cloud_repertoire (soul + lumax_ops sent"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\generate_high_fidelity_map.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\generate_high_fidelity_map.py",
+        "assessment": "Appears to be: This code appears to be setting up an API endpoint for a High-Fidelity Map project, which uses a custom tile map style"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\generate_master_blueprint.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\generate_master_blueprint.py",
+        "assessment": "Appears to be... A Python script that creates a visual representation of the Canny Template structure, which appears to be a 3D model of"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\generate_tiled_map.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\generate_tiled_map.py",
+        "assessment": "Appears to be, the code defines a script that sets up a directory structure for an API request to retrieve images from a server, and defines a"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\generate_weaver_map.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\generate_weaver_map.py",
+        "assessment": "Appears to be... a Python script that generates a simple Canny edge detection image, likely used in a data visualization or machine learning context, by"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\HomeCore.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\HomeCore.py",
+        "assessment": "Appears to be a custom Home Assistant core module that restricts access to HomeCore tools based on a balance threshold for Agent-leaning profiles and authenticates"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\ollama_http.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\ollama_http.py",
+        "assessment": "Appears to be a function that returns an HTTP authentication token for the Ollama API, which can be used for both Ollama Cloud and"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\slow_burn_runner.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\slow_burn_runner.py",
+        "assessment": "This code appears to be a simple script that sets up a periodic HTTP POST request to a specific URL, sending data in JSON format. The script is"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\test_api.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\test_api.py",
+        "assessment": "Appears to be a simple API endpoint that returns a generic \"Ready!\" message when accessed via the root URL."
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\test_dream_extraction.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\test_dream_extraction.py",
+        "assessment": "Appears to be, this code is a utility function that removes aggressive or distracting tags from a given string, effectively sanitizing the input text to prevent"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\visualize_relay.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\visualize_relay.py",
+        "assessment": "Appears to be a Python script that generates a simple 3D representation of a relay topology using PIL, creating a dream-like image with 3"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Cognition\\__init__.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Cognition\\__init__.py",
+        "assessment": "Appears to be a simple yet efficient implementation of a dictionary-based data structure in Python, utilizing a combination of `dict` and `set` data"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Creativity\\invokeai_catalog_bridge.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Creativity\\invokeai_catalog_bridge.py",
+        "assessment": "Appears to be: This code appears to be a script that enables merging of ControlNet rows from an InvokeAI models CSV export into the Lumax"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Creativity\\spandrel_upscale.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Creativity\\spandrel_upscale.py",
+        "assessment": "Appears to be a utility function that loads a spandrel model based on a checkpoint file, specifically for use in the \"Dreamscape enhance\""
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\Creativity\\start_creative_with_env.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\Creativity\\start_creative_with_env.py",
+        "assessment": "Appears to be it loads environment variables from a .env file, such as LUMAX_INVOKEAI_MODELS_ROOT and LUMAX_IN"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\preflight\\json_util.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\preflight\\json_util.py",
+        "assessment": "Appears to be a module or function that provides a way to load and parse playbook files using either JSON5 (if the package is installed) or"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Backend\\preflight\\__init__.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Backend\\preflight\\__init__.py",
+        "assessment": "The \"Lumax\" backend preflight package appears to be a Python module designed to perform a basic preflight operation on files before they are processed"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Frontend\\XR_Vessel\\src\\counter.ts",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Frontend\\XR_Vessel\\src\\counter.ts",
+        "assessment": "Appears to be a JavaScript function that sets up a simple HTML button element with a counter that increments by one every time it is clicked."
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Frontend\\XR_Vessel\\src\\senses\\MultiVision.ts",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Frontend\\XR_Vessel\\src\\senses\\MultiVision.ts",
+        "assessment": "Appears to be an asynchronous function that takes a WebGL renderer as input, captures a rendered image of the scene, converts it to a base64-encoded"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\.SafeSaves\\Frontend\\XR_Vessel\\src\\senses\\RoomSpatialContext.ts",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\.SafeSaves\\Frontend\\XR_Vessel\\src\\senses\\RoomSpatialContext.ts",
+        "assessment": "Appears to be a utility class that generates a snapshot of a mixed reality (MR) headset's spatial context, including its position, orientation, and"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\avatar_profile_store.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\avatar_profile_store.py",
+        "assessment": "Appears to be a configuration file or script for managing the persisted avatar (AI vessel) identity, specifying the default path to the avatar_profile.json file"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\genai_daily_budget.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\genai_daily_budget.py",
+        "assessment": "Appears to be a code snippet that defines constants and functions used for managing a daily cap on OpenAI-compatible GenAI completions, specifically for cloud"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\generate_high_fidelity_map.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\generate_high_fidelity_map.py",
+        "assessment": "Appears to be, this code is a Python script that creates a high-fidelity image by generating a tile map representation of a virtual reality (VR"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\generate_master_blueprint.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\generate_master_blueprint.py",
+        "assessment": "Here is a 1-sentence description of what the code does:\nThis script creates a schematic template for a pedagogical diagram based on a C"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\generate_tiled_map.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\generate_tiled_map.py",
+        "assessment": "Appears to be a script that populates a directory structure for a VR environment by retrieving data from a remote API and populating specific directories within a"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\generate_weaver_map.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\generate_weaver_map.py",
+        "assessment": "This code appears to be generating a simple animated Canny Blueprint image by creating a background image with various nodes (such as \"FOUNDER\", \"ARCH"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\HomeCore.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\HomeCore.py",
+        "assessment": "Appears to be a custom Home Assistant core module that implements a simple authorization mechanism, restricting access to the core based on the user's Agent-leaning profile"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\ollama_http.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\ollama_http.py",
+        "assessment": "Appears to be a function that returns a dictionary with an \"Authorization\" key containing a Bearer token for an Ollama API key."
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\slow_burn_runner.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\slow_burn_runner.py",
+        "assessment": "Appears to be: A periodic script that sends a POST request to a specific URL every interval seconds, with optional headers including a secret key."
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\test_api.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\test_api.py",
+        "assessment": "Appears to be a simple API that returns a JSON response indicating that the application is ready to handle requests."
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\test_dream_extraction.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\test_dream_extraction.py",
+        "assessment": "Appears to be a code snippet that cleans up and sanitizes the output of an Agentic XML structure in a MindCore response, removing any un"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\visualize_relay.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\visualize_relay.py",
+        "assessment": "Appears to be, this code is a Python script designed to generate a 3D illustration of a 3-node relay topology using a custom drawing"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Cognition\\__init__.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Cognition\\__init__.py",
+        "assessment": "...a collection of 64-bit floating-point numbers, which appears to be a snapshot of the values of a mathematical library's API, stored in a"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Creativity\\invokeai_catalog_bridge.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Creativity\\invokeai_catalog_bridge.py",
+        "assessment": "Here is a 1-sentence description of the code:\n\nThis code merges a CSV file containing InvokeAI-style inventory data into a Lumax Dream catalog"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Creativity\\spandrel_upscale.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Creativity\\spandrel_upscale.py",
+        "assessment": "Appears to be a custom custom archiver (archivist) that manages and loads spandrel models, specifically designed for Dreamscape-enhanced image"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\Creativity\\start_creative_with_env.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\Creativity\\start_creative_with_env.py",
+        "assessment": "This code appears to be a Python script that loads environment variables from a `.env` file into the `LUMAX_INVOKEAI_MODELS_ROOT"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\preflight\\json_util.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\preflight\\json_util.py",
+        "assessment": "Appears to be a Python module for loading and manipulating playbook files in a way that automatically detects whether the `json5` package is installed or not"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Backend\\preflight\\__init__.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Backend\\preflight\\__init__.py",
+        "assessment": "Appears to be a Python script that appears to be a preflight package for the Lumax backend."
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Forge\\tools\\go-llm-proxy\\README.md",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Forge\\tools\\go-llm-proxy\\README.md",
+        "assessment": "This code appears to be a single-binary LLM proxy, a tool that connects various coding assistants and AI agents to local and upstream models, providing access"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\README.md",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\README.md",
+        "assessment": "This plugin appears to be an integration of Google's Gemini AI models into the Godot editor interface, providing features such as a dock panel for sending prompts"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\ConsentBridge\\ms_oauth.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\ConsentBridge\\ms_oauth.py",
+        "assessment": "Here is a 1-sentence description of the code:\nAppears to be an authentication and token management system that handles Microsoft Graph OAuth 2."
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\album_art_generator.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\album_art_generator.py",
+        "assessment": "\"\"\"\nAppears to be a Python script designed to generate album and song artwork for musicians, utilizing a comprehensive workflow that incorporates data from the Famous Album Covers"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\album_art_studio.html",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\album_art_studio.html",
+        "assessment": "Appears to be a CSS code snippet used to define custom color and gradient styles for a web page, including a radial and linear gradient background image,"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\feature_inventory_parser.py",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\feature_inventory_parser.py",
+        "assessment": "Appears to be the script attempts to parse the content of the FEATURE_INVENTORY.md file into a JSON object for use in the Web UI feature map"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\gemini.md",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\gemini.md",
+        "assessment": "Appears to be: The code provides specific instructions for a developer to follow, detailing the steps to implement the Gemini Queen project, including the consolidation of"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\README.md",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\README.md",
+        "assessment": "Appears to be a web application that provides a high-performance, sovereign Mixed Reality interface for the LUMAX Matchbox, a browser-native \"brain"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\src\\counter.ts",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\src\\counter.ts",
+        "assessment": "Appears to be a JavaScript function that increments a counter by 1 on every click on a specified button element, displaying the current counter value in real"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\src\\senses\\MultiVision.ts",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\src\\senses\\MultiVision.ts",
+        "assessment": "Appears to be a class that creates a promise-based function to capture a 3D scene rendered by a WebGLRenderer instance and returns a base64"
+    },
+    {
+        "timestamp": "2026-07-07 05:01:39",
+        "original_path": "C:\\Users\\danie\\program\\LUMAX\\Frontend\\XR_Vessel\\src\\senses\\RoomSpatialContext.ts",
+        "archived_path": "C:\\Users\\danie\\program\\LUMAX\\Archive\\junk\\Frontend\\XR_Vessel\\src\\senses\\RoomSpatialContext.ts",
+        "assessment": "Appears to be a class that creates an object representing a Mixed Reality (MR) session with basic camera and headset information."
+    }
+]

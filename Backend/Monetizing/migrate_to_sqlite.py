@@ -51,11 +51,11 @@ def load_json(path: Path) -> dict:
 
 async def migrate(apply: bool = False):
     db_path = str(DATA_DIR / "monetizing.db")
-    print(f"\n{'='*60}")
-    print(f"  FoveAI Monetizing: JSON → SQLite Migration")
+    print(f"\n{'=' * 60}")
+    print("  FoveAI Monetizing: JSON → SQLite Migration")
     print(f"  Mode: {'APPLY (will write DB)' if apply else 'DRY RUN (read-only)'}")
     print(f"  DB:   {db_path}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     # --- Load source data ---
     print("1. Loading JSON files...\n")
@@ -72,7 +72,7 @@ async def migrate(apply: bool = False):
         return
 
     # --- Initialize DB ---
-    print(f"\n2. Initializing database...\n")
+    print("\n2. Initializing database...\n")
 
     if not apply:
         print("  [DRY RUN] Would create/verify tables at:", db_path)
@@ -106,7 +106,7 @@ async def migrate(apply: bool = False):
 
     # --- Migrate wallet ---
     if swarm_state.get("total_earnings") is not None:
-        print(f"\n4. Migrating wallet state...\n")
+        print("\n4. Migrating wallet state...\n")
         print(f"  total_earnings: {swarm_state.get('total_earnings', 0)}")
         print(f"  solana_address: {swarm_state.get('solana_address', 'N/A')}")
         if apply:
@@ -120,7 +120,7 @@ async def migrate(apply: bool = False):
 
     # --- Migrate treasury ---
     if treasury_state:
-        print(f"\n5. Migrating treasury state...\n")
+        print("\n5. Migrating treasury state...\n")
         print(f"  grinding:   ${treasury_state.get('accumulated_grinding', 0):.2f}")
         print(f"  reserve:    ${treasury_state.get('accumulated_reserve', 0):.2f}")
         print(f"  dispense:   ${treasury_state.get('accumulated_dispense', 0):.2f}")
@@ -137,7 +137,7 @@ async def migrate(apply: bool = False):
 
     # --- Migrate treasury settings ---
     if treasury_settings:
-        print(f"\n6. Migrating treasury settings...\n")
+        print("\n6. Migrating treasury settings...\n")
         if apply:
             await db.update_treasury_settings(treasury_settings)
             print("  Settings migrated.")
@@ -189,7 +189,9 @@ async def migrate(apply: bool = False):
             }
             if apply:
                 await db.upsert_portfolio(portfolio)
-            print(f"  Portfolio: {aid} — USDT={portfolio['usdt_balance']:.2f} PnL={portfolio['total_pnl']:.4f}")
+            print(
+                f"  Portfolio: {aid} — USDT={portfolio['usdt_balance']:.2f} PnL={portfolio['total_pnl']:.4f}"
+            )
     else:
         print("\n8. No portfolios to migrate.")
 
@@ -206,10 +208,10 @@ async def migrate(apply: bool = False):
 
     # --- Summary ---
     counts = await db.get_table_counts()
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"  MIGRATION {'COMPLETE' if apply else 'DRY RUN COMPLETE'}")
-    print(f"{'='*60}")
-    print(f"\n  Database row counts:")
+    print(f"{'=' * 60}")
+    print("\n  Database row counts:")
     for table, count in counts.items():
         print(f"    {table:25s} {count:>6d} rows")
     print()
@@ -218,7 +220,9 @@ async def migrate(apply: bool = False):
 
     if apply:
         print("  All JSON data has been migrated to:", db_path)
-        print("  You can now update your modules to use MonetizingDB instead of JSON files.")
+        print(
+            "  You can now update your modules to use MonetizingDB instead of JSON files."
+        )
         print("  Original JSON files are preserved (not deleted).")
     else:
         print("  This was a DRY RUN — no data was written.")

@@ -1,10 +1,8 @@
-import os
 import logging
-from dataclasses import dataclass, asdict
-from typing import List
+import os
+from dataclasses import asdict, dataclass
 
 import httpx
-
 
 logger = logging.getLogger("Preflight")
 
@@ -32,7 +30,9 @@ def _resolved_tts_backend() -> str:
     Active mouth stack: turbo or chatterbox.
     Source order: marker file first, then env, then turbo.
     """
-    marker = os.getenv("FoveAI_TTS_BACKEND_FILE", "/app/Backend/preflight/tts_backend").strip()
+    marker = os.getenv(
+        "FoveAI_TTS_BACKEND_FILE", "/app/Backend/preflight/tts_backend"
+    ).strip()
     if marker:
         try:
             if os.path.isfile(marker):
@@ -46,7 +46,7 @@ def _resolved_tts_backend() -> str:
     return env_v if env_v in ("turbo", "chatterbox") else "turbo"
 
 
-def run_preflight(level: str = "light", autoheal: bool = True) -> List[CheckResult]:
+def run_preflight(level: str = "light", autoheal: bool = True) -> list[CheckResult]:
     """
     Lightweight backend-side preflight for sentry loops.
     Levels:
@@ -58,7 +58,7 @@ def run_preflight(level: str = "light", autoheal: bool = True) -> List[CheckResu
     if level not in {"light", "standard", "deep"}:
         level = "light"
 
-    results: List[CheckResult] = []
+    results: list[CheckResult] = []
 
     # Critical baseline checks
     app_root = os.getenv("FoveAI_APP_ROOT", "/app")
@@ -104,7 +104,9 @@ def run_preflight(level: str = "light", autoheal: bool = True) -> List[CheckResu
     if level == "deep":
         # On device/host side this would be 127.0.0.1:8000; inside container this may be false by design.
         # Keep non-critical to avoid false red in compose networking.
-        bridge_url = os.getenv("FoveAI_PREFLIGHT_BRIDGE_URL", "http://127.0.0.1:8402/health")
+        bridge_url = os.getenv(
+            "FoveAI_PREFLIGHT_BRIDGE_URL", "http://127.0.0.1:8402/health"
+        )
         bridge_ok = _service_ok(bridge_url, timeout=2.0)
         results.append(
             CheckResult(
@@ -130,10 +132,9 @@ def run_preflight(level: str = "light", autoheal: bool = True) -> List[CheckResu
     return results
 
 
-def summarize(results: List[CheckResult]) -> str:
+def summarize(results: list[CheckResult]) -> str:
     return ", ".join([f"{r.name}={'OK' if r.ok else 'FAIL'}" for r in results])
 
 
-def to_dict(results: List[CheckResult]):
+def to_dict(results: list[CheckResult]):
     return [asdict(r) for r in results]
-

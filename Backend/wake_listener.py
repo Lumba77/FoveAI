@@ -16,10 +16,8 @@ This script responds by starting:
 
 import json
 import logging
-import os
 import socket
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -31,7 +29,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-WAKE_PORT   = 9999
+WAKE_PORT = 9999
 BACKEND_DIR = Path(__file__).resolve().parent
 VENV_PYTHON = Path(r"C:\Users\danie\program\LUMAX\.venv\Scripts\python.exe")
 
@@ -64,18 +62,22 @@ VENV_PYTHON = Path(r"C:\Users\danie\program\LUMAX\.venv\Scripts\python.exe")
 # When running: Soul → 8200 → 8300 (adds in-flight compression for very long sessions)
 # When not running: Soul → 8300 directly (embedded memory still works)
 
-XRLF_DEV_DIR    = Path(r"C:\Users\danie\program\LUMAX\Tools\XRLF 1.0 dev")
-XRLF_PYTHON     = XRLF_DEV_DIR / ".venv" / "Scripts" / "python.exe"
-XRLF_SERVER_PY  = XRLF_DEV_DIR / "api" / "server.py"
-XRLF_MODEL_PATH = Path(r"C:\Users\danie\.cache\huggingface\hub\foveai-forge\XRLF\qwen4b-concise-v1.0.xrlf")
+XRLF_DEV_DIR = Path(r"C:\Users\danie\program\LUMAX\Tools\XRLF 1.0 dev")
+XRLF_PYTHON = XRLF_DEV_DIR / ".venv" / "Scripts" / "python.exe"
+XRLF_SERVER_PY = XRLF_DEV_DIR / "api" / "server.py"
+XRLF_MODEL_PATH = Path(
+    r"C:\Users\danie\.cache\huggingface\hub\foveai-forge\XRLF\qwen4b-concise-v1.0.xrlf"
+)
 
 # Foveated-memory proxy is optional — only started if script exists
-FOVEATED_MEMORY_DIR   = Path(r"C:\Users\danie\program\LUMAX\Tools\foveated-memory")
+FOVEATED_MEMORY_DIR = Path(r"C:\Users\danie\program\LUMAX\Tools\foveated-memory")
 FOVEATED_MEMORY_ENTRY = FOVEATED_MEMORY_DIR / "server.js"
-USE_FOVEATED_PROXY    = FOVEATED_MEMORY_ENTRY.exists()  # auto-detect
+USE_FOVEATED_PROXY = FOVEATED_MEMORY_ENTRY.exists()  # auto-detect
 
 # Soul LLM endpoint: prefer foveated proxy if running, else direct to XRLF
-SOUL_LLM_UPSTREAM = "http://127.0.0.1:8400/v1" if USE_FOVEATED_PROXY else "http://127.0.0.1:8400/v1"
+SOUL_LLM_UPSTREAM = (
+    "http://127.0.0.1:8400/v1" if USE_FOVEATED_PROXY else "http://127.0.0.1:8400/v1"
+)
 
 # ── STARTUP SEQUENCE ─────────────────────────────────────────────────────────
 # Each service starts only after its probe_port is confirmed open (or times out).
@@ -83,68 +85,80 @@ SOUL_LLM_UPSTREAM = "http://127.0.0.1:8400/v1" if USE_FOVEATED_PROXY else "http:
 SERVICES = [
     # ① The brain — self-contained, loads all sections from .xrlf
     {
-        "name":          "XRLF Bundle Server (8300)",
-        "type":          "xrlf",
-        "script":        XRLF_SERVER_PY,
-        "probe_port":    8300,
-        "extra_args":    [
-            "--model",      str(XRLF_MODEL_PATH),
-            "--port",       "8300",
-            "--host",       "0.0.0.0",    # LAN accessible
-            "--gpu-layers", "-1",          # full GPU offload
-            "--ctx",        "8192",
-            "--session",    "AliceVR",
+        "name": "XRLF Bundle Server (8300)",
+        "type": "xrlf",
+        "script": XRLF_SERVER_PY,
+        "probe_port": 8300,
+        "extra_args": [
+            "--model",
+            str(XRLF_MODEL_PATH),
+            "--port",
+            "8300",
+            "--host",
+            "0.0.0.0",  # LAN accessible
+            "--gpu-layers",
+            "-1",  # full GPU offload
+            "--ctx",
+            "8192",
+            "--session",
+            "AliceVR",
         ],
-        "env_extra":     {},
+        "env_extra": {},
         "startup_delay": 5.0,  # GGUF load + XRL layer injection takes a few seconds
     },
     # ② Optional: foveated-memory proxy (in-flight context compression for long sessions)
-    *([{
-        "name":          "Foveated Memory Proxy (8200) [optional]",
-        "type":          "node",
-        "script":        FOVEATED_MEMORY_ENTRY,
-        "probe_port":    8200,
-        "extra_args":    [],
-        "env_extra":     {
-            "PORT":            "8200",
-            "UPSTREAM_URL":    "http://127.0.0.1:8400",  # → XRLF bundle
-            "WORKSPACE_ID":    "AliceVR",
-            "XRLF_DEV_DIR":    str(XRLF_DEV_DIR),
-            "XRLF_MODEL_FILE": XRLF_MODEL_PATH.name,
-        },
-        "startup_delay": 2.0,
-    }] if USE_FOVEATED_PROXY else []),
+    *(
+        [
+            {
+                "name": "Foveated Memory Proxy (8200) [optional]",
+                "type": "node",
+                "script": FOVEATED_MEMORY_ENTRY,
+                "probe_port": 8200,
+                "extra_args": [],
+                "env_extra": {
+                    "PORT": "8200",
+                    "UPSTREAM_URL": "http://127.0.0.1:8400",  # → XRLF bundle
+                    "WORKSPACE_ID": "AliceVR",
+                    "XRLF_DEV_DIR": str(XRLF_DEV_DIR),
+                    "XRLF_MODEL_FILE": XRLF_MODEL_PATH.name,
+                },
+                "startup_delay": 2.0,
+            }
+        ]
+        if USE_FOVEATED_PROXY
+        else []
+    ),
     # ③ FoveAI Soul — cognitive WebSocket hub for Quest 3
     {
-        "name":          "FoveAI Soul / Cognitive Engine (8400)",
-        "type":          "python",
-        "script":        BACKEND_DIR / "app" / "main.py",
-        "probe_port":    8400,
-        "extra_args":    [],
-        "env_extra":     {
+        "name": "FoveAI Soul / Cognitive Engine (8400)",
+        "type": "python",
+        "script": BACKEND_DIR / "app" / "main.py",
+        "probe_port": 8400,
+        "extra_args": [],
+        "env_extra": {
             "OPENAI_BASE_URL": SOUL_LLM_UPSTREAM,
-            "OPENAI_API_KEY":  "AliceVR",
+            "OPENAI_API_KEY": "AliceVR",
         },
         "startup_delay": 0.0,
     },
     # ④ STT bridge — Quest mic PCM → XRLF native STT
     {
-        "name":          "STT Bridge (8402)",
-        "type":          "python",
-        "script":        BACKEND_DIR / "stt_whisper_server.py",
-        "probe_port":    8402,
-        "extra_args":    [],
-        "env_extra":     {},
+        "name": "STT Bridge (8402)",
+        "type": "python",
+        "script": BACKEND_DIR / "stt_whisper_server.py",
+        "probe_port": 8402,
+        "extra_args": [],
+        "env_extra": {},
         "startup_delay": 0.0,
     },
     # ⑤ TTS bridge — XRLF Kokoro output → Quest speaker
     {
-        "name":          "TTS Kokoro Bridge (8403)",
-        "type":          "python",
-        "script":        BACKEND_DIR / "tts_stream_server.py",
-        "probe_port":    8403,
-        "extra_args":    [],
-        "env_extra":     {},
+        "name": "TTS Kokoro Bridge (8403)",
+        "type": "python",
+        "script": BACKEND_DIR / "tts_stream_server.py",
+        "probe_port": 8403,
+        "extra_args": [],
+        "env_extra": {},
         "startup_delay": 0.0,
     },
 ]
@@ -153,9 +167,8 @@ _procs: dict[str, subprocess.Popen] = {}
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-
 # Foveated-memory proxy (Node.js) — wraps XRLF server, adds infinite foveated memory
-FOVEATED_MEMORY_DIR   = Path(r"C:\Users\danie\program\LUMAX\Tools\foveated-memory")
+FOVEATED_MEMORY_DIR = Path(r"C:\Users\danie\program\LUMAX\Tools\foveated-memory")
 FOVEATED_MEMORY_ENTRY = FOVEATED_MEMORY_DIR / "server.js"
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -179,71 +192,76 @@ FOVEATED_MEMORY_ENTRY = FOVEATED_MEMORY_DIR / "server.js"
 # ──────────────────────────────────────────────────────────────────────────────
 SERVICES = [
     {
-        "name":          "XRLF Bundle Server (8300)",
-        "type":          "xrlf",          # uses XRLF_PYTHON, not VENV_PYTHON
-        "script":        XRLF_SERVER_PY,
-        "probe_port":    8300,
-        "extra_args":    [
-            "--model",    str(XRLF_MODEL_PATH),
-            "--port",     "8300",
-            "--host",     "0.0.0.0",      # must be 0.0.0.0, not 127.0.0.1
-            "--gpu-layers", "-1",          # full GPU offload
-            "--ctx",      "8192",
-            "--session",  "AliceVR",
+        "name": "XRLF Bundle Server (8300)",
+        "type": "xrlf",  # uses XRLF_PYTHON, not VENV_PYTHON
+        "script": XRLF_SERVER_PY,
+        "probe_port": 8300,
+        "extra_args": [
+            "--model",
+            str(XRLF_MODEL_PATH),
+            "--port",
+            "8300",
+            "--host",
+            "0.0.0.0",  # must be 0.0.0.0, not 127.0.0.1
+            "--gpu-layers",
+            "-1",  # full GPU offload
+            "--ctx",
+            "8192",
+            "--session",
+            "AliceVR",
         ],
-        "env_extra":     {},
-        "startup_delay": 5.0,             # allow model to load into VRAM before dependents
+        "env_extra": {},
+        "startup_delay": 5.0,  # allow model to load into VRAM before dependents
     },
     {
-        "name":          "Foveated Memory Proxy (8200)",
-        "type":          "node",
-        "script":        FOVEATED_MEMORY_ENTRY,
-        "probe_port":    8200,
-        "extra_args":    [],
-        "env_extra":     {
-            "PORT":            "8200",
-            "UPSTREAM_URL":    "http://127.0.0.1:8400",  # → XRLF bundle server
-            "WORKSPACE_ID":    "AliceVR",
-            "XRLF_DEV_DIR":    str(XRLF_DEV_DIR),
+        "name": "Foveated Memory Proxy (8200)",
+        "type": "node",
+        "script": FOVEATED_MEMORY_ENTRY,
+        "probe_port": 8200,
+        "extra_args": [],
+        "env_extra": {
+            "PORT": "8200",
+            "UPSTREAM_URL": "http://127.0.0.1:8400",  # → XRLF bundle server
+            "WORKSPACE_ID": "AliceVR",
+            "XRLF_DEV_DIR": str(XRLF_DEV_DIR),
             "XRLF_MODEL_FILE": "qwen4b-concise-v1.0.xrlf",
         },
         "startup_delay": 2.0,
     },
     {
-        "name":          "FoveAI Soul / Cognitive Engine (8400)",
-        "type":          "python",
-        "script":        BACKEND_DIR / "app" / "main.py",
-        "probe_port":    8400,
-        "extra_args":    [],
-        "env_extra":     {
+        "name": "FoveAI Soul / Cognitive Engine (8400)",
+        "type": "python",
+        "script": BACKEND_DIR / "app" / "main.py",
+        "probe_port": 8400,
+        "extra_args": [],
+        "env_extra": {
             "OPENAI_BASE_URL": "http://127.0.0.1:8400/v1",  # → foveated proxy
-            "OPENAI_API_KEY":  "AliceVR",
+            "OPENAI_API_KEY": "AliceVR",
         },
         "startup_delay": 0.0,
     },
     {
-        "name":          "STT Whisper Bridge (8402)",
-        "type":          "python",
-        "script":        BACKEND_DIR / "stt_whisper_server.py",
-        "probe_port":    8402,
-        "extra_args":    [],
-        "env_extra":     {},
+        "name": "STT Whisper Bridge (8402)",
+        "type": "python",
+        "script": BACKEND_DIR / "stt_whisper_server.py",
+        "probe_port": 8402,
+        "extra_args": [],
+        "env_extra": {},
         "startup_delay": 0.0,
     },
     {
-        "name":          "TTS Kokoro Bridge (8403)",
-        "type":          "python",
-        "script":        BACKEND_DIR / "tts_stream_server.py",
-        "probe_port":    8403,
-        "extra_args":    [],
-        "env_extra":     {},
+        "name": "TTS Kokoro Bridge (8403)",
+        "type": "python",
+        "script": BACKEND_DIR / "tts_stream_server.py",
+        "probe_port": 8403,
+        "extra_args": [],
+        "env_extra": {},
         "startup_delay": 0.0,
     },
 ]
 
 _procs: dict[str, subprocess.Popen] = {}
 # ---------------------------------------------------------------------------
-
 
 
 def is_port_open(host: str, port: int, timeout: float = 1.0) -> bool:
@@ -257,9 +275,9 @@ def is_port_open(host: str, port: int, timeout: float = 1.0) -> bool:
 
 def start_service(svc: dict) -> None:
     """Start a backend service subprocess if not already running."""
-    name   = svc["name"]
+    name = svc["name"]
     script = svc["script"]
-    port   = svc["probe_port"]
+    port = svc["probe_port"]
 
     if is_port_open("127.0.0.1", port):
         logger.info(f"[OK] {name} already running on port {port}")
@@ -271,7 +289,9 @@ def start_service(svc: dict) -> None:
             logger.info(f"[OK] {name} subprocess still alive")
             return
         else:
-            logger.warning(f"[!!] {name} process died (code={proc.returncode}), restarting")
+            logger.warning(
+                f"[!!] {name} process died (code={proc.returncode}), restarting"
+            )
 
     if not script.exists():
         logger.error(f"[ERR] Script not found: {script}")
@@ -311,7 +331,7 @@ def main() -> None:
     while True:
         try:
             data, addr = sock.recvfrom(1024)
-        except socket.timeout:
+        except TimeoutError:
             logger.debug("Heartbeat — still listening...")
             continue
 

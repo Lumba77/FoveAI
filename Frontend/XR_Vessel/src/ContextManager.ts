@@ -205,6 +205,7 @@ export class ContextManager {
             'vi': 'vision',
             'br': 'branding',
             'vc': 'videochat',
+            'as': 'avatarstudio',
             'dt': 'devtools',
             'fm': 'featuremap',
             'se': 'settings'

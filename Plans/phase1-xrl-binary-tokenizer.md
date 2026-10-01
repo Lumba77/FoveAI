@@ -403,6 +403,7 @@ from pathlib import Path
 
 XRL_CLI = Path(__file__).parent / "xrl.cjs"
 
+
 def load_xrl(filepath: str, depth: int = 2, budget: int = None) -> dict:
     """Load a file as XRL skeleton at specified depth."""
     cmd = ["node", str(XRL_CLI), filepath, "--depth", str(depth), "--json"]
@@ -411,17 +412,29 @@ def load_xrl(filepath: str, depth: int = 2, budget: int = None) -> dict:
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
     return json.loads(result.stdout)
 
+
 def expand_xrl(filepath: str, block: str, depth: int = 0) -> dict:
     """Expand a specific block in an XRL file."""
-    cmd = ["node", str(XRL_CLI), filepath, "--depth", str(depth), "--expand", block, "--json"]
+    cmd = [
+        "node",
+        str(XRL_CLI),
+        filepath,
+        "--depth",
+        str(depth),
+        "--expand",
+        block,
+        "--json",
+    ]
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
     return json.loads(result.stdout)
+
 
 def search_xrl(filepath: str, query: str) -> dict:
     """Search within an XRL skeleton for matching blocks."""
     cmd = ["node", str(XRL_CLI), filepath, "--search", query, "--json"]
     result = subprocess.run(cmd, capture_output=True, text=True, check=True)
     return json.loads(result.stdout)
+
 
 def get_xrl_stats(filepath: str, depth: int = 2) -> dict:
     """Get token statistics for an XRL file."""

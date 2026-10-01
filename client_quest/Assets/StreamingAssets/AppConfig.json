@@ -2,5 +2,6 @@
   "serverIp": "192.168.8.100",
   "wsPort": 8403,
   "httpPort": 8402,
+  "soulPort": 8405,
   "avatarModel": "Alicechan.vrm"
 }

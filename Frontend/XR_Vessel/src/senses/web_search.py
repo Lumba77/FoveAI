@@ -3,7 +3,7 @@
 import logging
 import os
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import Literal
 
 import httpx
 from bs4 import BeautifulSoup
@@ -69,10 +69,10 @@ class SearchResponse(BaseModel):
     success: bool
     query: str
     engine: str
-    results: List[SearchResultItem]
+    results: list[SearchResultItem]
     result_count: int
     timestamp: str
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class HealthResponse(BaseModel):
@@ -88,7 +88,9 @@ async def check_rate_limit(client_ip: str) -> bool:
     now = datetime.utcnow().timestamp()
     window_start = now - RATE_LIMIT_WINDOW
     if client_ip in request_history:
-        request_history[client_ip] = [t for t in request_history[client_ip] if t > window_start]
+        request_history[client_ip] = [
+            t for t in request_history[client_ip] if t > window_start
+        ]
     else:
         request_history[client_ip] = []
     if len(request_history.get(client_ip, [])) >= RATE_LIMIT_MAX_REQUESTS:
@@ -102,7 +104,7 @@ class SearchEngineError(Exception):
 
 
 # Search implementations
-async def search_duckduckgo(query: str, max_results: int) -> List[SearchResultItem]:
+async def search_duckduckgo(query: str, max_results: int) -> list[SearchResultItem]:
     try:
         url = "https://html.duckduckgo.com/html/"
         headers = {
@@ -110,7 +112,9 @@ async def search_duckduckgo(query: str, max_results: int) -> List[SearchResultIt
             "Accept-Language": "en-US,en;q=0.5",
         }
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-            response = await client.post(url, data={"q": query, "kl": "us-en"}, headers=headers)
+            response = await client.post(
+                url, data={"q": query, "kl": "us-en"}, headers=headers
+            )
             soup = BeautifulSoup(response.text, "html.parser")
             results = []
             for result in soup.select(".result")[:max_results]:
@@ -122,43 +126,55 @@ async def search_duckduckgo(query: str, max_results: int) -> List[SearchResultIt
                         href = "https:" + href
                     elif href.startswith("/"):
                         continue
-                    results.append(SearchResultItem(
-                        title=title_elem.get_text(strip=True),
-                        url=href,
-                        snippet=snippet_elem.get_text(strip=True)[:300] if snippet_elem else "",
-                        source="duckduckgo"
-                    ))
+                    results.append(
+                        SearchResultItem(
+                            title=title_elem.get_text(strip=True),
+                            url=href,
+                            snippet=snippet_elem.get_text(strip=True)[:300]
+                            if snippet_elem
+                            else "",
+                            source="duckduckgo",
+                        )
+                    )
             return results
     except Exception as e:
         logger.error(f"DuckDuckGo error: {e}")
-        raise SearchEngineError(f"DuckDuckGo failed: {str(e)}")
+        raise SearchEngineError(f"DuckDuckGo failed: {e!s}")
 
 
-async def search_bing(query: str, max_results: int) -> List[SearchResultItem]:
+async def search_bing(query: str, max_results: int) -> list[SearchResultItem]:
     try:
         url = "https://www.bing.com/search"
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-            response = await client.get(url, params={"q": query, "count": max_results}, headers=headers)
+            response = await client.get(
+                url, params={"q": query, "count": max_results}, headers=headers
+            )
             soup = BeautifulSoup(response.text, "html.parser")
             results = []
             for result in soup.select(".b_algo")[:max_results]:
                 title_elem = result.select_one("h2 a")
                 snippet_elem = result.select_one(".b_caption p")
                 if title_elem:
-                    results.append(SearchResultItem(
-                        title=title_elem.get_text(strip=True),
-                        url=title_elem.get("href", ""),
-                        snippet=snippet_elem.get_text(strip=True)[:300] if snippet_elem else "",
-                        source="bing"
-                    ))
+                    results.append(
+                        SearchResultItem(
+                            title=title_elem.get_text(strip=True),
+                            url=title_elem.get("href", ""),
+                            snippet=snippet_elem.get_text(strip=True)[:300]
+                            if snippet_elem
+                            else "",
+                            source="bing",
+                        )
+                    )
             return results
     except Exception as e:
         logger.error(f"Bing error: {e}")
-        raise SearchEngineError(f"Bing failed: {str(e)}")
+        raise SearchEngineError(f"Bing failed: {e!s}")
 
 
-async def search_google(query: str, max_results: int) -> List[SearchResultItem]:
+async def search_google(query: str, max_results: int) -> list[SearchResultItem]:
     api_key = os.getenv("GOOGLE_SEARCH_API_KEY")
     cx = os.getenv("GOOGLE_SEARCH_CX")
     if api_key and cx:
@@ -166,7 +182,9 @@ async def search_google(query: str, max_results: int) -> List[SearchResultItem]:
     return await _search_google_scrape(query, max_results)
 
 
-async def _search_google_api(query: str, max_results: int, api_key: str, cx: str) -> List[SearchResultItem]:
+async def _search_google_api(
+    query: str, max_results: int, api_key: str, cx: str
+) -> list[SearchResultItem]:
     try:
         url = "https://www.googleapis.com/customsearch/v1"
         params = {"key": api_key, "cx": cx, "q": query, "num": min(max_results, 10)}
@@ -175,24 +193,30 @@ async def _search_google_api(query: str, max_results: int, api_key: str, cx: str
             data = response.json()
             results = []
             for item in data.get("items", []):
-                results.append(SearchResultItem(
-                    title=item.get("title", ""),
-                    url=item.get("link", ""),
-                    snippet=item.get("snippet", ""),
-                    source="google"
-                ))
+                results.append(
+                    SearchResultItem(
+                        title=item.get("title", ""),
+                        url=item.get("link", ""),
+                        snippet=item.get("snippet", ""),
+                        source="google",
+                    )
+                )
             return results
     except Exception as e:
         logger.warning(f"Google API failed, falling back: {e}")
         return await _search_google_scrape(query, max_results)
 
 
-async def _search_google_scrape(query: str, max_results: int) -> List[SearchResultItem]:
+async def _search_google_scrape(query: str, max_results: int) -> list[SearchResultItem]:
     try:
         url = "https://www.google.com/search"
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
         async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
-            response = await client.get(url, params={"q": query, "num": max_results}, headers=headers)
+            response = await client.get(
+                url, params={"q": query, "num": max_results}, headers=headers
+            )
             soup = BeautifulSoup(response.text, "html.parser")
             results = []
             for result in soup.select(".g")[:max_results]:
@@ -203,16 +227,20 @@ async def _search_google_scrape(query: str, max_results: int) -> List[SearchResu
                     href = link_elem.get("href", "")
                     if href.startswith("/url?q="):
                         href = href.split("/url?q=")[1].split("&amp;")[0]
-                    results.append(SearchResultItem(
-                        title=title_elem.get_text(strip=True),
-                        url=href,
-                        snippet=snippet_elem.get_text(strip=True)[:300] if snippet_elem else "",
-                        source="google"
-                    ))
+                    results.append(
+                        SearchResultItem(
+                            title=title_elem.get_text(strip=True),
+                            url=href,
+                            snippet=snippet_elem.get_text(strip=True)[:300]
+                            if snippet_elem
+                            else "",
+                            source="google",
+                        )
+                    )
             return results
     except Exception as e:
         logger.error(f"Google scrape error: {e}")
-        raise SearchEngineError(f"Google failed: {str(e)}")
+        raise SearchEngineError(f"Google failed: {e!s}")
 
 
 SEARCH_ENGINES = {
@@ -230,7 +258,11 @@ async def rate_limit_middleware(request: Request, call_next):
     if not await check_rate_limit(client_ip):
         return JSONResponse(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            content={"success": False, "error": "Rate limit exceeded", "retry_after": RATE_LIMIT_WINDOW}
+            content={
+                "success": False,
+                "error": "Rate limit exceeded",
+                "retry_after": RATE_LIMIT_WINDOW,
+            },
         )
     return await call_next(request)
 
@@ -249,16 +281,20 @@ async def health_check():
 @app.post("/search", response_model=SearchResponse)
 async def search_web(request: SearchRequest, http_request: Request):
     client_ip = http_request.client.host if http_request.client else "unknown"
-    logger.info(f"Search from {client_ip}: engine={request.engine}, query={request.query[:50]}...")
-    
+    logger.info(
+        f"Search from {client_ip}: engine={request.engine}, query={request.query[:50]}..."
+    )
+
     try:
         search_func = SEARCH_ENGINES.get(request.engine)
         if not search_func:
-            raise HTTPException(status_code=400, detail=f"Unknown engine: {request.engine}")
-        
+            raise HTTPException(
+                status_code=400, detail=f"Unknown engine: {request.engine}"
+            )
+
         results = await search_func(request.query, request.max_results)
         logger.info(f"Search completed: {len(results)} results")
-        
+
         return SearchResponse(
             success=True,
             query=request.query,
@@ -280,7 +316,7 @@ async def search_web(request: SearchRequest, http_request: Request):
         )
     except Exception as e:
         logger.exception("Unexpected error")
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Search failed: {e!s}")
 
 
 @app.get("/engines")
@@ -289,12 +325,17 @@ async def list_engines():
         "engines": [
             {"id": "duckduckgo", "name": "DuckDuckGo", "requires_api_key": False},
             {"id": "bing", "name": "Bing", "requires_api_key": False},
-            {"id": "google", "name": "Google", "requires_api_key": bool(os.getenv("GOOGLE_SEARCH_API_KEY"))},
+            {
+                "id": "google",
+                "name": "Google",
+                "requires_api_key": bool(os.getenv("GOOGLE_SEARCH_API_KEY")),
+            },
         ]
     }
 
 
 if __name__ == "__main__":
     import uvicorn
+
     logger.info(f"Starting {SERVICE_NAME} on port {SERVICE_PORT}")
     uvicorn.run("web_search:app", host="0.0.0.0", port=SERVICE_PORT, log_level="info")

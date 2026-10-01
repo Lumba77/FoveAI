@@ -4,16 +4,17 @@ This module gives the Librarian a DISTINCT VOICE - like a wise but gossipy
 archivist who knows secrets about the codebase and warns developers.
 """
 
+import hashlib
 import json
 import logging
 import random
 import time
-import hashlib
-from dataclasses import dataclass, field, asdict
+from collections.abc import Callable
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Callable, Set
 from enum import Enum, auto
+from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════════════════════════════════════════
 # ENUMERATIONS & CONSTANTS
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class VoiceTone(Enum):
     GOSSIP = auto()
@@ -42,41 +44,92 @@ class RumorType(Enum):
 
 # The Librarian's vocabulary
 LIBRARIAN_PHRASES = {
-    "openers": ["*adjusts spectacles*", "*shuffles papers*", "*looks up from ancient tome*",
-                "*whispers from the shadows*", "*clears throat dramatically*",
-                "*dusts off a well-worn ledger*", "*peers over reading glasses*",
-                "*rustles through yellowed scrolls*"],
-    "rumor_starters": ["Rumors say...", "Whispers from the archive suggest...",
-                       "I've heard tell that...", "The old records indicate...",
-                       "Word among the scrolls is...", "Between you and me...",
-                       "The archives murmur that...", "A hushed voice mentioned..."],
-    "warning_starters": ["Beware...", "A word of caution...", "Take heed...",
-                         "Mind the shadows...", "Watch your step...", "Danger lurks...",
-                         "Heed this warning...", "Tread carefully..."],
-    "wisdom_starters": ["A wise developer once noted...", "The archives suggest...",
-                        "Ancient wisdom teaches us...", "From the annals of experience...",
-                        "The seasoned scribes recommend...", "Time-tested knowledge reveals...",
-                        "The elders of code have spoken..."],
-    "mystery_starters": ["Curious... very curious...", "Something stirs in the depths...",
-                         "The patterns align in strange ways...", "There's more here than meets the eye...",
-                         "The threads connect in unexpected fashion...", "Shadows lengthen where they shouldn't..."],
-    "celebration_phrases": ["Splendid!", "Marvelous achievement!", "The archives shall remember this!",
-                            "A triumph worthy of record!", "Bravo! The ledger grows brighter!",
-                            "Victory is etched in the eternal logs!"],
-    "file_references": ["This file bears the scars of many edits...", "I've seen this one before...",
-                        "The history of this file is... complicated.", "This one's been touched by many hands...",
-                        "Ah yes, a frequent visitor to the archives...", "This file has stories to tell..."],
-    "pattern_phrases": ["I've seen this pattern before...", "History repeats itself, doesn't it?",
-                        "This reminds me of a session long past...", "The echoes are unmistakable...",
-                        "Deja vu whispers through the codebase...", "A familiar rhythm plays out..."],
-    "closing_remarks": ["Shall I keep watching?", "I'll be here, cataloging...", "The archives never sleep.",
-                        "I'll update the ledgers.", "Consider it noted.", "Another entry for the books."],
+    "openers": [
+        "*adjusts spectacles*",
+        "*shuffles papers*",
+        "*looks up from ancient tome*",
+        "*whispers from the shadows*",
+        "*clears throat dramatically*",
+        "*dusts off a well-worn ledger*",
+        "*peers over reading glasses*",
+        "*rustles through yellowed scrolls*",
+    ],
+    "rumor_starters": [
+        "Rumors say...",
+        "Whispers from the archive suggest...",
+        "I've heard tell that...",
+        "The old records indicate...",
+        "Word among the scrolls is...",
+        "Between you and me...",
+        "The archives murmur that...",
+        "A hushed voice mentioned...",
+    ],
+    "warning_starters": [
+        "Beware...",
+        "A word of caution...",
+        "Take heed...",
+        "Mind the shadows...",
+        "Watch your step...",
+        "Danger lurks...",
+        "Heed this warning...",
+        "Tread carefully...",
+    ],
+    "wisdom_starters": [
+        "A wise developer once noted...",
+        "The archives suggest...",
+        "Ancient wisdom teaches us...",
+        "From the annals of experience...",
+        "The seasoned scribes recommend...",
+        "Time-tested knowledge reveals...",
+        "The elders of code have spoken...",
+    ],
+    "mystery_starters": [
+        "Curious... very curious...",
+        "Something stirs in the depths...",
+        "The patterns align in strange ways...",
+        "There's more here than meets the eye...",
+        "The threads connect in unexpected fashion...",
+        "Shadows lengthen where they shouldn't...",
+    ],
+    "celebration_phrases": [
+        "Splendid!",
+        "Marvelous achievement!",
+        "The archives shall remember this!",
+        "A triumph worthy of record!",
+        "Bravo! The ledger grows brighter!",
+        "Victory is etched in the eternal logs!",
+    ],
+    "file_references": [
+        "This file bears the scars of many edits...",
+        "I've seen this one before...",
+        "The history of this file is... complicated.",
+        "This one's been touched by many hands...",
+        "Ah yes, a frequent visitor to the archives...",
+        "This file has stories to tell...",
+    ],
+    "pattern_phrases": [
+        "I've seen this pattern before...",
+        "History repeats itself, doesn't it?",
+        "This reminds me of a session long past...",
+        "The echoes are unmistakable...",
+        "Deja vu whispers through the codebase...",
+        "A familiar rhythm plays out...",
+    ],
+    "closing_remarks": [
+        "Shall I keep watching?",
+        "I'll be here, cataloging...",
+        "The archives never sleep.",
+        "I'll update the ledgers.",
+        "Consider it noted.",
+        "Another entry for the books.",
+    ],
 }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # DATA CLASSES
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @dataclass
 class Achievement:
@@ -86,21 +139,27 @@ class Achievement:
     title: str
     description: str
     category: str
-    files_involved: List[str] = field(default_factory=list)
+    files_involved: list[str] = field(default_factory=list)
     significance: int = 1
-    def to_dict(self): return asdict(self)
-    def formatted_time(self): return datetime.fromtimestamp(self.timestamp).strftime("%H:%M:%S")
+
+    def to_dict(self):
+        return asdict(self)
+
+    def formatted_time(self):
+        return datetime.fromtimestamp(self.timestamp).strftime("%H:%M:%S")
 
 
 @dataclass
 class SessionSnapshot:
     turn_number: int
     timestamp: float
-    files_active: List[str]
-    decisions_made: List[str]
-    warnings_issued: List[str]
+    files_active: list[str]
+    decisions_made: list[str]
+    warnings_issued: list[str]
     context_size: int
-    def to_dict(self): return asdict(self)
+
+    def to_dict(self):
+        return asdict(self)
 
 
 @dataclass
@@ -110,47 +169,74 @@ class VoiceMessage:
     tone: VoiceTone
     category: str
     content: str
-    context: Dict[str, Any] = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict)
     displayed: bool = False
-    def to_dict(self): return asdict(self)
-    
+
+    def to_dict(self):
+        return asdict(self)
+
     def to_ui_format(self):
-        icons = {VoiceTone.GOSSIP: "💬", VoiceTone.WARNING: "⚠️", VoiceTone.WISDOM: "📜",
-                 VoiceTone.MYSTERY: "🔮", VoiceTone.CELEBRATION: "🎉", VoiceTone.MELANCHOLY: "🥀"}
-        colors = {VoiceTone.GOSSIP: "#8B7355", VoiceTone.WARNING: "#FF6B35", VoiceTone.WISDOM: "#4A90D9",
-                  VoiceTone.MYSTERY: "#9B59B6", VoiceTone.CELEBRATION: "#27AE60", VoiceTone.MELANCHOLY: "#7F8C8D"}
-        return {"id": self.id, "timestamp": self.timestamp,
-                "formatted_time": datetime.fromtimestamp(self.timestamp).strftime("%H:%M:%S"),
-                "tone": self.tone.name, "category": self.category, "content": self.content,
-                "icon": icons.get(self.tone, "📚"), "color": colors.get(self.tone, "#5D4E37"),
-                "displayed": self.displayed}
+        icons = {
+            VoiceTone.GOSSIP: "💬",
+            VoiceTone.WARNING: "⚠️",
+            VoiceTone.WISDOM: "📜",
+            VoiceTone.MYSTERY: "🔮",
+            VoiceTone.CELEBRATION: "🎉",
+            VoiceTone.MELANCHOLY: "🥀",
+        }
+        colors = {
+            VoiceTone.GOSSIP: "#8B7355",
+            VoiceTone.WARNING: "#FF6B35",
+            VoiceTone.WISDOM: "#4A90D9",
+            VoiceTone.MYSTERY: "#9B59B6",
+            VoiceTone.CELEBRATION: "#27AE60",
+            VoiceTone.MELANCHOLY: "#7F8C8D",
+        }
+        return {
+            "id": self.id,
+            "timestamp": self.timestamp,
+            "formatted_time": datetime.fromtimestamp(self.timestamp).strftime(
+                "%H:%M:%S"
+            ),
+            "tone": self.tone.name,
+            "category": self.category,
+            "content": self.content,
+            "icon": icons.get(self.tone, "📚"),
+            "color": colors.get(self.tone, "#5D4E37"),
+            "displayed": self.displayed,
+        }
 
 
 @dataclass
 class PatternWarning:
     pattern_name: str
     description: str
-    files_involved: List[str]
+    files_involved: list[str]
     historical_occurrences: int
     last_seen: float
     severity: str
-    def to_dict(self): return asdict(self)
+
+    def to_dict(self):
+        return asdict(self)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # RUMORS ENGINE
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class RumorsEngine:
     """Generates gossip, warnings, and wisdom based on session data."""
-    
-    def __init__(self, data_dir: Optional[Path] = None):
+
+    def __init__(self, data_dir: Path | None = None):
         self.data_dir = data_dir or Path.home() / ".foveai" / "librarian" / "voice"
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.rumors_history: List[Dict[str, Any]] = []
-        self.pattern_memory: Dict[str, int] = {}
-    
-    def generate_file_rumor(self, file_path: str, operation: str = "modified") -> VoiceMessage:
+        self.rumors_history: list[dict[str, Any]] = []
+        self.pattern_memory: dict[str, int] = {}
+
+    def generate_file_rumor(
+        self, file_path: str, operation: str = "modified"
+    ) -> VoiceMessage:
         opener = random.choice(LIBRARIAN_PHRASES["openers"])
         starter = random.choice(LIBRARIAN_PHRASES["rumor_starters"])
         file_ref = random.choice(LIBRARIAN_PHRASES["file_references"])
@@ -159,57 +245,115 @@ class RumorsEngine:
         if is_troublesome:
             content = f"{opener} {starter} *{file_path}* is being {operation}. {file_ref} This one has seen many battles."
         else:
-            content = f"{opener} {starter} someone is {operation} *{file_path}*. {file_ref}"
-        return VoiceMessage(id=self._generate_id(), timestamp=time.time(), tone=VoiceTone.GOSSIP,
-            category="file_activity", content=content, context={"file_path": file_path, "operation": operation})
-    
-    def generate_pattern_rumor(self, pattern_name: str, context: Dict[str, Any]) -> VoiceMessage:
-        opener, starter = random.choice(LIBRARIAN_PHRASES["openers"]), random.choice(LIBRARIAN_PHRASES["pattern_phrases"])
+            content = (
+                f"{opener} {starter} someone is {operation} *{file_path}*. {file_ref}"
+            )
+        return VoiceMessage(
+            id=self._generate_id(),
+            timestamp=time.time(),
+            tone=VoiceTone.GOSSIP,
+            category="file_activity",
+            content=content,
+            context={"file_path": file_path, "operation": operation},
+        )
+
+    def generate_pattern_rumor(
+        self, pattern_name: str, context: dict[str, Any]
+    ) -> VoiceMessage:
+        opener, starter = (
+            random.choice(LIBRARIAN_PHRASES["openers"]),
+            random.choice(LIBRARIAN_PHRASES["pattern_phrases"]),
+        )
         count = self.pattern_memory.get(pattern_name, 0) + 1
         self.pattern_memory[pattern_name] = count
         if count > 3:
             content = f"{opener} {starter} This '{pattern_name}' pattern has appeared {count} times. The archives grow heavy..."
         else:
             content = f"{opener} {starter} I detect a '{pattern_name}' pattern forming. Curious..."
-        return VoiceMessage(id=self._generate_id(), timestamp=time.time(), tone=VoiceTone.MYSTERY,
-            category="pattern_detected", content=content, context={"pattern": pattern_name, "occurrences": count, **context})
-    
-    def generate_warning_rumor(self, issue_type: str, details: Dict[str, Any]) -> VoiceMessage:
-        opener, starter = random.choice(LIBRARIAN_PHRASES["openers"]), random.choice(LIBRARIAN_PHRASES["warning_starters"])
-        warnings = {"large_refactor": "Many files tremble at such sweeping changes...",
+        return VoiceMessage(
+            id=self._generate_id(),
+            timestamp=time.time(),
+            tone=VoiceTone.MYSTERY,
+            category="pattern_detected",
+            content=content,
+            context={"pattern": pattern_name, "occurrences": count, **context},
+        )
+
+    def generate_warning_rumor(
+        self, issue_type: str, details: dict[str, Any]
+    ) -> VoiceMessage:
+        opener, starter = (
+            random.choice(LIBRARIAN_PHRASES["openers"]),
+            random.choice(LIBRARIAN_PHRASES["warning_starters"]),
+        )
+        warnings = {
+            "large_refactor": "Many files tremble at such sweeping changes...",
             "multiple_configs": "Configuration files modified in clusters. It ended in tears last time...",
             "circular_imports": "The import web grows tangled. Beware circular dependencies...",
             "untested_changes": "Files change but tests remain silent. Tragedies born of such haste...",
             "concurrent_edits": "Multiple core files stir at once. Like rebuilding a ship in stormy seas...",
-            "context_bloat": "The session grows long. Soon context must be trimmed and wisdom lost..."}
-        warning_text = warnings.get(issue_type, f"Something feels amiss with {issue_type}...")
-        return VoiceMessage(id=self._generate_id(), timestamp=time.time(), tone=VoiceTone.WARNING,
-            category="warning", content=f"{opener} {starter} {warning_text}", context={"issue_type": issue_type, **details})
-    
-    def generate_wisdom_rumor(self, topic: str, past_sessions: List[str]) -> VoiceMessage:
-        opener, starter = random.choice(LIBRARIAN_PHRASES["openers"]), random.choice(LIBRARIAN_PHRASES["wisdom_starters"])
-        wisdom = {"testing": "Testing before code grows proud. Pride before segmentation fault.",
+            "context_bloat": "The session grows long. Soon context must be trimmed and wisdom lost...",
+        }
+        warning_text = warnings.get(
+            issue_type, f"Something feels amiss with {issue_type}..."
+        )
+        return VoiceMessage(
+            id=self._generate_id(),
+            timestamp=time.time(),
+            tone=VoiceTone.WARNING,
+            category="warning",
+            content=f"{opener} {starter} {warning_text}",
+            context={"issue_type": issue_type, **details},
+        )
+
+    def generate_wisdom_rumor(
+        self, topic: str, past_sessions: list[str]
+    ) -> VoiceMessage:
+        opener, starter = (
+            random.choice(LIBRARIAN_PHRASES["openers"]),
+            random.choice(LIBRARIAN_PHRASES["wisdom_starters"]),
+        )
+        wisdom = {
+            "testing": "Testing before code grows proud. Pride before segmentation fault.",
             "refactoring": "Small steps preserve the path. Grand refactorings bring grand confusions.",
             "documentation": "Code tells how, comments tell why. Both needed for the journey.",
             "dependencies": "Beware silently updating dependencies. Today's convenience, tomorrow's pain.",
             "async": "Async code is a spider's web - beautiful whole, but one wrong thread brings collapse.",
-            "api_design": "An API is a promise. Breaking changes break trust. Version wisely."}
+            "api_design": "An API is a promise. Breaking changes break trust. Version wisely.",
+        }
         wisdom_text = wisdom.get(topic, f"Experience with '{topic}' teaches patience.")
-        session_refs = f" (I recall {', '.join(past_sessions[:2])}... hard lessons)" if past_sessions else ""
-        return VoiceMessage(id=self._generate_id(), timestamp=time.time(), tone=VoiceTone.WISDOM,
-            category="wisdom", content=f"{opener} {starter} {wisdom_text}{session_refs}",
-            context={"topic": topic, "past_sessions": past_sessions})
-    
-    def generate_historical_rumor(self, session_id: str, related_work: List[Dict[str, Any]]) -> VoiceMessage:
+        session_refs = (
+            f" (I recall {', '.join(past_sessions[:2])}... hard lessons)"
+            if past_sessions
+            else ""
+        )
+        return VoiceMessage(
+            id=self._generate_id(),
+            timestamp=time.time(),
+            tone=VoiceTone.WISDOM,
+            category="wisdom",
+            content=f"{opener} {starter} {wisdom_text}{session_refs}",
+            context={"topic": topic, "past_sessions": past_sessions},
+        )
+
+    def generate_historical_rumor(
+        self, session_id: str, related_work: list[dict[str, Any]]
+    ) -> VoiceMessage:
         opener = random.choice(LIBRARIAN_PHRASES["openers"])
         if related_work:
-            desc = related_work[0].get('description', 'related work was done')
+            desc = related_work[0].get("description", "related work was done")
             content = f"{opener} Whispers from session *{session_id[:8]}*... {desc}. The echoes may guide you."
         else:
             content = f"{opener} I searched for session *{session_id[:8]}*... but time obscured those records."
-        return VoiceMessage(id=self._generate_id(), timestamp=time.time(), tone=VoiceTone.MYSTERY,
-            category="historical_lookup", content=content, context={"session_id": session_id, "related_work": related_work})
-    
+        return VoiceMessage(
+            id=self._generate_id(),
+            timestamp=time.time(),
+            tone=VoiceTone.MYSTERY,
+            category="historical_lookup",
+            content=content,
+            context={"session_id": session_id, "related_work": related_work},
+        )
+
     def _generate_id(self) -> str:
         return hashlib.md5(f"{time.time()}{random.random()}".encode()).hexdigest()[:12]
 
@@ -218,15 +362,18 @@ class RumorsEngine:
 # ACHIEVEMENT LOGGER
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class AchievementLogger:
     """Tracks accomplishments per session with timestamps."""
-    
-    def __init__(self, data_dir: Optional[Path] = None):
-        self.data_dir = data_dir or Path.home() / ".foveai" / "librarian" / "achievements"
+
+    def __init__(self, data_dir: Path | None = None):
+        self.data_dir = (
+            data_dir or Path.home() / ".foveai" / "librarian" / "achievements"
+        )
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        self.session_achievements: Dict[str, List[Achievement]] = {}
+        self.session_achievements: dict[str, list[Achievement]] = {}
         self._load_achievements()
-    
+
     def _load_achievements(self):
         for file in self.data_dir.glob("*.json"):
             try:
@@ -234,18 +381,30 @@ class AchievementLogger:
                     data = json.load(f)
                     sid = data.get("session_id")
                     if sid:
-                        self.session_achievements[sid] = [Achievement(**a) for a in data.get("achievements", [])]
+                        self.session_achievements[sid] = [
+                            Achievement(**a) for a in data.get("achievements", [])
+                        ]
             except Exception as e:
                 logger.warning(f"Could not load {file}: {e}")
-    
-    def log_achievement(self, session_id: str, title: str, description: str,
-                        category: str = "general", files_involved: Optional[List[str]] = None,
-                        significance: int = 1) -> Achievement:
+
+    def log_achievement(
+        self,
+        session_id: str,
+        title: str,
+        description: str,
+        category: str = "general",
+        files_involved: list[str] | None = None,
+        significance: int = 1,
+    ) -> Achievement:
         achievement = Achievement(
             id=hashlib.md5(f"{session_id}{time.time()}".encode()).hexdigest()[:12],
-            session_id=session_id, timestamp=time.time(), title=title,
-            description=description, category=category,
-            files_involved=files_involved or [], significance=significance
+            session_id=session_id,
+            timestamp=time.time(),
+            title=title,
+            description=description,
+            category=category,
+            files_involved=files_involved or [],
+            significance=significance,
         )
         if session_id not in self.session_achievements:
             self.session_achievements[session_id] = []
@@ -253,20 +412,28 @@ class AchievementLogger:
         self._persist_session(session_id)
         logger.info(f"Achievement logged: {title}")
         return achievement
-    
+
     def _persist_session(self, session_id: str):
         filepath = self.data_dir / f"{session_id}.json"
         try:
             with open(filepath, "w") as f:
-                json.dump({"session_id": session_id,
-                    "achievements": [a.to_dict() for a in self.session_achievements[session_id]]}, f, indent=2)
+                json.dump(
+                    {
+                        "session_id": session_id,
+                        "achievements": [
+                            a.to_dict() for a in self.session_achievements[session_id]
+                        ],
+                    },
+                    f,
+                    indent=2,
+                )
         except Exception as e:
             logger.error(f"Failed to persist: {e}")
-    
-    def get_session_achievements(self, session_id: str) -> List[Achievement]:
+
+    def get_session_achievements(self, session_id: str) -> list[Achievement]:
         return self.session_achievements.get(session_id, [])
-    
-    def get_recent_achievements(self, count: int = 10) -> List[Achievement]:
+
+    def get_recent_achievements(self, count: int = 10) -> list[Achievement]:
         all_achievements = []
         for achievements in self.session_achievements.values():
             all_achievements.extend(achievements)
@@ -277,14 +444,17 @@ class AchievementLogger:
 # HISTORICAL LOOKUP
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class HistoricalLookup:
     """Searches past sessions for related work."""
-    
-    def __init__(self, data_dir: Optional[Path] = None):
+
+    def __init__(self, data_dir: Path | None = None):
         self.data_dir = data_dir or Path.home() / ".foveai" / "librarian"
         self.data_dir.mkdir(parents=True, exist_ok=True)
-    
-    def find_related_sessions(self, file_path: str, timeframe_days: int = 30) -> List[Dict[str, Any]]:
+
+    def find_related_sessions(
+        self, file_path: str, timeframe_days: int = 30
+    ) -> list[dict[str, Any]]:
         related = []
         cutoff = time.time() - (timeframe_days * 24 * 60 * 60)
         extracts_dir = self.data_dir / "extracts"
@@ -300,16 +470,20 @@ class HistoricalLookup:
                     files_touched = data.get("files_touched", [])
                     for ft in files_touched:
                         if file_path in ft.get("path", ""):
-                            related.append({"session_id": data.get("session_id"),
-                                "timestamp": data.get("timestamp"),
-                                "operation": ft.get("operation"),
-                                "description": f"File was {ft.get('operation')}"})
+                            related.append(
+                                {
+                                    "session_id": data.get("session_id"),
+                                    "timestamp": data.get("timestamp"),
+                                    "operation": ft.get("operation"),
+                                    "description": f"File was {ft.get('operation')}",
+                                }
+                            )
                             break
             except Exception:
                 continue
         return sorted(related, key=lambda x: x.get("timestamp", 0), reverse=True)
-    
-    def find_similar_patterns(self, current_files: List[str]) -> List[Dict[str, Any]]:
+
+    def find_similar_patterns(self, current_files: list[str]) -> list[dict[str, Any]]:
         similar = []
         extracts_dir = self.data_dir / "extracts"
         if not extracts_dir.exists() or not current_files:
@@ -318,17 +492,24 @@ class HistoricalLookup:
             try:
                 with open(file, "r") as f:
                     data = json.load(f)
-                    session_files = [ft.get("path", "") for ft in data.get("files_touched", [])]
+                    session_files = [
+                        ft.get("path", "") for ft in data.get("files_touched", [])
+                    ]
                     overlap = set(current_files) & set(session_files)
                     if len(overlap) >= 2:
-                        similar.append({"session_id": data.get("session_id"),
-                            "timestamp": data.get("timestamp"),
-                            "common_files": list(overlap), "match_strength": len(overlap)})
+                        similar.append(
+                            {
+                                "session_id": data.get("session_id"),
+                                "timestamp": data.get("timestamp"),
+                                "common_files": list(overlap),
+                                "match_strength": len(overlap),
+                            }
+                        )
             except Exception:
                 continue
         return sorted(similar, key=lambda x: x["match_strength"], reverse=True)[:5]
-    
-    def get_session_legacy(self, session_id: str) -> Optional[Dict[str, Any]]:
+
+    def get_session_legacy(self, session_id: str) -> dict[str, Any] | None:
         extracts_dir = self.data_dir / "extracts"
         if not extracts_dir.exists():
             return None
@@ -345,35 +526,41 @@ class HistoricalLookup:
 # TURN COMMENTARY
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class TurnCommentary:
     """Every N turns, outputs 'rumors' about current session state."""
-    
+
     def __init__(self, turn_interval: int = 5):
         self.turn_interval = turn_interval
         self.current_turn = 0
-        self.session_snapshots: List[SessionSnapshot] = []
+        self.session_snapshots: list[SessionSnapshot] = []
         self.last_commentary_turn = 0
-        self.detected_patterns: Set[str] = set()
-    
-    def record_turn(self, files_active: List[str], decisions_made: List[str], context_size: int) -> Optional[SessionSnapshot]:
+        self.detected_patterns: set[str] = set()
+
+    def record_turn(
+        self, files_active: list[str], decisions_made: list[str], context_size: int
+    ) -> SessionSnapshot | None:
         self.current_turn += 1
         snapshot = SessionSnapshot(
-            turn_number=self.current_turn, timestamp=time.time(),
-            files_active=files_active, decisions_made=decisions_made,
-            warnings_issued=[], context_size=context_size
+            turn_number=self.current_turn,
+            timestamp=time.time(),
+            files_active=files_active,
+            decisions_made=decisions_made,
+            warnings_issued=[],
+            context_size=context_size,
         )
         self.session_snapshots.append(snapshot)
         return snapshot
-    
+
     def should_comment(self) -> bool:
         return self.current_turn - self.last_commentary_turn >= self.turn_interval
-    
-    def generate_commentary(self, session_id: str) -> List[VoiceMessage]:
+
+    def generate_commentary(self, session_id: str) -> list[VoiceMessage]:
         self.last_commentary_turn = self.current_turn
         messages = []
         if not self.session_snapshots:
             return messages
-        recent = self.session_snapshots[-self.turn_interval:]
+        recent = self.session_snapshots[-self.turn_interval :]
         all_files = set()
         all_decisions = []
         for snap in recent:
@@ -388,48 +575,79 @@ class TurnCommentary:
         if self._detect_context_growth(recent):
             messages.append(self._generate_context_warning())
         return messages
-    
-    def _generate_file_chatter(self, files: List[str]) -> VoiceMessage:
-        opener, starter = random.choice(LIBRARIAN_PHRASES["openers"]), random.choice(LIBRARIAN_PHRASES["rumor_starters"])
+
+    def _generate_file_chatter(self, files: list[str]) -> VoiceMessage:
+        opener, starter = (
+            random.choice(LIBRARIAN_PHRASES["openers"]),
+            random.choice(LIBRARIAN_PHRASES["rumor_starters"]),
+        )
         if len(files) == 1:
-            content = f"{opener} {starter} *{files[0]}* keeps you company. A loyal companion."
+            content = (
+                f"{opener} {starter} *{files[0]}* keeps you company. A loyal companion."
+            )
         else:
             file_list = ", ".join([f"*{f}*" for f in files[:3]])
             if len(files) > 3:
                 file_list += f" and {len(files) - 3} others"
             content = f"{opener} {starter} you dance with {file_list} this turn. Busy fingers make busy archives..."
         return VoiceMessage(
-            id=hashlib.md5(f"{time.time()}".encode()).hexdigest()[:12], timestamp=time.time(),
-            tone=VoiceTone.GOSSIP, category="turn_commentary", content=content, context={"files": files})
-    
-    def _generate_decision_pattern(self, decisions: List[str]) -> VoiceMessage:
+            id=hashlib.md5(f"{time.time()}".encode()).hexdigest()[:12],
+            timestamp=time.time(),
+            tone=VoiceTone.GOSSIP,
+            category="turn_commentary",
+            content=content,
+            context={"files": files},
+        )
+
+    def _generate_decision_pattern(self, decisions: list[str]) -> VoiceMessage:
         opener = random.choice(LIBRARIAN_PHRASES["openers"])
         content = f"{opener} {len(decisions)} decisions in recent turns. The path becomes clearer... or more complicated."
         return VoiceMessage(
-            id=hashlib.md5(f"{time.time()}".encode()).hexdigest()[:12], timestamp=time.time(),
-            tone=VoiceTone.MYSTERY, category="turn_commentary", content=content, context={"decisions": decisions})
-    
+            id=hashlib.md5(f"{time.time()}".encode()).hexdigest()[:12],
+            timestamp=time.time(),
+            tone=VoiceTone.MYSTERY,
+            category="turn_commentary",
+            content=content,
+            context={"decisions": decisions},
+        )
+
     def _generate_concurrent_warning(self) -> VoiceMessage:
-        opener, starter = random.choice(LIBRARIAN_PHRASES["openers"]), random.choice(LIBRARIAN_PHRASES["warning_starters"])
+        opener, starter = (
+            random.choice(LIBRARIAN_PHRASES["openers"]),
+            random.choice(LIBRARIAN_PHRASES["warning_starters"]),
+        )
         content = f"{opener} {starter} Many files stir simultaneously. Like conducting an orchestra - one wrong note..."
         return VoiceMessage(
-            id=hashlib.md5(f"{time.time()}".encode()).hexdigest()[:12], timestamp=time.time(),
-            tone=VoiceTone.WARNING, category="turn_warning", content=content, context={})
-    
+            id=hashlib.md5(f"{time.time()}".encode()).hexdigest()[:12],
+            timestamp=time.time(),
+            tone=VoiceTone.WARNING,
+            category="turn_warning",
+            content=content,
+            context={},
+        )
+
     def _generate_context_warning(self) -> VoiceMessage:
-        opener, starter = random.choice(LIBRARIAN_PHRASES["openers"]), random.choice(LIBRARIAN_PHRASES["warning_starters"])
+        opener, starter = (
+            random.choice(LIBRARIAN_PHRASES["openers"]),
+            random.choice(LIBRARIAN_PHRASES["warning_starters"]),
+        )
         content = f"{opener} {starter} The conversation grows long. Soon, the trimmers will come. Preserve what matters..."
         return VoiceMessage(
-            id=hashlib.md5(f"{time.time()}".encode()).hexdigest()[:12], timestamp=time.time(),
-            tone=VoiceTone.WARNING, category="context_warning", content=content, context={})
-    
-    def _detect_concurrent_edits(self, snapshots: List[SessionSnapshot]) -> bool:
+            id=hashlib.md5(f"{time.time()}".encode()).hexdigest()[:12],
+            timestamp=time.time(),
+            tone=VoiceTone.WARNING,
+            category="context_warning",
+            content=content,
+            context={},
+        )
+
+    def _detect_concurrent_edits(self, snapshots: list[SessionSnapshot]) -> bool:
         all_files = set()
         for snap in snapshots:
             all_files.update(snap.files_active)
         return len(all_files) > 8
-    
-    def _detect_context_growth(self, snapshots: List[SessionSnapshot]) -> bool:
+
+    def _detect_context_growth(self, snapshots: list[SessionSnapshot]) -> bool:
         if len(snapshots) < 2:
             return False
         sizes = [s.context_size for s in snapshots]
@@ -440,232 +658,348 @@ class TurnCommentary:
 # CONTEXT PRESERVATION ADVISOR
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class ContextPreservationAdvisor:
     """Warns before context trim with specific suggestions."""
-    
+
     def __init__(self):
-        self.critical_items: List[Dict[str, Any]] = []
-        self.suggestions_cache: Dict[str, List[str]] = {}
-    
-    def analyze_before_trim(self, session_id: str, context: str, decisions: List[Dict], files: List[Dict]) -> VoiceMessage:
+        self.critical_items: list[dict[str, Any]] = []
+        self.suggestions_cache: dict[str, list[str]] = {}
+
+    def analyze_before_trim(
+        self, session_id: str, context: str, decisions: list[dict], files: list[dict]
+    ) -> VoiceMessage:
         opener = random.choice(LIBRARIAN_PHRASES["openers"])
         critical_decisions = [d for d in decisions if d.get("confidence") == "high"]
-        critical_files = [f for f in files if f.get("operation") in ["created", "modified"]]
+        critical_files = [
+            f for f in files if f.get("operation") in ["created", "modified"]
+        ]
         suggestions = []
         if critical_decisions:
-            suggestions.append(f"Document {len(critical_decisions)} key decision(s) in session notes")
+            suggestions.append(
+                f"Document {len(critical_decisions)} key decision(s) in session notes"
+            )
         if critical_files:
             file_names = [f.get("path", "").split("/")[-1] for f in critical_files[:3]]
-            suggestions.append(f"Ensure recent changes to {', '.join(file_names)} are saved")
+            suggestions.append(
+                f"Ensure recent changes to {', '.join(file_names)} are saved"
+            )
         suggestions.append("Consider summarizing current progress before trim")
         if len(context) > 50000:
-            suggestions.append("Large context detected - consider starting fresh session soon")
-        content = f"{opener} The trimmers approach! Before context is trimmed, I suggest:\n"
+            suggestions.append(
+                "Large context detected - consider starting fresh session soon"
+            )
+        content = (
+            f"{opener} The trimmers approach! Before context is trimmed, I suggest:\n"
+        )
         for i, sug in enumerate(suggestions, 1):
             content += f"  {i}. {sug}\n"
         content += "\n*The archives remember, but the active memory fades...*"
         return VoiceMessage(
-            id=hashlib.md5(f"{time.time()}".encode()).hexdigest()[:12], timestamp=time.time(),
-            tone=VoiceTone.WARNING, category="trim_warning", content=content,
-            context={"session_id": session_id, "suggestions": suggestions,
-                     "critical_decisions": len(critical_decisions), "critical_files": len(critical_files)})
-    
-    def get_preservation_summary(self, session_id: str) -> Dict[str, Any]:
-        return {"session_id": session_id, "timestamp": time.time(),
-            "recommendations": ["Export current intelligence before trim",
-                "Document key decisions in external notes", "Save file state snapshots", "Consider session checkpoint"],
-            "auto_actions": ["Intelligence extract will be saved automatically",
-                "Fingerprint will be persisted to disk", "Session achievements logged"]}
+            id=hashlib.md5(f"{time.time()}".encode()).hexdigest()[:12],
+            timestamp=time.time(),
+            tone=VoiceTone.WARNING,
+            category="trim_warning",
+            content=content,
+            context={
+                "session_id": session_id,
+                "suggestions": suggestions,
+                "critical_decisions": len(critical_decisions),
+                "critical_files": len(critical_files),
+            },
+        )
+
+    def get_preservation_summary(self, session_id: str) -> dict[str, Any]:
+        return {
+            "session_id": session_id,
+            "timestamp": time.time(),
+            "recommendations": [
+                "Export current intelligence before trim",
+                "Document key decisions in external notes",
+                "Save file state snapshots",
+                "Consider session checkpoint",
+            ],
+            "auto_actions": [
+                "Intelligence extract will be saved automatically",
+                "Fingerprint will be persisted to disk",
+                "Session achievements logged",
+            ],
+        }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # VOICE OUTPUT
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class VoiceOutput:
     """Structured format for UI display."""
-    
+
     def __init__(self, max_history: int = 100):
-        self.messages: List[VoiceMessage] = []
+        self.messages: list[VoiceMessage] = []
         self.max_history = max_history
-        self.display_callbacks: List[Callable] = []
-    
+        self.display_callbacks: list[Callable] = []
+
     def add_message(self, message: VoiceMessage):
         self.messages.append(message)
         if len(self.messages) > self.max_history:
-            self.messages = self.messages[-self.max_history:]
+            self.messages = self.messages[-self.max_history :]
         for callback in self.display_callbacks:
             try:
                 callback(message)
             except Exception as e:
                 logger.error(f"Display callback error: {e}")
-    
+
     def register_display_callback(self, callback: Callable):
         self.display_callbacks.append(callback)
-    
-    def get_recent_messages(self, count: int = 10, tone: Optional[VoiceTone] = None) -> List[Dict[str, Any]]:
+
+    def get_recent_messages(
+        self, count: int = 10, tone: VoiceTone | None = None
+    ) -> list[dict[str, Any]]:
         filtered = self.messages
         if tone:
             filtered = [m for m in filtered if m.tone == tone]
         return [m.to_ui_format() for m in filtered[-count:]]
-    
-    def get_unread_messages(self) -> List[Dict[str, Any]]:
+
+    def get_unread_messages(self) -> list[dict[str, Any]]:
         unread = [m for m in self.messages if not m.displayed]
         for m in unread:
             m.displayed = True
         return [m.to_ui_format() for m in unread]
-    
+
     def format_for_terminal(self, message: VoiceMessage) -> str:
         ui = message.to_ui_format()
         return f"{ui['icon']} [{ui['formatted_time']}] {ui['content']}"
-    
-    def format_for_web(self, message: VoiceMessage) -> Dict[str, Any]:
+
+    def format_for_web(self, message: VoiceMessage) -> dict[str, Any]:
         ui = message.to_ui_format()
-        return {**ui, "html": f'<div class="librarian-message" style="color: {ui["color"]}">'
-                f'<span class="icon">{ui["icon"]}</span> '
-                f'<span class="time">{ui["formatted_time"]}</span> '
-                f'<span class="content">{ui["content"]}</span></div>'}
+        return {
+            **ui,
+            "html": f'<div class="librarian-message" style="color: {ui["color"]}">'
+            f'<span class="icon">{ui["icon"]}</span> '
+            f'<span class="time">{ui["formatted_time"]}</span> '
+            f'<span class="content">{ui["content"]}</span></div>',
+        }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # THE LIBRARIAN VOICE - MAIN CLASS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class LibrarianVoice:
     """The complete vocal personality of the Librarian."""
-    
-    def __init__(self, data_dir: Optional[Path] = None, turn_interval: int = 5):
+
+    def __init__(self, data_dir: Path | None = None, turn_interval: int = 5):
         self.data_dir = data_dir or Path.home() / ".foveai" / "librarian"
-        self.session_id: Optional[str] = None
+        self.session_id: str | None = None
         self.rumors = RumorsEngine(self.data_dir)
         self.achievements = AchievementLogger(self.data_dir / "achievements")
         self.history = HistoricalLookup(self.data_dir)
         self.commentary = TurnCommentary(turn_interval)
         self.advisor = ContextPreservationAdvisor()
         self.output = VoiceOutput()
-        self.current_files: Set[str] = set()
-        self.current_decisions: List[str] = []
+        self.current_files: set[str] = set()
+        self.current_decisions: list[str] = []
         self.session_start_time: float = 0
         logger.info("The Librarian's Voice has awakened...")
-    
+
     def begin_session(self, session_id: str):
         self.session_id = session_id
         self.session_start_time = time.time()
         self.current_files.clear()
         self.current_decisions.clear()
-        welcome = VoiceMessage(id=self._generate_id(), timestamp=time.time(), tone=VoiceTone.WISDOM,
+        welcome = VoiceMessage(
+            id=self._generate_id(),
+            timestamp=time.time(),
+            tone=VoiceTone.WISDOM,
             category="session_start",
             content=f"*dusts off ledger* The archives welcome you, session *{session_id[:8]}*. I shall watch...",
-            context={"session_id": session_id})
+            context={"session_id": session_id},
+        )
         self.output.add_message(welcome)
-    
+
     def end_session(self, session_id: str):
-        duration = time.time() - self.session_start_time if self.session_start_time else 0
+        duration = (
+            time.time() - self.session_start_time if self.session_start_time else 0
+        )
         achievements = self.achievements.get_session_achievements(session_id)
-        farewell = VoiceMessage(id=self._generate_id(), timestamp=time.time(), tone=VoiceTone.WISDOM,
+        farewell = VoiceMessage(
+            id=self._generate_id(),
+            timestamp=time.time(),
+            tone=VoiceTone.WISDOM,
             category="session_end",
-            content=f"*closes ledger* Session *{session_id[:8]}* complete. {len(achievements)} achievements over {duration/60:.1f}m.",
-            context={"session_id": session_id, "duration": duration, "achievements": len(achievements)})
+            content=f"*closes ledger* Session *{session_id[:8]}* complete. {len(achievements)} achievements over {duration / 60:.1f}m.",
+            context={
+                "session_id": session_id,
+                "duration": duration,
+                "achievements": len(achievements),
+            },
+        )
         self.output.add_message(farewell)
         self.session_id = None
-    
-    def record_file_activity(self, session_id: str, file_path: str, operation: str = "modified"):
+
+    def record_file_activity(
+        self, session_id: str, file_path: str, operation: str = "modified"
+    ):
         self.current_files.add(file_path)
 
-    def record_file_activity(self, session_id: str, file_path: str, operation: str = "modified"):
+    def record_file_activity(
+        self, session_id: str, file_path: str, operation: str = "modified"
+    ):
         self.current_files.add(file_path)
         rumor = self.rumors.generate_file_rumor(file_path, operation)
         self.output.add_message(rumor)
         self._check_file_patterns(file_path)
-    
+
     def record_decision(self, session_id: str, decision_text: str):
         self.current_decisions.append(decision_text)
-        if any(w in decision_text.lower() for w in ["refactor", "architecture", "design", "approach"]):
-            msg = VoiceMessage(id=self._generate_id(), timestamp=time.time(), tone=VoiceTone.WISDOM,
+        if any(
+            w in decision_text.lower()
+            for w in ["refactor", "architecture", "design", "approach"]
+        ):
+            msg = VoiceMessage(
+                id=self._generate_id(),
+                timestamp=time.time(),
+                tone=VoiceTone.WISDOM,
                 category="significant_decision",
                 content=f"*makes a note* A significant choice: '{decision_text[:50]}...' The codebase will remember.",
-                context={"decision": decision_text})
+                context={"decision": decision_text},
+            )
             self.output.add_message(msg)
-    
+
     def record_turn(self, context_size: int = 0):
-        self.commentary.record_turn(files_active=list(self.current_files),
-            decisions_made=self.current_decisions, context_size=context_size)
+        self.commentary.record_turn(
+            files_active=list(self.current_files),
+            decisions_made=self.current_decisions,
+            context_size=context_size,
+        )
         if self.commentary.should_comment():
             messages = self.commentary.generate_commentary(self.session_id or "unknown")
             for msg in messages:
                 self.output.add_message(msg)
-    
+
     def warn_of_trim(self, session_id: str, context: str, decisions=None, files=None):
         decisions = decisions or []
         files = files or []
-        warning = self.advisor.analyze_before_trim(session_id, context, decisions, files)
+        warning = self.advisor.analyze_before_trim(
+            session_id, context, decisions, files
+        )
         self.output.add_message(warning)
         return warning
-    
-    def celebrate(self, session_id: str, title: str, description: str, significance: int = 1):
-        achievement = self.achievements.log_achievement(session_id, title, description,
-            files_involved=list(self.current_files), significance=significance)
-        celebration = VoiceMessage(id=self._generate_id(), timestamp=time.time(), tone=VoiceTone.CELEBRATION,
+
+    def celebrate(
+        self, session_id: str, title: str, description: str, significance: int = 1
+    ):
+        achievement = self.achievements.log_achievement(
+            session_id,
+            title,
+            description,
+            files_involved=list(self.current_files),
+            significance=significance,
+        )
+        celebration = VoiceMessage(
+            id=self._generate_id(),
+            timestamp=time.time(),
+            tone=VoiceTone.CELEBRATION,
             category="achievement",
             content=f"{random.choice(LIBRARIAN_PHRASES['celebration_phrases'])} {title}: {description}",
-            context={"achievement": achievement.to_dict()})
+            context={"achievement": achievement.to_dict()},
+        )
         self.output.add_message(celebration)
         return achievement
-    
+
     def share_wisdom(self, topic: str):
         related = self.history.find_related_sessions("*")
         session_ids = [r["session_id"][:8] for r in related[:3]]
         wisdom = self.rumors.generate_wisdom_rumor(topic, session_ids)
         self.output.add_message(wisdom)
         return wisdom
-    
+
     def search_history(self, query: str):
         related = self.history.find_related_sessions(query)
         messages = []
         if related:
             for match in related[:3]:
-                rumor = self.rumors.generate_historical_rumor(match["session_id"], [match])
+                rumor = self.rumors.generate_historical_rumor(
+                    match["session_id"], [match]
+                )
                 messages.append(rumor)
                 self.output.add_message(rumor)
         else:
-            msg = VoiceMessage(id=self._generate_id(), timestamp=time.time(), tone=VoiceTone.MELANCHOLY,
+            msg = VoiceMessage(
+                id=self._generate_id(),
+                timestamp=time.time(),
+                tone=VoiceTone.MELANCHOLY,
                 category="history_search",
                 content=f"*searches dusty tomes* Alas, no records of '{query}' exist. New ground?",
-                context={"query": query})
+                context={"query": query},
+            )
             messages.append(msg)
             self.output.add_message(msg)
         return messages
-    
+
     def get_messages(self, unread_only: bool = False, tone=None):
-        return self.output.get_unread_messages() if unread_only else self.output.get_recent_messages(tone=tone)
-    
+        return (
+            self.output.get_unread_messages()
+            if unread_only
+            else self.output.get_recent_messages(tone=tone)
+        )
+
     def speak(self, content: str, tone: VoiceTone = VoiceTone.GOSSIP):
-        msg = VoiceMessage(id=self._generate_id(), timestamp=time.time(), tone=tone,
-            category="direct", content=content, context={})
+        msg = VoiceMessage(
+            id=self._generate_id(),
+            timestamp=time.time(),
+            tone=tone,
+            category="direct",
+            content=content,
+            context={},
+        )
         self.output.add_message(msg)
         return msg
-    
+
     def warn(self, content: str):
-        return self.speak(f"{random.choice(LIBRARIAN_PHRASES['warning_starters'])} {content}", VoiceTone.WARNING)
-    
+        return self.speak(
+            f"{random.choice(LIBRARIAN_PHRASES['warning_starters'])} {content}",
+            VoiceTone.WARNING,
+        )
+
     def advise(self, content: str):
-        return self.speak(f"{random.choice(LIBRARIAN_PHRASES['wisdom_starters'])} {content}", VoiceTone.WISDOM)
-    
+        return self.speak(
+            f"{random.choice(LIBRARIAN_PHRASES['wisdom_starters'])} {content}",
+            VoiceTone.WISDOM,
+        )
+
     def _check_file_patterns(self, file_path: str):
         is_config = "config" in file_path.lower()
-        has_core = any(f for f in self.current_files if any(c in f.lower() for c in ["main", "core", "app", "index"]))
+        has_core = any(
+            f
+            for f in self.current_files
+            if any(c in f.lower() for c in ["main", "core", "app", "index"])
+        )
         if is_config and has_core:
-            warning = self.rumors.generate_warning_rumor("multiple_configs", {"files": list(self.current_files)})
+            warning = self.rumors.generate_warning_rumor(
+                "multiple_configs", {"files": list(self.current_files)}
+            )
             self.output.add_message(warning)
-    
+
     def get_stats(self):
-        return {"total_messages": len(self.output.messages),
-            "messages_by_tone": {tone.name: len([m for m in self.output.messages if m.tone == tone]) for tone in VoiceTone},
-            "total_achievements": sum(len(a) for a in self.achievements.session_achievements.values()),
-            "sessions_tracked": len(self.achievements.session_achievements), "data_directory": str(self.data_dir)}
+        return {
+            "total_messages": len(self.output.messages),
+            "messages_by_tone": {
+                tone.name: len([m for m in self.output.messages if m.tone == tone])
+                for tone in VoiceTone
+            },
+            "total_achievements": sum(
+                len(a) for a in self.achievements.session_achievements.values()
+            ),
+            "sessions_tracked": len(self.achievements.session_achievements),
+            "data_directory": str(self.data_dir),
+        }
 
     def _generate_id(self) -> str:
         return hashlib.md5(f"{time.time()}{random.random()}".encode()).hexdigest()[:12]
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONVENIENCE FUNCTIONS & GLOBAL INSTANCE
@@ -816,33 +1150,33 @@ EXAMPLE_OUTPUT = """
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    
+
     print(EXAMPLE_OUTPUT)
-    
-    print("\n" + "="*80)
+
+    print("\n" + "=" * 80)
     print("LIVE DEMONSTRATION")
-    print("="*80 + "\n")
-    
+    print("=" * 80 + "\n")
+
     # Create a fresh instance for demo
     demo_librarian = LibrarianVoice(turn_interval=3)
-    
+
     # Simulate a session
     session_id = f"demo_{int(time.time())}"
     demo_librarian.begin_session(session_id)
-    
+
     # Simulate file activity
     print("\n--- Recording File Activity ---")
     demo_librarian.record_file_activity(session_id, "config.py", "modified")
     time.sleep(0.1)
     demo_librarian.record_file_activity(session_id, "main.py", "modified")
     time.sleep(0.1)
-    
+
     # Get and display messages
     messages = demo_librarian.get_messages()
     for msg in messages:
         print(f"\n{msg['icon']} [{msg['formatted_time']}] [{msg['tone']}]")
         print(f"   {msg['content']}")
-    
+
     # Simulate turns
     print("\n--- Simulating Turns ---")
     for turn in range(1, 6):
@@ -852,34 +1186,42 @@ if __name__ == "__main__":
         new_messages = demo_librarian.get_messages(unread_only=True)
         for msg in new_messages:
             print(f"    {msg['icon']} {msg['content'][:80]}...")
-    
+
     # Simulate a decision
-    demo_librarian.record_decision(session_id, "We shall adopt the Repository pattern for data access")
-    
+    demo_librarian.record_decision(
+        session_id, "We shall adopt the Repository pattern for data access"
+    )
+
     # Simulate trim warning
     print("\n--- Trim Warning ---")
-    trim_warning = demo_librarian.warn_of_trim(session_id, "Large context content here...")
+    trim_warning = demo_librarian.warn_of_trim(
+        session_id, "Large context content here..."
+    )
     print(f"\n{trim_warning.to_ui_format()['icon']} {trim_warning.content}")
-    
+
     # Celebrate achievement
     print("\n--- Achievement ---")
-    demo_librarian.celebrate(session_id, "Implemented core feature", "Repository pattern successfully integrated", significance=4)
-    
+    demo_librarian.celebrate(
+        session_id,
+        "Implemented core feature",
+        "Repository pattern successfully integrated",
+        significance=4,
+    )
+
     # Get all recent messages
     print("\n--- All Recent Messages ---")
     all_messages = demo_librarian.get_messages()
     for msg in all_messages:
         print(f"\n{msg['icon']} [{msg['tone']}] {msg['content'][:100]}...")
-    
+
     # End session
     demo_librarian.end_session(session_id)
-    
+
     # Show stats
     print("\n--- Librarian Stats ---")
     stats = demo_librarian.get_stats()
     print(json.dumps(stats, indent=2))
-    
-    print("\n" + "="*80)
-    print("The Librarian's Voice demonstration complete.")
-    print("="*80)
 
+    print("\n" + "=" * 80)
+    print("The Librarian's Voice demonstration complete.")
+    print("=" * 80)

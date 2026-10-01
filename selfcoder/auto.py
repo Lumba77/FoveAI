@@ -1,10 +1,18 @@
-import os, json, http.server, socketserver, urllib.request, subprocess, webbrowser, threading
+import http.server
+import json
+import os
+import socketserver
+import subprocess
+import threading
+import urllib.request
+import webbrowser
 from functools import partial
 from pathlib import Path
 
 SANDBOX_DIR = Path(__file__).parent.resolve()
 PARENT_DIR = SANDBOX_DIR.parent.resolve()
 DEBUG_LOG = SANDBOX_DIR / "sandbox_debug.json"
+
 
 def load_env(path: Path) -> None:
     if not path.is_file():
@@ -16,10 +24,13 @@ def load_env(path: Path) -> None:
         k, _, v = line.partition("=")
         os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
+
 load_env(PARENT_DIR / ".env")
 
 PORT: int = int(os.getenv("SELFCODER_PORT", "9999"))
-API_URL: str = os.getenv("FOVEAI_NVIDIA_URL", "https://integrate.api.nvidia.com/v1/chat/completions")
+API_URL: str = os.getenv(
+    "FOVEAI_NVIDIA_URL", "https://integrate.api.nvidia.com/v1/chat/completions"
+)
 API_KEY: str = os.getenv("FOVEAI_NVIDIA_API_KEY", "")
 MODEL_NAME: str = os.getenv("FOVEAI_NVIDIA_MODEL", "moonshotai/kimi-k3")
 REASONING: str = os.getenv("FOVEAI_NVIDIA_REASONING", "").lower()
@@ -65,7 +76,10 @@ def call_llm(prompt: str) -> str:
     req = urllib.request.Request(
         API_URL,
         data=json.dumps(body).encode(),
-        headers={"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {API_KEY}",
+            "Content-Type": "application/json",
+        },
     )
     try:
         with urllib.request.urlopen(req, timeout=180) as r:
@@ -77,7 +91,10 @@ def call_llm(prompt: str) -> str:
             req = urllib.request.Request(
                 API_URL,
                 data=json.dumps(body).encode(),
-                headers={"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json"},
+                headers={
+                    "Authorization": f"Bearer {API_KEY}",
+                    "Content-Type": "application/json",
+                },
             )
             with urllib.request.urlopen(req, timeout=180) as r:
                 data = json.loads(r.read())
@@ -90,10 +107,9 @@ def parse_payload(raw: str) -> dict:
     text = raw.strip()
     if text.startswith("```"):
         text = text.split("```", 2)[1]
-        if text.startswith("json"):
-            text = text[4:]
+        text = text.removeprefix("json")
     start, end = text.find("{"), text.rfind("}")
-    return json.loads(text[start:end + 1])
+    return json.loads(text[start : end + 1])
 
 
 def safe_write(rel_path: str, content: str) -> str:
@@ -108,8 +124,12 @@ def safe_write(rel_path: str, content: str) -> str:
 def run_command(cmd: str) -> dict:
     try:
         p = subprocess.run(
-            cmd, shell=True, cwd=SANDBOX_DIR,
-            capture_output=True, text=True, timeout=120,
+            cmd,
+            shell=True,
+            cwd=SANDBOX_DIR,
+            capture_output=True,
+            text=True,
+            timeout=120,
         )
         return {"command": cmd, "stdout": p.stdout[-4000:], "stderr": p.stderr[-4000:]}
     except Exception as e:
@@ -163,8 +183,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     if not API_KEY:
         print("WARNING: FOVEAI_NVIDIA_API_KEY not set (checked env + ../.env)")
-    print(f"Self-coder on http://localhost:{PORT}  model={MODEL_NAME}  sandbox={SANDBOX_DIR}")
-    server = socketserver.ThreadingTCPServer(("127.0.0.1", PORT), partial(Handler, directory=str(SANDBOX_DIR)))
+    print(
+        f"Self-coder on http://localhost:{PORT}  model={MODEL_NAME}  sandbox={SANDBOX_DIR}"
+    )
+    server = socketserver.ThreadingTCPServer(
+        ("127.0.0.1", PORT), partial(Handler, directory=str(SANDBOX_DIR))
+    )
     server.daemon_threads = True
-    threading.Timer(1.0, lambda: webbrowser.open(f"http://localhost:{PORT}/index.html")).start()
+    threading.Timer(
+        1.0, lambda: webbrowser.open(f"http://localhost:{PORT}/index.html")
+    ).start()
     server.serve_forever()

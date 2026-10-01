@@ -88,7 +88,9 @@ def _save_preprocessors(model: str, output: Path) -> None:
         return
     except Exception:
         pass
-    AutoImageProcessor.from_pretrained(model, trust_remote_code=True).save_pretrained(output)
+    AutoImageProcessor.from_pretrained(model, trust_remote_code=True).save_pretrained(
+        output
+    )
     AutoTokenizer.from_pretrained(model, trust_remote_code=True).save_pretrained(output)
 
 
@@ -137,7 +139,10 @@ def main() -> int:
             try:
                 _export_via_cli(args.model, out, args.opset)
             except (FileNotFoundError, subprocess.CalledProcessError) as first:
-                print(f"optimum-cli export failed ({first}); trying in-process export...", file=sys.stderr)
+                print(
+                    f"optimum-cli export failed ({first}); trying in-process export...",
+                    file=sys.stderr,
+                )
                 _export_via_python(args.model, out, args.opset)
     except Exception as ex:
         print(f"ONNX export failed: {ex}", file=sys.stderr)
@@ -151,7 +156,10 @@ def main() -> int:
     try:
         _save_preprocessors(args.model, out)
     except Exception as ex:
-        print(f"Warning: could not save image processor / tokenizer into output: {ex}", file=sys.stderr)
+        print(
+            f"Warning: could not save image processor / tokenizer into output: {ex}",
+            file=sys.stderr,
+        )
 
     enc = out / "encoder_model.onnx"
     if not enc.is_file():

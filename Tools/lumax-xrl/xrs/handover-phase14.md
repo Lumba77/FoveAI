@@ -240,7 +240,7 @@ _ATOMIC_CACHE = {
         "version": 1,
         "content_hash": "full_md5_hash",
         "raw_node_path": ".gemini/cache/raw_nodes/a1b2c3_full_md5_hash.txt",
-        "created_at": "2026-07-11T12:00:00"
+        "created_at": "2026-07-11T12:00:00",
     }
 }
 ```

@@ -1,48 +1,62 @@
+import asyncio
+import base64
+import io
+import json
+import logging
+import math
 import os
 import re
+import smtplib
+import struct
+import subprocess
 import sys
-import json
 import time
-import logging
-import base64
-import asyncio
+import wave
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional, Any, List
-import io
-import math
-import struct
-import wave
-import smtplib
-import subprocess
+from typing import Any
+
 try:
     from PIL import Image
 except ImportError:
     pass
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from fastapi import FastAPI, HTTPException, Request, Response, Depends, Form, File, UploadFile, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, JSONResponse, FileResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
-import httpx
-import ssl
-import websockets
-import uuid
 import shutil
-import zipfile
+import ssl
+import uuid
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+import httpx
+import websockets
+from fastapi import (
+    Depends,
+    FastAPI,
+    Form,
+    HTTPException,
+    Request,
+    Response,
+    UploadFile,
+    WebSocket,
+)
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+
 
 # --- Cache-Busting Static Files & Revision Helper (OMEGA_266) ---
 class CacheBustingStaticFiles(StaticFiles):
     def file_response(self, *args, **kwargs):
         response = super().file_response(*args, **kwargs)
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
+        response.headers["Cache-Control"] = (
+            "no-cache, no-store, must-revalidate, max-age=0"
+        )
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
         response.headers["CDN-Cache-Control"] = "no-store"
         response.headers["Cloudflare-CDN-Cache-Control"] = "no-store"
         return response
+
 
 def get_current_revision():
     try:
@@ -58,11 +72,18 @@ def get_current_revision():
         pass
     return "OMEGA_266"
 
+
 # --- Swarm Orchestrator (Drone Swarm Problem Solvers) ---
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Mind", "Cognition"))
+sys.path.insert(
+    0,
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Mind", "Cognition"
+    ),
+)
 try:
     # pyrefly: ignore [missing-import]
-    from swarm_orchestrator import get_swarm_state, execute_swarm_task
+    from swarm_orchestrator import execute_swarm_task, get_swarm_state
+
     SWARM_AVAILABLE = True
 except Exception as _swarm_err:
     SWARM_AVAILABLE = False
@@ -74,11 +95,12 @@ except Exception as _swarm_err:
 try:
     # pyrefly: ignore [missing-import]
     from discovery_swarm import (
-        get_discovery_state,
         execute_discovery_mission,
-        list_discovery_reports,
+        get_discovery_state,
         get_latest_discovery_notification,
+        list_discovery_reports,
     )
+
     DISCOVERY_AVAILABLE = True
 except Exception as _discovery_err:
     DISCOVERY_AVAILABLE = False
@@ -92,10 +114,12 @@ except Exception as _discovery_err:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("WebUI")
 
+
 def save_snapshot_attachment(name: str, base64_data: str):
     try:
         import base64
         import time
+
         snapshots_dir = os.path.join(FoveAI_ROOT, "Data", "xr_snapshots")
         os.makedirs(snapshots_dir, exist_ok=True)
         # Clean filename to prevent path traversal
@@ -106,7 +130,7 @@ def save_snapshot_attachment(name: str, base64_data: str):
         with open(file_path, "wb") as f:
             f.write(base64.b64decode(base64_data))
         logger.info(f"[Snapshot Manager] Saved in-scene snapshot: {file_path}")
-        
+
         # Also save as latest_user.jpg / latest_avatar.jpg / latest_developer.jpg
         if "user" in safe_name.lower() or "webcam" in safe_name.lower():
             latest_name = "latest_user.jpg"
@@ -120,11 +144,13 @@ def save_snapshot_attachment(name: str, base64_data: str):
     except Exception as e:
         logger.error(f"[Snapshot Manager] Failed to save snapshot: {e}")
 
+
 # --- GPU Audio Synthesis (torch + torchaudio) ---
 _GPU_SYNTH_AVAILABLE = False
 _GPU_SYNTH_DEVICE = "cpu"
 try:
     import torch
+
     _GPU_SYNTH_AVAILABLE = True
     _GPU_SYNTH_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     logger.info(f"[Soundboard] torch available — synthesis device: {_GPU_SYNTH_DEVICE}")
@@ -132,7 +158,9 @@ try:
         import torchaudio as _torchaudio  # type: ignore
     except ImportError:
         _torchaudio = None
-        logger.info("[Soundboard] torchaudio not available — will use wave module for WAV writing")
+        logger.info(
+            "[Soundboard] torchaudio not available — will use wave module for WAV writing"
+        )
 except ImportError:
     torch = None
     _torchaudio = None
@@ -146,6 +174,7 @@ app = FastAPI(title="Lumax Web Vessel")
 # browser-like User-Agent header for all external cloud API calls.
 _CLOUD_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36"
 
+
 def _cloud_headers(auth_key: str = "", extra: dict = None) -> dict:
     """Build headers for external cloud API calls that bypass Cloudflare bot detection."""
     h = {
@@ -158,12 +187,13 @@ def _cloud_headers(auth_key: str = "", extra: dict = None) -> dict:
         h.update(extra)
     return h
 
+
 # --- VITE HMR PROXY (OMEGA_085) ---
 @app.websocket("/")
 async def vite_hmr_proxy(websocket: WebSocket):
     """Proxy Vite's HMR WebSocket through the WebUI for Cloudflare tunnel support."""
     await websocket.accept()
-    
+
     # Configure SSL context to bypass self-signed cert checks on localhost WSS
     ssl_context = ssl.create_default_context()
     ssl_context.check_hostname = False
@@ -177,7 +207,9 @@ async def vite_hmr_proxy(websocket: WebSocket):
             vite_ws = await websockets.connect(vite_ws_url, ssl=ssl_context)
             logger.debug("[HMR Proxy] Connected to Vite HMR via WSS")
         except Exception as wss_err:
-            logger.debug(f"[HMR Proxy] WSS connection failed ({wss_err}), falling back to WS...")
+            logger.debug(
+                f"[HMR Proxy] WSS connection failed ({wss_err}), falling back to WS..."
+            )
             vite_ws_url = "ws://localhost:5176/"
             vite_ws = await websockets.connect(vite_ws_url)
             logger.debug("[HMR Proxy] Connected to Vite HMR via WS")
@@ -187,14 +219,16 @@ async def vite_hmr_proxy(websocket: WebSocket):
                 while True:
                     data = await websocket.receive_text()
                     await vite_ws.send(data)
-            except Exception: pass
+            except Exception:
+                pass
 
         async def forward_to_client():
             try:
                 while True:
                     data = await vite_ws.recv()
                     await websocket.send_text(data)
-            except Exception: pass
+            except Exception:
+                pass
 
         await asyncio.gather(forward_to_vite(), forward_to_client())
     except Exception as e:
@@ -203,14 +237,18 @@ async def vite_hmr_proxy(websocket: WebSocket):
         if vite_ws:
             try:
                 await vite_ws.close()
-            except: pass
+            except:
+                pass
         try:
             await websocket.close()
-        except: pass
+        except:
+            pass
+
 
 # --- Configuration & Environment ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FoveAI_ROOT = os.path.dirname(os.path.dirname(BASE_DIR))
+
 
 def _load_dotenv(path: str) -> None:
     """Load .env file into process environment (if python-dotenv is unavailable)."""
@@ -223,15 +261,17 @@ def _load_dotenv(path: str) -> None:
                 continue
             idx = line.index("=")
             key = line[:idx].strip()
-            val = line[idx + 1:].strip().strip("'").strip('"')
+            val = line[idx + 1 :].strip().strip("'").strip('"')
             if key and os.environ.get(key) is None:
                 os.environ[key] = val
+
 
 _load_dotenv(os.path.join(FoveAI_ROOT, ".env"))
 
 # --- Architecture & Feature Inventory ---
 _ARCHITECTURE_PATH = os.path.join(FoveAI_ROOT, "ARCHITECTURE.md")
 _FEATURE_INVENTORY_PATH = os.path.join(FoveAI_ROOT, "FEATURE_INVENTORY.md")
+
 
 def _read_markdown_safe(path: str) -> str:
     try:
@@ -241,9 +281,11 @@ def _read_markdown_safe(path: str) -> str:
         logger.warning(f"Could not read {path}: {e}")
         return ""
 
+
 # --- Project Tree Scanner (for Hivemind code navigation) ---
 _TREE_CACHE = {"tree": "", "mtime": 0.0}
 _TREE_CACHE_TTL = 300  # Refresh every 5 minutes
+
 
 def _build_project_tree() -> str:
     """Build a compact FoveAI project file tree for hivemind injection.
@@ -251,12 +293,36 @@ def _build_project_tree() -> str:
     now = time.time()
     if _TREE_CACHE["tree"] and (now - _TREE_CACHE["mtime"]) < _TREE_CACHE_TTL:
         return _TREE_CACHE["tree"]
-    
-    skip_dirs = {".git", ".venv", "node_modules", "__pycache__", ".aider-venv", 
-                 "webvm_source", "dist", "build", ".cache", "user_data", ".logs",
-                 "backups", "scratch", "public", "assets"}
-    skip_exts = {".tscn", ".import", ".res", ".godot", ".pyc", ".pyo", ".exe", ".dll", ".wasm"}
-    
+
+    skip_dirs = {
+        ".git",
+        ".venv",
+        "node_modules",
+        "__pycache__",
+        ".aider-venv",
+        "webvm_source",
+        "dist",
+        "build",
+        ".cache",
+        "user_data",
+        ".logs",
+        "backups",
+        "scratch",
+        "public",
+        "assets",
+    }
+    skip_exts = {
+        ".tscn",
+        ".import",
+        ".res",
+        ".godot",
+        ".pyc",
+        ".pyo",
+        ".exe",
+        ".dll",
+        ".wasm",
+    }
+
     tree_lines = []
     # Key directories with their file types
     scan_dirs = [
@@ -271,7 +337,7 @@ def _build_project_tree() -> str:
         "backend/Memory",
         "backend/Creativity",
     ]
-    
+
     for rel_dir in scan_dirs:
         abs_dir = os.path.join(FoveAI_ROOT, rel_dir.replace("/", os.sep))
         if not os.path.exists(abs_dir):
@@ -284,18 +350,31 @@ def _build_project_tree() -> str:
                     continue
                 if any(f.endswith(ext) for ext in skip_exts):
                     continue
-                if not any(f.endswith(e) for e in (".ts", ".tsx", ".py", ".js", ".json", ".css", ".html", ".md")):
+                if not any(
+                    f.endswith(e)
+                    for e in (
+                        ".ts",
+                        ".tsx",
+                        ".py",
+                        ".js",
+                        ".json",
+                        ".css",
+                        ".html",
+                        ".md",
+                    )
+                ):
                     continue
                 size = os.path.getsize(fpath)
-                size_str = f"{size//1024}KB" if size > 1024 else f"{size}B"
+                size_str = f"{size // 1024}KB" if size > 1024 else f"{size}B"
                 tree_lines.append(f"  📄 {f} ({size_str})")
         except Exception:
             pass
-    
+
     result = "\n".join(tree_lines[:120])  # Cap total lines
     _TREE_CACHE["tree"] = result
     _TREE_CACHE["mtime"] = now
     return result
+
 
 # --- Consent Bridge ---
 # Add OAuth consent endpoints to the existing WebUI (port 8080)
@@ -307,8 +386,10 @@ if _CONSENT_BRIDGE_DIR not in sys.path:
 try:
     # pyrefly: ignore [missing-import]
     from google_oauth import GoogleConsentBridge
+
     # pyrefly: ignore [missing-import]
     from ms_oauth import MicrosoftConsentBridge
+
     _CONSENT_AVAILABLE = True
 except Exception as _ce:
     _CONSENT_AVAILABLE = False
@@ -323,6 +404,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 @app.middleware("http")
 async def add_xr_permissions(request: Request, call_next):
     """Add WebXR Permissions-Policy and cross-origin isolation headers.
@@ -331,7 +413,9 @@ async def add_xr_permissions(request: Request, call_next):
     (used by WebLLM WASM threads and some WebXR features)."""
     response = await call_next(request)
     # WebXR permissions — camera needed for AR passthrough, microphone for voice input
-    response.headers["Permissions-Policy"] = "xr-spatial-tracking=(self), camera=(self), microphone=(self)"
+    response.headers["Permissions-Policy"] = (
+        "xr-spatial-tracking=(self), camera=(self), microphone=(self)"
+    )
     # Cross-origin isolation for SharedArrayBuffer (WebLLM WASM, some WebXR features)
     # NOTE: Use "credentialless" for main pages but relax for iframe-heavy routes
     # (WebVM, LumaxCline) when accessed via Cloudflare tunnel (cross-origin)
@@ -344,14 +428,17 @@ async def add_xr_permissions(request: Request, call_next):
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     return response
 
+
 # Authentication (must be defined before routes that use Depends(require_webui_login))
 WEBUI_PASSWORD = os.getenv("FoveAI_WEBUI_PASSWORD", "").strip()
 SESSION_SECRET = os.getenv("FoveAI_WEBUI_SESSION_SECRET", "change-me-please").strip()
+
 
 def _upstream_unreachable(service: str, url: str, exc: Exception):
     """Helper to raise HTTP 502 when an upstream service is unreachable."""
     logger.warning(f"[{service}] Unreachable: {url} — {exc}")
     return HTTPException(status_code=502, detail=f"{service} unreachable: {url}")
+
 
 def require_webui_login(request: Request):
     if not WEBUI_PASSWORD:
@@ -359,6 +446,7 @@ def require_webui_login(request: Request):
     pw = request.cookies.get("foveai_pw")
     if pw != WEBUI_PASSWORD:
         raise HTTPException(status_code=401, detail="Unauthorized")
+
 
 # --- WebVM Integration ---
 WEBVM_DIST = os.path.join(FoveAI_ROOT, "Tools/WebVM/build")
@@ -370,16 +458,25 @@ app.mount("/webvm", CacheBustingStaticFiles(directory=WEBVM_DIST), name="webvm")
 XR_DIST = os.path.join(FoveAI_ROOT, "Build", "Web_Vessel")
 if os.path.exists(XR_DIST):
     # Standard Vite assets
-    app.mount("/assets", CacheBustingStaticFiles(directory=os.path.join(XR_DIST, "assets")), name="xr_assets")
+    app.mount(
+        "/assets",
+        CacheBustingStaticFiles(directory=os.path.join(XR_DIST, "assets")),
+        name="xr_assets",
+    )
     # Animations folder (sometimes separate in public/)
     if os.path.exists(os.path.join(XR_DIST, "Animations")):
-        app.mount("/Animations", CacheBustingStaticFiles(directory=os.path.join(XR_DIST, "Animations")), name="xr_animations")
+        app.mount(
+            "/Animations",
+            CacheBustingStaticFiles(directory=os.path.join(XR_DIST, "Animations")),
+            name="xr_animations",
+        )
 
 # Serve the disk image from the root of /webvm for the config to find it
 
 # --- Memory Vault Server-Side Backup (WebVM Bridge) ---
 MEMORY_BACKUP_DIR = os.path.join(FoveAI_ROOT, "user_data", "memory_backups")
 os.makedirs(MEMORY_BACKUP_DIR, exist_ok=True)
+
 
 @app.post("/api/memory/backup")
 async def memory_backup(request: Request):
@@ -389,37 +486,54 @@ async def memory_backup(request: Request):
     try:
         data = await request.json()
         timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
-        backup_file = os.path.join(MEMORY_BACKUP_DIR, f"memory_snapshot_{timestamp}.json")
-        
+        backup_file = os.path.join(
+            MEMORY_BACKUP_DIR, f"memory_snapshot_{timestamp}.json"
+        )
+
         # Keep only the latest 5 backups
         existing = sorted(
-            [f for f in os.listdir(MEMORY_BACKUP_DIR) if f.startswith("memory_snapshot_") and f.endswith(".json")],
-            reverse=True
+            [
+                f
+                for f in os.listdir(MEMORY_BACKUP_DIR)
+                if f.startswith("memory_snapshot_") and f.endswith(".json")
+            ],
+            reverse=True,
         )
         for old in existing[4:]:
             try:
                 os.remove(os.path.join(MEMORY_BACKUP_DIR, old))
             except Exception:
                 pass
-        
+
         with open(backup_file, "w", encoding="utf-8") as f:
             json.dump(data, f)
-        
+
         # Also update the "latest" symlink/copy
         latest_file = os.path.join(MEMORY_BACKUP_DIR, "memory_latest.json")
         with open(latest_file, "w", encoding="utf-8") as f:
             json.dump(data, f)
-        
+
         msg_count = len(data.get("messages", []))
         ent_count = len(data.get("entities", []))
         rel_count = len(data.get("relations", []))
-        logger.info(f"[Memory Backup] Saved {backup_file} ({msg_count} msgs, {ent_count} entities, {rel_count} relations)")
-        
-        return {"status": "ok", "file": backup_file, "timestamp": timestamp,
-                "counts": {"messages": msg_count, "entities": ent_count, "relations": rel_count}}
+        logger.info(
+            f"[Memory Backup] Saved {backup_file} ({msg_count} msgs, {ent_count} entities, {rel_count} relations)"
+        )
+
+        return {
+            "status": "ok",
+            "file": backup_file,
+            "timestamp": timestamp,
+            "counts": {
+                "messages": msg_count,
+                "entities": ent_count,
+                "relations": rel_count,
+            },
+        }
     except Exception as e:
         logger.error(f"[Memory Backup] Failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/memory/restore")
 async def memory_restore():
@@ -428,22 +542,34 @@ async def memory_restore():
     latest_file = os.path.join(MEMORY_BACKUP_DIR, "memory_latest.json")
     if not os.path.exists(latest_file):
         return {"status": "empty", "message": "No backup available"}
-    
+
     try:
         with open(latest_file, "r", encoding="utf-8") as f:
             data = json.load(f)
         msg_count = len(data.get("messages", []))
         ent_count = len(data.get("entities", []))
         rel_count = len(data.get("relations", []))
-        logger.info(f"[Memory Restore] Serving latest backup ({msg_count} msgs, {ent_count} entities, {rel_count} relations)")
-        return {"status": "ok", "data": data, "counts": {"messages": msg_count, "entities": ent_count, "relations": rel_count}}
+        logger.info(
+            f"[Memory Restore] Serving latest backup ({msg_count} msgs, {ent_count} entities, {rel_count} relations)"
+        )
+        return {
+            "status": "ok",
+            "data": data,
+            "counts": {
+                "messages": msg_count,
+                "entities": ent_count,
+                "relations": rel_count,
+            },
+        }
     except Exception as e:
         logger.error(f"[Memory Restore] Failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # --- FoveAI Cline HTTP Proxy (Phase 4) ---
 # Allows the WebXR dashboard to execute file/shell operations when
 # native messaging is not available (e.g., not running as Chrome Extension).
+
 
 @app.post("/api/dev/cline")
 async def cline_tool_proxy(request: Request):
@@ -452,7 +578,7 @@ async def cline_tool_proxy(request: Request):
     try:
         data = await request.json()
         tool = data.get("tool", "")
-        
+
         if tool == "read_file":
             path = data.get("path", "")
             if not path:
@@ -460,7 +586,10 @@ async def cline_tool_proxy(request: Request):
             if not os.path.isabs(path):
                 path = os.path.join(FoveAI_ROOT, path)
             if not os.path.abspath(path).startswith(os.path.abspath(FoveAI_ROOT)):
-                return {"status": "error", "message": "Access denied: path outside FoveAI_ROOT"}
+                return {
+                    "status": "error",
+                    "message": "Access denied: path outside FoveAI_ROOT",
+                }
             try:
                 with open(path, "r", encoding="utf-8", errors="replace") as f:
                     content = f.read()
@@ -469,7 +598,7 @@ async def cline_tool_proxy(request: Request):
                 return {"status": "error", "message": f"File not found: {path}"}
             except Exception as e:
                 return {"status": "error", "message": str(e)}
-        
+
         elif tool == "write_file":
             path = data.get("path", "")
             content = data.get("content", "")
@@ -478,17 +607,23 @@ async def cline_tool_proxy(request: Request):
             if not os.path.isabs(path):
                 path = os.path.join(FoveAI_ROOT, path)
             if not os.path.abspath(path).startswith(os.path.abspath(FoveAI_ROOT)):
-                return {"status": "error", "message": "Access denied: path outside FoveAI_ROOT"}
+                return {
+                    "status": "error",
+                    "message": "Access denied: path outside FoveAI_ROOT",
+                }
             try:
                 os.makedirs(os.path.dirname(path), exist_ok=True)
                 with open(path, "w", encoding="utf-8") as f:
                     f.write(content)
-                result = {"status": "ok", "message": f"Written {len(content)} chars to {path}"}
+                result = {
+                    "status": "ok",
+                    "message": f"Written {len(content)} chars to {path}",
+                }
                 _log_cline_edit(tool, data, result)
                 return result
             except Exception as e:
                 return {"status": "error", "message": str(e)}
-        
+
         elif tool == "list_files":
             path = data.get("path", "")
             if not path:
@@ -500,18 +635,21 @@ async def cline_tool_proxy(request: Request):
             try:
                 entries = []
                 for entry in os.scandir(path):
-                    entries.append({
-                        "name": entry.name,
-                        "is_dir": entry.is_dir(),
-                        "size": entry.stat().st_size if entry.is_file() else 0,
-                    })
-                entries.sort(key=lambda e: (not e['is_dir'], e['name']))
+                    entries.append(
+                        {
+                            "name": entry.name,
+                            "is_dir": entry.is_dir(),
+                            "size": entry.stat().st_size if entry.is_file() else 0,
+                        }
+                    )
+                entries.sort(key=lambda e: (not e["is_dir"], e["name"]))
                 return {"status": "ok", "entries": entries, "path": path}
             except Exception as e:
                 return {"status": "error", "message": str(e)}
-        
+
         elif tool == "search_files":
             import re as _re
+
             path = data.get("path", "")
             pattern = data.get("pattern", "")
             if not path:
@@ -523,33 +661,56 @@ async def cline_tool_proxy(request: Request):
             try:
                 regex = _re.compile(pattern, _re.IGNORECASE)
                 results = []
-                skip_dirs = {'.git', '.venv', 'node_modules', '__pycache__', '.aider-venv', 'webvm_source'}
+                skip_dirs = {
+                    ".git",
+                    ".venv",
+                    "node_modules",
+                    "__pycache__",
+                    ".aider-venv",
+                    "webvm_source",
+                }
                 for root, dirs, files in os.walk(path):
                     dirs[:] = [d for d in dirs if d not in skip_dirs]
                     for fname in files:
                         fpath = os.path.join(root, fname)
                         try:
-                            with open(fpath, "r", encoding="utf-8", errors="ignore") as f:
+                            with open(
+                                fpath, "r", encoding="utf-8", errors="ignore"
+                            ) as f:
                                 for i, line in enumerate(f, 1):
                                     if regex.search(line):
                                         rel = os.path.relpath(fpath, FoveAI_ROOT)
-                                        results.append({"file": rel, "line": i, "text": line.strip()[:200]})
+                                        results.append(
+                                            {
+                                                "file": rel,
+                                                "line": i,
+                                                "text": line.strip()[:200],
+                                            }
+                                        )
                                         if len(results) >= 30:
-                                            return {"status": "ok", "results": results, "truncated": True}
+                                            return {
+                                                "status": "ok",
+                                                "results": results,
+                                                "truncated": True,
+                                            }
                         except:
                             pass
                 return {"status": "ok", "results": results}
             except Exception as e:
                 return {"status": "error", "message": str(e)}
-        
+
         elif tool == "exec":
             command = data.get("command", "")
             if not command:
                 return {"status": "error", "message": "No command specified"}
             try:
                 result = subprocess.run(
-                    command, shell=True, cwd=FoveAI_ROOT,
-                    capture_output=True, text=True, timeout=30
+                    command,
+                    shell=True,
+                    cwd=FoveAI_ROOT,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
                 )
                 resp = {
                     "status": "ok" if result.returncode == 0 else "error",
@@ -563,12 +724,13 @@ async def cline_tool_proxy(request: Request):
                 return {"status": "error", "message": "Command timed out (30s)"}
             except Exception as e:
                 return {"status": "error", "message": str(e)}
-        
+
         return {"status": "error", "message": f"Unknown tool: {tool}"}
-    
+
     except Exception as e:
         logger.error(f"[Cline] Tool proxy error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # ── XR-IDE Edit Stream: source of truth for live code edits ───────────────────
 # Returns git diff stat, compact diff snippets, and recent IDE tool calls.
@@ -589,6 +751,7 @@ _IDE_SHORT_NAMES = {
     "cursor": "CUR",
 }
 
+
 def _log_ide_edit(tool: str, payload: dict, result: dict, ide: str = "cline"):
     """Append a compact audit entry whenever an IDE tool writes or executes."""
     if tool not in ("write_file", "exec"):
@@ -608,30 +771,46 @@ def _log_ide_edit(tool: str, payload: dict, result: dict, ide: str = "cline"):
     if len(_IDE_EDIT_LOG) > _IDE_MAX_LOG:
         _IDE_EDIT_LOG.pop(0)
 
+
 # Backward-compatible alias for existing /api/dev/cline callers
 _log_cline_edit = _log_ide_edit
+
+
 @app.get("/api/dev/edits")
 async def dev_edits():
     """Return current working-tree edits + recent tool activity for XR-IDE HUD."""
     try:
         import subprocess as _sp
+
         root = FoveAI_ROOT
 
         # Status short
         st = _sp.run(
-            ["git", "status", "--short", "."], cwd=root, capture_output=True, text=True, timeout=10
+            ["git", "status", "--short", "."],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         status_short = st.stdout.strip().splitlines() if st.returncode == 0 else []
 
         # Diff stat
         ds = _sp.run(
-            ["git", "diff", "--stat", "."], cwd=root, capture_output=True, text=True, timeout=15
+            ["git", "diff", "--stat", "."],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         diff_stat = ds.stdout.strip().splitlines() if ds.returncode == 0 else []
 
         # Compact diff (first ~120 lines)
         dc = _sp.run(
-            ["git", "diff", "--unified=2", "."], cwd=root, capture_output=True, text=True, timeout=15
+            ["git", "diff", "--unified=2", "."],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         diff_text = dc.stdout if dc.returncode == 0 else ""
 
@@ -640,18 +819,22 @@ async def dev_edits():
         for line in diff_stat:
             m = __import__("re").match(r"^(.+)\s+\|\s+(\d+)\s+([\+\-]+)$", line)
             if m:
-                files.append({
-                    "file": m.group(1).strip(),
-                    "changes": int(m.group(2)),
-                    "sign": m.group(3),
-                })
+                files.append(
+                    {
+                        "file": m.group(1).strip(),
+                        "changes": int(m.group(2)),
+                        "sign": m.group(3),
+                    }
+                )
 
         # Build human-readable command list from log, newest first, capped + rinsed
         commands = []
         for e in reversed(_IDE_EDIT_LOG[-7:]):
             tag = e.get("tag", "IDE")
             if e["tool"] == "write_file" and e["path"]:
-                commands.append(f"[{tag}] ✎ {__import__('os').path.basename(e['path'])}")
+                commands.append(
+                    f"[{tag}] ✎ {__import__('os').path.basename(e['path'])}"
+                )
             elif e["tool"] == "exec" and e["command"]:
                 commands.append(f"[{tag}] $ {e['command'][:40]}")
         if not commands:
@@ -692,14 +875,20 @@ async def dev_edits():
         logger.error(f"[XR-IDE Edits] Failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.post("/api/dev/rollback")
 async def dev_rollback(request: Request):
     """Revert a single file or the whole working tree to HEAD (safe dev undo)."""
     try:
         # Accept both JSON body and query params for flexibility across IDEs
-        data = await request.json() if request.headers.get('content-type', '').startswith('application/json') else {}
+        data = (
+            await request.json()
+            if request.headers.get("content-type", "").startswith("application/json")
+            else {}
+        )
         target = data.get("path", "") or request.query_params.get("file", "")
         import subprocess as _sp
+
         root = FoveAI_ROOT
         if target:
             if not os.path.isabs(target):
@@ -707,32 +896,54 @@ async def dev_rollback(request: Request):
             if not os.path.abspath(target).startswith(os.path.abspath(root)):
                 raise HTTPException(status_code=400, detail="Path outside repo")
             rel = os.path.relpath(target, root)
-            r = _sp.run(["git", "checkout", "--", rel], cwd=root, capture_output=True, text=True, timeout=15)
+            r = _sp.run(
+                ["git", "checkout", "--", rel],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
         else:
-            r = _sp.run(["git", "checkout", "--", "."], cwd=root, capture_output=True, text=True, timeout=30)
+            r = _sp.run(
+                ["git", "checkout", "--", "."],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
         if r.returncode != 0:
             return {"status": "error", "message": r.stderr.strip()}
         # Capture the file path affected for UI feedback
         affected = target if target else "."
-        return {"status": "ok", "message": "Working tree rolled back", "affected": affected}
+        return {
+            "status": "ok",
+            "message": "Working tree rolled back",
+            "affected": affected,
+        }
     except Exception as e:
         logger.error(f"[XR-IDE Rollback] Failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # ── Token Slayer: Proxy Cache + Compression System ────────────────────────────
 # Caches system prompts (often 90% of token cost), compresses old context,
 # deduplicates similar requests, tracks token budgets per provider.
 # Inspired by commercial token optimization proxies.
 
-_TOKEN_SLAYER_CACHE: Dict[str, Any] = {}  # system_prompt_hash → cached context
-_TOKEN_SLAYER_RESPONSES: Dict[str, Any] = {}  # query_hash → response (TTL 5min)
-_TOKEN_SLAYER_BUDGET: Dict[str, Dict[str, Any]] = {}  # provider → {tokens, cost, requests}
+_TOKEN_SLAYER_CACHE: dict[str, Any] = {}  # system_prompt_hash → cached context
+_TOKEN_SLAYER_RESPONSES: dict[str, Any] = {}  # query_hash → response (TTL 5min)
+_TOKEN_SLAYER_BUDGET: dict[
+    str, dict[str, Any]
+] = {}  # provider → {tokens, cost, requests}
 _TOKEN_SLAYER_TTL = 300  # 5 minutes cache TTL
+
 
 def _slayer_hash(text: str) -> str:
     """Fast hash for deduplication and cache keys."""
     import hashlib
+
     return hashlib.sha256(text.encode("utf-8", errors="ignore")).hexdigest()[:16]
+
 
 def _slayer_count_tokens_approx(messages: list) -> int:
     """Approximate token count (4 chars ≈ 1 token for English, 2 for code/mixed)."""
@@ -748,6 +959,7 @@ def _slayer_count_tokens_approx(messages: list) -> int:
                     total += max(1, len(part.get("text", "")) // 3)
     return total
 
+
 def _slayer_compress_context(messages: list, max_tokens: int = 4096) -> list:
     """Token Slayer Context Compression:
     - Keep system prompt (always)
@@ -756,23 +968,23 @@ def _slayer_compress_context(messages: list, max_tokens: int = 4096) -> list:
     This dramatically reduces token usage for long conversations."""
     if len(messages) <= 4:
         return messages  # Too short to compress
-    
+
     total = _slayer_count_tokens_approx(messages)
     if total <= max_tokens:
         return messages  # Already fits
-    
+
     # Keep system prompt + last 4 turns, compress the rest
     system_msgs = [m for m in messages if m.get("role") == "system"]
     non_system = [m for m in messages if m.get("role") != "system"]
-    
+
     # Keep last 4 turns (8 messages = 4 user + 4 assistant)
     keep_recent = 8
     recent = non_system[-keep_recent:] if len(non_system) > keep_recent else non_system
     older = non_system[:-keep_recent] if len(non_system) > keep_recent else []
-    
+
     if not older:
         return messages
-    
+
     # Compress older turns into summary lines
     summary_parts = []
     for msg in older:
@@ -789,17 +1001,28 @@ def _slayer_compress_context(messages: list, max_tokens: int = 4096) -> list:
                     snippet = part.get("text", "")[:350].strip()
                     if snippet:
                         summary_parts.append(f"[{role}]: {snippet}")
-    
-    compressed_summary = "[CONTEXT COMPRESSION] Earlier conversation summary:\n" + "\n".join(summary_parts)
-    
+
+    compressed_summary = (
+        "[CONTEXT COMPRESSION] Earlier conversation summary:\n"
+        + "\n".join(summary_parts)
+    )
+
     result = system_msgs + [{"role": "system", "content": compressed_summary}] + recent
-    logger.info(f"[TokenSlayer] Compressed {len(messages)} → {len(result)} messages (~{_slayer_count_tokens_approx(result)} tokens)")
+    logger.info(
+        f"[TokenSlayer] Compressed {len(messages)} → {len(result)} messages (~{_slayer_count_tokens_approx(result)} tokens)"
+    )
     return result
+
 
 def _slayer_track_budget(provider: str, tokens_in: int, tokens_out: int, model: str):
     """Track token usage per provider for budget management."""
     if provider not in _TOKEN_SLAYER_BUDGET:
-        _TOKEN_SLAYER_BUDGET[provider] = {"total_in": 0, "total_out": 0, "requests": 0, "models": {}}
+        _TOKEN_SLAYER_BUDGET[provider] = {
+            "total_in": 0,
+            "total_out": 0,
+            "requests": 0,
+            "models": {},
+        }
     budget = _TOKEN_SLAYER_BUDGET[provider]
     budget["total_in"] += tokens_in
     budget["total_out"] += tokens_out
@@ -809,12 +1032,17 @@ def _slayer_track_budget(provider: str, tokens_in: int, tokens_out: int, model: 
     budget["models"][model]["in"] += tokens_in
     budget["models"][model]["out"] += tokens_out
 
+
 @app.get("/api/dev/token_slayer/stats")
 async def token_slayer_stats():
     """Get Token Slayer cache hit rates, compression stats, and budget usage."""
     now = time.time()
     # Clean expired response cache entries
-    expired = [k for k, v in _TOKEN_SLAYER_RESPONSES.items() if now - v.get("ts", 0) > _TOKEN_SLAYER_TTL]
+    expired = [
+        k
+        for k, v in _TOKEN_SLAYER_RESPONSES.items()
+        if now - v.get("ts", 0) > _TOKEN_SLAYER_TTL
+    ]
     for k in expired:
         del _TOKEN_SLAYER_RESPONSES[k]
     return {
@@ -824,26 +1052,29 @@ async def token_slayer_stats():
         "ttl_seconds": _TOKEN_SLAYER_TTL,
     }
 
+
 @app.post("/api/dev/cline_llm")
 async def cline_llm_proxy(request: Request):
     """Proxy LLM requests from any IDE/CLI client to LLM backends."""
     return await _cline_llm_proxy(request)
+
 
 @app.post("/api/dev/llm")
 async def ide_llm_proxy(request: Request):
     """Alias for /api/dev/cline_llm — used by Agy, Codex CLI, Zed, Windsurf, etc."""
     return await cline_llm_proxy(request)
 
+
 async def _cline_llm_proxy(request: Request):
     """Proxy LLM requests from COMAX/REMAX to LLM backends.
-    
+
     Supports two formats:
     - OpenAI format (incoming from COMAX) → translated as needed
     - Soul/Ollama: Uses /api/chat (Ollama format)
     - LM Studio/llama.cpp: Uses /v1/chat/completions (OpenAI format)
-    
+
     ?port= controls routing:
-      (empty/0) → Soul (Ollama_Cloud) at /api/chat  
+      (empty/0) → Soul (Ollama_Cloud) at /api/chat
       -1       → Gemini API (google.ai)
       -2       → OpenRouter API
       11434    → Ollama local at /api/chat
@@ -852,20 +1083,20 @@ async def _cline_llm_proxy(request: Request):
       8001    → Other OpenAI-compatible
     """
     port = request.query_params.get("port", "")
-    
+
     # Determine routing format
     ollama_format_ports = {"", "0", "11434"}  # Soul + Ollama local
     openai_format_ports = {"8081", "1234", "8001"}  # LM Studio, llama.cpp, etc.
     gemini_port = "-1"
     openrouter_port = "-2"
     ollama_cloud_port = "-3"  # Direct Ollama Cloud (bypasses Soul — for COMAX coding)
-    
+
     try:
         body_bytes = await request.body()
         body = json.loads(body_bytes)
     except:
         body = {}
-    
+
     # ── MCP Hivemind Injection (MoE Experts on Steroids) ──
     # Injects FoveAI architecture + features + collective memory + cascade awareness
     # into ALL COMAX requests — making every model a collaborative reasoning expert
@@ -895,7 +1126,9 @@ async def _cline_llm_proxy(request: Request):
                     tag = f" [{source}]" if source else ""
                     mem_lines.append(f"{role.title()}{tag}: {content}")
             if mem_lines:
-                hivemind_parts.append("=== COLLECTIVE MEMORY ===\n" + "\n".join(mem_lines))
+                hivemind_parts.append(
+                    "=== COLLECTIVE MEMORY ===\n" + "\n".join(mem_lines)
+                )
         # 4. Cascade awareness — models know about each other (MoE routing)
         hivemind_parts.append(
             "=== CASCADE AWARENESS ===\n"
@@ -951,20 +1184,31 @@ async def _cline_llm_proxy(request: Request):
         max_ctx = int(os.getenv("FoveAI_SLAYER_MAX_TOKENS", "4096"))
         compressed = _slayer_compress_context(messages, max_tokens=max_ctx)
         body["messages"] = compressed
-    
+
     # ── Token Slayer: Response Cache (identical queries within TTL) ──
-    cache_key = _slayer_hash(json.dumps({"port": port, "model": body.get("model",""), "msgs": str(body.get("messages",[])[-2:])}, sort_keys=True))
+    cache_key = _slayer_hash(
+        json.dumps(
+            {
+                "port": port,
+                "model": body.get("model", ""),
+                "msgs": str(body.get("messages", [])[-2:]),
+            },
+            sort_keys=True,
+        )
+    )
     now = time.time()
     if cache_key in _TOKEN_SLAYER_RESPONSES:
         cached = _TOKEN_SLAYER_RESPONSES[cache_key]
         if now - cached.get("ts", 0) < _TOKEN_SLAYER_TTL:
             logger.info(f"[TokenSlayer] Cache HIT for key={cache_key}")
-            _slayer_track_budget(f"port_{port}", 0, 0, body.get("model","unknown"))  # Track as cache hit
+            _slayer_track_budget(
+                f"port_{port}", 0, 0, body.get("model", "unknown")
+            )  # Track as cache hit
             return JSONResponse(content=cached["response"])
-    
+
     # ── Token Slayer: Budget Tracking ──
     tokens_in = _slayer_count_tokens_approx(body.get("messages", []))
-    
+
     try:
         if port in ollama_format_ports or port == "":
             # Route to Ollama-format endpoint (/api/chat)
@@ -972,13 +1216,13 @@ async def _cline_llm_proxy(request: Request):
                 target_url = f"{SOUL_URL}/api/chat"
             elif port == "11434":
                 target_url = "http://127.0.0.1:11434/api/chat"
-            
+
             # Translate OpenAI format → Ollama format
             ollama_body = {
                 "model": body.get("model", "glm-5.1"),
                 "messages": body.get("messages", []),
                 "stream": False,
-                "options": {}
+                "options": {},
             }
             # Map OpenAI params to Ollama options
             if "temperature" in body:
@@ -1000,39 +1244,62 @@ async def _cline_llm_proxy(request: Request):
                 ollama_body["preserve_thinking"] = True
                 # Also set think parameter for models that support /api/chat thinking
                 ollama_body["think"] = True
-            
+
             async with httpx.AsyncClient(timeout=120.0) as client:
-                resp = await client.post(target_url, json=ollama_body,
-                                        headers={"Content-Type": "application/json"})
-                
+                resp = await client.post(
+                    target_url,
+                    json=ollama_body,
+                    headers={"Content-Type": "application/json"},
+                )
+
                 if resp.status_code != 200:
-                    return Response(content=resp.content, status_code=resp.status_code,
-                                  media_type=resp.headers.get("content-type", "application/json"))
-                
+                    return Response(
+                        content=resp.content,
+                        status_code=resp.status_code,
+                        media_type=resp.headers.get("content-type", "application/json"),
+                    )
+
                 # Translate Ollama response → OpenAI format for COMAX
                 ollama_resp = resp.json()
                 openai_resp = {
-                    "id": f"chatcmpl-{ollama_resp.get('created_at','')}",
+                    "id": f"chatcmpl-{ollama_resp.get('created_at', '')}",
                     "object": "chat.completion",
                     "created": int(datetime.now().timestamp()),
                     "model": ollama_resp.get("model", body.get("model", "glm-5.1")),
-                    "choices": [{
-                        "index": 0,
-                        "message": {
-                            "role": ollama_resp.get("message", {}).get("role", "assistant"),
-                            "content": ollama_resp.get("message", {}).get("content", "")
-                        },
-                        "finish_reason": "stop" if ollama_resp.get("done", True) else "length"
-                    }],
-                    "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": ollama_resp.get("message", {}).get(
+                                    "role", "assistant"
+                                ),
+                                "content": ollama_resp.get("message", {}).get(
+                                    "content", ""
+                                ),
+                            },
+                            "finish_reason": "stop"
+                            if ollama_resp.get("done", True)
+                            else "length",
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0,
+                    },
                 }
                 return JSONResponse(content=openai_resp)
-        
+
         elif port == gemini_port:
             # Gemini API — translate OpenAI format to Gemini's generateContent format
-            gemini_key = os.getenv("FoveAI_REPERTOIRE_GEMINI_API_KEY", os.getenv("GEMINI_API_KEY", os.getenv("GOOGLE_API_KEY", ""))).strip()
+            gemini_key = os.getenv(
+                "FoveAI_REPERTOIRE_GEMINI_API_KEY",
+                os.getenv("GEMINI_API_KEY", os.getenv("GOOGLE_API_KEY", "")),
+            ).strip()
             if not gemini_key:
-                return JSONResponse(status_code=502, content={"error": "Gemini API key not configured"})
+                return JSONResponse(
+                    status_code=502, content={"error": "Gemini API key not configured"}
+                )
             model = body.get("model", "gemini-2.5-flash")
             contents = []
             system_instruction = None
@@ -1047,64 +1314,136 @@ async def _cline_llm_proxy(request: Request):
                     contents.append({"role": "user", "parts": [{"text": content}]})
             gemini_payload = {"contents": contents, "generationConfig": {}}
             if system_instruction:
-                gemini_payload["systemInstruction"] = {"parts": [{"text": system_instruction}]}
+                gemini_payload["systemInstruction"] = {
+                    "parts": [{"text": system_instruction}]
+                }
             if "temperature" in body:
                 gemini_payload["generationConfig"]["temperature"] = body["temperature"]
             if "max_tokens" in body:
-                gemini_payload["generationConfig"]["maxOutputTokens"] = body["max_tokens"]
+                gemini_payload["generationConfig"]["maxOutputTokens"] = body[
+                    "max_tokens"
+                ]
             if "top_p" in body:
                 gemini_payload["generationConfig"]["topP"] = body["top_p"]
             gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={gemini_key}"
             async with httpx.AsyncClient(timeout=120.0) as client:
                 resp = await client.post(gemini_url, json=gemini_payload)
                 if resp.status_code != 200:
-                    return Response(content=resp.content, status_code=resp.status_code,
-                                  media_type=resp.headers.get("content-type", "application/json"))
+                    return Response(
+                        content=resp.content,
+                        status_code=resp.status_code,
+                        media_type=resp.headers.get("content-type", "application/json"),
+                    )
                 text = ""
                 for c in resp.json().get("candidates", []):
                     for p in c.get("content", {}).get("parts", []):
                         text += p.get("text", "")
-                return JSONResponse(content={
-                    "id": f"chatcmpl-gemini-{int(time.time())}", "object": "chat.completion",
-                    "created": int(datetime.now().timestamp()), "model": model,
-                    "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "stop"}],
-                    "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-                })
-        
+                return JSONResponse(
+                    content={
+                        "id": f"chatcmpl-gemini-{int(time.time())}",
+                        "object": "chat.completion",
+                        "created": int(datetime.now().timestamp()),
+                        "model": model,
+                        "choices": [
+                            {
+                                "index": 0,
+                                "message": {"role": "assistant", "content": text},
+                                "finish_reason": "stop",
+                            }
+                        ],
+                        "usage": {
+                            "prompt_tokens": 0,
+                            "completion_tokens": 0,
+                            "total_tokens": 0,
+                        },
+                    }
+                )
+
         elif port == openrouter_port:
-            openrouter_key = os.getenv("FoveAI_CLOUD_OPENROUTER_API", os.getenv("OPENROUTER_API_KEY", "")).strip()
+            openrouter_key = os.getenv(
+                "FoveAI_CLOUD_OPENROUTER_API", os.getenv("OPENROUTER_API_KEY", "")
+            ).strip()
             if not openrouter_key:
-                return JSONResponse(status_code=502, content={"error": "OpenRouter API key not configured"})
+                return JSONResponse(
+                    status_code=502,
+                    content={"error": "OpenRouter API key not configured"},
+                )
             async with httpx.AsyncClient(timeout=120.0) as client:
-                resp = await client.post("https://openrouter.ai/api/v1/chat/completions", json=body,
-                    headers={"Content-Type": "application/json", "Authorization": f"Bearer {openrouter_key}", "HTTP-Referer": "http://localhost:8080"})
-                return Response(content=resp.content, status_code=resp.status_code,
-                              media_type=resp.headers.get("content-type", "application/json"))
-        
+                resp = await client.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    json=body,
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {openrouter_key}",
+                        "HTTP-Referer": "http://localhost:8080",
+                    },
+                )
+                return Response(
+                    content=resp.content,
+                    status_code=resp.status_code,
+                    media_type=resp.headers.get("content-type", "application/json"),
+                )
+
         elif port == ollama_cloud_port:
             # Direct Ollama Cloud — bypasses Soul, goes straight to Ollama API
             # Super Coder Refusal removed to prevent false 'Closed for the day' errors
 
             # Uses FoveAI_REPERTOIRE_OLLAMA_* env vars (same subscription as cloud_repertoire)
             # This is the COMAX coding tier: raw LLM without Jen's personality overlay
-            ollama_cloud_key = os.getenv("FoveAI_REPERTOIRE_OLLAMA_API_KEY", os.getenv("OLLAMA_API_KEY", "")).strip()
-            ollama_cloud_url = os.getenv("FoveAI_REPERTOIRE_OLLAMA_BASE_URL", "https://ollama.com/v1").rstrip("/")
-            ollama_cloud_model = body.get("model", os.getenv("FoveAI_CODING_MODEL", os.getenv("FoveAI_REPERTOIRE_OLLAMA_MODEL", "deepseek-v4-pro:cloud")))
+            ollama_cloud_key = os.getenv(
+                "FoveAI_REPERTOIRE_OLLAMA_API_KEY", os.getenv("OLLAMA_API_KEY", "")
+            ).strip()
+            ollama_cloud_url = os.getenv(
+                "FoveAI_REPERTOIRE_OLLAMA_BASE_URL", "https://ollama.com/v1"
+            ).rstrip("/")
+            ollama_cloud_model = body.get(
+                "model",
+                os.getenv(
+                    "FoveAI_CODING_MODEL",
+                    os.getenv(
+                        "FoveAI_REPERTOIRE_OLLAMA_MODEL", "deepseek-v4-pro:cloud"
+                    ),
+                ),
+            )
             if not ollama_cloud_key:
-                return JSONResponse(status_code=502, content={"error": "Ollama Cloud API key not configured. Set FoveAI_REPERTOIRE_OLLAMA_API_KEY in .env"})
+                return JSONResponse(
+                    status_code=502,
+                    content={
+                        "error": "Ollama Cloud API key not configured. Set FoveAI_REPERTOIRE_OLLAMA_API_KEY in .env"
+                    },
+                )
             # Use deep model if deep_thought requested
             if body.get("deep_thought"):
-                ollama_cloud_model = os.getenv("FoveAI_REPERTOIRE_OLLAMA_DEEP_MODEL", ollama_cloud_model)
+                ollama_cloud_model = os.getenv(
+                    "FoveAI_REPERTOIRE_OLLAMA_DEEP_MODEL", ollama_cloud_model
+                )
             cloud_body = dict(body)
             cloud_body["model"] = ollama_cloud_model
-            logger.info(f"[COMAX Direct Cloud] → {ollama_cloud_url}/chat/completions model={ollama_cloud_model}")
+            logger.info(
+                f"[COMAX Direct Cloud] → {ollama_cloud_url}/chat/completions model={ollama_cloud_model}"
+            )
             async with httpx.AsyncClient(timeout=120.0) as client:
-                resp = await client.post(f"{ollama_cloud_url}/chat/completions", json=cloud_body,
-                    headers=_cloud_headers(ollama_cloud_key))
-                _slayer_track_budget("ollama_cloud_direct", tokens_in, _slayer_count_tokens_approx([{"role":"assistant","content":resp.text[:500]}] if resp.status_code==200 else []), ollama_cloud_model)
-                return Response(content=resp.content, status_code=resp.status_code,
-                              media_type=resp.headers.get("content-type", "application/json"))
-        
+                resp = await client.post(
+                    f"{ollama_cloud_url}/chat/completions",
+                    json=cloud_body,
+                    headers=_cloud_headers(ollama_cloud_key),
+                )
+                _slayer_track_budget(
+                    "ollama_cloud_direct",
+                    tokens_in,
+                    _slayer_count_tokens_approx(
+                        [{"role": "assistant", "content": resp.text[:500]}]
+                        if resp.status_code == 200
+                        else []
+                    ),
+                    ollama_cloud_model,
+                )
+                return Response(
+                    content=resp.content,
+                    status_code=resp.status_code,
+                    media_type=resp.headers.get("content-type", "application/json"),
+                )
+
         elif port in openai_format_ports:
             # Route to OpenAI-format endpoint (LM Studio, llama.cpp) with LOCAL OPTIMIZATIONS
             allowed_ports = {"8081", "1234", "8001"}
@@ -1116,37 +1455,53 @@ async def _cline_llm_proxy(request: Request):
             # - Prompt Caching: Reuse KV-cache across turns (avoids re-encoding context)
             # - Context Length: Auto-limit to prevent OOM on VRAM-constrained GPUs
             local_body = dict(body)
-            local_body.setdefault("flash_attention", True)    # Flash Attention 2 — mandatory for local
-            local_body.setdefault("cache_prompt", True)       # KV-cache reuse across turns
-            local_body.setdefault("prompt_cache_threshold", 0.5)  # Cache if >50% overlap
+            local_body.setdefault(
+                "flash_attention", True
+            )  # Flash Attention 2 — mandatory for local
+            local_body.setdefault("cache_prompt", True)  # KV-cache reuse across turns
+            local_body.setdefault(
+                "prompt_cache_threshold", 0.5
+            )  # Cache if >50% overlap
             # Ollama-specific GPU offloading hints (passed through if present)
-            if "num_gpu" not in local_body and int(os.getenv("FoveAI_LOCAL_NUM_GPU", "0")) > 0:
+            if (
+                "num_gpu" not in local_body
+                and int(os.getenv("FoveAI_LOCAL_NUM_GPU", "0")) > 0
+            ):
                 local_body["num_gpu"] = int(os.getenv("FoveAI_LOCAL_NUM_GPU", "0"))
             headers = {"Content-Type": "application/json"}
             if port == "1234":
                 lms_key = os.getenv("LMSTUDIO_PASSKEY", "").strip()
                 if lms_key:
                     headers["Authorization"] = f"Bearer {lms_key}"
-                    
+
             async with httpx.AsyncClient(timeout=120.0) as client:
                 resp = await client.post(url, json=local_body, headers=headers)
-                return Response(content=resp.content, status_code=resp.status_code,
-                              media_type=resp.headers.get("content-type", "application/json"))
+                return Response(
+                    content=resp.content,
+                    status_code=resp.status_code,
+                    media_type=resp.headers.get("content-type", "application/json"),
+                )
         else:
             raise HTTPException(status_code=400, detail=f"Port {port} not allowed")
-            
+
     except httpx.ConnectError:
-        return JSONResponse(status_code=502,
-                          content={"error": f"LLM {'port '+port if port else 'Soul/Ollama_Cloud'} unreachable"})
+        return JSONResponse(
+            status_code=502,
+            content={
+                "error": f"LLM {'port ' + port if port else 'Soul/Ollama_Cloud'} unreachable"
+            },
+        )
     except Exception as e:
         logger.error(f"[cline_llm] Proxy error: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
+
 
 # --- Lumax MCP Memory Endpoints (Phase 5) ---
 # Exposes the unified memory store to all agents (LumaxCline, local LLMs, cloud APIs)
 # Same data as the Cline MCP server (reads .logs/memory_index.json)
 
 MEMORY_INDEX_PATH = os.path.join(FoveAI_ROOT, ".logs", "memory_index.json")
+
 
 def _load_memory_index():
     """Load the unified memory index (shared with MCP server)."""
@@ -1157,17 +1512,24 @@ def _load_memory_index():
     except Exception:
         return []
 
+
 def _save_memory_index(conversations):
     """Persist the unified memory index."""
     try:
         os.makedirs(os.path.dirname(MEMORY_INDEX_PATH), exist_ok=True)
         with open(MEMORY_INDEX_PATH, "w", encoding="utf-8") as f:
-            json.dump({
-                "conversations": conversations[-500:],
-                "last_updated": datetime.utcnow().isoformat()
-            }, f, indent=2, ensure_ascii=False)
+            json.dump(
+                {
+                    "conversations": conversations[-500:],
+                    "last_updated": datetime.utcnow().isoformat(),
+                },
+                f,
+                indent=2,
+                ensure_ascii=False,
+            )
     except Exception as e:
         logger.error(f"[Memory] Save failed: {e}")
+
 
 @app.post("/api/memory/search")
 async def memory_search(request: Request, _auth: None = Depends(require_webui_login)):
@@ -1180,16 +1542,19 @@ async def memory_search(request: Request, _auth: None = Depends(require_webui_lo
     for entry in reversed(conversations):
         content = entry.get("content", "").lower()
         if query in content:
-            results.append({
-                "role": entry.get("role", "unknown"),
-                "content": entry.get("content", "")[:500],
-                "timestamp": entry.get("timestamp", ""),
-                "source": entry.get("source", "direct"),
-                "session_id": entry.get("session_id", ""),
-            })
+            results.append(
+                {
+                    "role": entry.get("role", "unknown"),
+                    "content": entry.get("content", "")[:500],
+                    "timestamp": entry.get("timestamp", ""),
+                    "source": entry.get("source", "direct"),
+                    "session_id": entry.get("session_id", ""),
+                }
+            )
             if len(results) >= limit:
                 break
     return {"results": results, "total": len(results), "query": query}
+
 
 @app.get("/api/memory/context")
 async def memory_context(limit: int = 10, _auth: None = Depends(require_webui_login)):
@@ -1210,8 +1575,13 @@ async def memory_context(limit: int = 10, _auth: None = Depends(require_webui_lo
             context_lines.append(f"System{source_tag}: {content}")
     injection = ""
     if context_lines:
-        injection = "\n--- PREVIOUS SESSION CONTEXT ---\n" + "\n".join(context_lines) + "\n--- END CONTEXT ---\n"
+        injection = (
+            "\n--- PREVIOUS SESSION CONTEXT ---\n"
+            + "\n".join(context_lines)
+            + "\n--- END CONTEXT ---\n"
+        )
     return {"injection_prompt": injection, "entries": len(recent)}
+
 
 @app.post("/api/memory/add")
 async def memory_add(request: Request, _auth: None = Depends(require_webui_login)):
@@ -1236,6 +1606,7 @@ async def memory_add(request: Request, _auth: None = Depends(require_webui_login
     _save_memory_index(conversations)
     return {"status": "ok", "total": len(conversations)}
 
+
 @app.post("/api/memory/import")
 async def memory_import(request: Request, _auth: None = Depends(require_webui_login)):
     """Import sessions from Cline, Gemini, or other sources into unified memory."""
@@ -1243,14 +1614,18 @@ async def memory_import(request: Request, _auth: None = Depends(require_webui_lo
     source = data.get("source", "all")
     conversations = _load_memory_index()
     imported = {"total_messages": 0, "sources": {}}
-    
+
     # Import from Cline task history
     if source in ("cline", "all"):
-        cline_path = os.path.expanduser("~/AppData/Roaming/Code/User/globalStorage/saoudrizwan.claude-dev/tasks")
+        cline_path = os.path.expanduser(
+            "~/AppData/Roaming/Code/User/globalStorage/saoudrizwan.claude-dev/tasks"
+        )
         cline_msgs = 0
         if os.path.exists(cline_path):
             for task_dir in os.listdir(cline_path):
-                conv_file = os.path.join(cline_path, task_dir, "api_conversation_history.json")
+                conv_file = os.path.join(
+                    cline_path, task_dir, "api_conversation_history.json"
+                )
                 if not os.path.exists(conv_file):
                     continue
                 try:
@@ -1262,21 +1637,28 @@ async def memory_import(request: Request, _auth: None = Depends(require_webui_lo
                             content_list = msg.get("content", [])
                             text_parts = []
                             for item in content_list:
-                                if isinstance(item, dict) and item.get("type") == "text":
+                                if (
+                                    isinstance(item, dict)
+                                    and item.get("type") == "text"
+                                ):
                                     text_parts.append(item.get("text", ""))
                             text = "\n".join(text_parts)
                             if text and role in ("user", "assistant"):
-                                conversations.append({
-                                    "role": role, "content": text,
-                                    "timestamp": datetime.utcnow().isoformat(),
-                                    "source": "cline", "task_id": task_dir,
-                                })
+                                conversations.append(
+                                    {
+                                        "role": role,
+                                        "content": text,
+                                        "timestamp": datetime.utcnow().isoformat(),
+                                        "source": "cline",
+                                        "task_id": task_dir,
+                                    }
+                                )
                                 cline_msgs += 1
                 except Exception:
                     pass
         imported["sources"]["cline"] = cline_msgs
         imported["total_messages"] += cline_msgs
-    
+
     # Import from Gemini history
     if source in ("gemini", "all"):
         gemini_path = os.path.expanduser("~/.gemini/history")
@@ -1287,12 +1669,21 @@ async def memory_import(request: Request, _auth: None = Depends(require_webui_lo
                 if not os.path.isdir(proj_path):
                     continue
                 for fname in os.listdir(proj_path):
-                    if not fname.endswith(".json") or fname in ("state.json", "settings.json"):
+                    if not fname.endswith(".json") or fname in (
+                        "state.json",
+                        "settings.json",
+                    ):
                         continue
                     try:
-                        with open(os.path.join(proj_path, fname), "r", encoding="utf-8") as f:
+                        with open(
+                            os.path.join(proj_path, fname), "r", encoding="utf-8"
+                        ) as f:
                             data = json.load(f)
-                        messages = data if isinstance(data, list) else data.get("messages", data.get("history", []))
+                        messages = (
+                            data
+                            if isinstance(data, list)
+                            else data.get("messages", data.get("history", []))
+                        )
                         for msg in messages:
                             if isinstance(msg, dict):
                                 role = msg.get("role", msg.get("sender", ""))
@@ -1300,19 +1691,24 @@ async def memory_import(request: Request, _auth: None = Depends(require_webui_lo
                                 if role == "model":
                                     role = "assistant"
                                 if content and role in ("user", "assistant"):
-                                    conversations.append({
-                                        "role": role, "content": str(content),
-                                        "timestamp": datetime.utcnow().isoformat(),
-                                        "source": "gemini", "project": project_dir,
-                                    })
+                                    conversations.append(
+                                        {
+                                            "role": role,
+                                            "content": str(content),
+                                            "timestamp": datetime.utcnow().isoformat(),
+                                            "source": "gemini",
+                                            "project": project_dir,
+                                        }
+                                    )
                                     gemini_msgs += 1
                     except Exception:
                         pass
         imported["sources"]["gemini"] = gemini_msgs
         imported["total_messages"] += gemini_msgs
-    
+
     _save_memory_index(conversations)
     return {"status": "ok", "imported": imported, "total_memory": len(conversations)}
+
 
 # --- localStorage Sync Endpoints (memoryBridge.ts) ---
 # These handle lightweight key-value pairs (user preferences, voice settings, etc.)
@@ -1320,55 +1716,84 @@ async def memory_import(request: Request, _auth: None = Depends(require_webui_lo
 LS_BACKUP_DIR = os.path.join(MEMORY_BACKUP_DIR, "localStorage")
 os.makedirs(LS_BACKUP_DIR, exist_ok=True)
 
+
 @app.post("/api/memory/backup")
 async def memory_backup(request: Request):
     """Accept memory data from client — handles both full snapshots and localStorage key-value pairs."""
     try:
         data = await request.json()
-        
+
         # localStorage key-value sync (from memoryBridge.ts)
-        if data.get("source") == "xr_vessel" and "keys" in data and "messages" not in data:
+        if (
+            data.get("source") == "xr_vessel"
+            and "keys" in data
+            and "messages" not in data
+        ):
             source_id = data.get("source", "unknown")
             keys = data.get("keys", {})
             ls_file = os.path.join(LS_BACKUP_DIR, f"ls_{source_id}.json")
             with open(ls_file, "w", encoding="utf-8") as f:
-                json.dump({"source": source_id, "keys": keys, "updated": datetime.utcnow().isoformat()}, f)
+                json.dump(
+                    {
+                        "source": source_id,
+                        "keys": keys,
+                        "updated": datetime.utcnow().isoformat(),
+                    },
+                    f,
+                )
             logger.info(f"[localStorage] Backup from {source_id}: {len(keys)} keys")
             return {"status": "ok", "keys_saved": len(keys)}
-        
+
         # Full memory snapshot (from WebVMMemoryBridge)
         timestamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
-        backup_file = os.path.join(MEMORY_BACKUP_DIR, f"memory_snapshot_{timestamp}.json")
-        
+        backup_file = os.path.join(
+            MEMORY_BACKUP_DIR, f"memory_snapshot_{timestamp}.json"
+        )
+
         # Keep only the latest 5 backups
         existing = sorted(
-            [f for f in os.listdir(MEMORY_BACKUP_DIR) if f.startswith("memory_snapshot_") and f.endswith(".json")],
-            reverse=True
+            [
+                f
+                for f in os.listdir(MEMORY_BACKUP_DIR)
+                if f.startswith("memory_snapshot_") and f.endswith(".json")
+            ],
+            reverse=True,
         )
         for old in existing[4:]:
             try:
                 os.remove(os.path.join(MEMORY_BACKUP_DIR, old))
             except Exception:
                 pass
-        
+
         with open(backup_file, "w", encoding="utf-8") as f:
             json.dump(data, f)
-        
+
         # Also update the "latest" symlink/copy
         latest_file = os.path.join(MEMORY_BACKUP_DIR, "memory_latest.json")
         with open(latest_file, "w", encoding="utf-8") as f:
             json.dump(data, f)
-        
+
         msg_count = len(data.get("messages", []))
         ent_count = len(data.get("entities", []))
         rel_count = len(data.get("relations", []))
-        logger.info(f"[Memory Backup] Saved {backup_file} ({msg_count} msgs, {ent_count} entities, {rel_count} relations)")
-        
-        return {"status": "ok", "file": backup_file, "timestamp": timestamp,
-                "counts": {"messages": msg_count, "entities": ent_count, "relations": rel_count}}
+        logger.info(
+            f"[Memory Backup] Saved {backup_file} ({msg_count} msgs, {ent_count} entities, {rel_count} relations)"
+        )
+
+        return {
+            "status": "ok",
+            "file": backup_file,
+            "timestamp": timestamp,
+            "counts": {
+                "messages": msg_count,
+                "entities": ent_count,
+                "relations": rel_count,
+            },
+        }
     except Exception as e:
         logger.error(f"[Memory Backup] Failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/memory/restore")
 async def memory_restore_post(request: Request):
@@ -1379,7 +1804,11 @@ async def memory_restore_post(request: Request):
         source_id = data.get("source", "xr_vessel")
         ls_file = os.path.join(LS_BACKUP_DIR, f"ls_{source_id}.json")
         if not os.path.exists(ls_file):
-            return {"status": "empty", "keys": {}, "message": "No localStorage backup for this source"}
+            return {
+                "status": "empty",
+                "keys": {},
+                "message": "No localStorage backup for this source",
+            }
         with open(ls_file, "r", encoding="utf-8") as f:
             ls_data = json.load(f)
         keys = ls_data.get("keys", {})
@@ -1389,20 +1818,25 @@ async def memory_restore_post(request: Request):
         logger.error(f"[localStorage] Restore failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/api/memory/status")
 async def memory_status():
     """Return backup status — when last backed up, file sizes, etc."""
     backup_dir = MEMORY_BACKUP_DIR
-    files = [f for f in os.listdir(backup_dir) if f.startswith("memory_snapshot_") and f.endswith(".json")]
+    files = [
+        f
+        for f in os.listdir(backup_dir)
+        if f.startswith("memory_snapshot_") and f.endswith(".json")
+    ]
     files.sort(reverse=True)
-    
+
     latest_size = 0
     latest_time = None
     if files:
         latest_path = os.path.join(backup_dir, files[0])
         latest_size = os.path.getsize(latest_path)
         latest_time = datetime.fromtimestamp(os.path.getmtime(latest_path)).isoformat()
-    
+
     # Check Google Drive status too
     drive_status = {"available": False}
     if _CONSENT_AVAILABLE:
@@ -1412,7 +1846,7 @@ async def memory_status():
                 drive_status = bridge.get_drive_backup_status()
         except Exception:
             pass
-    
+
     return {
         "status": "ok",
         "backup_count": len(files),
@@ -1422,18 +1856,25 @@ async def memory_status():
         "google_drive": drive_status,
     }
 
+
 @app.post("/api/memory/backup/drive")
 async def memory_backup_drive(request: Request):
     """Push the latest memory snapshot to Google Drive appdata folder.
     Invisible to the user, survives everything. Requires Google OAuth consent."""
     if not _CONSENT_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Google ConsentBridge not available. Set FoveAI_GOOGLE_CLIENT_ID and FoveAI_GOOGLE_CLIENT_SECRET in .env")
-    
+        raise HTTPException(
+            status_code=503,
+            detail="Google ConsentBridge not available. Set FoveAI_GOOGLE_CLIENT_ID and FoveAI_GOOGLE_CLIENT_SECRET in .env",
+        )
+
     try:
         bridge = GoogleConsentBridge()
         if not bridge.tokens:
-            raise HTTPException(status_code=401, detail="Google not connected. Visit /api/consent/google/auth first")
-        
+            raise HTTPException(
+                status_code=401,
+                detail="Google not connected. Visit /api/consent/google/auth first",
+            )
+
         # Use the latest local backup as the data source
         latest_file = os.path.join(MEMORY_BACKUP_DIR, "memory_latest.json")
         if not os.path.exists(latest_file):
@@ -1442,51 +1883,70 @@ async def memory_backup_drive(request: Request):
         else:
             with open(latest_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-        
+
         result = bridge.backup_to_drive(data)
         logger.info(f"[Memory] Google Drive backup successful: {result.get('id', '?')}")
-        return {"status": "ok", "drive_file_id": result.get("id"), "modified": result.get("modifiedTime", "")}
+        return {
+            "status": "ok",
+            "drive_file_id": result.get("id"),
+            "modified": result.get("modifiedTime", ""),
+        }
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"[Memory] Google Drive backup failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/api/memory/restore/drive")
 async def memory_restore_drive():
     """Restore memory from Google Drive appdata folder.
     Last resort when all local backups are gone."""
     if not _CONSENT_AVAILABLE:
-        raise HTTPException(status_code=503, detail="Google ConsentBridge not available")
-    
+        raise HTTPException(
+            status_code=503, detail="Google ConsentBridge not available"
+        )
+
     try:
         bridge = GoogleConsentBridge()
         if not bridge.tokens:
             raise HTTPException(status_code=401, detail="Google not connected")
-        
+
         data = bridge.restore_from_drive()
         if data is None:
             return {"status": "empty", "message": "No Google Drive backup available"}
-        
+
         # Also save to local backup for next time
         latest_file = os.path.join(MEMORY_BACKUP_DIR, "memory_latest.json")
         with open(latest_file, "w", encoding="utf-8") as f:
             json.dump(data, f)
-        
+
         msg_count = len(data.get("messages", []))
         ent_count = len(data.get("entities", []))
         rel_count = len(data.get("relations", []))
-        logger.info(f"[Memory] Google Drive restore successful ({msg_count} msgs, {ent_count} entities, {rel_count} relations)")
-        
-        return {"status": "ok", "data": data, "counts": {"messages": msg_count, "entities": ent_count, "relations": rel_count}}
+        logger.info(
+            f"[Memory] Google Drive restore successful ({msg_count} msgs, {ent_count} entities, {rel_count} relations)"
+        )
+
+        return {
+            "status": "ok",
+            "data": data,
+            "counts": {
+                "messages": msg_count,
+                "entities": ent_count,
+                "relations": rel_count,
+            },
+        }
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"[Memory] Google Drive restore failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
 # --- VITE DEV PROXY (OMEGA_085) ---
 VITE_URL = "https://localhost:5176"
+
 
 @app.get("/src/{path:path}")
 async def proxy_vite_src(request: Request, path: str):
@@ -1496,9 +1956,14 @@ async def proxy_vite_src(request: Request, path: str):
     try:
         async with httpx.AsyncClient(verify=False) as client:
             resp = await client.get(url)
-            return Response(content=resp.content, status_code=resp.status_code, media_type=resp.headers.get("content-type"))
+            return Response(
+                content=resp.content,
+                status_code=resp.status_code,
+                media_type=resp.headers.get("content-type"),
+            )
     except Exception:
         raise HTTPException(status_code=404)
+
 
 @app.get("/@vite/{path:path}")
 async def proxy_vite_internal(request: Request, path: str):
@@ -1508,9 +1973,14 @@ async def proxy_vite_internal(request: Request, path: str):
     try:
         async with httpx.AsyncClient(verify=False) as client:
             resp = await client.get(url)
-            return Response(content=resp.content, status_code=resp.status_code, media_type=resp.headers.get("content-type"))
+            return Response(
+                content=resp.content,
+                status_code=resp.status_code,
+                media_type=resp.headers.get("content-type"),
+            )
     except Exception:
         raise HTTPException(status_code=404)
+
 
 @app.get("/@id/{path:path}")
 async def proxy_vite_id(request: Request, path: str):
@@ -1520,9 +1990,14 @@ async def proxy_vite_id(request: Request, path: str):
     try:
         async with httpx.AsyncClient(verify=False) as client:
             resp = await client.get(url)
-            return Response(content=resp.content, status_code=resp.status_code, media_type=resp.headers.get("content-type"))
+            return Response(
+                content=resp.content,
+                status_code=resp.status_code,
+                media_type=resp.headers.get("content-type"),
+            )
     except Exception:
         raise HTTPException(status_code=404)
+
 
 @app.get("/node_modules/{path:path}")
 async def proxy_vite_node_modules(request: Request, path: str):
@@ -1532,9 +2007,14 @@ async def proxy_vite_node_modules(request: Request, path: str):
     try:
         async with httpx.AsyncClient(verify=False) as client:
             resp = await client.get(url)
-            return Response(content=resp.content, status_code=resp.status_code, media_type=resp.headers.get("content-type"))
+            return Response(
+                content=resp.content,
+                status_code=resp.status_code,
+                media_type=resp.headers.get("content-type"),
+            )
     except Exception:
         raise HTTPException(status_code=404)
+
 
 @app.get("/@react-refresh")
 async def proxy_vite_react_refresh(request: Request):
@@ -1544,9 +2024,14 @@ async def proxy_vite_react_refresh(request: Request):
     try:
         async with httpx.AsyncClient(verify=False) as client:
             resp = await client.get(url)
-            return Response(content=resp.content, status_code=resp.status_code, media_type=resp.headers.get("content-type"))
+            return Response(
+                content=resp.content,
+                status_code=resp.status_code,
+                media_type=resp.headers.get("content-type"),
+            )
     except Exception:
         raise HTTPException(status_code=404)
+
 
 # --- LM Studio Proxy (OpenAI-compatible local models) ---
 # Proxies /v1/* requests to LM Studio with CORS headers to fix "Method not allowed"
@@ -1564,9 +2049,9 @@ async def proxy_lmstudio(request: Request, path: str):
                 "access-control-allow-methods": "GET, POST, OPTIONS, PUT, DELETE",
                 "access-control-allow-headers": "*",
                 "access-control-max-age": "86400",
-            }
+            },
         )
-    
+
     # Fix: strip leading v1/ to avoid /v1/v1/models
     clean_path = path.removeprefix("v1/")
     url = f"{LMSTUDIO_URL}/v1/{clean_path}"
@@ -1580,9 +2065,9 @@ async def proxy_lmstudio(request: Request, path: str):
             # Inject LM Studio API key if available
             if _token and "authorization" not in {k.lower() for k in headers}:
                 headers["Authorization"] = f"Bearer {_token}"
-            
+
             body = await request.body()
-            
+
             resp = await client.request(
                 method=request.method,
                 url=url,
@@ -1590,7 +2075,7 @@ async def proxy_lmstudio(request: Request, path: str):
                 content=body,
                 params=dict(request.query_params),
             )
-            
+
             # Build response with CORS headers
             response_headers = {
                 "access-control-allow-origin": "*",
@@ -1600,7 +2085,7 @@ async def proxy_lmstudio(request: Request, path: str):
             # Preserve content-type from LM Studio
             if "content-type" in resp.headers:
                 response_headers["content-type"] = resp.headers["content-type"]
-            
+
             return Response(
                 content=resp.content,
                 status_code=resp.status_code,
@@ -1609,13 +2094,17 @@ async def proxy_lmstudio(request: Request, path: str):
     except httpx.ConnectError:
         return JSONResponse(
             status_code=502,
-            content={"error": "LM Studio not reachable. Is it running on port 1234?", "detail": f"Could not connect to {url}"},
+            content={
+                "error": "LM Studio not reachable. Is it running on port 1234?",
+                "detail": f"Could not connect to {url}",
+            },
         )
     except Exception as e:
         return JSONResponse(
             status_code=500,
             content={"error": "LM Studio proxy error", "detail": str(e)},
         )
+
 
 # --- TTS Proxy Routes (Mouth / Kokoro) ---
 @app.post("/api/mouth/tts")
@@ -1632,19 +2121,27 @@ async def proxy_mouth_tts(request: Request, _auth: None = Depends(require_webui_
                 if "json" in ct:
                     return resp.json()
                 # If raw audio bytes
-                return Response(content=resp.content, status_code=200,
-                                media_type=ct or "audio/wav",
-                                headers={"Content-Disposition": "inline; filename=tts_output.wav"})
-            return JSONResponse(status_code=resp.status_code,
-                                content={"error": f"Mouth TTS returned HTTP {resp.status_code}"})
+                return Response(
+                    content=resp.content,
+                    status_code=200,
+                    media_type=ct or "audio/wav",
+                    headers={"Content-Disposition": "inline; filename=tts_output.wav"},
+                )
+            return JSONResponse(
+                status_code=resp.status_code,
+                content={"error": f"Mouth TTS returned HTTP {resp.status_code}"},
+            )
     except httpx.ConnectError:
         return {"error": "Mouth TTS service unreachable", "audio_base64": None}
     except Exception as e:
         logger.error(f"[TTS] Mouth proxy failed: {e}")
         return {"error": str(e), "audio_base64": None}
 
+
 @app.post("/api/kokoro/tts")
-async def proxy_kokoro_tts(request: Request, _auth: None = Depends(require_webui_login)):
+async def proxy_kokoro_tts(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     """Proxy TTS requests to Kokoro TTS engine (via Mouth :8004)."""
     url = f"{MOUTH_URL}/kokoro/tts"
     try:
@@ -1655,15 +2152,19 @@ async def proxy_kokoro_tts(request: Request, _auth: None = Depends(require_webui
                 ct = resp.headers.get("content-type", "")
                 if "json" in ct:
                     return resp.json()
-                return Response(content=resp.content, status_code=200,
-                                media_type=ct or "audio/wav")
-            return JSONResponse(status_code=resp.status_code,
-                                content={"error": f"Kokoro TTS returned HTTP {resp.status_code}"})
+                return Response(
+                    content=resp.content, status_code=200, media_type=ct or "audio/wav"
+                )
+            return JSONResponse(
+                status_code=resp.status_code,
+                content={"error": f"Kokoro TTS returned HTTP {resp.status_code}"},
+            )
     except httpx.ConnectError:
         return {"error": "Kokoro TTS service unreachable", "audio_base64": None}
     except Exception as e:
         logger.error(f"[TTS] Kokoro proxy failed: {e}")
         return {"error": str(e), "audio_base64": None}
+
 
 @app.get("/api/soul/thought_stream")
 async def proxy_thought_stream():
@@ -1675,12 +2176,14 @@ async def proxy_thought_stream():
     except Exception:
         return {"thought": ""}
 
+
 @app.get("/webvm_test.py")
 async def get_webvm_test_script():
     script_path = os.path.join(FoveAI_ROOT, "Tools/WebVM/webvm_test.py")
     if os.path.exists(script_path):
         return FileResponse(script_path)
     raise HTTPException(status_code=404, detail="Test script not found")
+
 
 @app.get("/debian_mini.ext2")
 async def get_webvm_disk():
@@ -1689,8 +2192,11 @@ async def get_webvm_disk():
         return FileResponse(disk_path)
     raise HTTPException(status_code=404, detail="WebVM disk image not found")
 
+
 ANNOUNCEMENTS_PATH = os.path.join(BASE_DIR, "announcements.json")
-UI_CONFIG_PATH = os.getenv("FoveAI_UI_CONFIG_PATH", os.path.join(BASE_DIR, "foveai_ui_config.json"))
+UI_CONFIG_PATH = os.getenv(
+    "FoveAI_UI_CONFIG_PATH", os.path.join(BASE_DIR, "foveai_ui_config.json")
+)
 LEGACY_BRANDING_PATH = os.path.join(BASE_DIR, "webui_branding.json")
 SOUNDBOARD_DIR = os.path.join(FoveAI_ROOT, "Body", "XR_Vessel", "public", "soundboard")
 os.makedirs(SOUNDBOARD_DIR, exist_ok=True)
@@ -1702,8 +2208,13 @@ SOUNDBOARD_URL = os.getenv("FoveAI_SOUNDBOARD_URL", "http://localhost:8006").rst
 # Stable Audio Tools — generates short emotional audio clips from text descriptions
 CREATIVE_URL = os.getenv("CREATIVE_SERVICE_URL", "http://localhost:8003").rstrip("/")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
-LMSTUDIO_URL = os.getenv("LMSTUDIO_URL", os.getenv("FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1")).rstrip("/")
-LMSTUDIO_API_TOKEN = os.getenv("LMSTUDIO_API_TOKEN", os.getenv("LM_STUDIO_API", "")).strip()
+LMSTUDIO_URL = os.getenv(
+    "LMSTUDIO_URL", os.getenv("FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1")
+).rstrip("/")
+LMSTUDIO_API_TOKEN = os.getenv(
+    "LMSTUDIO_API_TOKEN", os.getenv("LM_STUDIO_API", "")
+).strip()
+
 
 def _get_lmstudio_api_token() -> str:
     """Read LM Studio API key dynamically from lms-key-2 file.
@@ -1725,6 +2236,8 @@ def _get_lmstudio_api_token() -> str:
         except Exception:
             pass
     return ""  # No key needed if CORS is enabled and server has no auth
+
+
 MODELS_DIR = os.getenv("FoveAI_MODELS_ROOT", "C:\\Lumax\\models")
 
 # Email notification configuration
@@ -1744,9 +2257,12 @@ def _tts_upstream_probe() -> tuple[str, str]:
     """(probe_url, label) for CHECKUP / diagnostics against the primary TTS upstream."""
     return f"{MOUTH_URL}/health", "Kokoro TTS (MOUTH :8004)"
 
+
 _FoveAI_DREAM_PROXY_TIMEOUT = float(os.getenv("FoveAI_DREAM_PROXY_TIMEOUT_SEC", "600"))
 
-_FoveAI_DISPLAY_UPSCALE_PROXY_TIMEOUT = float(os.getenv("FoveAI_DISPLAY_UPSCALE_PROXY_TIMEOUT_SEC", "120"))
+_FoveAI_DISPLAY_UPSCALE_PROXY_TIMEOUT = float(
+    os.getenv("FoveAI_DISPLAY_UPSCALE_PROXY_TIMEOUT_SEC", "120")
+)
 _WEBUI_PORT = int(os.getenv("WEBUI_PORT", "8101"))
 
 # Minimal WAV (silence) for diagnostics pipeline — same idea as tests/smoke_stt_thinking_tts.py
@@ -1754,7 +2270,13 @@ _PIPELINE_DUMMY_WAV_B64 = base64.b64encode(
     b"RIFF\x24\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00"
     b"\x44\xac\x00\x00\x44\xac\x00\x00\x01\x00\x08\x00data\x00\x00\x00\x00"
 ).decode("ascii")
-_SOUL_PIPELINE_ERR_MARKERS = ("cognition error", "error:", "exceed context", "context window")
+_SOUL_PIPELINE_ERR_MARKERS = (
+    "cognition error",
+    "error:",
+    "exceed context",
+    "context window",
+)
+
 
 @app.get("/", response_class=HTMLResponse)
 async def get_index(request: Request):
@@ -1763,7 +2285,7 @@ async def get_index(request: Request):
         pw = request.cookies.get("foveai_pw")
         if pw != WEBUI_PASSWORD:
             return RedirectResponse(url="/login")
-    
+
     # Dynamic Version Redirection Policy:
     # If the version parameter 'v' is missing or outdated in the request query string,
     # perform an HTTP 307 (Temporary Redirect) to force cache-bypassing across all proxy networks (Cloudflare/routers/browsers).
@@ -1774,18 +2296,21 @@ async def get_index(request: Request):
         params = dict(request.query_params)
         params["v"] = version_num
         from urllib.parse import urlencode
+
         new_url = f"/?{urlencode(params)}"
-        logger.info(f"[Cache-Buster] Outdated or missing version param. Redirecting to: {new_url}")
+        logger.info(
+            f"[Cache-Buster] Outdated or missing version param. Redirecting to: {new_url}"
+        )
         return RedirectResponse(url=new_url, status_code=307)
-        
+
     headers_no_cache = {
         "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
         "Pragma": "no-cache",
         "Expires": "0",
         "CDN-Cache-Control": "no-store",
-        "Cloudflare-CDN-Cache-Control": "no-store"
+        "Cloudflare-CDN-Cache-Control": "no-store",
     }
-    
+
     # --- OMEGA_085 Unified Vessel Root ---
     # 1. Try to proxy to Vite (Dev Mode)
     # Using HTTPS as Vite is configured with SSL in OMEGA_085
@@ -1805,7 +2330,7 @@ async def get_index(request: Request):
         logger.info(f"[Index] Serving via Build Fallback: {xr_build_index}")
         with open(xr_build_index, "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read(), headers=headers_no_cache)
-            
+
     # 3. Last resort: Source XR index
     xr_src_index = os.path.join(BASE_DIR, "index.html")
     if os.path.exists(xr_src_index):
@@ -1813,7 +2338,11 @@ async def get_index(request: Request):
         with open(xr_src_index, "r", encoding="utf-8") as f:
             return HTMLResponse(content=f.read(), headers=headers_no_cache)
 
-    return HTMLResponse(content="XR Vessel index missing. Please run 'npm run build' in frontend/XR_Vessel", headers=headers_no_cache)
+    return HTMLResponse(
+        content="XR Vessel index missing. Please run 'npm run build' in frontend/XR_Vessel",
+        headers=headers_no_cache,
+    )
+
 
 @app.get("/login", response_class=HTMLResponse)
 async def get_login():
@@ -1830,8 +2359,10 @@ async def get_login():
     </html>
     """
 
+
 # --- MONETIZING SYSTEM INTEGRATION (OMEGA_080) ---
 # Authority moved to Soul (Cognition) service. WebUI acts as a proxy.
+
 
 @app.get("/api/monetize/status")
 async def get_monetize_status_proxy():
@@ -1842,6 +2373,7 @@ async def get_monetize_status_proxy():
             return resp.json()
     except Exception as e:
         raise _upstream_unreachable("Soul", url, e)
+
 
 @app.post("/api/monetize/config")
 async def post_monetize_config_proxy(request: Request):
@@ -1854,6 +2386,7 @@ async def post_monetize_config_proxy(request: Request):
     except Exception as e:
         raise _upstream_unreachable("Soul", url, e)
 
+
 @app.post("/api/monetize/treasury/config")
 async def post_monetize_treasury_config_proxy(request: Request):
     data = await request.json()
@@ -1865,6 +2398,7 @@ async def post_monetize_treasury_config_proxy(request: Request):
     except Exception as e:
         raise _upstream_unreachable("Soul", url, e)
 
+
 @app.post("/api/monetize/control")
 async def post_monetize_control_proxy(request: Request):
     data = await request.json()
@@ -1875,6 +2409,7 @@ async def post_monetize_control_proxy(request: Request):
             return resp.json()
     except Exception as e:
         raise _upstream_unreachable("Soul", url, e)
+
 
 @app.post("/api/monetize/add_agent")
 async def post_monetize_add_agent_proxy(request: Request):
@@ -1888,6 +2423,7 @@ async def post_monetize_add_agent_proxy(request: Request):
     except Exception as e:
         raise _upstream_unreachable("Soul", url, e)
 
+
 @app.post("/api/monetize/remove_agent")
 async def post_monetize_remove_agent_proxy(request: Request):
     form_data = await request.form()
@@ -1899,6 +2435,7 @@ async def post_monetize_remove_agent_proxy(request: Request):
     except Exception as e:
         raise _upstream_unreachable("Soul", url, e)
 
+
 @app.get("/api/monetize/ideas")
 async def get_monetize_ideas_proxy():
     url = f"{SOUL_URL}/monetize/ideas"
@@ -1909,6 +2446,7 @@ async def get_monetize_ideas_proxy():
     except Exception as e:
         raise _upstream_unreachable("Soul", url, e)
 
+
 @app.post("/api/monetize/ideas/scan")
 async def post_monetize_ideas_scan_proxy():
     url = f"{SOUL_URL}/monetize/ideas/scan"
@@ -1918,6 +2456,7 @@ async def post_monetize_ideas_scan_proxy():
             return resp.json()
     except Exception as e:
         raise _upstream_unreachable("Soul", url, e)
+
 
 @app.post("/api/monetize/ideas/certify")
 async def post_monetize_ideas_certify_proxy(request: Request):
@@ -1930,6 +2469,7 @@ async def post_monetize_ideas_certify_proxy(request: Request):
     except Exception as e:
         raise _upstream_unreachable("Soul", url, e)
 
+
 @app.get("/api/monetize/ideas/plan")
 async def get_monetize_ideas_plan_proxy(idea_id: str):
     url = f"{SOUL_URL}/monetize/ideas/plan"
@@ -1940,53 +2480,71 @@ async def get_monetize_ideas_plan_proxy(idea_id: str):
     except Exception as e:
         raise _upstream_unreachable("Soul", url, e)
 
+
 @app.get("/monetize/status")
 async def root_proxy_monetize_status():
     return await get_monetize_status_proxy()
+
 
 @app.post("/monetize/config")
 async def root_proxy_monetize_config(request: Request):
     return await post_monetize_config_proxy(request)
 
+
 @app.post("/monetize/treasury/config")
 async def root_proxy_monetize_treasury_config(request: Request):
     return await post_monetize_treasury_config_proxy(request)
+
 
 @app.post("/monetize/control")
 async def root_proxy_monetize_control(request: Request):
     return await post_monetize_control_proxy(request)
 
+
 @app.post("/monetize/add_agent")
 async def root_proxy_monetize_add_agent(request: Request):
     return await post_monetize_add_agent_proxy(request)
+
 
 @app.post("/monetize/remove_agent")
 async def root_proxy_monetize_remove_agent(request: Request):
     return await post_monetize_remove_agent_proxy(request)
 
+
 @app.get("/monetize/ideas")
 async def root_proxy_monetize_ideas():
     return await get_monetize_ideas_proxy()
+
 
 @app.post("/monetize/ideas/scan")
 async def root_proxy_monetize_ideas_scan():
     return await post_monetize_ideas_scan_proxy()
 
+
 @app.post("/monetize/ideas/certify")
 async def root_proxy_monetize_ideas_certify(request: Request):
     return await post_monetize_ideas_certify_proxy(request)
+
 
 @app.get("/monetize/ideas/plan")
 async def root_proxy_monetize_ideas_plan(idea_id: str):
     return await get_monetize_ideas_plan_proxy(idea_id)
 
+
 @app.post("/login")
 async def post_login(password: str = Form(...)):
     if password == WEBUI_PASSWORD:
         resp = RedirectResponse(url="/", status_code=303)
-        resp.set_cookie(key="foveai_pw", value=password, httponly=True, max_age=365*24*3600, samesite="lax")
+        resp.set_cookie(
+            key="foveai_pw",
+            value=password,
+            httponly=True,
+            max_age=365 * 24 * 3600,
+            samesite="lax",
+        )
         return resp
     return RedirectResponse(url="/login?error=1", status_code=303)
+
 
 @app.get("/api/auth/status")
 async def get_auth_status(request: Request):
@@ -1995,13 +2553,14 @@ async def get_auth_status(request: Request):
         is_authed = True
     else:
         pw = request.cookies.get("foveai_pw")
-        is_authed = (pw == WEBUI_PASSWORD)
-    
+        is_authed = pw == WEBUI_PASSWORD
+
     return {
         "auth_required": bool(WEBUI_PASSWORD),
         "authenticated": is_authed,
-        "authorized": is_authed # backward compatibility
+        "authorized": is_authed,  # backward compatibility
     }
+
 
 @app.post("/api/auth/login")
 async def post_auth_login(request: Request, response: Response):
@@ -2010,38 +2569,68 @@ async def post_auth_login(request: Request, response: Response):
         password = data.get("password", "")
     except:
         password = ""
-        
-    if password == WEBUI_PASSWORD or (not password and request.client.host in ("127.0.0.1", "localhost", "::1")):
-        response.set_cookie(key="foveai_pw", value=WEBUI_PASSWORD, httponly=True, max_age=365*24*3600, samesite="lax")
+
+    if password == WEBUI_PASSWORD or (
+        not password and request.client.host in ("127.0.0.1", "localhost", "::1")
+    ):
+        response.set_cookie(
+            key="foveai_pw",
+            value=WEBUI_PASSWORD,
+            httponly=True,
+            max_age=365 * 24 * 3600,
+            samesite="lax",
+        )
         return {"ok": True}
     return JSONResponse(status_code=401, content={"ok": False})
+
 
 @app.post("/api/auth/logout")
 async def post_logout(response: Response):
     response.delete_cookie("foveai_pw")
     return {"status": "ok"}
 
+
 @app.post("/api/handshake")
 async def post_handshake():
     return {"ok": True, "service": "foveai_web_vessel"}
 
+
 # --- Persona & Settings Management ---
-USER_DATA_DIR = os.getenv("FoveAI_USER_DATA_BIND", os.path.join(os.getcwd(), "user_data"))
+USER_DATA_DIR = os.getenv(
+    "FoveAI_USER_DATA_BIND", os.path.join(os.getcwd(), "user_data")
+)
 VESSEL_DATA_DIR = os.path.join(USER_DATA_DIR, "web_vessel")
 PERSONAS_PATH = os.path.join(VESSEL_DATA_DIR, "personas.json")
 LMS_SETTINGS_PATH = os.path.join(VESSEL_DATA_DIR, "lms_settings.json")
 
 os.makedirs(VESSEL_DATA_DIR, exist_ok=True)
 
+
 @app.get("/api/vessel/personas")
 async def get_personas(_auth: None = Depends(require_webui_login)):
     if not os.path.exists(PERSONAS_PATH):
         # Default personas
         return [
-            {"id": "default", "name": "Default Assistant", "prompt": "You are a helpful AI assistant."},
-            {"id": "coder", "name": "Expert Coder", "prompt": "You are an expert software engineer. Provide clean, efficient, and well-documented code."},
-            {"id": "architect", "name": "System Architect", "prompt": "You are a senior system architect. Analyze requirements and propose scalable, robust architectures."},
-            {"id": "creative", "name": "Creative Writer", "prompt": "You are a creative writer. Help me with storytelling, dialogue, and world-building."}
+            {
+                "id": "default",
+                "name": "Default Assistant",
+                "prompt": "You are a helpful AI assistant.",
+            },
+            {
+                "id": "coder",
+                "name": "Expert Coder",
+                "prompt": "You are an expert software engineer. Provide clean, efficient, and well-documented code.",
+            },
+            {
+                "id": "architect",
+                "name": "System Architect",
+                "prompt": "You are a senior system architect. Analyze requirements and propose scalable, robust architectures.",
+            },
+            {
+                "id": "creative",
+                "name": "Creative Writer",
+                "prompt": "You are a creative writer. Help me with storytelling, dialogue, and world-building.",
+            },
         ]
     try:
         with open(PERSONAS_PATH, "r", encoding="utf-8") as f:
@@ -2049,8 +2638,11 @@ async def get_personas(_auth: None = Depends(require_webui_login)):
     except Exception:
         return []
 
+
 @app.post("/api/vessel/personas")
-async def save_personas(personas: List[Dict], _auth: None = Depends(require_webui_login)):
+async def save_personas(
+    personas: list[dict], _auth: None = Depends(require_webui_login)
+):
     try:
         with open(PERSONAS_PATH, "w", encoding="utf-8") as f:
             json.dump(personas, f, indent=2)
@@ -2058,24 +2650,32 @@ async def save_personas(personas: List[Dict], _auth: None = Depends(require_webu
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/api/vessel/lms_settings")
 async def get_lms_settings(_auth: None = Depends(require_webui_login)):
     if not os.path.exists(LMS_SETTINGS_PATH):
-        return {"temperature": 0.7, "max_tokens": 1024, "context_length": 5, "top_p": 1.0}
+        return {
+            "temperature": 0.7,
+            "max_tokens": 1024,
+            "context_length": 5,
+            "top_p": 1.0,
+        }
     try:
         with open(LMS_SETTINGS_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {"temperature": 0.7, "max_tokens": 1024, "context_length": 5}
 
+
 @app.post("/api/vessel/lms_settings")
-async def save_lms_settings(settings: Dict, _auth: None = Depends(require_webui_login)):
+async def save_lms_settings(settings: dict, _auth: None = Depends(require_webui_login)):
     try:
         with open(LMS_SETTINGS_PATH, "w", encoding="utf-8") as f:
             json.dump(settings, f, indent=2)
         return {"status": "ok"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/health")
 async def health_check():
@@ -2086,12 +2686,13 @@ async def health_check():
 _provider_cache = None
 _provider_cache_time = 0
 
+
 @app.get("/api/chat/provider")
 async def get_chat_provider(_auth: None = Depends(require_webui_login)):
     """Return current chat provider, model, and available models from all providers.
     Allows the UI to display what's active and switch between providers/models."""
     global _provider_cache, _provider_cache_time
-    
+
     # Cache for 60 seconds to prevent API spam loop
     if _provider_cache and (datetime.now().timestamp() - _provider_cache_time < 60):
         return _provider_cache
@@ -2110,21 +2711,32 @@ async def get_chat_provider(_auth: None = Depends(require_webui_login)):
     current_url = cloud_base_url or ollama_host
 
     if provider == "unsloth":
-        current_url = os.getenv("FoveAI_UNSLOTH_BASE_URL", "").strip() or os.getenv("FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1").strip()
-        current_model = os.getenv("FoveAI_LOCAL_MODEL", "unsloth/Qwen3.5-4B-MTP-GGUF").strip()
+        current_url = (
+            os.getenv("FoveAI_UNSLOTH_BASE_URL", "").strip()
+            or os.getenv("FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1").strip()
+        )
+        current_model = os.getenv(
+            "FoveAI_LOCAL_MODEL", "unsloth/Qwen3.5-4B-MTP-GGUF"
+        ).strip()
         try:
             token = os.getenv("FoveAI_UNSLOTH_API_KEY", "").strip()
             headers = {}
             if token:
                 headers["Authorization"] = f"Bearer {token}"
-            endpoint = f"{current_url.rstrip('/')}/models" if "v1" in current_url.lower() else f"{current_url.rstrip('/')}/v1/models"
+            endpoint = (
+                f"{current_url.rstrip('/')}/models"
+                if "v1" in current_url.lower()
+                else f"{current_url.rstrip('/')}/v1/models"
+            )
             async with httpx.AsyncClient(timeout=2.0) as client:
                 resp = await client.get(endpoint, headers=headers)
                 if resp.status_code == 200:
                     data = resp.json()
                     models = data.get("data", [])
                     if models:
-                        current_model = models[0].get("id", models[0].get("name", current_model))
+                        current_model = models[0].get(
+                            "id", models[0].get("name", current_model)
+                        )
         except Exception:
             pass
     elif provider == "lmstudio":
@@ -2140,13 +2752,26 @@ async def get_chat_provider(_auth: None = Depends(require_webui_login)):
                     data = resp.json()
                     models = data.get("data", [])
                     if models:
-                        current_model = models[0].get("id", models[0].get("name", "local-model"))
+                        current_model = models[0].get(
+                            "id", models[0].get("name", "local-model")
+                        )
                     else:
-                        current_model = os.getenv("FoveAI_REPERTOIRE_LMSTUDIO_MODEL", os.getenv("FoveAI_LMSTUDIO_MODEL", "qwen3.5-4b-abliterated"))
+                        current_model = os.getenv(
+                            "FoveAI_REPERTOIRE_LMSTUDIO_MODEL",
+                            os.getenv(
+                                "FoveAI_LMSTUDIO_MODEL", "qwen3.5-4b-abliterated"
+                            ),
+                        )
                 else:
-                    current_model = os.getenv("FoveAI_REPERTOIRE_LMSTUDIO_MODEL", os.getenv("FoveAI_LMSTUDIO_MODEL", "qwen3.5-4b-abliterated"))
+                    current_model = os.getenv(
+                        "FoveAI_REPERTOIRE_LMSTUDIO_MODEL",
+                        os.getenv("FoveAI_LMSTUDIO_MODEL", "qwen3.5-4b-abliterated"),
+                    )
         except Exception:
-            current_model = os.getenv("FoveAI_REPERTOIRE_LMSTUDIO_MODEL", os.getenv("FoveAI_LMSTUDIO_MODEL", "qwen3.5-4b-abliterated"))
+            current_model = os.getenv(
+                "FoveAI_REPERTOIRE_LMSTUDIO_MODEL",
+                os.getenv("FoveAI_LMSTUDIO_MODEL", "qwen3.5-4b-abliterated"),
+            )
     elif provider == "ollama":
         current_url = ollama_host
         try:
@@ -2156,7 +2781,9 @@ async def get_chat_provider(_auth: None = Depends(require_webui_login)):
                     data = resp.json()
                     models = data.get("models", [])
                     if models:
-                        current_model = models[0].get("name", models[0].get("id", "qwen2.5:latest"))
+                        current_model = models[0].get(
+                            "name", models[0].get("id", "qwen2.5:latest")
+                        )
                     else:
                         current_model = os.getenv("OLLAMA_MODEL", "qwen2.5:latest")
                 else:
@@ -2164,12 +2791,20 @@ async def get_chat_provider(_auth: None = Depends(require_webui_login)):
         except Exception:
             current_model = os.getenv("OLLAMA_MODEL", "qwen2.5:latest")
     elif provider == "windows_npu":
-        current_url = os.getenv("FoveAI_REPERTOIRE_WINDOWS_NPU_BASE_URL", "http://localhost:11436/v1")
-        current_model = os.getenv("FoveAI_REPERTOIRE_WINDOWS_NPU_MODEL", "windows-npu-phi-silica")
+        current_url = os.getenv(
+            "FoveAI_REPERTOIRE_WINDOWS_NPU_BASE_URL", "http://localhost:11436/v1"
+        )
+        current_model = os.getenv(
+            "FoveAI_REPERTOIRE_WINDOWS_NPU_MODEL", "windows-npu-phi-silica"
+        )
     elif provider == "local":
         current_url = "local-python-gguf"
-        raw_path = os.getenv("FoveAI_MODEL_PATH", os.getenv("FoveAI_LOCAL_MODEL", "soul-model.gguf"))
-        if MODELS_DIR and raw_path.replace("\\", "/").startswith(MODELS_DIR.replace("\\", "/")):
+        raw_path = os.getenv(
+            "FoveAI_MODEL_PATH", os.getenv("FoveAI_LOCAL_MODEL", "soul-model.gguf")
+        )
+        if MODELS_DIR and raw_path.replace("\\", "/").startswith(
+            MODELS_DIR.replace("\\", "/")
+        ):
             current_model = os.path.relpath(raw_path, MODELS_DIR).replace("\\", "/")
         else:
             current_model = raw_path.replace("\\", "/")
@@ -2178,13 +2813,20 @@ async def get_chat_provider(_auth: None = Depends(require_webui_login)):
         current_model = os.getenv("FoveAI_REPERTOIRE_GEMINI_MODEL", "gemini-1.5-flash")
     elif provider == "openrouter":
         current_url = "https://openrouter.ai/api/v1"
-        current_model = os.getenv("FoveAI_REPERTOIRE_OPENROUTER_MODEL", "gryphe/mythomax-l2-13b")
+        current_model = os.getenv(
+            "FoveAI_REPERTOIRE_OPENROUTER_MODEL", "gryphe/mythomax-l2-13b"
+        )
     elif provider == "openrouter_free":
         current_url = "https://openrouter.ai/api/v1"
-        current_model = os.getenv("FoveAI_REPERTOIRE_OPENROUTER_FREE_MODEL", "meta-llama/llama-3-8b-instruct:free")
+        current_model = os.getenv(
+            "FoveAI_REPERTOIRE_OPENROUTER_FREE_MODEL",
+            "meta-llama/llama-3-8b-instruct:free",
+        )
     elif provider == "venice":
         current_url = "https://api.venice.ai/api/v1"
-        current_model = os.getenv("FoveAI_REPERTOIRE_VENICE_MODEL", "dolphin-2.9.2-qwen2-7b")
+        current_model = os.getenv(
+            "FoveAI_REPERTOIRE_VENICE_MODEL", "dolphin-2.9.2-qwen2-7b"
+        )
     elif provider == "github":
         current_url = "https://models.inference.ai.azure.com"
         current_model = os.getenv("FoveAI_REPERTOIRE_GITHUB_MODEL", "gpt-4o-mini")
@@ -2200,9 +2842,15 @@ async def get_chat_provider(_auth: None = Depends(require_webui_login)):
             "provider": provider,
             "model": current_model,
             "base_url": current_url,
-            "local_vision": os.getenv("FoveAI_LOCAL_VISION_ENABLED", "true").lower() == "true",
-            "structured_output": os.getenv("FoveAI_MODEL_STRUCTURED_OUTPUT", "false").lower() == "true",
-            "cognitive_mode": os.getenv("FoveAI_COGNITIVE_MODE", "hybrid").strip().lower(),
+            "local_vision": os.getenv("FoveAI_LOCAL_VISION_ENABLED", "true").lower()
+            == "true",
+            "structured_output": os.getenv(
+                "FoveAI_MODEL_STRUCTURED_OUTPUT", "false"
+            ).lower()
+            == "true",
+            "cognitive_mode": os.getenv("FoveAI_COGNITIVE_MODE", "hybrid")
+            .strip()
+            .lower(),
         },
         "providers": [],
     }
@@ -2214,42 +2862,57 @@ async def get_chat_provider(_auth: None = Depends(require_webui_login)):
             resp = await client.get(f"{ollama_host}/api/tags")
             if resp.status_code == 200:
                 data = resp.json()
-                ollama_models = [m.get("name", m.get("id", "")) for m in data.get("models", [])]
+                ollama_models = [
+                    m.get("name", m.get("id", "")) for m in data.get("models", [])
+                ]
     except Exception:
         pass
-    result["providers"].append({
-        "id": "ollama",
-        "name": "Ollama (Local)",
-        "base_url": ollama_host,
-        "reachable": len(ollama_models) > 0,
-        "models": ollama_models,
-    })
+    result["providers"].append(
+        {
+            "id": "ollama",
+            "name": "Ollama (Local)",
+            "base_url": ollama_host,
+            "reachable": len(ollama_models) > 0,
+            "models": ollama_models,
+        }
+    )
 
     # 1.5 Unsloth
     unsloth_models = []
     unsloth_reachable = False
-    unsloth_url = os.getenv("FoveAI_UNSLOTH_BASE_URL", "").strip() or os.getenv("FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1").strip()
+    unsloth_url = (
+        os.getenv("FoveAI_UNSLOTH_BASE_URL", "").strip()
+        or os.getenv("FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1").strip()
+    )
     try:
         token = os.getenv("FoveAI_UNSLOTH_API_KEY", "").strip()
         headers = {}
         if token:
             headers["Authorization"] = f"Bearer {token}"
-        endpoint = f"{unsloth_url.rstrip('/')}/models" if "v1" in unsloth_url.lower() else f"{unsloth_url.rstrip('/')}/v1/models"
+        endpoint = (
+            f"{unsloth_url.rstrip('/')}/models"
+            if "v1" in unsloth_url.lower()
+            else f"{unsloth_url.rstrip('/')}/v1/models"
+        )
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(endpoint, headers=headers)
             if resp.status_code == 200:
                 data = resp.json()
-                unsloth_models = [m.get("id", m.get("name", "")) for m in data.get("data", [])]
+                unsloth_models = [
+                    m.get("id", m.get("name", "")) for m in data.get("data", [])
+                ]
                 unsloth_reachable = True
     except Exception:
         pass
-    result["providers"].append({
-        "id": "unsloth",
-        "name": "Unsloth (Local)",
-        "base_url": unsloth_url,
-        "reachable": unsloth_reachable,
-        "models": unsloth_models,
-    })
+    result["providers"].append(
+        {
+            "id": "unsloth",
+            "name": "Unsloth (Local)",
+            "base_url": unsloth_url,
+            "reachable": unsloth_reachable,
+            "models": unsloth_models,
+        }
+    )
 
     # 2. LM Studio
     lmstudio_models = []
@@ -2263,17 +2926,21 @@ async def get_chat_provider(_auth: None = Depends(require_webui_login)):
             resp = await client.get(f"{lmstudio_url}/v1/models", headers=headers)
             if resp.status_code == 200:
                 data = resp.json()
-                lmstudio_models = [m.get("id", m.get("name", "")) for m in data.get("data", [])]
+                lmstudio_models = [
+                    m.get("id", m.get("name", "")) for m in data.get("data", [])
+                ]
                 lmstudio_reachable = True
     except Exception:
         pass
-    result["providers"].append({
-        "id": "lmstudio",
-        "name": "LM Studio",
-        "base_url": lmstudio_url,
-        "reachable": lmstudio_reachable,
-        "models": lmstudio_models,
-    })
+    result["providers"].append(
+        {
+            "id": "lmstudio",
+            "name": "LM Studio",
+            "base_url": lmstudio_url,
+            "reachable": lmstudio_reachable,
+            "models": lmstudio_models,
+        }
+    )
 
     # 3. Ollama Cloud (uses FoveAI_CLOUD_BASE_URL)
     ollama_cloud_url = os.getenv("FoveAI_CLOUD_BASE_URL", "").rstrip("/")
@@ -2281,51 +2948,67 @@ async def get_chat_provider(_auth: None = Depends(require_webui_login)):
     ollama_cloud_models = []
     ollama_cloud_reachable = False
     cog_mode = os.getenv("FoveAI_COGNITIVE_MODE", "").strip().lower()
-    
+
     if ollama_cloud_url and cog_mode != "local":
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.get(f"{ollama_cloud_url}/models", headers=_cloud_headers(ollama_cloud_key))
+                resp = await client.get(
+                    f"{ollama_cloud_url}/models",
+                    headers=_cloud_headers(ollama_cloud_key),
+                )
                 if resp.status_code == 200:
                     data = resp.json()
-                    ollama_cloud_models = [m.get("id", m.get("name", "")) for m in data.get("data", [])]
+                    ollama_cloud_models = [
+                        m.get("id", m.get("name", "")) for m in data.get("data", [])
+                    ]
                     ollama_cloud_reachable = True
         except Exception:
             pass
-    result["providers"].append({
-        "id": "ollama_cloud",
-        "name": "Ollama Cloud",
-        "base_url": ollama_cloud_url,
-        "reachable": ollama_cloud_reachable or bool(ollama_cloud_url),
-        "models": ollama_cloud_models,
-        "active_model": os.getenv("FoveAI_CLOUD_MODEL", ""),
-    })
+    result["providers"].append(
+        {
+            "id": "ollama_cloud",
+            "name": "Ollama Cloud",
+            "base_url": ollama_cloud_url,
+            "reachable": ollama_cloud_reachable or bool(ollama_cloud_url),
+            "models": ollama_cloud_models,
+            "active_model": os.getenv("FoveAI_CLOUD_MODEL", ""),
+        }
+    )
 
     # 4. OpenRouter (uses FoveAI_CLOUD_OPENROUTER_API for key)
-    openrouter_key = os.getenv("FoveAI_CLOUD_OPENROUTER_API", os.getenv("OPENROUTER_API_KEY", "")).strip()
+    openrouter_key = os.getenv(
+        "FoveAI_CLOUD_OPENROUTER_API", os.getenv("OPENROUTER_API_KEY", "")
+    ).strip()
     openrouter_models = []
     if openrouter_key and cog_mode != "local":
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 resp = await client.get(
                     "https://openrouter.ai/api/v1/models",
-                    headers={"Authorization": f"Bearer {openrouter_key}"}
+                    headers={"Authorization": f"Bearer {openrouter_key}"},
                 )
                 if resp.status_code == 200:
                     data = resp.json()
-                    openrouter_models = [m.get("id", "") for m in data.get("data", [])[:100]]
+                    openrouter_models = [
+                        m.get("id", "") for m in data.get("data", [])[:100]
+                    ]
         except Exception:
             pass
-    result["providers"].append({
-        "id": "openrouter",
-        "name": "OpenRouter",
-        "base_url": "https://openrouter.ai/api/v1",
-        "reachable": bool(openrouter_key),
-        "models": openrouter_models,
-    })
+    result["providers"].append(
+        {
+            "id": "openrouter",
+            "name": "OpenRouter",
+            "base_url": "https://openrouter.ai/api/v1",
+            "reachable": bool(openrouter_key),
+            "models": openrouter_models,
+        }
+    )
 
     # 5. Gemini
-    gemini_key = os.getenv("FoveAI_REPERTOIRE_GEMINI_API_KEY", os.getenv("GEMINI_API_KEY", os.getenv("GOOGLE_API_KEY", ""))).strip()
+    gemini_key = os.getenv(
+        "FoveAI_REPERTOIRE_GEMINI_API_KEY",
+        os.getenv("GEMINI_API_KEY", os.getenv("GOOGLE_API_KEY", "")),
+    ).strip()
     gemini_models = []
     if gemini_key and cog_mode != "local":
         try:
@@ -2335,50 +3018,68 @@ async def get_chat_provider(_auth: None = Depends(require_webui_login)):
                 )
                 if resp.status_code == 200:
                     data = resp.json()
-                    gemini_models = [m.get("name", "").replace("models/", "") for m in data.get("models", [])]
+                    gemini_models = [
+                        m.get("name", "").replace("models/", "")
+                        for m in data.get("models", [])
+                    ]
         except Exception:
             pass
-    result["providers"].append({
-        "id": "gemini",
-        "name": "Google Gemini",
-        "base_url": "https://generativelanguage.googleapis.com",
-        "reachable": bool(gemini_key),
-        "models": gemini_models or (["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash"] if gemini_key else []),
-    })
+    result["providers"].append(
+        {
+            "id": "gemini",
+            "name": "Google Gemini",
+            "base_url": "https://generativelanguage.googleapis.com",
+            "reachable": bool(gemini_key),
+            "models": gemini_models
+            or (
+                ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash"]
+                if gemini_key
+                else []
+            ),
+        }
+    )
 
     # 6. Groq (Extra slot)
     groq_key = os.getenv("FoveAI_REPERTOIRE_EXTRA_API_KEY", "").strip()
     groq_model = os.getenv("FoveAI_REPERTOIRE_EXTRA_MODEL", "")
     if groq_key:
-        result["providers"].append({
-            "id": "groq",
-            "name": os.getenv("FoveAI_REPERTOIRE_EXTRA_LABEL", "Groq Ultra-Fast"),
-            "base_url": "https://api.groq.com/openai/v1",
-            "reachable": True,
-            "models": [groq_model] if groq_model else [],
-        })
+        result["providers"].append(
+            {
+                "id": "groq",
+                "name": os.getenv("FoveAI_REPERTOIRE_EXTRA_LABEL", "Groq Ultra-Fast"),
+                "base_url": "https://api.groq.com/openai/v1",
+                "reachable": True,
+                "models": [groq_model] if groq_model else [],
+            }
+        )
 
     # 7. GitHub Copilot (Azure)
     github_key = os.getenv("FoveAI_REPERTOIRE_GITHUB_API_KEY", "").strip()
     github_model = os.getenv("FoveAI_REPERTOIRE_GITHUB_MODEL", "")
     if github_key:
-        result["providers"].append({
-            "id": "github",
-            "name": os.getenv("FoveAI_REPERTOIRE_GITHUB_LABEL", "GitHub Copilot (Azure)"),
-            "base_url": "https://models.inference.ai.azure.com",
-            "reachable": True,
-            "models": [github_model] if github_model else [],
-        })
+        result["providers"].append(
+            {
+                "id": "github",
+                "name": os.getenv(
+                    "FoveAI_REPERTOIRE_GITHUB_LABEL", "GitHub Copilot (Azure)"
+                ),
+                "base_url": "https://models.inference.ai.azure.com",
+                "reachable": True,
+                "models": [github_model] if github_model else [],
+            }
+        )
 
     # 8. Cloud (generic OpenAI-compatible)
     if cloud_base_url and cloud_model:
-        result["providers"].append({
-            "id": "cloud_custom",
-            "name": f"Cloud ({cloud_base_url.split('//')[1].split('/')[0]})",
-            "base_url": cloud_base_url,
-            "reachable": True,
-            "models": [cloud_model],
-        })
+        result["providers"].append(
+            {
+                "id": "cloud_custom",
+                "name": f"Cloud ({cloud_base_url.split('//')[1].split('/')[0]})",
+                "base_url": cloud_base_url,
+                "reachable": True,
+                "models": [cloud_model],
+            }
+        )
 
     # 9. Local Python Engine (GGUF)
     local_models = []
@@ -2389,18 +3090,22 @@ async def get_chat_provider(_auth: None = Depends(require_webui_login)):
             if resp.status_code == 200:
                 inv_data = resp.json()
                 if inv_data.get("ok"):
-                    local_models = [m.get("path") for m in inv_data.get("local_models", [])]
+                    local_models = [
+                        m.get("path") for m in inv_data.get("local_models", [])
+                    ]
                     local_reachable = True
     except Exception as e:
         logger.warning(f"Failed to fetch local GGUF model inventory: {e}")
 
-    result["providers"].append({
-        "id": "local",
-        "name": "Soul Engine (Local GGUF)",
-        "base_url": "local-python-gguf",
-        "reachable": local_reachable,
-        "models": local_models,
-    })
+    result["providers"].append(
+        {
+            "id": "local",
+            "name": "Soul Engine (Local GGUF)",
+            "base_url": "local-python-gguf",
+            "reachable": local_reachable,
+            "models": local_models,
+        }
+    )
 
     _provider_cache = result
     _provider_cache_time = datetime.now().timestamp()
@@ -2408,7 +3113,9 @@ async def get_chat_provider(_auth: None = Depends(require_webui_login)):
 
 
 @app.post("/api/chat/provider")
-async def set_chat_provider(request: Request, _auth: None = Depends(require_webui_login)):
+async def set_chat_provider(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     """Switch the active chat provider and/or model by updating environment variables.
     This is a runtime switch — changes persist for the current process session."""
     global _provider_cache
@@ -2479,7 +3186,9 @@ async def set_chat_provider(request: Request, _auth: None = Depends(require_webu
                 payload["local_vision_caption"] = bool(data["local_vision"])
             if payload:
                 # Use /soul_runtime_config endpoint instead of non-existent /api/config
-                resp = await client.post(f"{SOUL_URL}/soul_runtime_config", json=payload)
+                resp = await client.post(
+                    f"{SOUL_URL}/soul_runtime_config", json=payload
+                )
                 logger.info(f"Pushed config to Soul: {resp.status_code} - {resp.text}")
     except Exception as e:
         logger.warning(f"Failed to push config to Soul: {e}")
@@ -2489,10 +3198,16 @@ async def set_chat_provider(request: Request, _auth: None = Depends(require_webu
         "ok": True,
         "current": {
             "provider": os.getenv("FoveAI_CHAT_PROVIDER", "ollama"),
-            "model": os.getenv("FoveAI_MODEL_PATH", "") if provider == "local" else os.getenv("FoveAI_CLOUD_MODEL", ""),
-            "local_vision": os.getenv("FoveAI_LOCAL_VISION_ENABLED", "true").lower() == "true",
-            "structured_output": os.getenv("FoveAI_MODEL_STRUCTURED_OUTPUT", "false").lower() == "true",
-        }
+            "model": os.getenv("FoveAI_MODEL_PATH", "")
+            if provider == "local"
+            else os.getenv("FoveAI_CLOUD_MODEL", ""),
+            "local_vision": os.getenv("FoveAI_LOCAL_VISION_ENABLED", "true").lower()
+            == "true",
+            "structured_output": os.getenv(
+                "FoveAI_MODEL_STRUCTURED_OUTPUT", "false"
+            ).lower()
+            == "true",
+        },
     }
 
 
@@ -2503,7 +3218,11 @@ async def brain_diagnostic(_auth: None = Depends(require_webui_login)):
     result = {
         "timestamp": datetime.utcnow().isoformat(),
         "soul": {"url": SOUL_URL, "reachable": False, "error": None},
-        "direct_cloud": {"slots_configured": [], "slots_eligible": [], "test_result": None},
+        "direct_cloud": {
+            "slots_configured": [],
+            "slots_eligible": [],
+            "test_result": None,
+        },
     }
 
     # 1. Test Soul service
@@ -2522,8 +3241,9 @@ async def brain_diagnostic(_auth: None = Depends(require_webui_login)):
         sys.path.insert(0, os.path.join(FoveAI_ROOT, "Mind", "Cognition"))
         # pyrefly: ignore [missing-import]
         from cloud_repertoire import (
-            eligible_cloud_slot_ids, configured_slots_public,
-            generate_via_slot_sync, slot_credentials, _env_prefix_for_public_id,
+            configured_slots_public,
+            eligible_cloud_slot_ids,
+            generate_via_slot_sync,
         )
 
         slots_public = configured_slots_public()
@@ -2545,9 +3265,11 @@ async def brain_diagnostic(_auth: None = Depends(require_webui_login)):
                     result["direct_cloud"]["test_result"] = {
                         "slot": test_slot,
                         "success": True,
-                        "reply_preview": (reply or "")[:100] if isinstance(reply, str) else str(reply)[:100],
+                        "reply_preview": (reply or "")[:100]
+                        if isinstance(reply, str)
+                        else str(reply)[:100],
                     }
-                    break # Success! Stop testing.
+                    break  # Success! Stop testing.
                 except Exception as e:
                     result["direct_cloud"]["test_result"] = {
                         "slot": test_slot,
@@ -2566,20 +3288,29 @@ async def brain_diagnostic(_auth: None = Depends(require_webui_login)):
     # 3. Check env vars that control routing
     result["routing"] = {
         "FoveAI_CHAT_PROVIDER": os.getenv("FoveAI_CHAT_PROVIDER", "(not set)"),
-        "FoveAI_CLOUD_SPLICE_PERCENT": os.getenv("FoveAI_CLOUD_SPLICE_PERCENT", "(not set)"),
+        "FoveAI_CLOUD_SPLICE_PERCENT": os.getenv(
+            "FoveAI_CLOUD_SPLICE_PERCENT", "(not set)"
+        ),
         "FoveAI_CLOUD_MAX_TOKENS": os.getenv("FoveAI_CLOUD_MAX_TOKENS", "(not set)"),
         "FoveAI_CLOUD_BASE_URL": os.getenv("FoveAI_CLOUD_BASE_URL", "(not set)"),
         "FoveAI_CLOUD_MODEL": os.getenv("FoveAI_CLOUD_MODEL", "(not set)"),
         "OLLAMA_API_KEY_set": bool(os.getenv("OLLAMA_API_KEY", "").strip()),
-        "FoveAI_REPERTOIRE_OLLAMA_API_KEY_set": bool(os.getenv("FoveAI_REPERTOIRE_OLLAMA_API_KEY", "").strip()),
-        "FoveAI_REPERTOIRE_OLLAMA_BASE_URL": os.getenv("FoveAI_REPERTOIRE_OLLAMA_BASE_URL", "(not set)"),
-        "FoveAI_REPERTOIRE_OLLAMA_MODEL": os.getenv("FoveAI_REPERTOIRE_OLLAMA_MODEL", "(not set)"),
+        "FoveAI_REPERTOIRE_OLLAMA_API_KEY_set": bool(
+            os.getenv("FoveAI_REPERTOIRE_OLLAMA_API_KEY", "").strip()
+        ),
+        "FoveAI_REPERTOIRE_OLLAMA_BASE_URL": os.getenv(
+            "FoveAI_REPERTOIRE_OLLAMA_BASE_URL", "(not set)"
+        ),
+        "FoveAI_REPERTOIRE_OLLAMA_MODEL": os.getenv(
+            "FoveAI_REPERTOIRE_OLLAMA_MODEL", "(not set)"
+        ),
     }
 
     # 4. GenAI budget status
     try:
         # pyrefly: ignore [missing-import]
         import genai_daily_budget
+
         result["genai_budget"] = genai_daily_budget.usage_snapshot()
     except Exception:
         result["genai_budget"] = "unavailable"
@@ -2590,7 +3321,7 @@ async def brain_diagnostic(_auth: None = Depends(require_webui_login)):
 # --- Soundboard API (Self-Learning Audio Expression System) ---
 
 
-def _gpu_synthesize_sound(description: str, filepath: str, tag: str) -> Optional[dict]:
+def _gpu_synthesize_sound(description: str, filepath: str, tag: str) -> dict | None:
     """GPU/torch-accelerated sound synthesis. Returns result dict on success, None on failure.
     Produces richer audio than CPU fallback: additive harmonics, FFT convolution reverb,
     spectral noise shaping. Uses CUDA if available, otherwise torch on CPU."""
@@ -2599,40 +3330,489 @@ def _gpu_synthesize_sound(description: str, filepath: str, tag: str) -> Optional
 
     try:
         import random as _rng
+
         _rng.seed(hash(description) & 0xFFFFFFFF)
         torch.manual_seed(hash(description) & 0xFFFFFFFF)
         device = _GPU_SYNTH_DEVICE
 
         # ── Synthesis presets (same keywords as CPU version) ──
         _P = {
-            'gasp':       (500, 620, 0.6, 'sine',    0.25, 900, 0.15, 0.005, 0.04, 0.3, 0.15, 0.03, 0.25, 5.5, 0.02),
-            'laugh':      (600, 800, 0.5, 'triangle', 0.18, 800, 0.05, 0.005, 0.03, 0.5, 0.10, 0.02, 0.15, 6.0, 0.01),
-            'sigh':       (350, 420, 0.3, 'sine',    0.70, 200, 0.25, 0.05,  0.15, 0.4, 0.40, 0.05, 0.30, 4.0, 0.01),
-            'hmm':        (280, 350, 0.4, 'triangle', 0.45, None, 0.02, 0.04, 0.08, 0.7, 0.25, 0.04, 0.20, 5.0, 0.015),
-            'oh':         (400, 500, 0.5, 'sine',    0.30, 1000, 0.10, 0.01, 0.06, 0.5, 0.15, 0.03, 0.20, 5.5, 0.01),
-            'ah':         (440, 550, 0.4, 'sine',    0.35, None, 0.05, 0.02, 0.08, 0.6, 0.20, 0.04, 0.25, 4.5, 0.01),
-            'mm':         (320, 400, 0.3, 'sine',    0.20, None, 0.02, 0.02, 0.05, 0.7, 0.10, 0.03, 0.15, 4.0, 0.01),
-            'chuckle':    (550, 700, 0.5, 'triangle', 0.15, 750, 0.05, 0.005, 0.03, 0.5, 0.08, 0.02, 0.15, 6.0, 0.01),
-            'giggle':     (650, 850, 0.6, 'triangle', 0.12, 900, 0.03, 0.003, 0.02, 0.6, 0.06, 0.015, 0.10, 7.0, 0.008),
-            'groan':      (200, 250, 0.7, 'sawtooth', 0.45, 150, 0.10, 0.03, 0.10, 0.5, 0.25, 0.05, 0.30, 3.5, 0.02),
-            'whisper':    (600, 900, 0.2, 'sine',    0.35, 300, 0.55, 0.01, 0.05, 0.3, 0.20, 0.04, 0.35, 5.0, 0.005),
-            'hum':        (260, 330, 0.35, 'sine',   0.55, None, 0.02, 0.05, 0.10, 0.8, 0.30, 0.05, 0.25, 4.5, 0.015),
-            'click':      (800, 1200, 0.8, 'square', 0.04, None, 0.10, 0.001, 0.005, 0.2, 0.02, 0.005, 0.10, 0, 0),
-            'pop':        (700, 1000, 0.7, 'sine',   0.06, 200, 0.08, 0.001, 0.01, 0.3, 0.03, 0.01, 0.15, 0, 0),
-            'buzz':       (150, 220, 0.8, 'sawtooth', 0.25, None, 0.08, 0.005, 0.03, 0.6, 0.15, 0.03, 0.20, 3.0, 0.005),
-            'chime':      (1200, 1800, 0.3, 'sine',  0.60, 2400, 0.02, 0.005, 0.10, 0.3, 0.40, 0.06, 0.35, 0, 0),
-            'sparkle':    (1500, 2200, 0.4, 'sine',  0.40, 3000, 0.03, 0.003, 0.05, 0.2, 0.25, 0.05, 0.30, 0, 0),
-            'thunder':    (80,  120,  0.9, 'sawtooth', 1.20, 40,  0.30, 0.01, 0.20, 0.6, 0.80, 0.08, 0.40, 2.0, 0.03),
-            'rain':       (2000, 3500, 0.1, 'sine',  0.80, None, 0.60, 0.10, 0.10, 0.5, 0.50, 0.03, 0.35, 0, 0),
-            'fire':       (300, 500,  0.5, 'sawtooth', 0.60, 200, 0.35, 0.05, 0.10, 0.5, 0.35, 0.04, 0.30, 3.5, 0.02),
-            'wind':       (400, 600,  0.2, 'sine',   0.80, None, 0.65, 0.15, 0.10, 0.4, 0.45, 0.05, 0.35, 3.0, 0.01),
-            'ethereal':   (800, 1200, 0.3, 'sine',   0.80, 1600, 0.10, 0.10, 0.15, 0.3, 0.45, 0.07, 0.40, 5.5, 0.02),
-            'magical':    (1000, 1500, 0.4, 'sine',  0.50, 2000, 0.05, 0.005, 0.08, 0.3, 0.30, 0.06, 0.35, 6.0, 0.015),
-            'warm':       (220, 280,  0.3, 'triangle', 0.60, None, 0.05, 0.05, 0.10, 0.7, 0.35, 0.05, 0.30, 4.0, 0.01),
-            'melodic':    (440, 660,  0.35, 'sine',  0.50, 880, 0.03, 0.02, 0.08, 0.5, 0.30, 0.05, 0.25, 5.0, 0.015),
-            'realisation':(600, 900,  0.5, 'sine',   0.40, 1200, 0.08, 0.01, 0.06, 0.4, 0.25, 0.04, 0.30, 5.5, 0.015),
-            'content':    (300, 380,  0.25, 'sine',  0.50, None, 0.03, 0.05, 0.10, 0.7, 0.30, 0.05, 0.25, 4.0, 0.01),
-            'wonder':     (700, 1050, 0.45, 'sine',  0.55, 1400, 0.08, 0.02, 0.10, 0.35, 0.35, 0.06, 0.35, 5.5, 0.02),
+            "gasp": (
+                500,
+                620,
+                0.6,
+                "sine",
+                0.25,
+                900,
+                0.15,
+                0.005,
+                0.04,
+                0.3,
+                0.15,
+                0.03,
+                0.25,
+                5.5,
+                0.02,
+            ),
+            "laugh": (
+                600,
+                800,
+                0.5,
+                "triangle",
+                0.18,
+                800,
+                0.05,
+                0.005,
+                0.03,
+                0.5,
+                0.10,
+                0.02,
+                0.15,
+                6.0,
+                0.01,
+            ),
+            "sigh": (
+                350,
+                420,
+                0.3,
+                "sine",
+                0.70,
+                200,
+                0.25,
+                0.05,
+                0.15,
+                0.4,
+                0.40,
+                0.05,
+                0.30,
+                4.0,
+                0.01,
+            ),
+            "hmm": (
+                280,
+                350,
+                0.4,
+                "triangle",
+                0.45,
+                None,
+                0.02,
+                0.04,
+                0.08,
+                0.7,
+                0.25,
+                0.04,
+                0.20,
+                5.0,
+                0.015,
+            ),
+            "oh": (
+                400,
+                500,
+                0.5,
+                "sine",
+                0.30,
+                1000,
+                0.10,
+                0.01,
+                0.06,
+                0.5,
+                0.15,
+                0.03,
+                0.20,
+                5.5,
+                0.01,
+            ),
+            "ah": (
+                440,
+                550,
+                0.4,
+                "sine",
+                0.35,
+                None,
+                0.05,
+                0.02,
+                0.08,
+                0.6,
+                0.20,
+                0.04,
+                0.25,
+                4.5,
+                0.01,
+            ),
+            "mm": (
+                320,
+                400,
+                0.3,
+                "sine",
+                0.20,
+                None,
+                0.02,
+                0.02,
+                0.05,
+                0.7,
+                0.10,
+                0.03,
+                0.15,
+                4.0,
+                0.01,
+            ),
+            "chuckle": (
+                550,
+                700,
+                0.5,
+                "triangle",
+                0.15,
+                750,
+                0.05,
+                0.005,
+                0.03,
+                0.5,
+                0.08,
+                0.02,
+                0.15,
+                6.0,
+                0.01,
+            ),
+            "giggle": (
+                650,
+                850,
+                0.6,
+                "triangle",
+                0.12,
+                900,
+                0.03,
+                0.003,
+                0.02,
+                0.6,
+                0.06,
+                0.015,
+                0.10,
+                7.0,
+                0.008,
+            ),
+            "groan": (
+                200,
+                250,
+                0.7,
+                "sawtooth",
+                0.45,
+                150,
+                0.10,
+                0.03,
+                0.10,
+                0.5,
+                0.25,
+                0.05,
+                0.30,
+                3.5,
+                0.02,
+            ),
+            "whisper": (
+                600,
+                900,
+                0.2,
+                "sine",
+                0.35,
+                300,
+                0.55,
+                0.01,
+                0.05,
+                0.3,
+                0.20,
+                0.04,
+                0.35,
+                5.0,
+                0.005,
+            ),
+            "hum": (
+                260,
+                330,
+                0.35,
+                "sine",
+                0.55,
+                None,
+                0.02,
+                0.05,
+                0.10,
+                0.8,
+                0.30,
+                0.05,
+                0.25,
+                4.5,
+                0.015,
+            ),
+            "click": (
+                800,
+                1200,
+                0.8,
+                "square",
+                0.04,
+                None,
+                0.10,
+                0.001,
+                0.005,
+                0.2,
+                0.02,
+                0.005,
+                0.10,
+                0,
+                0,
+            ),
+            "pop": (
+                700,
+                1000,
+                0.7,
+                "sine",
+                0.06,
+                200,
+                0.08,
+                0.001,
+                0.01,
+                0.3,
+                0.03,
+                0.01,
+                0.15,
+                0,
+                0,
+            ),
+            "buzz": (
+                150,
+                220,
+                0.8,
+                "sawtooth",
+                0.25,
+                None,
+                0.08,
+                0.005,
+                0.03,
+                0.6,
+                0.15,
+                0.03,
+                0.20,
+                3.0,
+                0.005,
+            ),
+            "chime": (
+                1200,
+                1800,
+                0.3,
+                "sine",
+                0.60,
+                2400,
+                0.02,
+                0.005,
+                0.10,
+                0.3,
+                0.40,
+                0.06,
+                0.35,
+                0,
+                0,
+            ),
+            "sparkle": (
+                1500,
+                2200,
+                0.4,
+                "sine",
+                0.40,
+                3000,
+                0.03,
+                0.003,
+                0.05,
+                0.2,
+                0.25,
+                0.05,
+                0.30,
+                0,
+                0,
+            ),
+            "thunder": (
+                80,
+                120,
+                0.9,
+                "sawtooth",
+                1.20,
+                40,
+                0.30,
+                0.01,
+                0.20,
+                0.6,
+                0.80,
+                0.08,
+                0.40,
+                2.0,
+                0.03,
+            ),
+            "rain": (
+                2000,
+                3500,
+                0.1,
+                "sine",
+                0.80,
+                None,
+                0.60,
+                0.10,
+                0.10,
+                0.5,
+                0.50,
+                0.03,
+                0.35,
+                0,
+                0,
+            ),
+            "fire": (
+                300,
+                500,
+                0.5,
+                "sawtooth",
+                0.60,
+                200,
+                0.35,
+                0.05,
+                0.10,
+                0.5,
+                0.35,
+                0.04,
+                0.30,
+                3.5,
+                0.02,
+            ),
+            "wind": (
+                400,
+                600,
+                0.2,
+                "sine",
+                0.80,
+                None,
+                0.65,
+                0.15,
+                0.10,
+                0.4,
+                0.45,
+                0.05,
+                0.35,
+                3.0,
+                0.01,
+            ),
+            "ethereal": (
+                800,
+                1200,
+                0.3,
+                "sine",
+                0.80,
+                1600,
+                0.10,
+                0.10,
+                0.15,
+                0.3,
+                0.45,
+                0.07,
+                0.40,
+                5.5,
+                0.02,
+            ),
+            "magical": (
+                1000,
+                1500,
+                0.4,
+                "sine",
+                0.50,
+                2000,
+                0.05,
+                0.005,
+                0.08,
+                0.3,
+                0.30,
+                0.06,
+                0.35,
+                6.0,
+                0.015,
+            ),
+            "warm": (
+                220,
+                280,
+                0.3,
+                "triangle",
+                0.60,
+                None,
+                0.05,
+                0.05,
+                0.10,
+                0.7,
+                0.35,
+                0.05,
+                0.30,
+                4.0,
+                0.01,
+            ),
+            "melodic": (
+                440,
+                660,
+                0.35,
+                "sine",
+                0.50,
+                880,
+                0.03,
+                0.02,
+                0.08,
+                0.5,
+                0.30,
+                0.05,
+                0.25,
+                5.0,
+                0.015,
+            ),
+            "realisation": (
+                600,
+                900,
+                0.5,
+                "sine",
+                0.40,
+                1200,
+                0.08,
+                0.01,
+                0.06,
+                0.4,
+                0.25,
+                0.04,
+                0.30,
+                5.5,
+                0.015,
+            ),
+            "content": (
+                300,
+                380,
+                0.25,
+                "sine",
+                0.50,
+                None,
+                0.03,
+                0.05,
+                0.10,
+                0.7,
+                0.30,
+                0.05,
+                0.25,
+                4.0,
+                0.01,
+            ),
+            "wonder": (
+                700,
+                1050,
+                0.45,
+                "sine",
+                0.55,
+                1400,
+                0.08,
+                0.02,
+                0.10,
+                0.35,
+                0.35,
+                0.06,
+                0.35,
+                5.5,
+                0.02,
+            ),
         }
 
         desc_lower = description.lower()
@@ -2654,28 +3834,77 @@ def _gpu_synthesize_sound(description: str, filepath: str, tag: str) -> Optional
                     break
                 except ValueError:
                     pass
-            is_sharp = any(w in desc_lower for w in ('click', 'pop', 'snap', 'tap', 'sharp'))
-            is_dark  = any(w in desc_lower for w in ('dark', 'low', 'deep', 'bass', 'rumble', 'thunder'))
-            is_bright = any(w in desc_lower for w in ('bright', 'high', 'sparkle', 'chime', 'shine', 'crystal'))
-            is_soft  = any(w in desc_lower for w in ('soft', 'gentle', 'warm', 'subtle', 'quiet'))
-            is_long  = any(w in desc_lower for w in ('long', 'sustained', 'ambient', 'drone', 'pad'))
-            is_noisy = any(w in desc_lower for w in ('noise', 'hiss', 'breath', 'wind', 'rain', 'fire', 'crackle'))
+            is_sharp = any(
+                w in desc_lower for w in ("click", "pop", "snap", "tap", "sharp")
+            )
+            is_dark = any(
+                w in desc_lower
+                for w in ("dark", "low", "deep", "bass", "rumble", "thunder")
+            )
+            is_bright = any(
+                w in desc_lower
+                for w in ("bright", "high", "sparkle", "chime", "shine", "crystal")
+            )
+            is_soft = any(
+                w in desc_lower for w in ("soft", "gentle", "warm", "subtle", "quiet")
+            )
+            is_long = any(
+                w in desc_lower
+                for w in ("long", "sustained", "ambient", "drone", "pad")
+            )
+            is_noisy = any(
+                w in desc_lower
+                for w in ("noise", "hiss", "breath", "wind", "rain", "fire", "crackle")
+            )
 
-            carrier = base_hz if base_hz != 400 else (150 if is_dark else 800 if is_bright else 400)
+            carrier = (
+                base_hz
+                if base_hz != 400
+                else (150 if is_dark else 800 if is_bright else 400)
+            )
             mod_hz = int(carrier * 1.5)
             mod_depth = 0.8 if is_sharp else 0.3 if is_soft else 0.5
-            wave_preset = 'square' if is_sharp else 'sawtooth' if is_dark else 'sine'
+            wave_preset = "square" if is_sharp else "sawtooth" if is_dark else "sine"
             dur = 1.0 if is_long else 0.05 if is_sharp else 0.4
             ramp = int(carrier * 0.5) if is_dark else None
             noise = 0.5 if is_noisy else 0.05 if is_soft else 0.1
             attack = 0.15 if is_soft or is_long else 0.005 if is_sharp else 0.03
             release = 0.4 if is_long else 0.02 if is_sharp else 0.2
-            best_preset = (carrier, mod_hz, mod_depth, wave_preset, dur, ramp, noise,
-                          attack, 0.08, 0.5, release, 0.04, 0.25, 4.5, 0.01)
+            best_preset = (
+                carrier,
+                mod_hz,
+                mod_depth,
+                wave_preset,
+                dur,
+                ramp,
+                noise,
+                attack,
+                0.08,
+                0.5,
+                release,
+                0.04,
+                0.25,
+                4.5,
+                0.01,
+            )
 
-        (carrier_hz, mod_hz, mod_depth, wave_type, dur_s, ramp_end,
-         noise_mix, attack_s, decay_s, sustain_lvl, release_s,
-         rev_delay_s, rev_mix, vib_hz, vib_depth) = best_preset
+        (
+            carrier_hz,
+            mod_hz,
+            mod_depth,
+            wave_type,
+            dur_s,
+            ramp_end,
+            noise_mix,
+            attack_s,
+            decay_s,
+            sustain_lvl,
+            release_s,
+            rev_delay_s,
+            rev_mix,
+            vib_hz,
+            vib_depth,
+        ) = best_preset
 
         # ── Generate on torch tensors (CUDA if available) ──
         sample_rate = 44100 if device == "cuda" else 22050
@@ -2692,10 +3921,14 @@ def _gpu_synthesize_sound(description: str, filepath: str, tag: str) -> Optional
         if a_n > 0:
             env[:a_n] = torch.linspace(0, 1, a_n, device=device)
         if d_n > 0 and sus_start > a_n:
-            env[a_n:sus_start] = torch.linspace(1, sustain_lvl, sus_start - a_n, device=device)
+            env[a_n:sus_start] = torch.linspace(
+                1, sustain_lvl, sus_start - a_n, device=device
+            )
         env[sus_start:rel_start] = sustain_lvl
         if rel_start < n:
-            env[rel_start:] = torch.linspace(sustain_lvl, 0, n - rel_start, device=device)
+            env[rel_start:] = torch.linspace(
+                sustain_lvl, 0, n - rel_start, device=device
+            )
 
         # ── FM synthesis with additive harmonics ──
         phase_c = 2.0 * math.pi * carrier_hz * t
@@ -2703,20 +3936,27 @@ def _gpu_synthesize_sound(description: str, filepath: str, tag: str) -> Optional
 
         # Vibrato
         if vib_hz > 0 and vib_depth > 0:
-            phase_c = phase_c + vib_depth * torch.sin(2.0 * math.pi * vib_hz * t) * 2.0 * math.pi * carrier_hz
+            phase_c = (
+                phase_c
+                + vib_depth
+                * torch.sin(2.0 * math.pi * vib_hz * t)
+                * 2.0
+                * math.pi
+                * carrier_hz
+            )
 
         mod_signal = mod_depth * torch.sin(phase_m)
 
         # Carrier wave
-        if wave_type == 'sine':
+        if wave_type == "sine":
             carrier = torch.sin(phase_c + mod_signal)
-        elif wave_type == 'triangle':
+        elif wave_type == "triangle":
             p = torch.remainder((phase_c + mod_signal) / (2.0 * math.pi), 1.0)
             carrier = 4.0 * (p - 0.5).abs() - 1.0
-        elif wave_type == 'sawtooth':
+        elif wave_type == "sawtooth":
             p = torch.remainder((phase_c + mod_signal) / (2.0 * math.pi), 1.0)
             carrier = 2.0 * p - 1.0
-        elif wave_type == 'square':
+        elif wave_type == "square":
             carrier = torch.sign(torch.sin(phase_c + mod_signal))
         else:
             carrier = torch.sin(phase_c + mod_signal)
@@ -2726,11 +3966,15 @@ def _gpu_synthesize_sound(description: str, filepath: str, tag: str) -> Optional
         harmonics = carrier.clone()
         for h in range(2, num_harmonics + 1):
             h_amp = 1.0 / (h * h)
-            harmonics = harmonics + h_amp * torch.sin(h * phase_c + h * mod_signal * 0.5)
+            harmonics = harmonics + h_amp * torch.sin(
+                h * phase_c + h * mod_signal * 0.5
+            )
 
         # Frequency ramp (pitch slide)
         if ramp_end is not None:
-            ramp_phase = 2.0 * math.pi * (carrier_hz + (ramp_end - carrier_hz) * (t / dur_s)) * t
+            ramp_phase = (
+                2.0 * math.pi * (carrier_hz + (ramp_end - carrier_hz) * (t / dur_s)) * t
+            )
             harmonics = 0.5 * harmonics + 0.5 * torch.sin(ramp_phase)
 
         # Apply envelope
@@ -2745,12 +3989,14 @@ def _gpu_synthesize_sound(description: str, filepath: str, tag: str) -> Optional
                 noise_filtered = torch.nn.functional.conv1d(
                     noise_raw.unsqueeze(0).unsqueeze(0),
                     kernel.unsqueeze(0).unsqueeze(0),
-                    padding=kernel_size // 2
+                    padding=kernel_size // 2,
                 ).squeeze()
                 if noise_filtered.shape[0] > n:
                     noise_filtered = noise_filtered[:n]
                 elif noise_filtered.shape[0] < n:
-                    noise_filtered = torch.nn.functional.pad(noise_filtered, (0, n - noise_filtered.shape[0]))
+                    noise_filtered = torch.nn.functional.pad(
+                        noise_filtered, (0, n - noise_filtered.shape[0])
+                    )
             else:
                 noise_filtered = noise_raw
             signal = signal * (1.0 - noise_mix) + noise_filtered * noise_mix * env
@@ -2766,7 +4012,9 @@ def _gpu_synthesize_sound(description: str, filepath: str, tag: str) -> Optional
             reflections[0] = 1.0
             early_count = max(1, int(sample_rate * 0.02))
             for i in range(1, min(early_count, ir_len)):
-                reflections[i] = reflections[i] * 0.7 + 0.3 * (_rng.random() * 2 - 1) * decay[i]
+                reflections[i] = (
+                    reflections[i] * 0.7 + 0.3 * (_rng.random() * 2 - 1) * decay[i]
+                )
             ir = reflections / (reflections.abs().max() + 1e-8)
             # FFT convolution
             sig_len = signal.shape[0]
@@ -2796,15 +4044,21 @@ def _gpu_synthesize_sound(description: str, filepath: str, tag: str) -> Optional
             _torchaudio.save(filepath, waveform, sample_rate)
         else:
             signal_int = (signal * 32767).clamp(-32768, 32767).to(torch.int16).cpu()
-            with wave.open(filepath, 'w') as wav_file:
+            with wave.open(filepath, "w") as wav_file:
                 wav_file.setnchannels(1)
                 wav_file.setsampwidth(2)
                 wav_file.setframerate(sample_rate)
                 wav_file.writeframes(signal_int.numpy().tobytes())
 
         synth_label = "GPU/CUDA" if device == "cuda" else "torch/CPU"
-        logger.info(f"[Soundboard] Generated ({synth_label}): {tag} ({dur_s}s, {wave_type} @ {carrier_hz}Hz, FM×{mod_hz}/{mod_depth:.1f}, harmonics={num_harmonics}, reverb=FFT, sr={sample_rate})")
-        return {"tag": tag, "url": f"/soundboard/{os.path.basename(filepath)}", "generated_by": f"synth_{device}_torch"}
+        logger.info(
+            f"[Soundboard] Generated ({synth_label}): {tag} ({dur_s}s, {wave_type} @ {carrier_hz}Hz, FM×{mod_hz}/{mod_depth:.1f}, harmonics={num_harmonics}, reverb=FFT, sr={sample_rate})"
+        )
+        return {
+            "tag": tag,
+            "url": f"/soundboard/{os.path.basename(filepath)}",
+            "generated_by": f"synth_{device}_torch",
+        }
 
     except Exception as e:
         logger.warning(f"[Soundboard] torch synthesis failed, falling back to CPU: {e}")
@@ -2817,17 +4071,27 @@ async def list_soundboard_sounds(_auth: None = Depends(require_webui_login)):
     sounds = []
     if os.path.exists(SOUNDBOARD_DIR):
         for f in sorted(os.listdir(SOUNDBOARD_DIR)):
-            if f.endswith('.wav'):
-                tag = f.replace('.wav', '')
-                sounds.append({"tag": tag, "url": f"/soundboard/{f}", "generated": True})
+            if f.endswith(".wav"):
+                tag = f.replace(".wav", "")
+                sounds.append(
+                    {"tag": tag, "url": f"/soundboard/{f}", "generated": True}
+                )
     # Default frontend sounds (always available via synthesis fallback)
     defaults = [
-        'gasp_subtle', 'laugh_soft', 'sigh_content', 'hmm_thoughtful',
-        'oh_realization', 'throat_clear', 'chuckle_warm', 'mhm_affirming',
+        "gasp_subtle",
+        "laugh_soft",
+        "sigh_content",
+        "hmm_thoughtful",
+        "oh_realization",
+        "throat_clear",
+        "chuckle_warm",
+        "mhm_affirming",
     ]
     for tag in defaults:
-        if not any(s['tag'] == tag for s in sounds):
-            sounds.append({"tag": tag, "url": f"/soundboard/{tag}.wav", "generated": False})
+        if not any(s["tag"] == tag for s in sounds):
+            sounds.append(
+                {"tag": tag, "url": f"/soundboard/{tag}.wav", "generated": False}
+            )
     return {"sounds": sounds}
 
 
@@ -2838,11 +4102,17 @@ async def get_soundboard_context():
     sounds = []
     if os.path.exists(SOUNDBOARD_DIR):
         for f in sorted(os.listdir(SOUNDBOARD_DIR)):
-            if f.endswith('.wav'):
-                sounds.append(f.replace('.wav', ''))
+            if f.endswith(".wav"):
+                sounds.append(f.replace(".wav", ""))
     defaults = [
-        'gasp_subtle', 'laugh_soft', 'sigh_content', 'hmm_thoughtful',
-        'oh_realization', 'throat_clear', 'chuckle_warm', 'mhm_affirming',
+        "gasp_subtle",
+        "laugh_soft",
+        "sigh_content",
+        "hmm_thoughtful",
+        "oh_realization",
+        "throat_clear",
+        "chuckle_warm",
+        "mhm_affirming",
     ]
     all_tags = sorted(set(defaults + sounds))
 
@@ -2874,7 +4144,9 @@ async def proxy_soundboard_health(_auth: None = Depends(require_webui_login)):
 
 
 @app.post("/api/soundboard/generate")
-async def generate_soundboard_sound(request: Request, _auth: None = Depends(require_webui_login)):
+async def generate_soundboard_sound(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     """Generate a new soundboard sound using available audio models.
     Tries SOUNDBOARD :8006 (Stable Audio Tools) first, then creative service,
     then GPU/torch synthesis (CUDA if available), then CPU Python WAV fallback."""
@@ -2887,7 +4159,7 @@ async def generate_soundboard_sound(request: Request, _auth: None = Depends(requ
 
     # Generate a tag from the description
     tag = description.lower().replace(" ", "_").replace("-", "_")[:30]
-    tag = ''.join(c for c in tag if c.isalnum() or c == '_')
+    tag = "".join(c for c in tag if c.isalnum() or c == "_")
     if not tag:
         tag = f"custom_{int(time.time())}"
 
@@ -2897,10 +4169,13 @@ async def generate_soundboard_sound(request: Request, _auth: None = Depends(requ
     # 1. Try SOUNDBOARD :8006 (Stable Audio Tools — primary generation backend)
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(f"{SOUNDBOARD_URL}/generate", json={
-                "description": description,
-                "category": category,
-            })
+            resp = await client.post(
+                f"{SOUNDBOARD_URL}/generate",
+                json={
+                    "description": description,
+                    "category": category,
+                },
+            )
             if resp.status_code == 200:
                 result = resp.json()
                 if result.get("tag"):
@@ -2911,7 +4186,9 @@ async def generate_soundboard_sound(request: Request, _auth: None = Depends(requ
                             f.write(audio_bytes)
                         result["url"] = f"/soundboard/{filename}"
                     result["generated_by"] = "stable_audio_tools"
-                    logger.info(f"[Soundboard] Generated via Stable Audio: {result.get('tag')}")
+                    logger.info(
+                        f"[Soundboard] Generated via Stable Audio: {result.get('tag')}"
+                    )
                     return result
     except Exception as e:
         logger.debug(f"SOUNDBOARD :8006 (Stable Audio) not available: {e}")
@@ -2919,18 +4196,25 @@ async def generate_soundboard_sound(request: Request, _auth: None = Depends(requ
     # 2. Try creative service (has audio diffusion capabilities)
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(f"{CREATIVE_URL}/api/soundboard/generate", json={
-                "description": description,
-                "category": category,
-                "tag": tag,
-            })
+            resp = await client.post(
+                f"{CREATIVE_URL}/api/soundboard/generate",
+                json={
+                    "description": description,
+                    "category": category,
+                    "tag": tag,
+                },
+            )
             if resp.status_code == 200:
                 result = resp.json()
                 if result.get("audio_base64"):
                     audio_bytes = base64.b64decode(result["audio_base64"])
                     with open(filepath, "wb") as f:
                         f.write(audio_bytes)
-                    return {"tag": tag, "url": f"/soundboard/{filename}", "generated_by": "creative_service"}
+                    return {
+                        "tag": tag,
+                        "url": f"/soundboard/{filename}",
+                        "generated_by": "creative_service",
+                    }
     except Exception as e:
         logger.debug(f"Creative service soundboard generation not available: {e}")
 
@@ -2942,6 +4226,7 @@ async def generate_soundboard_sound(request: Request, _auth: None = Depends(requ
     # 4. Fallback: CPU-only Python synthesis (FM + noise + ADSR + delay reverb)
     try:
         import random as _rng
+
         _rng.seed(hash(description) & 0xFFFFFFFF)
 
         # ── Synthesis presets ──
@@ -2949,34 +4234,482 @@ async def generate_soundboard_sound(request: Request, _auth: None = Depends(requ
         #   ramp_end_hz, noise_mix, attack_s, decay_s, sustain_lvl, release_s,
         #   reverb_delay_s, reverb_mix, vibrato_hz, vibrato_depth)
         _P = {
-            'gasp':       (500, 620, 0.6, 'sine',    0.25, 900, 0.15, 0.005, 0.04, 0.3, 0.15, 0.03, 0.25, 5.5, 0.02),
-            'laugh':      (600, 800, 0.5, 'triangle', 0.18, 800, 0.05, 0.005, 0.03, 0.5, 0.10, 0.02, 0.15, 6.0, 0.01),
-            'sigh':       (350, 420, 0.3, 'sine',    0.70, 200, 0.25, 0.05,  0.15, 0.4, 0.40, 0.05, 0.30, 4.0, 0.01),
-            'hmm':        (280, 350, 0.4, 'triangle', 0.45, None, 0.02, 0.04, 0.08, 0.7, 0.25, 0.04, 0.20, 5.0, 0.015),
-            'oh':         (400, 500, 0.5, 'sine',    0.30, 1000, 0.10, 0.01, 0.06, 0.5, 0.15, 0.03, 0.20, 5.5, 0.01),
-            'ah':         (440, 550, 0.4, 'sine',    0.35, None, 0.05, 0.02, 0.08, 0.6, 0.20, 0.04, 0.25, 4.5, 0.01),
-            'mm':         (320, 400, 0.3, 'sine',    0.20, None, 0.02, 0.02, 0.05, 0.7, 0.10, 0.03, 0.15, 4.0, 0.01),
-            'chuckle':    (550, 700, 0.5, 'triangle', 0.15, 750, 0.05, 0.005, 0.03, 0.5, 0.08, 0.02, 0.15, 6.0, 0.01),
-            'giggle':     (650, 850, 0.6, 'triangle', 0.12, 900, 0.03, 0.003, 0.02, 0.6, 0.06, 0.015, 0.10, 7.0, 0.008),
-            'groan':      (200, 250, 0.7, 'sawtooth', 0.45, 150, 0.10, 0.03, 0.10, 0.5, 0.25, 0.05, 0.30, 3.5, 0.02),
-            'whisper':    (600, 900, 0.2, 'sine',    0.35, 300, 0.55, 0.01, 0.05, 0.3, 0.20, 0.04, 0.35, 5.0, 0.005),
-            'hum':        (260, 330, 0.35, 'sine',   0.55, None, 0.02, 0.05, 0.10, 0.8, 0.30, 0.05, 0.25, 4.5, 0.015),
-            'click':      (800, 1200, 0.8, 'square', 0.04, None, 0.10, 0.001, 0.005, 0.2, 0.02, 0.005, 0.10, 0, 0),
-            'pop':        (700, 1000, 0.7, 'sine',   0.06, 200, 0.08, 0.001, 0.01, 0.3, 0.03, 0.01, 0.15, 0, 0),
-            'buzz':       (150, 220, 0.8, 'sawtooth', 0.25, None, 0.08, 0.005, 0.03, 0.6, 0.15, 0.03, 0.20, 3.0, 0.005),
-            'chime':      (1200, 1800, 0.3, 'sine',  0.60, 2400, 0.02, 0.005, 0.10, 0.3, 0.40, 0.06, 0.35, 0, 0),
-            'sparkle':    (1500, 2200, 0.4, 'sine',  0.40, 3000, 0.03, 0.003, 0.05, 0.2, 0.25, 0.05, 0.30, 0, 0),
-            'thunder':    (80,  120,  0.9, 'sawtooth', 1.20, 40,  0.30, 0.01, 0.20, 0.6, 0.80, 0.08, 0.40, 2.0, 0.03),
-            'rain':       (2000, 3500, 0.1, 'sine',  0.80, None, 0.60, 0.10, 0.10, 0.5, 0.50, 0.03, 0.35, 0, 0),
-            'fire':       (300, 500,  0.5, 'sawtooth', 0.60, 200, 0.35, 0.05, 0.10, 0.5, 0.35, 0.04, 0.30, 3.5, 0.02),
-            'wind':       (400, 600,  0.2, 'sine',   0.80, None, 0.65, 0.15, 0.10, 0.4, 0.45, 0.05, 0.35, 3.0, 0.01),
-            'ethereal':   (800, 1200, 0.3, 'sine',   0.80, 1600, 0.10, 0.10, 0.15, 0.3, 0.45, 0.07, 0.40, 5.5, 0.02),
-            'magical':    (1000, 1500, 0.4, 'sine',  0.50, 2000, 0.05, 0.005, 0.08, 0.3, 0.30, 0.06, 0.35, 6.0, 0.015),
-            'warm':       (220, 280,  0.3, 'triangle', 0.60, None, 0.05, 0.05, 0.10, 0.7, 0.35, 0.05, 0.30, 4.0, 0.01),
-            'melodic':    (440, 660,  0.35, 'sine',  0.50, 880, 0.03, 0.02, 0.08, 0.5, 0.30, 0.05, 0.25, 5.0, 0.015),
-            'realisation':(600, 900,  0.5, 'sine',   0.40, 1200, 0.08, 0.01, 0.06, 0.4, 0.25, 0.04, 0.30, 5.5, 0.015),
-            'content':    (300, 380,  0.25, 'sine',  0.50, None, 0.03, 0.05, 0.10, 0.7, 0.30, 0.05, 0.25, 4.0, 0.01),
-            'wonder':     (700, 1050, 0.45, 'sine',  0.55, 1400, 0.08, 0.02, 0.10, 0.35, 0.35, 0.06, 0.35, 5.5, 0.02),
+            "gasp": (
+                500,
+                620,
+                0.6,
+                "sine",
+                0.25,
+                900,
+                0.15,
+                0.005,
+                0.04,
+                0.3,
+                0.15,
+                0.03,
+                0.25,
+                5.5,
+                0.02,
+            ),
+            "laugh": (
+                600,
+                800,
+                0.5,
+                "triangle",
+                0.18,
+                800,
+                0.05,
+                0.005,
+                0.03,
+                0.5,
+                0.10,
+                0.02,
+                0.15,
+                6.0,
+                0.01,
+            ),
+            "sigh": (
+                350,
+                420,
+                0.3,
+                "sine",
+                0.70,
+                200,
+                0.25,
+                0.05,
+                0.15,
+                0.4,
+                0.40,
+                0.05,
+                0.30,
+                4.0,
+                0.01,
+            ),
+            "hmm": (
+                280,
+                350,
+                0.4,
+                "triangle",
+                0.45,
+                None,
+                0.02,
+                0.04,
+                0.08,
+                0.7,
+                0.25,
+                0.04,
+                0.20,
+                5.0,
+                0.015,
+            ),
+            "oh": (
+                400,
+                500,
+                0.5,
+                "sine",
+                0.30,
+                1000,
+                0.10,
+                0.01,
+                0.06,
+                0.5,
+                0.15,
+                0.03,
+                0.20,
+                5.5,
+                0.01,
+            ),
+            "ah": (
+                440,
+                550,
+                0.4,
+                "sine",
+                0.35,
+                None,
+                0.05,
+                0.02,
+                0.08,
+                0.6,
+                0.20,
+                0.04,
+                0.25,
+                4.5,
+                0.01,
+            ),
+            "mm": (
+                320,
+                400,
+                0.3,
+                "sine",
+                0.20,
+                None,
+                0.02,
+                0.02,
+                0.05,
+                0.7,
+                0.10,
+                0.03,
+                0.15,
+                4.0,
+                0.01,
+            ),
+            "chuckle": (
+                550,
+                700,
+                0.5,
+                "triangle",
+                0.15,
+                750,
+                0.05,
+                0.005,
+                0.03,
+                0.5,
+                0.08,
+                0.02,
+                0.15,
+                6.0,
+                0.01,
+            ),
+            "giggle": (
+                650,
+                850,
+                0.6,
+                "triangle",
+                0.12,
+                900,
+                0.03,
+                0.003,
+                0.02,
+                0.6,
+                0.06,
+                0.015,
+                0.10,
+                7.0,
+                0.008,
+            ),
+            "groan": (
+                200,
+                250,
+                0.7,
+                "sawtooth",
+                0.45,
+                150,
+                0.10,
+                0.03,
+                0.10,
+                0.5,
+                0.25,
+                0.05,
+                0.30,
+                3.5,
+                0.02,
+            ),
+            "whisper": (
+                600,
+                900,
+                0.2,
+                "sine",
+                0.35,
+                300,
+                0.55,
+                0.01,
+                0.05,
+                0.3,
+                0.20,
+                0.04,
+                0.35,
+                5.0,
+                0.005,
+            ),
+            "hum": (
+                260,
+                330,
+                0.35,
+                "sine",
+                0.55,
+                None,
+                0.02,
+                0.05,
+                0.10,
+                0.8,
+                0.30,
+                0.05,
+                0.25,
+                4.5,
+                0.015,
+            ),
+            "click": (
+                800,
+                1200,
+                0.8,
+                "square",
+                0.04,
+                None,
+                0.10,
+                0.001,
+                0.005,
+                0.2,
+                0.02,
+                0.005,
+                0.10,
+                0,
+                0,
+            ),
+            "pop": (
+                700,
+                1000,
+                0.7,
+                "sine",
+                0.06,
+                200,
+                0.08,
+                0.001,
+                0.01,
+                0.3,
+                0.03,
+                0.01,
+                0.15,
+                0,
+                0,
+            ),
+            "buzz": (
+                150,
+                220,
+                0.8,
+                "sawtooth",
+                0.25,
+                None,
+                0.08,
+                0.005,
+                0.03,
+                0.6,
+                0.15,
+                0.03,
+                0.20,
+                3.0,
+                0.005,
+            ),
+            "chime": (
+                1200,
+                1800,
+                0.3,
+                "sine",
+                0.60,
+                2400,
+                0.02,
+                0.005,
+                0.10,
+                0.3,
+                0.40,
+                0.06,
+                0.35,
+                0,
+                0,
+            ),
+            "sparkle": (
+                1500,
+                2200,
+                0.4,
+                "sine",
+                0.40,
+                3000,
+                0.03,
+                0.003,
+                0.05,
+                0.2,
+                0.25,
+                0.05,
+                0.30,
+                0,
+                0,
+            ),
+            "thunder": (
+                80,
+                120,
+                0.9,
+                "sawtooth",
+                1.20,
+                40,
+                0.30,
+                0.01,
+                0.20,
+                0.6,
+                0.80,
+                0.08,
+                0.40,
+                2.0,
+                0.03,
+            ),
+            "rain": (
+                2000,
+                3500,
+                0.1,
+                "sine",
+                0.80,
+                None,
+                0.60,
+                0.10,
+                0.10,
+                0.5,
+                0.50,
+                0.03,
+                0.35,
+                0,
+                0,
+            ),
+            "fire": (
+                300,
+                500,
+                0.5,
+                "sawtooth",
+                0.60,
+                200,
+                0.35,
+                0.05,
+                0.10,
+                0.5,
+                0.35,
+                0.04,
+                0.30,
+                3.5,
+                0.02,
+            ),
+            "wind": (
+                400,
+                600,
+                0.2,
+                "sine",
+                0.80,
+                None,
+                0.65,
+                0.15,
+                0.10,
+                0.4,
+                0.45,
+                0.05,
+                0.35,
+                3.0,
+                0.01,
+            ),
+            "ethereal": (
+                800,
+                1200,
+                0.3,
+                "sine",
+                0.80,
+                1600,
+                0.10,
+                0.10,
+                0.15,
+                0.3,
+                0.45,
+                0.07,
+                0.40,
+                5.5,
+                0.02,
+            ),
+            "magical": (
+                1000,
+                1500,
+                0.4,
+                "sine",
+                0.50,
+                2000,
+                0.05,
+                0.005,
+                0.08,
+                0.3,
+                0.30,
+                0.06,
+                0.35,
+                6.0,
+                0.015,
+            ),
+            "warm": (
+                220,
+                280,
+                0.3,
+                "triangle",
+                0.60,
+                None,
+                0.05,
+                0.05,
+                0.10,
+                0.7,
+                0.35,
+                0.05,
+                0.30,
+                4.0,
+                0.01,
+            ),
+            "melodic": (
+                440,
+                660,
+                0.35,
+                "sine",
+                0.50,
+                880,
+                0.03,
+                0.02,
+                0.08,
+                0.5,
+                0.30,
+                0.05,
+                0.25,
+                5.0,
+                0.015,
+            ),
+            "realisation": (
+                600,
+                900,
+                0.5,
+                "sine",
+                0.40,
+                1200,
+                0.08,
+                0.01,
+                0.06,
+                0.4,
+                0.25,
+                0.04,
+                0.30,
+                5.5,
+                0.015,
+            ),
+            "content": (
+                300,
+                380,
+                0.25,
+                "sine",
+                0.50,
+                None,
+                0.03,
+                0.05,
+                0.10,
+                0.7,
+                0.30,
+                0.05,
+                0.25,
+                4.0,
+                0.01,
+            ),
+            "wonder": (
+                700,
+                1050,
+                0.45,
+                "sine",
+                0.55,
+                1400,
+                0.08,
+                0.02,
+                0.10,
+                0.35,
+                0.35,
+                0.06,
+                0.35,
+                5.5,
+                0.02,
+            ),
         }
 
         desc_lower = description.lower()
@@ -2998,28 +4731,77 @@ async def generate_soundboard_sound(request: Request, _auth: None = Depends(requ
                     break
                 except ValueError:
                     pass
-            is_sharp = any(w in desc_lower for w in ('click', 'pop', 'snap', 'tap', 'sharp'))
-            is_dark  = any(w in desc_lower for w in ('dark', 'low', 'deep', 'bass', 'rumble', 'thunder'))
-            is_bright = any(w in desc_lower for w in ('bright', 'high', 'sparkle', 'chime', 'shine', 'crystal'))
-            is_soft  = any(w in desc_lower for w in ('soft', 'gentle', 'warm', 'subtle', 'quiet'))
-            is_long  = any(w in desc_lower for w in ('long', 'sustained', 'ambient', 'drone', 'pad'))
-            is_noisy = any(w in desc_lower for w in ('noise', 'hiss', 'breath', 'wind', 'rain', 'fire', 'crackle'))
+            is_sharp = any(
+                w in desc_lower for w in ("click", "pop", "snap", "tap", "sharp")
+            )
+            is_dark = any(
+                w in desc_lower
+                for w in ("dark", "low", "deep", "bass", "rumble", "thunder")
+            )
+            is_bright = any(
+                w in desc_lower
+                for w in ("bright", "high", "sparkle", "chime", "shine", "crystal")
+            )
+            is_soft = any(
+                w in desc_lower for w in ("soft", "gentle", "warm", "subtle", "quiet")
+            )
+            is_long = any(
+                w in desc_lower
+                for w in ("long", "sustained", "ambient", "drone", "pad")
+            )
+            is_noisy = any(
+                w in desc_lower
+                for w in ("noise", "hiss", "breath", "wind", "rain", "fire", "crackle")
+            )
 
-            carrier = base_hz if base_hz != 400 else (150 if is_dark else 800 if is_bright else 400)
+            carrier = (
+                base_hz
+                if base_hz != 400
+                else (150 if is_dark else 800 if is_bright else 400)
+            )
             mod_hz = int(carrier * 1.5)
             mod_depth = 0.8 if is_sharp else 0.3 if is_soft else 0.5
-            wave_preset = 'square' if is_sharp else 'sawtooth' if is_dark else 'sine'
+            wave_preset = "square" if is_sharp else "sawtooth" if is_dark else "sine"
             dur = 1.0 if is_long else 0.05 if is_sharp else 0.4
             ramp = int(carrier * 0.5) if is_dark else None
             noise = 0.5 if is_noisy else 0.05 if is_soft else 0.1
             attack = 0.15 if is_soft or is_long else 0.005 if is_sharp else 0.03
             release = 0.4 if is_long else 0.02 if is_sharp else 0.2
-            best_preset = (carrier, mod_hz, mod_depth, wave_preset, dur, ramp, noise,
-                          attack, 0.08, 0.5, release, 0.04, 0.25, 4.5, 0.01)
+            best_preset = (
+                carrier,
+                mod_hz,
+                mod_depth,
+                wave_preset,
+                dur,
+                ramp,
+                noise,
+                attack,
+                0.08,
+                0.5,
+                release,
+                0.04,
+                0.25,
+                4.5,
+                0.01,
+            )
 
-        (carrier_hz, mod_hz, mod_depth, wave_type, dur_s, ramp_end,
-         noise_mix, attack_s, decay_s, sustain_lvl, release_s,
-         rev_delay_s, rev_mix, vib_hz, vib_depth) = best_preset
+        (
+            carrier_hz,
+            mod_hz,
+            mod_depth,
+            wave_type,
+            dur_s,
+            ramp_end,
+            noise_mix,
+            attack_s,
+            decay_s,
+            sustain_lvl,
+            release_s,
+            rev_delay_s,
+            rev_mix,
+            vib_hz,
+            vib_depth,
+        ) = best_preset
 
         sample_rate = 22050
         n = int(sample_rate * dur_s)
@@ -3052,28 +4834,39 @@ async def generate_soundboard_sound(request: Request, _auth: None = Depends(requ
 
             # Vibrato
             if vib_hz > 0 and vib_depth > 0:
-                phase_c += vib_depth * math.sin(2.0 * math.pi * vib_hz * t) * 2.0 * math.pi * carrier_hz
+                phase_c += (
+                    vib_depth
+                    * math.sin(2.0 * math.pi * vib_hz * t)
+                    * 2.0
+                    * math.pi
+                    * carrier_hz
+                )
 
             # FM modulation
             mod_signal = mod_depth * math.sin(phase_m)
 
             # Carrier with FM
-            if wave_type == 'sine':
+            if wave_type == "sine":
                 val = math.sin(phase_c + mod_signal)
-            elif wave_type == 'triangle':
+            elif wave_type == "triangle":
                 p = ((phase_c + mod_signal) / (2.0 * math.pi)) % 1.0
                 val = 4.0 * abs(p - 0.5) - 1.0
-            elif wave_type == 'sawtooth':
+            elif wave_type == "sawtooth":
                 p = ((phase_c + mod_signal) / (2.0 * math.pi)) % 1.0
                 val = 2.0 * p - 1.0
-            elif wave_type == 'square':
+            elif wave_type == "square":
                 val = 1.0 if math.sin(phase_c + mod_signal) >= 0 else -1.0
             else:
                 val = math.sin(phase_c + mod_signal)
 
             # Frequency ramp (pitch slide)
             if ramp_end is not None:
-                ramp_phase = 2.0 * math.pi * (carrier_hz + (ramp_end - carrier_hz) * (t / dur_s)) * t
+                ramp_phase = (
+                    2.0
+                    * math.pi
+                    * (carrier_hz + (ramp_end - carrier_hz) * (t / dur_s))
+                    * t
+                )
                 val = 0.5 * val + 0.5 * math.sin(ramp_phase)
 
             # Noise layer (breathy / textured)
@@ -3094,16 +4887,22 @@ async def generate_soundboard_sound(request: Request, _auth: None = Depends(requ
                 raw = [v * scale for v in raw]
 
         # ── Write WAV ──
-        with wave.open(filepath, 'w') as wav_file:
+        with wave.open(filepath, "w") as wav_file:
             wav_file.setnchannels(1)
             wav_file.setsampwidth(2)
             wav_file.setframerate(sample_rate)
             for i in range(n):
                 sample = max(-32768, min(32767, int(raw[i] * 16000)))
-                wav_file.writeframes(struct.pack('<h', sample))
+                wav_file.writeframes(struct.pack("<h", sample))
 
-        logger.info(f"[Soundboard] Generated (GPU-free FM synth): {tag} ({dur_s}s, {wave_type} @ {carrier_hz}Hz, FM×{mod_hz}/{mod_depth:.1f}, noise={noise_mix:.0%})")
-        return {"tag": tag, "url": f"/soundboard/{filename}", "generated_by": "synthesis_fallback_fm"}
+        logger.info(
+            f"[Soundboard] Generated (GPU-free FM synth): {tag} ({dur_s}s, {wave_type} @ {carrier_hz}Hz, FM×{mod_hz}/{mod_depth:.1f}, noise={noise_mix:.0%})"
+        )
+        return {
+            "tag": tag,
+            "url": f"/soundboard/{filename}",
+            "generated_by": "synthesis_fallback_fm",
+        }
     except Exception as e:
         logger.error(f"Sound generation failed: {e}")
         return {"error": str(e)}
@@ -3122,25 +4921,31 @@ async def proxy_soul_stt(request: Request):
             # Frontend sends FormData with audio blob from MediaRecorder
             form = await request.form()
             audio_file = form.get("audio")
-            
+
             with open("debug_form_data.txt", "w") as f:
                 f.write(f"Keys: {list(form.keys())}\n")
                 f.write(f"Audio File Type: {type(audio_file)}\n")
                 if audio_file:
                     f.write(f"Is UploadFile? {isinstance(audio_file, UploadFile)}\n")
-            
+
             if audio_file and isinstance(audio_file, UploadFile):
                 audio_bytes = await audio_file.read()
                 audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
                 async with httpx.AsyncClient(timeout=60.0) as client:
-                    resp = await client.post(url, json={
-                        "audio_base64": audio_b64,
-                        "format": audio_file.content_type or "audio/webm",
-                        "filename": audio_file.filename or "recording.webm",
-                    })
+                    resp = await client.post(
+                        url,
+                        json={
+                            "audio_base64": audio_b64,
+                            "format": audio_file.content_type or "audio/webm",
+                            "filename": audio_file.filename or "recording.webm",
+                        },
+                    )
                     if resp.status_code == 200:
                         return resp.json()
-                    return {"text": "", "error": f"EARS returned HTTP {resp.status_code}"}
+                    return {
+                        "text": "",
+                        "error": f"EARS returned HTTP {resp.status_code}",
+                    }
             else:
                 return {"text": "", "error": "No audio data in FormData"}
         else:
@@ -3151,10 +4956,13 @@ async def proxy_soul_stt(request: Request):
                 return resp.json()
     except httpx.ConnectError:
         logger.warning(f"[STT] EARS service unreachable at {url}")
-        return {"text": "", "error": "EARS (STT) service unreachable — check if it is running on port 8001"}
+        return {
+            "text": "",
+            "error": "EARS (STT) service unreachable — check if it is running on port 8001",
+        }
     except Exception as e:
         logger.error(f"[STT] Proxy failed: {e}")
-        return {"text": "", "error": f"STT proxy error: {str(e)}"}
+        return {"text": "", "error": f"STT proxy error: {e!s}"}
 
 
 async def apply_direct_jcoder_edits(reply: str) -> str:
@@ -3164,111 +4972,159 @@ async def apply_direct_jcoder_edits(reply: str) -> str:
         return reply
 
     # Parse edit_file blocks
-    edit_blocks = re.findall(r'<edit_file\s+path=["\']([^"\']+)["\']\s*>(.*?)</edit_file>', reply, re.DOTALL | re.IGNORECASE)
+    edit_blocks = re.findall(
+        r'<edit_file\s+path=["\']([^"\']+)["\']\s*>(.*?)</edit_file>',
+        reply,
+        re.DOTALL | re.IGNORECASE,
+    )
     if not edit_blocks:
         return reply
 
-    logger.info(f"[J-Coder] Detected {len(edit_blocks)} direct code modification blocks in assistant reply.")
+    logger.info(
+        f"[J-Coder] Detected {len(edit_blocks)} direct code modification blocks in assistant reply."
+    )
     logs = []
     applied_any = False
-    
+
     for idx, (rel_path, block_content) in enumerate(edit_blocks):
         rel_path_clean = os.path.normpath(rel_path.strip())
         file_path = os.path.abspath(os.path.join(FoveAI_ROOT, rel_path_clean))
-        
+
         # Guard against workspace traversal
         if not file_path.startswith(FoveAI_ROOT):
-            logs.append(f"❌ Block {idx+1}: Path outside workspace blocked (`{rel_path_clean}`)")
+            logs.append(
+                f"❌ Block {idx + 1}: Path outside workspace blocked (`{rel_path_clean}`)"
+            )
             continue
-            
-        search_match = re.search(r'<search>(.*?)</search>', block_content, re.DOTALL | re.IGNORECASE)
-        replace_match = re.search(r'<replace>(.*?)</replace>', block_content, re.DOTALL | re.IGNORECASE)
-        
+
+        search_match = re.search(
+            r"<search>(.*?)</search>", block_content, re.DOTALL | re.IGNORECASE
+        )
+        replace_match = re.search(
+            r"<replace>(.*?)</replace>", block_content, re.DOTALL | re.IGNORECASE
+        )
+
         if not search_match or not replace_match:
-            logs.append(f"⚠️ Block {idx+1}: Missing `<search>` or `<replace>` tags inside code block for `{rel_path_clean}`.")
+            logs.append(
+                f"⚠️ Block {idx + 1}: Missing `<search>` or `<replace>` tags inside code block for `{rel_path_clean}`."
+            )
             continue
-            
+
         search_content = search_match.group(1)
         replace_content = replace_match.group(1)
-        
+
         if not os.path.exists(file_path):
             try:
                 os.makedirs(os.path.dirname(file_path), exist_ok=True)
                 with open(file_path, "w", encoding="utf-8") as f:
                     f.write(replace_content.lstrip("\n"))
-                logs.append(f"🟢 Block {idx+1}: Created new file `{rel_path_clean}` successfully.")
+                logs.append(
+                    f"🟢 Block {idx + 1}: Created new file `{rel_path_clean}` successfully."
+                )
                 applied_any = True
             except Exception as err:
-                logs.append(f"❌ Block {idx+1}: Failed to create file `{rel_path_clean}`: {err}")
+                logs.append(
+                    f"❌ Block {idx + 1}: Failed to create file `{rel_path_clean}`: {err}"
+                )
             continue
-            
+
         try:
             with open(file_path, "r", encoding="utf-8") as f:
                 file_data = f.read()
         except Exception as err:
-            logs.append(f"❌ Block {idx+1}: Failed to read target file `{rel_path_clean}`: {err}")
+            logs.append(
+                f"❌ Block {idx + 1}: Failed to read target file `{rel_path_clean}`: {err}"
+            )
             continue
-            
+
         normalized_file_data = file_data.replace("\r\n", "\n")
         normalized_search = search_content.replace("\r\n", "\n")
         normalized_replace = replace_content.replace("\r\n", "\n")
-        
+
         if normalized_search in normalized_file_data:
-            updated_content = normalized_file_data.replace(normalized_search, normalized_replace, 1)
+            updated_content = normalized_file_data.replace(
+                normalized_search, normalized_replace, 1
+            )
             if "\r\n" in file_data:
                 updated_content = updated_content.replace("\n", "\r\n")
             try:
                 with open(file_path, "w", encoding="utf-8") as f:
                     f.write(updated_content)
-                logs.append(f"🟢 Block {idx+1}: Applied exact modifications cleanly to `{rel_path_clean}`.")
+                logs.append(
+                    f"🟢 Block {idx + 1}: Applied exact modifications cleanly to `{rel_path_clean}`."
+                )
                 applied_any = True
             except Exception as err:
-                logs.append(f"❌ Block {idx+1}: Failed to write updates to `{rel_path_clean}`: {err}")
+                logs.append(
+                    f"❌ Block {idx + 1}: Failed to write updates to `{rel_path_clean}`: {err}"
+                )
         else:
             # Fuzzy stripped check
             stripped_search = normalized_search.strip()
             if stripped_search in normalized_file_data:
                 idx_start = normalized_file_data.find(stripped_search)
                 idx_end = idx_start + len(stripped_search)
-                updated_content = normalized_file_data[:idx_start] + normalized_replace + normalized_file_data[idx_end:]
+                updated_content = (
+                    normalized_file_data[:idx_start]
+                    + normalized_replace
+                    + normalized_file_data[idx_end:]
+                )
                 if "\r\n" in file_data:
                     updated_content = updated_content.replace("\n", "\r\n")
                 try:
                     with open(file_path, "w", encoding="utf-8") as f:
                         f.write(updated_content)
-                    logs.append(f"🟢 Block {idx+1}: Applied modifications with soft-spacing alignment to `{rel_path_clean}`.")
+                    logs.append(
+                        f"🟢 Block {idx + 1}: Applied modifications with soft-spacing alignment to `{rel_path_clean}`."
+                    )
                     applied_any = True
                 except Exception as err:
-                    logs.append(f"❌ Block {idx+1}: Failed to write updates to `{rel_path_clean}`: {err}")
+                    logs.append(
+                        f"❌ Block {idx + 1}: Failed to write updates to `{rel_path_clean}`: {err}"
+                    )
             else:
-                logs.append(f"❌ Block {idx+1}: Target search block not found in `{rel_path_clean}`. Spacing or code mismatch.")
-                
+                logs.append(
+                    f"❌ Block {idx + 1}: Target search block not found in `{rel_path_clean}`. Spacing or code mismatch."
+                )
+
     compiler_status = ""
     if applied_any:
         logger.info("[J-Coder] Executing build compiler verification...")
         try:
             proc = await asyncio.create_subprocess_exec(
-                "npm.cmd", "run", "build",
+                "npm.cmd",
+                "run",
+                "build",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
-                cwd=os.path.join(FoveAI_ROOT, "Body", "XR_Vessel")
+                cwd=os.path.join(FoveAI_ROOT, "Body", "XR_Vessel"),
             )
             stdout, _ = await proc.communicate()
             if proc.returncode == 0:
-                compiler_status = "🟢 **PASS** (Vite production build compiled successfully!)"
+                compiler_status = (
+                    "🟢 **PASS** (Vite production build compiled successfully!)"
+                )
             else:
                 stdout_str = stdout.decode("utf-8", errors="ignore")
                 err_lines = stdout_str.splitlines()
-                err_summary = "\n".join(err_lines[-8:]) if len(err_lines) >= 8 else stdout_str
+                err_summary = (
+                    "\n".join(err_lines[-8:]) if len(err_lines) >= 8 else stdout_str
+                )
                 compiler_status = f"❌ **FAIL** (Vite compile errors detected):\n```\n{err_summary}\n```"
         except Exception as e:
             compiler_status = f"⚠️ **ERROR** (Failed to invoke build script): {e}"
-            
+
     header = "\n\n---\n\n### 🔧 **[J-Coder Operations Log]**"
     log_lines = "\n".join(f"- {l}" for l in logs)
-    comp_block = f"\n\n**Compiler Build Check:**\n{compiler_status}" if compiler_status else ""
-    footer = "\n\n*Direct hand-code edits applied on disk. Spoken TTS engines and visible chat layout completely bypassed raw files.*" if applied_any else ""
-    
+    comp_block = (
+        f"\n\n**Compiler Build Check:**\n{compiler_status}" if compiler_status else ""
+    )
+    footer = (
+        "\n\n*Direct hand-code edits applied on disk. Spoken TTS engines and visible chat layout completely bypassed raw files.*"
+        if applied_any
+        else ""
+    )
+
     return reply + f"{header}\n{log_lines}{comp_block}{footer}"
 
 
@@ -3290,14 +5146,21 @@ async def _local_lmstudio_fallback(messages: list) -> dict:
         if use_unsloth:
             local_url = os.getenv("FoveAI_UNSLOTH_BASE_URL", "").strip()
             if not local_url:
-                local_url = os.getenv("FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1").strip()
+                local_url = os.getenv(
+                    "FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1"
+                ).strip()
             local_url = local_url.rstrip("/")
             token = os.getenv("FoveAI_UNSLOTH_API_KEY", "").strip()
             label = "Unsloth/llama.cpp"
             model = os.getenv("FoveAI_LOCAL_MODEL", "").strip() or "local-model"
         else:
-            local_url = os.getenv("LMSTUDIO_URL", os.getenv("FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1")).rstrip("/")
-            token = os.getenv("LMSTUDIO_API_TOKEN", os.getenv("LMSTUDIO_PASSKEY", "")).strip()
+            local_url = os.getenv(
+                "LMSTUDIO_URL",
+                os.getenv("FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1"),
+            ).rstrip("/")
+            token = os.getenv(
+                "LMSTUDIO_API_TOKEN", os.getenv("LMSTUDIO_PASSKEY", "")
+            ).strip()
             label = "LM Studio"
             model = os.getenv("LMSTUDIO_MAIN_MODEL", "").strip()
             if not model:
@@ -3310,7 +5173,11 @@ async def _local_lmstudio_fallback(messages: list) -> dict:
             headers["Authorization"] = f"Bearer {token}"
 
         # Dynamically query loaded models to verify the configured model is available
-        models_endpoint = f"{local_url}/models" if "v1" in local_url.lower() else f"{local_url}/v1/models"
+        models_endpoint = (
+            f"{local_url}/models"
+            if "v1" in local_url.lower()
+            else f"{local_url}/v1/models"
+        )
         try:
             async with httpx.AsyncClient(timeout=3.0) as client:
                 r = await client.get(models_endpoint, headers=headers)
@@ -3320,14 +5187,24 @@ async def _local_lmstudio_fallback(messages: list) -> dict:
                     if models_list:
                         loaded_ids = [m.get("id", "") for m in models_list]
                         if model and model in loaded_ids:
-                            logger.info(f"[Local Fallback] Using configured {label} model: {model}")
+                            logger.info(
+                                f"[Local Fallback] Using configured {label} model: {model}"
+                            )
                         else:
                             model = models_list[0].get("id", model)
-                            logger.warning(f"[Local Fallback] Configured model not loaded, using first available: {model}")
+                            logger.warning(
+                                f"[Local Fallback] Configured model not loaded, using first available: {model}"
+                            )
         except Exception as e:
-            logger.warning(f"[Local Fallback] Failed to query loaded models from {label}: {e}")
+            logger.warning(
+                f"[Local Fallback] Failed to query loaded models from {label}: {e}"
+            )
 
-        chat_endpoint = f"{local_url}/chat/completions" if "v1" in local_url.lower() else f"{local_url}/v1/chat/completions"
+        chat_endpoint = (
+            f"{local_url}/chat/completions"
+            if "v1" in local_url.lower()
+            else f"{local_url}/v1/chat/completions"
+        )
         payload = {
             "model": model,
             "messages": messages,
@@ -3335,12 +5212,16 @@ async def _local_lmstudio_fallback(messages: list) -> dict:
         }
         if os.getenv("FoveAI_MODEL_STRUCTURED_OUTPUT", "false").lower() == "true":
             payload["response_format"] = {"type": "json_object"}
-        logger.warning(f"[Local Fallback] Querying {label}: {chat_endpoint} model={model}")
+        logger.warning(
+            f"[Local Fallback] Querying {label}: {chat_endpoint} model={model}"
+        )
         async with httpx.AsyncClient(timeout=120.0) as client:
             resp = await client.post(chat_endpoint, json=payload, headers=headers)
             if resp.status_code == 200:
                 result = resp.json()
-                reply = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+                reply = (
+                    result.get("choices", [{}])[0].get("message", {}).get("content", "")
+                )
                 reply = await apply_direct_jcoder_edits(reply)
                 return {
                     "response": reply,
@@ -3348,11 +5229,16 @@ async def _local_lmstudio_fallback(messages: list) -> dict:
                     "source": "local_fallback",
                 }
             else:
-                logger.error(f"[Local Fallback] {label} returned HTTP {resp.status_code}: {resp.text[:200]}")
+                logger.error(
+                    f"[Local Fallback] {label} returned HTTP {resp.status_code}: {resp.text[:200]}"
+                )
     except Exception as e:
         logger.error(f"[Local Fallback] {e}")
-    return {"response": "", "error": "All fallbacks exhausted (cloud quota + local unreachable)", "source": "local_fallback"}
-
+    return {
+        "response": "",
+        "error": "All fallbacks exhausted (cloud quota + local unreachable)",
+        "source": "local_fallback",
+    }
 
 
 @app.post("/api/cloud/chat")
@@ -3362,7 +5248,7 @@ async def proxy_cloud_chat(request: Request):
     Falls back to Soul only if provider is not cloud."""
     try:
         body = await request.json()
-        
+
         # Check if the Soul core service is online on Port 8000.
         # If it is, route the request to the Soul compagent helper to preserve persona and memory.
         soul_online = False
@@ -3375,21 +5261,25 @@ async def proxy_cloud_chat(request: Request):
             pass
 
         if soul_online:
-            logger.info("[Cloud Chat] Soul service is online. Routing to Soul compagent to preserve persona/cognition.")
+            logger.info(
+                "[Cloud Chat] Soul service is online. Routing to Soul compagent to preserve persona/cognition."
+            )
             try:
                 return await _forward_to_soul_compagent(body)
             except Exception as e:
-                logger.warning(f"[Cloud Chat] Soul compagent routing failed: {e}. Falling back to direct cloud.")
-        
+                logger.warning(
+                    f"[Cloud Chat] Soul compagent routing failed: {e}. Falling back to direct cloud."
+                )
+
         message = body.get("message", "")
         system_context = body.get("system_context", "")
         deep_thought = body.get("deep_thought", False)
         privacy = body.get("privacy", False)
         attachments = body.get("attachments", [])
-        
+
         chat_provider = os.getenv("FoveAI_CHAT_PROVIDER", "ollama").lower()
         cog_mode = os.getenv("FoveAI_COGNITIVE_MODE", "").strip().lower()
-        
+
         # Super Coder Refusal: If frontend asks for Direct Cloud but we are in Local mode
         # we bypass the snarky refusal and directly execute the local LLM fallback so they get actual responses!
         if cog_mode == "local" and request.url.path.endswith("/api/cloud/chat"):
@@ -3398,25 +5288,35 @@ async def proxy_cloud_chat(request: Request):
             if system_context:
                 messages.append({"role": "system", "content": system_context})
             messages.append({"role": "user", "content": message})
-            logger.info("[Cloud Chat] Rerouting local mode Direct Cloud request to Local LLM fallback.")
+            logger.info(
+                "[Cloud Chat] Rerouting local mode Direct Cloud request to Local LLM fallback."
+            )
             return await _local_lmstudio_fallback(messages)
-            
-        if cog_mode == "local" and chat_provider not in ("unsloth", "lmstudio", "windows_npu", "local"):
+
+        if cog_mode == "local" and chat_provider not in (
+            "unsloth",
+            "lmstudio",
+            "windows_npu",
+            "local",
+        ):
             chat_provider = "unsloth"
             try:
                 sys.path.insert(0, os.path.join(FoveAI_ROOT, "Mind", "Cognition"))
                 # pyrefly: ignore [missing-import]
                 import cloud_repertoire
-                if "unsloth" not in [s["id"] for s in cloud_repertoire.configured_slots_public()]:
+
+                if "unsloth" not in [
+                    s["id"] for s in cloud_repertoire.configured_slots_public()
+                ]:
                     chat_provider = "lmstudio"
             except Exception:
                 chat_provider = "lmstudio"
-        
+
         # Build OpenAI-compatible messages array
         messages = []
         if system_context:
             messages.append({"role": "system", "content": system_context})
-        
+
         user_content = message
         first_image_b64 = None
         if attachments:
@@ -3426,51 +5326,63 @@ async def proxy_cloud_chat(request: Request):
                     if not first_image_b64:
                         # Extract first valid image base64 for fallback queries
                         first_image_b64 = att["base64"]
-        
+
         if first_image_b64:
             # Format as standard OpenAI/multimodal compatible format (Gemini, Ollama, OpenAI)
-            clean_b64 = first_image_b64.split(",")[-1] if "," in first_image_b64 else first_image_b64
+            clean_b64 = (
+                first_image_b64.split(",")[-1]
+                if "," in first_image_b64
+                else first_image_b64
+            )
             content_list = [
                 {"type": "text", "text": user_content},
                 {
                     "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/jpeg;base64,{clean_b64}"
-                    }
-                }
+                    "image_url": {"url": f"data:image/jpeg;base64,{clean_b64}"},
+                },
             ]
             messages.append({"role": "user", "content": content_list})
         else:
             messages.append({"role": "user", "content": user_content})
-        
+
         # === CLOUD-FIRST: When provider is ollama_cloud, go DIRECTLY to the API ===
         # This bypasses Soul entirely — Soul is optional, not required for cloud inference
         if chat_provider in ("ollama_cloud", "cloud"):
             cloud_url = os.getenv("FoveAI_CLOUD_BASE_URL", "").rstrip("/")
             cloud_model = os.getenv("FoveAI_CLOUD_MODEL", "gemini-3-flash-preview")
-            cloud_key = os.getenv("OLLAMA_API_KEY", os.getenv("FoveAI_REPERTOIRE_OLLAMA_API_KEY", ""))
-            
+            cloud_key = os.getenv(
+                "OLLAMA_API_KEY", os.getenv("FoveAI_REPERTOIRE_OLLAMA_API_KEY", "")
+            )
+
             if not cloud_url:
-                return {"response": "", "error": "FoveAI_CLOUD_BASE_URL not set in .env", "source": "direct_cloud"}
-            
+                return {
+                    "response": "",
+                    "error": "FoveAI_CLOUD_BASE_URL not set in .env",
+                    "source": "direct_cloud",
+                }
+
             # Try Ollama Cloud directly (OpenAI-compatible /chat/completions)
             try:
                 headers = _cloud_headers(cloud_key)
-                
+
                 # If deep thought mode, use the deep model
                 if deep_thought:
-                    deep_model = os.getenv("FoveAI_REPERTOIRE_OLLAMA_DEEP_MODEL", cloud_model)
+                    deep_model = os.getenv(
+                        "FoveAI_REPERTOIRE_OLLAMA_DEEP_MODEL", cloud_model
+                    )
                     payload_model = deep_model
                 else:
                     payload_model = cloud_model
-                
+
                 payload = {
                     "model": payload_model,
                     "messages": messages,
                     "stream": False,
-                    "temperature": float(os.getenv("FoveAI_CLOUD_TEMPERATURE", "0.7") or "0.7"),
+                    "temperature": float(
+                        os.getenv("FoveAI_CLOUD_TEMPERATURE", "0.7") or "0.7"
+                    ),
                 }
-                
+
                 # Use /chat/completions endpoint (OpenAI-compatible)
                 chat_url = f"{cloud_url}/chat/completions"
                 logger.info(f"[Cloud Chat] Direct → {chat_url} model={payload_model}")
@@ -3478,7 +5390,11 @@ async def proxy_cloud_chat(request: Request):
                     resp = await client.post(chat_url, json=payload, headers=headers)
                     if resp.status_code == 200:
                         result = resp.json()
-                        reply = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+                        reply = (
+                            result.get("choices", [{}])[0]
+                            .get("message", {})
+                            .get("content", "")
+                        )
                         reply = await apply_direct_jcoder_edits(reply)
                         return {
                             "response": reply,
@@ -3488,16 +5404,41 @@ async def proxy_cloud_chat(request: Request):
                         }
                     else:
                         err_text = resp.text[:500]
-                        logger.error(f"[Cloud Chat] Ollama Cloud returned HTTP {resp.status_code}: {err_text}")
+                        logger.error(
+                            f"[Cloud Chat] Ollama Cloud returned HTTP {resp.status_code}: {err_text}"
+                        )
                         # Try cloud_repertoire fallback slots
-                        return await _cloud_repertoire_fallback(message, system_context, messages, deep_thought, privacy, first_image_b64)
+                        return await _cloud_repertoire_fallback(
+                            message,
+                            system_context,
+                            messages,
+                            deep_thought,
+                            privacy,
+                            first_image_b64,
+                        )
             except httpx.ConnectError as ce:
-                logger.warning(f"[Cloud Chat] Ollama Cloud unreachable ({cloud_url}): {ce}")
-                return await _cloud_repertoire_fallback(message, system_context, messages, deep_thought, privacy, first_image_b64)
+                logger.warning(
+                    f"[Cloud Chat] Ollama Cloud unreachable ({cloud_url}): {ce}"
+                )
+                return await _cloud_repertoire_fallback(
+                    message,
+                    system_context,
+                    messages,
+                    deep_thought,
+                    privacy,
+                    first_image_b64,
+                )
             except Exception as e:
                 logger.error(f"[Cloud Chat] Direct cloud error: {e}")
-                return await _cloud_repertoire_fallback(message, system_context, messages, deep_thought, privacy, first_image_b64)
-        
+                return await _cloud_repertoire_fallback(
+                    message,
+                    system_context,
+                    messages,
+                    deep_thought,
+                    privacy,
+                    first_image_b64,
+                )
+
         # === NON-CLOUD PROVIDER: Route through Soul ===
         payload = {
             "model": "cloud",
@@ -3506,18 +5447,18 @@ async def proxy_cloud_chat(request: Request):
             "deep_thought": deep_thought,
             "privacy": privacy,
         }
-        
+
         if attachments:
             for att in attachments:
                 if att.get("type") == "image" and att.get("base64"):
                     payload["image_base64"] = att["base64"]
                     break
-        
+
         url = f"{SOUL_URL}/api/chat"
         async with httpx.AsyncClient(timeout=300.0) as client:
             resp = await client.post(url, json=payload)
             result = resp.json()
-            
+
         reply = result.get("message", {}).get("content", result.get("response", ""))
         reply = await apply_direct_jcoder_edits(reply)
         return {
@@ -3526,28 +5467,46 @@ async def proxy_cloud_chat(request: Request):
             "source": "direct_cloud",
             "deep_thought": deep_thought,
         }
-        
+
     except httpx.ConnectError:
         cog_mode = os.getenv("FoveAI_COGNITIVE_MODE", "").strip().lower()
         if cog_mode == "local":
-            logger.warning(f"[Cloud Chat] Soul unreachable and COGNITIVE_MODE=local — trying local LM Studio directly")
+            logger.warning(
+                "[Cloud Chat] Soul unreachable and COGNITIVE_MODE=local — trying local LM Studio directly"
+            )
             return await _local_lmstudio_fallback(messages)
-        logger.warning(f"[Cloud Chat] Soul unreachable — trying Direct Cloud fallback")
-        return await _cloud_repertoire_fallback(message, system_context, messages, deep_thought, privacy)
+        logger.warning("[Cloud Chat] Soul unreachable — trying Direct Cloud fallback")
+        return await _cloud_repertoire_fallback(
+            message, system_context, messages, deep_thought, privacy
+        )
     except Exception as e:
         logger.error(f"[Cloud Chat] Proxy failed: {e}")
         return {"response": "", "error": str(e), "source": "direct_cloud"}
 
 
-async def _cloud_repertoire_fallback(message: str, system_context: str, messages: list, deep_thought: bool, privacy: bool, image_base64: Optional[str] = None) -> dict:
+async def _cloud_repertoire_fallback(
+    message: str,
+    system_context: str,
+    messages: list,
+    deep_thought: bool,
+    privacy: bool,
+    image_base64: str | None = None,
+) -> dict:
     """Fallback chain when Soul/Ollama Cloud fails.
     Order: Gemini → OpenRouter → local llama.cpp (Unsloth).
     ollama_cloud is intentionally skipped — it is Soul's primary engine and already failed.
     """
     cog_mode = os.getenv("FoveAI_COGNITIVE_MODE", "").strip().lower()
     chat_provider = os.getenv("FoveAI_CHAT_PROVIDER", "").strip().lower()
-    if cog_mode == "local" or chat_provider in ("local", "unsloth", "lmstudio", "windows_npu"):
-        logger.warning(f"[Fallback] Cognitive mode locked to local ({chat_provider or cog_mode}) — going straight to local model")
+    if cog_mode == "local" or chat_provider in (
+        "local",
+        "unsloth",
+        "lmstudio",
+        "windows_npu",
+    ):
+        logger.warning(
+            f"[Fallback] Cognitive mode locked to local ({chat_provider or cog_mode}) — going straight to local model"
+        )
         return await _local_lmstudio_fallback(messages)
 
     try:
@@ -3564,7 +5523,9 @@ async def _cloud_repertoire_fallback(message: str, system_context: str, messages
         ordered_slots = [s for s in FALLBACK_ORDER if s in eligible]
 
         if not ordered_slots:
-            logger.error("[Fallback] No cloud fallback slots configured (need FoveAI_REPERTOIRE_GEMINI_API_KEY or FoveAI_CLOUD_OPENROUTER_API in .env)")
+            logger.error(
+                "[Fallback] No cloud fallback slots configured (need FoveAI_REPERTOIRE_GEMINI_API_KEY or FoveAI_CLOUD_OPENROUTER_API in .env)"
+            )
             return await _local_lmstudio_fallback(messages)
 
         errors = []
@@ -3587,26 +5548,35 @@ async def _cloud_repertoire_fallback(message: str, system_context: str, messages
                     }
                 else:
                     # Empty reply usually means quota depleted on this slot too
-                    logger.warning(f"[Fallback] {slot} returned empty reply (quota depleted?)")
+                    logger.warning(
+                        f"[Fallback] {slot} returned empty reply (quota depleted?)"
+                    )
                     errors.append(f"{slot}: empty response (quota?)")
             except Exception as e:
                 logger.warning(f"[Fallback] {slot} failed: {e}")
                 errors.append(f"{slot}: {e}")
 
-        logger.error(f"[Fallback] All cloud slots exhausted ({', '.join(errors)}) — falling to local llama.cpp")
+        logger.error(
+            f"[Fallback] All cloud slots exhausted ({', '.join(errors)}) — falling to local llama.cpp"
+        )
         return await _local_lmstudio_fallback(messages)
 
     except ImportError:
-        logger.warning("[Fallback] cloud_repertoire module not importable — going straight to local")
+        logger.warning(
+            "[Fallback] cloud_repertoire module not importable — going straight to local"
+        )
         return await _local_lmstudio_fallback(messages)
     except Exception as fallback_err:
-        logger.error(f"[Fallback] Unexpected error: {fallback_err} — falling to local llama.cpp")
+        logger.error(
+            f"[Fallback] Unexpected error: {fallback_err} — falling to local llama.cpp"
+        )
         return await _local_lmstudio_fallback(messages)
 
 
 async def _forward_to_soul_compagent(body: dict) -> dict:
     # Translate frontend format to Soul's compagent format
     import json
+
     ability_map = body.get("context_ability_map")
     if isinstance(ability_map, dict):
         ability_map_str = json.dumps(ability_map)
@@ -3619,12 +5589,14 @@ async def _forward_to_soul_compagent(body: dict) -> dict:
         "input": body.get("message", ""),
         "system_instruction": body.get("system_context", ""),
         "channel": body.get("source", "vessel_fallback"),
-        "primary_context_mode": "deep_thought" if body.get("deep_thought", False) else None,
+        "primary_context_mode": "deep_thought"
+        if body.get("deep_thought", False)
+        else None,
         "privacy": body.get("privacy", False),
         "context_reservoirs": body.get("context_reservoirs", {}),
         "context_ability_map": ability_map_str,
     }
-    
+
     attachments = body.get("attachments", [])
     if attachments:
         for att in attachments:
@@ -3632,12 +5604,12 @@ async def _forward_to_soul_compagent(body: dict) -> dict:
                 payload["image_base64"] = att["base64"]
                 save_snapshot_attachment(att.get("name", ""), att["base64"])
                 break
-    
+
     url = f"{SOUL_URL}/compagent"
     async with httpx.AsyncClient(timeout=300.0) as client:
         resp = await client.post(url, json=payload)
         result = resp.json()
-        
+
     # Translate Soul's response back to frontend format
     reply = result.get("response", "")
     thought = result.get("thought", "")
@@ -3663,16 +5635,22 @@ async def _forward_to_soul_compagent(body: dict) -> dict:
     return {
         "response": reply,
         "thought": thought,
-        "inference_backend": result.get("inference_backend", result.get("mode", "soul")),
+        "inference_backend": result.get(
+            "inference_backend", result.get("mode", "soul")
+        ),
         "source": "soul_proxy",
         "active_persona_id": result.get("active_persona_id", "jen"),
     }
 
+
 @app.post("/api/proxy")
-async def generic_llm_proxy(request: Request, _auth: None = Depends(require_webui_login)):
+async def generic_llm_proxy(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     """Generic HTTP Proxy for LLMManager (replaces htproxy).
     Accepts JSON: { url, method, headers, body }"""
     from fastapi.responses import StreamingResponse
+
     try:
         data = await request.json()
         target_url = data.get("url")
@@ -3683,7 +5661,7 @@ async def generic_llm_proxy(request: Request, _auth: None = Depends(require_webu
         # Remove problematic headers that could interfere with proxying
         target_headers.pop("host", None)
         target_headers.pop("content-length", None)
-        
+
         # httpx client setup
         client = httpx.AsyncClient(timeout=180.0)
         req = client.build_request(
@@ -3691,12 +5669,14 @@ async def generic_llm_proxy(request: Request, _auth: None = Depends(require_webu
             url=target_url,
             headers=target_headers,
             json=target_body if isinstance(target_body, dict) else None,
-            content=target_body if isinstance(target_body, str) else None
+            content=target_body if isinstance(target_body, str) else None,
         )
 
         # Stream response back directly to support SSE
         async def stream_generator():
-            async with client.stream(req.method, req.url, headers=req.headers, content=req.content) as resp:
+            async with client.stream(
+                req.method, req.url, headers=req.headers, content=req.content
+            ) as resp:
                 if resp.status_code != 200:
                     # If error, yield the error message
                     err_text = await resp.aread()
@@ -3707,8 +5687,11 @@ async def generic_llm_proxy(request: Request, _auth: None = Depends(require_webu
 
         return StreamingResponse(stream_generator(), media_type="text/event-stream")
     except Exception as e:
-        logger.error(f"[Generic Proxy] Error proxying to {data.get('url', 'unknown')}: {e}")
+        logger.error(
+            f"[Generic Proxy] Error proxying to {data.get('url', 'unknown')}: {e}"
+        )
         return {"error": str(e)}
+
 
 @app.post("/api/proxy/soul/compagent")
 async def proxy_soul_compagent(request: Request):
@@ -3733,18 +5716,27 @@ async def proxy_soul_compagent(request: Request):
     try:
         return await _forward_to_soul_compagent(body)
     except httpx.ConnectError:
-        logger.warning(f"[Soul Proxy] Soul unreachable at {SOUL_URL} — cascading to cloud/local fallback")
-        return await _cloud_repertoire_fallback(message, system_context, _build_messages(), deep_thought, privacy)
+        logger.warning(
+            f"[Soul Proxy] Soul unreachable at {SOUL_URL} — cascading to cloud/local fallback"
+        )
+        return await _cloud_repertoire_fallback(
+            message, system_context, _build_messages(), deep_thought, privacy
+        )
     except ValueError as ve:
         # Soul returned empty response (quota exhausted, model not loaded, etc.)
         logger.warning(f"[Soul Proxy] {ve} — cascading to cloud/local fallback")
-        return await _cloud_repertoire_fallback(message, system_context, _build_messages(), deep_thought, privacy)
+        return await _cloud_repertoire_fallback(
+            message, system_context, _build_messages(), deep_thought, privacy
+        )
     except Exception as e:
         logger.error(f"[Soul Proxy] Proxy failed: {e}")
         return {"response": "", "error": str(e), "source": "soul_proxy"}
 
+
 @app.api_route("/api/soul/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
-async def generic_soul_proxy(path: str, request: Request, _auth: None = Depends(require_webui_login)):
+async def generic_soul_proxy(
+    path: str, request: Request, _auth: None = Depends(require_webui_login)
+):
     """Authoritative OMEGA_085 Unified Proxy for all Soul requests."""
     url = f"{SOUL_URL}/{path}"
     method = request.method
@@ -3759,6 +5751,7 @@ async def generic_soul_proxy(path: str, request: Request, _auth: None = Depends(
     except Exception as e:
         raise _upstream_unreachable("Soul", url, e)
 
+
 @app.get("/api/soul/vitals")
 async def proxy_soul_vitals(_auth: None = Depends(require_webui_login)):
     url = f"{SOUL_URL}/vitals"
@@ -3769,9 +5762,11 @@ async def proxy_soul_vitals(_auth: None = Depends(require_webui_login)):
     except Exception as e:
         raise _upstream_unreachable("Soul", url, e)
 
+
 # ── Autonomous Agent Proxy Routes ────────────────────────────────────────
 # Forward /api/agent/* from XR_Vessel to XRLF runtime (port 8402)
 # so the Agency Tab START/STOP buttons and status polling work from the browser.
+
 
 @app.get("/api/agent/status")
 async def proxy_agent_status(_auth: None = Depends(require_webui_login)):
@@ -3807,7 +5802,9 @@ async def proxy_agent_stop(_auth: None = Depends(require_webui_login)):
 
 
 @app.get("/api/agent/messages")
-async def proxy_agent_messages(limit: int = 20, _auth: None = Depends(require_webui_login)):
+async def proxy_agent_messages(
+    limit: int = 20, _auth: None = Depends(require_webui_login)
+):
     url = f"{SOUL_URL}/api/agent/messages"
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -3818,7 +5815,9 @@ async def proxy_agent_messages(limit: int = 20, _auth: None = Depends(require_we
 
 
 @app.post("/api/agent/messages/mark")
-async def proxy_agent_mark_messages(request: Request, _auth: None = Depends(require_webui_login)):
+async def proxy_agent_mark_messages(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     url = f"{SOUL_URL}/api/agent/messages/mark"
     try:
         data = await request.json()
@@ -3841,7 +5840,9 @@ async def proxy_agent_plans(_auth: None = Depends(require_webui_login)):
 
 
 @app.get("/api/agent/thoughts")
-async def proxy_agent_thoughts(limit: int = 20, _auth: None = Depends(require_webui_login)):
+async def proxy_agent_thoughts(
+    limit: int = 20, _auth: None = Depends(require_webui_login)
+):
     url = f"{SOUL_URL}/api/agent/thoughts"
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -3852,7 +5853,9 @@ async def proxy_agent_thoughts(limit: int = 20, _auth: None = Depends(require_we
 
 
 @app.get("/api/agent/actions")
-async def proxy_agent_actions(limit: int = 20, _auth: None = Depends(require_webui_login)):
+async def proxy_agent_actions(
+    limit: int = 20, _auth: None = Depends(require_webui_login)
+):
     url = f"{SOUL_URL}/api/agent/actions"
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -3874,7 +5877,9 @@ async def proxy_agent_context(_auth: None = Depends(require_webui_login)):
 
 
 @app.post("/api/agent/message")
-async def proxy_agent_enqueue_message(request: Request, _auth: None = Depends(require_webui_login)):
+async def proxy_agent_enqueue_message(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     url = f"{SOUL_URL}/api/agent/message"
     try:
         data = await request.json()
@@ -3886,7 +5891,9 @@ async def proxy_agent_enqueue_message(request: Request, _auth: None = Depends(re
 
 
 @app.post("/api/agent/plan")
-async def proxy_agent_create_plan(request: Request, _auth: None = Depends(require_webui_login)):
+async def proxy_agent_create_plan(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     url = f"{SOUL_URL}/api/agent/plan"
     try:
         data = await request.json()
@@ -3898,7 +5905,9 @@ async def proxy_agent_create_plan(request: Request, _auth: None = Depends(requir
 
 
 @app.get("/api/agent/plan/{plan_id}")
-async def proxy_agent_get_plan(plan_id: str, _auth: None = Depends(require_webui_login)):
+async def proxy_agent_get_plan(
+    plan_id: str, _auth: None = Depends(require_webui_login)
+):
     url = f"{SOUL_URL}/api/agent/plan/{plan_id}"
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -3920,7 +5929,9 @@ async def proxy_agent_get_memory(key: str, _auth: None = Depends(require_webui_l
 
 
 @app.post("/api/agent/memory")
-async def proxy_agent_set_memory(request: Request, _auth: None = Depends(require_webui_login)):
+async def proxy_agent_set_memory(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     url = f"{SOUL_URL}/api/agent/memory"
     try:
         data = await request.json()
@@ -3943,26 +5954,28 @@ async def proxy_agent_queue_stats(_auth: None = Depends(require_webui_login)):
 
 
 @app.post("/api/soul/provider")
-async def set_soul_provider(request: Request, _auth: None = Depends(require_webui_login)):
+async def set_soul_provider(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     try:
         data = await request.json()
         provider = data.get("provider", "").strip().lower()
         if not provider:
             return {"success": False, "error": "empty provider"}
-        
+
         # Update local environment variable
         os.environ["FoveAI_CHAT_PROVIDER"] = provider
         logger.info(f"Vessel: setting FoveAI_CHAT_PROVIDER env to {provider}")
-        
+
         # Propagate to XRLF runtime (Port 8402) via /soul_runtime_config
         url = f"{SOUL_URL}/soul_runtime_config"
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 await client.post(url, json={"chat_provider": provider})
-                logger.info(f"Vessel: successfully propagated provider to Soul service")
+                logger.info("Vessel: successfully propagated provider to Soul service")
         except Exception as e:
             logger.warning(f"Vessel: failed to propagate provider to Soul service: {e}")
-            
+
         # Update the physical .env file so the selection persists across reboots
         try:
             env_path = os.path.join(FoveAI_ROOT, ".env")
@@ -3984,83 +5997,101 @@ async def set_soul_provider(request: Request, _auth: None = Depends(require_webu
                 logger.info("Vessel: successfully saved selection to .env file")
         except Exception as e:
             logger.error(f"Vessel: failed to save selection to .env: {e}")
-            
+
         return {"success": True, "provider": provider}
     except Exception as e:
         logger.error(f"Error setting chat provider: {e}")
         return {"success": False, "error": str(e)}
 
+
 @app.post("/api/soul/lmstudio/hotswap")
-async def hotswap_lmstudio_model(request: Request, _auth: None = Depends(require_webui_login)):
+async def hotswap_lmstudio_model(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     """Dynamically hot-swaps the loaded GGUF model in LM Studio based on Privacy toggle."""
     try:
         data = await request.json()
         privacy = data.get("privacy", False)
-        
+
         # Determine model to load or unload based on privacy mode and cognitive mode
         action = "load"
         cog_mode = os.getenv("FoveAI_COGNITIVE_MODE", "hybrid").strip().lower()
-        
+
         if privacy:
             # Load the uncensored, uninhibited "heretic" model
-            model = os.getenv("FoveAI_REPERTOIRE_LMSTUDIO_PRIVACY_MODEL", "qwen3.5-4b-abliterated").strip()
+            model = os.getenv(
+                "FoveAI_REPERTOIRE_LMSTUDIO_PRIVACY_MODEL", "qwen3.5-4b-abliterated"
+            ).strip()
             gpu_offload = os.getenv("FoveAI_LMSTUDIO_GPU_OFFLOAD", "0.5")
             context_length = os.getenv("FoveAI_LMSTUDIO_CONTEXT_LENGTH", "8192")
             cmd_str = f'lms load "{model}" --gpu {gpu_offload} --context-length {context_length} --identifier local-model -y'
-            logger.info(f"Vessel LMStudio Hotswap: Privacy=ON -> loading model '{model}'")
+            logger.info(
+                f"Vessel LMStudio Hotswap: Privacy=ON -> loading model '{model}'"
+            )
         else:
             if cog_mode == "cloud":
                 # Unload completely to free VRAM for WebXR/audio!
                 model = None
-                cmd_str = 'lms unload --all'
+                cmd_str = "lms unload --all"
                 action = "unload"
-                logger.info("Vessel LMStudio Hotswap: Privacy=OFF & Cognitive Mode=cloud -> unloading all local models from RAM")
+                logger.info(
+                    "Vessel LMStudio Hotswap: Privacy=OFF & Cognitive Mode=cloud -> unloading all local models from RAM"
+                )
             else:
                 # Load the advanced, logical reasoning model
-                model = os.getenv("FoveAI_REPERTOIRE_LMSTUDIO_MODEL", "qwen3-4b-qwen3.6-plus-reasoning-distilled").strip()
+                model = os.getenv(
+                    "FoveAI_REPERTOIRE_LMSTUDIO_MODEL",
+                    "qwen3-4b-qwen3.6-plus-reasoning-distilled",
+                ).strip()
                 gpu_offload = os.getenv("FoveAI_LMSTUDIO_GPU_OFFLOAD", "0.5")
                 context_length = os.getenv("FoveAI_LMSTUDIO_CONTEXT_LENGTH", "8192")
                 cmd_str = f'lms load "{model}" --gpu {gpu_offload} --context-length {context_length} --identifier local-model -y'
-                logger.info(f"Vessel LMStudio Hotswap: Privacy=OFF & Cognitive Mode={cog_mode} -> loading model '{model}'")
-        
+                logger.info(
+                    f"Vessel LMStudio Hotswap: Privacy=OFF & Cognitive Mode={cog_mode} -> loading model '{model}'"
+                )
+
         import asyncio
+
         if action == "load" and model:
             try:
                 check_process = await asyncio.create_subprocess_shell(
                     "lms ps",
                     stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE
+                    stderr=asyncio.subprocess.PIPE,
                 )
                 stdout_data, _ = await check_process.communicate()
-                loaded_models = stdout_data.decode('utf-8', errors='ignore')
+                loaded_models = stdout_data.decode("utf-8", errors="ignore")
                 if model in loaded_models:
-                    logger.info(f"Vessel LMStudio Hotswap: Model '{model}' is already loaded. Skipping load.")
+                    logger.info(
+                        f"Vessel LMStudio Hotswap: Model '{model}' is already loaded. Skipping load."
+                    )
                     return {"success": True, "status": "already_loaded", "model": model}
             except Exception as e:
-                logger.error(f"Failed to check currently loaded models via 'lms ps': {e}")
-        
+                logger.error(
+                    f"Failed to check currently loaded models via 'lms ps': {e}"
+                )
+
         process = await asyncio.create_subprocess_shell(
-            cmd_str,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            cmd_str, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
-        
+
         # Give a small 100ms grace period to check for early process errors
         try:
             await asyncio.wait_for(process.wait(), timeout=0.1)
             if process.returncode != 0:
                 stdout, stderr = await process.communicate()
-                err_msg = stderr.decode('utf-8', errors='ignore')
+                err_msg = stderr.decode("utf-8", errors="ignore")
                 logger.error(f"LMStudio hotswap failed immediately: {err_msg}")
                 return {"success": False, "error": f"Load failed: {err_msg}"}
         except asyncio.TimeoutError:
             # Still running in background, which is expected for model loading
             pass
-            
+
         return {"success": True, "model": model, "privacy": privacy}
     except Exception as e:
         logger.error(f"Error hot-swapping LM Studio model: {e}")
         return {"success": False, "error": str(e)}
+
 
 @app.get("/api/nav/pull")
 async def proxy_nav_pull(_auth: None = Depends(require_webui_login)):
@@ -4072,6 +6103,7 @@ async def proxy_nav_pull(_auth: None = Depends(require_webui_login)):
     except Exception:
         return {"command": None}
 
+
 @app.post("/api/nav/push")
 async def proxy_nav_push(request: Request, _auth: None = Depends(require_webui_login)):
     data = await request.json()
@@ -4082,6 +6114,7 @@ async def proxy_nav_push(request: Request, _auth: None = Depends(require_webui_l
             return resp.json()
     except Exception:
         return {"ok": False}
+
 
 @app.get("/api/branding")
 async def proxy_branding(_auth: None = Depends(require_webui_login)):
@@ -4097,7 +6130,9 @@ async def proxy_branding(_auth: None = Depends(require_webui_login)):
                 return json.load(f)
         return {"name": "Lumax", "version": "Lite"}
 
+
 # --- LM Studio Proxy ---
+
 
 @app.get("/api/proxy/lmstudio/models")
 async def proxy_lmstudio_models(_auth: None = Depends(require_webui_login)):
@@ -4114,10 +6149,14 @@ async def proxy_lmstudio_models(_auth: None = Depends(require_webui_login)):
         url_v1 = f"{LMSTUDIO_URL}/v1/models"
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.get(url_v1, headers={"Authorization": f"Bearer {_token}"} if _token else {})
+                resp = await client.get(
+                    url_v1,
+                    headers={"Authorization": f"Bearer {_token}"} if _token else {},
+                )
                 return resp.json()
         except Exception:
             raise _upstream_unreachable("LMStudio", url, e)
+
 
 @app.get("/api/proxy/lmstudio/available")
 async def list_available_models(_auth: None = Depends(require_webui_login)):
@@ -4129,15 +6168,20 @@ async def list_available_models(_auth: None = Depends(require_webui_login)):
         for f in files:
             if f.endswith(".gguf"):
                 rel_path = os.path.relpath(os.path.join(root, f), MODELS_DIR)
-                models.append({
-                    "id": rel_path.replace("\\", "/"),
-                    "filename": f,
-                    "path": os.path.join(root, f)
-                })
+                models.append(
+                    {
+                        "id": rel_path.replace("\\", "/"),
+                        "filename": f,
+                        "path": os.path.join(root, f),
+                    }
+                )
     return {"models": models}
 
+
 @app.post("/api/proxy/lmstudio/load")
-async def proxy_lmstudio_load(request: Request, _auth: None = Depends(require_webui_login)):
+async def proxy_lmstudio_load(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     data = await request.json()
     _token = _get_lmstudio_api_token()
     # LM Studio v1 API: POST /api/v1/models/load
@@ -4150,8 +6194,11 @@ async def proxy_lmstudio_load(request: Request, _auth: None = Depends(require_we
     except Exception as e:
         raise _upstream_unreachable("LMStudio", url, e)
 
+
 @app.post("/api/proxy/lmstudio/unload")
-async def proxy_lmstudio_unload(request: Request, _auth: None = Depends(require_webui_login)):
+async def proxy_lmstudio_unload(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     data = await request.json()
     _token = _get_lmstudio_api_token()
     # LM Studio v1 API: POST /api/v1/models/unload
@@ -4164,8 +6211,11 @@ async def proxy_lmstudio_unload(request: Request, _auth: None = Depends(require_
     except Exception as e:
         raise _upstream_unreachable("LMStudio", url, e)
 
+
 @app.post("/api/proxy/lmstudio/chat")
-async def proxy_lmstudio_chat(request: Request, _auth: None = Depends(require_webui_login)):
+async def proxy_lmstudio_chat(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     data = await request.json()
     _token = _get_lmstudio_api_token()
     url = f"{LMSTUDIO_URL}/v1/chat/completions"
@@ -4177,11 +6227,20 @@ async def proxy_lmstudio_chat(request: Request, _auth: None = Depends(require_we
     except Exception as e:
         raise _upstream_unreachable("LMStudio", url, e)
 
+
 # --- HEARTBEAT / PRESENCE ---
 _HEARTBEAT_PATH = os.getenv("FoveAI_HEARTBEAT_PATH", "/tmp/foveai_avatar_heartbeat")
 # Windows path for console auto-wake detection (native Python mode)
-_FoveAI_LOG_DIR = os.getenv("FoveAI_LOG_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", ".logs"))
-_PRESENCE_HEARTBEAT_FILE = os.path.join(_FoveAI_LOG_DIR, "foveai_presence_heartbeat.txt")
+_FoveAI_LOG_DIR = os.getenv(
+    "FoveAI_LOG_DIR",
+    os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", ".logs"
+    ),
+)
+_PRESENCE_HEARTBEAT_FILE = os.path.join(
+    _FoveAI_LOG_DIR, "foveai_presence_heartbeat.txt"
+)
+
 
 @app.post("/api/presence/heartbeat")
 async def presence_heartbeat(request: Request) -> dict[str, Any]:
@@ -4193,7 +6252,7 @@ async def presence_heartbeat(request: Request) -> dict[str, Any]:
             f.write(str(int(time.time())))
     except Exception as e:
         result["windows_error"] = str(e)
-    
+
     # Also write Windows heartbeat file for console auto-wake detection
     try:
         os.makedirs(os.path.dirname(_PRESENCE_HEARTBEAT_FILE), exist_ok=True)
@@ -4201,10 +6260,12 @@ async def presence_heartbeat(request: Request) -> dict[str, Any]:
             f.write(str(int(time.time())))
     except Exception as e:
         result["windows_error"] = str(e)
-    
+
     return result
 
+
 # --- Diagnostics ---
+
 
 def _diagnostic_probe_specs() -> list[tuple[str, str, str, bool]]:
     """(id, label, url, optional_soft_fail)."""
@@ -4220,6 +6281,7 @@ def _diagnostic_probe_specs() -> list[tuple[str, str, str, bool]]:
         ("kokoro_tts", tts_lbl, tts_url, True),
         ("ollama", "Ollama", f"{OLLAMA_HOST}/api/tags", True),
     ]
+
 
 async def _diagnostic_probe_one(
     client: httpx.AsyncClient,
@@ -4257,16 +6319,19 @@ async def _diagnostic_probe_one(
             "url": url,
         }
 
+
 class DiagnosticRunBody(BaseModel):
-    ids: Optional[list[str]] = None
+    ids: list[str] | None = None
+
 
 class DiagnosticsTtsBody(BaseModel):
     text: str = Field(default="Lumax, voice check.", max_length=4096)
-    voice: Optional[str] = Field(default=None, max_length=512)
+    voice: str | None = Field(default=None, max_length=512)
     engine: str = Field(default="MOUTH", max_length=64)
-    output_format: Optional[str] = Field(default="wav", max_length=16)
+    output_format: str | None = Field(default="wav", max_length=16)
 
-async def _run_diagnostics(ids: Optional[list[str]]) -> dict[str, Any]:
+
+async def _run_diagnostics(ids: list[str] | None) -> dict[str, Any]:
     specs = _diagnostic_probe_specs()
     want = set(ids) if ids else None
     to_run = [s for s in specs if want is None or s[0] in want]
@@ -4276,13 +6341,17 @@ async def _run_diagnostics(ids: Optional[list[str]]) -> dict[str, Any]:
             for cid, label, url, opt in to_run
         ]
         results = await asyncio.gather(*coros)
-    
+
     all_ok = all(r["ok"] or r["optional"] for r in results)
     return {"ok": all_ok, "steps": results}
 
+
 @app.post("/api/diagnostics/run")
-async def run_diagnostics(body: DiagnosticRunBody, _auth: None = Depends(require_webui_login)):
+async def run_diagnostics(
+    body: DiagnosticRunBody, _auth: None = Depends(require_webui_login)
+):
     return await _run_diagnostics(body.ids)
+
 
 @app.get("/api/config/ui")
 async def get_ui_config(_auth: None = Depends(require_webui_login)):
@@ -4291,6 +6360,7 @@ async def get_ui_config(_auth: None = Depends(require_webui_login)):
             return json.load(f)
     return {}
 
+
 @app.get("/api/announcements")
 async def get_announcements():
     if os.path.exists(ANNOUNCEMENTS_PATH):
@@ -4298,18 +6368,25 @@ async def get_announcements():
             return json.load(f)
     return []
 
+
 # --- Consent Endpoints (integrated into WebUI) ---
+
 
 @app.get("/api/consent/status")
 async def consent_status():
     """Return which data sources are connected."""
-    google_ok = os.path.exists(os.path.join(os.path.dirname(BASE_DIR), "..", ".cache", "google_tokens.json"))
-    ms_ok = os.path.exists(os.path.join(os.path.dirname(BASE_DIR), "..", ".cache", "ms_tokens.json"))
+    google_ok = os.path.exists(
+        os.path.join(os.path.dirname(BASE_DIR), "..", ".cache", "google_tokens.json")
+    )
+    ms_ok = os.path.exists(
+        os.path.join(os.path.dirname(BASE_DIR), "..", ".cache", "ms_tokens.json")
+    )
     return {
         "google_connected": google_ok,
         "microsoft_connected": ms_ok,
         "consent_bridge_available": _CONSENT_AVAILABLE,
     }
+
 
 @app.get("/api/consent/google/auth")
 async def consent_google_auth():
@@ -4323,8 +6400,9 @@ async def consent_google_auth():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/api/consent/google/callback")
-async def consent_google_callback(code: Optional[str] = None):
+async def consent_google_callback(code: str | None = None):
     """Catch Google OAuth redirect and sync to memory."""
     if not _CONSENT_AVAILABLE:
         return HTMLResponse("<h2>ConsentBridge unavailable</h2>", status_code=503)
@@ -4350,6 +6428,7 @@ async def consent_google_callback(code: Optional[str] = None):
     except Exception as e:
         return HTMLResponse(f"<h2>Error: {e}</h2>", status_code=500)
 
+
 @app.get("/api/consent/microsoft/auth")
 async def consent_microsoft_auth():
     """Return the Microsoft OAuth consent URL."""
@@ -4362,8 +6441,9 @@ async def consent_microsoft_auth():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/api/consent/microsoft/callback")
-async def consent_microsoft_callback(code: Optional[str] = None):
+async def consent_microsoft_callback(code: str | None = None):
     """Catch Microsoft OAuth redirect and sync to memory."""
     if not _CONSENT_AVAILABLE:
         return HTMLResponse("<h2>ConsentBridge unavailable</h2>", status_code=503)
@@ -4389,6 +6469,7 @@ async def consent_microsoft_callback(code: Optional[str] = None):
     except Exception as e:
         return HTMLResponse(f"<h2>Error: {e}</h2>", status_code=500)
 
+
 @app.post("/api/consent/sync")
 async def consent_sync_all():
     """Manually trigger sync for all connected sources."""
@@ -4410,12 +6491,14 @@ async def consent_sync_all():
             results["microsoft"] = str(e)
     return results
 
+
 @app.get("/api/consent/google/disconnect")
 async def consent_google_disconnect():
     p = os.path.join(os.path.dirname(BASE_DIR), "..", ".cache", "google_tokens.json")
     if os.path.exists(p):
         os.remove(p)
     return {"message": "Google disconnected, tokens deleted"}
+
 
 @app.get("/api/consent/microsoft/disconnect")
 async def consent_microsoft_disconnect():
@@ -4424,13 +6507,16 @@ async def consent_microsoft_disconnect():
         os.remove(p)
     return {"message": "Microsoft disconnected, tokens deleted"}
 
+
 # --- Feature Inventory & Architecture Map ---
+
 
 @app.get("/api/fmap")
 async def get_feature_map(_auth: None = Depends(require_webui_login)):
     """Serve FEATURE_INVENTORY.md as parsed JSON for the Web UI Feature Map tab."""
     try:
         import feature_inventory_parser as fip
+
         content = _read_markdown_safe(_FEATURE_INVENTORY_PATH)
         if not content:
             return JSONResponse(
@@ -4446,6 +6532,7 @@ async def get_feature_map(_auth: None = Depends(require_webui_login)):
             {"ok": False, "error": str(e)},
             status_code=500,
         )
+
 
 @app.get("/api/architecture")
 async def get_architecture(_auth: None = Depends(require_webui_login)):
@@ -4468,10 +6555,12 @@ async def get_architecture(_auth: None = Depends(require_webui_login)):
             diagram_lines = []
             continue
         if in_diagram and line.strip().startswith("```"):
-            diagrams.append({
-                "title": diagram_title,
-                "source": "\n".join(diagram_lines).strip(),
-            })
+            diagrams.append(
+                {
+                    "title": diagram_title,
+                    "source": "\n".join(diagram_lines).strip(),
+                }
+            )
             in_diagram = False
             diagram_title = "Untitled"
             continue
@@ -4487,15 +6576,31 @@ async def get_architecture(_auth: None = Depends(require_webui_login)):
         "markdown": content,
         "diagrams": diagrams,
         "sections": [
-            {"title": "High-Level backend/frontend/Service Topology", "anchor": "1-high-level-mindbodyservice-topology"},
-            {"title": "Service Dependency Graph", "anchor": "2-service-dependency-graph"},
-            {"title": "Data Flow: Conversation Turn", "anchor": "3-data-flow-conversation-turn"},
+            {
+                "title": "High-Level backend/frontend/Service Topology",
+                "anchor": "1-high-level-mindbodyservice-topology",
+            },
+            {
+                "title": "Service Dependency Graph",
+                "anchor": "2-service-dependency-graph",
+            },
+            {
+                "title": "Data Flow: Conversation Turn",
+                "anchor": "3-data-flow-conversation-turn",
+            },
             {"title": "Service Profile Matrix", "anchor": "4-service-profile-matrix"},
-            {"title": "State Machine: Life Cycle", "anchor": "5-state-machine-life-cycle"},
-            {"title": "Console Dashboard Layout", "anchor": "6-console-dashboard-layout"},
+            {
+                "title": "State Machine: Life Cycle",
+                "anchor": "5-state-machine-life-cycle",
+            },
+            {
+                "title": "Console Dashboard Layout",
+                "anchor": "6-console-dashboard-layout",
+            },
             {"title": "File Organization Map", "anchor": "7-file-organization-map"},
         ],
     }
+
 
 @app.get("/api/architecture/raw")
 async def get_architecture_raw():
@@ -4504,6 +6609,7 @@ async def get_architecture_raw():
     if not content:
         raise HTTPException(status_code=404, detail="ARCHITECTURE.md not found")
     return Response(content=content, media_type="text/markdown")
+
 
 # --- Creativity Service Proxy Endpoints ---
 @app.get("/api/creativity/health")
@@ -4515,7 +6621,10 @@ async def get_creativity_health(_auth: None = Depends(require_webui_login)):
             return resp.json()
     except Exception as e:
         logger.warning(f"Creativity health proxy failed: {e}")
-        raise HTTPException(status_code=503, detail=f"Creative service unavailable: {e}")
+        raise HTTPException(
+            status_code=503, detail=f"Creative service unavailable: {e}"
+        )
+
 
 @app.get("/api/creativity/status")
 async def get_creativity_status(_auth: None = Depends(require_webui_login)):
@@ -4529,6 +6638,7 @@ async def get_creativity_status(_auth: None = Depends(require_webui_login)):
         logger.warning(f"Creativity status proxy failed: {e}")
         return {"ok": False, "detail": str(e)}
 
+
 # --- Dream Catalog Proxy (for Dreamscape UI) ---
 @app.get("/api/dream/catalog")
 async def get_dream_catalog(_auth: None = Depends(require_webui_login)):
@@ -4539,7 +6649,10 @@ async def get_dream_catalog(_auth: None = Depends(require_webui_login)):
             return resp.json()
     except Exception as e:
         logger.warning(f"Dream catalog proxy failed: {e}")
-        raise HTTPException(status_code=503, detail=f"Creative service unavailable: {e}")
+        raise HTTPException(
+            status_code=503, detail=f"Creative service unavailable: {e}"
+        )
+
 
 # --- Dreamscape Settings (CREATIVE model type selector + preview) ---
 @app.get("/api/dreamscape/settings")
@@ -4552,13 +6665,33 @@ async def get_dreamscape_settings(_auth: None = Depends(require_webui_login)):
             creative_health = resp.json()
     except Exception:
         creative_health = {"status": "unreachable"}
-    
+
     return {
         "model_types": [
-            {"id": "turbo", "name": "SD1.5 Turbo (Diffusers)", "steps": 4, "default": True},
-            {"id": "sdxl_turbo_onnx", "name": "SDXL Turbo ONNX (Optimum)", "steps": 4, "ready": creative_health.get("sdxl_turbo_onnx_ready", False)},
-            {"id": "gguf", "name": "SDXL Turbo GGUF (Q8_0)", "steps": 4, "ready": creative_health.get("gguf_ready", False)},
-            {"id": "flux_gguf", "name": "Flux 2 INT8 GGUF (FALAI Turbo)", "steps": 4, "ready": creative_health.get("flux_gguf_ready", False)},
+            {
+                "id": "turbo",
+                "name": "SD1.5 Turbo (Diffusers)",
+                "steps": 4,
+                "default": True,
+            },
+            {
+                "id": "sdxl_turbo_onnx",
+                "name": "SDXL Turbo ONNX (Optimum)",
+                "steps": 4,
+                "ready": creative_health.get("sdxl_turbo_onnx_ready", False),
+            },
+            {
+                "id": "gguf",
+                "name": "SDXL Turbo GGUF (Q8_0)",
+                "steps": 4,
+                "ready": creative_health.get("gguf_ready", False),
+            },
+            {
+                "id": "flux_gguf",
+                "name": "Flux 2 INT8 GGUF (FALAI Turbo)",
+                "steps": 4,
+                "ready": creative_health.get("flux_gguf_ready", False),
+            },
         ],
         "defaults": {
             "width": int(os.getenv("FoveAI_CREATIVITY_DEFAULT_WIDTH", "512")),
@@ -4593,26 +6726,44 @@ async def switch_foveai_state(state: str, _auth: None = Depends(require_webui_lo
     """
     valid_states = {"AWAKE", "CREATIVE", "LIVE", "CODE", "SLEEP"}
     state = state.upper()
-    
+
     if state not in valid_states:
-        raise HTTPException(status_code=400, detail=f"Invalid state. Must be one of: {valid_states}")
-    
+        raise HTTPException(
+            status_code=400, detail=f"Invalid state. Must be one of: {valid_states}"
+        )
+
     # Write command file for the service to pick up
-    cmd_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", ".logs", "foveai_service_cmd.txt")
+    cmd_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "..",
+        ".logs",
+        "foveai_service_cmd.txt",
+    )
     try:
         with open(cmd_path, "w", encoding="utf-8") as f:
             f.write(state)
         logger.info(f"State switch command written: {state}")
-        return {"status": "switching", "state": state, "message": f"Switching to {state} state"}
+        return {
+            "status": "switching",
+            "state": state,
+            "message": f"Switching to {state} state",
+        }
     except Exception as e:
         logger.error(f"Failed to write state switch command: {e}")
-        raise HTTPException(status_code=500, detail=f"Could not signal state switch: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Could not signal state switch: {e}"
+        )
 
 
 @app.get("/api/state/current")
 async def get_current_state(_auth: None = Depends(require_webui_login)):
     """Get the current system state from the service status file."""
-    status_file = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", ".logs", "foveai_service_status.json")
+    status_file = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "..",
+        ".logs",
+        "foveai_service_status.json",
+    )
     try:
         if os.path.exists(status_file):
             with open(status_file, "r", encoding="utf-8") as f:
@@ -4626,6 +6777,7 @@ async def get_current_state(_auth: None = Depends(require_webui_login)):
     except Exception as e:
         logger.warning(f"Could not read state: {e}")
         return {"state": "ERROR", "enabled": False, "services": {}, "error": str(e)}
+
 
 @app.post("/api/dream")
 async def post_dream(request: Request, _auth: None = Depends(require_webui_login)):
@@ -4641,7 +6793,9 @@ async def post_dream(request: Request, _auth: None = Depends(require_webui_login
 
 
 @app.post("/api/dreamscape/generate")
-async def post_dreamscape_generate(request: Request, _auth: None = Depends(require_webui_login)):
+async def post_dreamscape_generate(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     """Proxy dream generation to creative_service with model_type selector."""
     data = await request.json()
     # Pass through to creative service /api/dream
@@ -4653,20 +6807,29 @@ async def post_dreamscape_generate(request: Request, _auth: None = Depends(requi
     except Exception as e:
         raise _upstream_unreachable("Creativity", url, e)
 
+
 # --- Drone Swarm Problem Solvers ---
 @app.get("/api/swarm/state")
 async def get_swarm_state_endpoint(_auth: None = Depends(require_webui_login)):
     """Live swarm drone positions and status (Pac-Man style visualizer data)."""
     if not SWARM_AVAILABLE:
-        return {"active": False, "error": "Swarm orchestrator not available", "drones": {}}
+        return {
+            "active": False,
+            "error": "Swarm orchestrator not available",
+            "drones": {},
+        }
     return get_swarm_state()
+
 
 class SwarmTaskRequest(BaseModel):
     objective: str
     context: str = ""
 
+
 @app.post("/api/swarm/launch")
-async def post_swarm_launch(req: SwarmTaskRequest, _auth: None = Depends(require_webui_login)):
+async def post_swarm_launch(
+    req: SwarmTaskRequest, _auth: None = Depends(require_webui_login)
+):
     """Launch a tiered swarm mission: Director plans → Drones investigate → Director synthesizes."""
     if not SWARM_AVAILABLE or execute_swarm_task is None:
         raise HTTPException(status_code=503, detail="Swarm orchestrator not available")
@@ -4676,6 +6839,7 @@ async def post_swarm_launch(req: SwarmTaskRequest, _auth: None = Depends(require
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Swarm mission failed: {e}")
 
+
 # --- Discovery Swarm Endpoints (Self-Discovery System) ---
 @app.get("/api/discovery/state")
 async def get_discovery_state_endpoint(_auth: None = Depends(require_webui_login)):
@@ -4684,11 +6848,15 @@ async def get_discovery_state_endpoint(_auth: None = Depends(require_webui_login
         return {"active": False, "error": "Discovery swarm not available", "drones": {}}
     return get_discovery_state()
 
+
 class DiscoveryLaunchRequest(BaseModel):
     duration_minutes: int = Field(default=30, ge=5, le=120)
 
+
 @app.post("/api/discovery/launch")
-async def post_discovery_launch(req: DiscoveryLaunchRequest, _auth: None = Depends(require_webui_login)):
+async def post_discovery_launch(
+    req: DiscoveryLaunchRequest, _auth: None = Depends(require_webui_login)
+):
     """Launch a discovery swarm mission: Mapper + Archivist + Auditor explore the codebase."""
     if not DISCOVERY_AVAILABLE or execute_discovery_mission is None:
         raise HTTPException(status_code=503, detail="Discovery swarm not available")
@@ -4699,8 +6867,11 @@ async def post_discovery_launch(req: DiscoveryLaunchRequest, _auth: None = Depen
         logger.exception("Discovery mission failed")
         raise HTTPException(status_code=500, detail=f"Discovery mission failed: {e}")
 
+
 @app.get("/api/discovery/reports")
-async def get_discovery_reports(limit: int = 20, _auth: None = Depends(require_webui_login)):
+async def get_discovery_reports(
+    limit: int = 20, _auth: None = Depends(require_webui_login)
+):
     """List persisted discovery reports."""
     if not DISCOVERY_AVAILABLE or list_discovery_reports is None:
         return {"reports": []}
@@ -4710,6 +6881,7 @@ async def get_discovery_reports(limit: int = 20, _auth: None = Depends(require_w
     except Exception as e:
         logger.warning(f"Failed to list discovery reports: {e}")
         return {"reports": [], "error": str(e)}
+
 
 @app.get("/api/discovery/notification")
 async def get_discovery_notification(_auth: None = Depends(require_webui_login)):
@@ -4726,7 +6898,13 @@ async def get_discovery_notification(_auth: None = Depends(require_webui_login))
 
 # ── Inbox / Crash Report Endpoints ────────────────────────────────────────────
 
-ERROR_REPORTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "..", ".logs", "error_reports")
+ERROR_REPORTS_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "..",
+    ".logs",
+    "error_reports",
+)
+
 
 class InboxMessage(BaseModel):
     id: str
@@ -4736,17 +6914,21 @@ class InboxMessage(BaseModel):
     timestamp: str
     severity: str = "info"  # "info", "warning", "critical"
     read: bool = False
-    details: Optional[Dict[str, Any]] = None
+    details: dict[str, Any] | None = None
 
 
-def _list_crash_reports(limit: int = 50) -> List[Dict[str, Any]]:
+def _list_crash_reports(limit: int = 50) -> list[dict[str, Any]]:
     """List crash reports from .logs/error_reports/ directory."""
     reports = []
     if not os.path.exists(ERROR_REPORTS_DIR):
         return reports
-    
+
     try:
-        report_files = sorted(Path(ERROR_REPORTS_DIR).glob("*.txt"), key=lambda x: x.stat().st_mtime, reverse=True)[:limit]
+        report_files = sorted(
+            Path(ERROR_REPORTS_DIR).glob("*.txt"),
+            key=lambda x: x.stat().st_mtime,
+            reverse=True,
+        )[:limit]
         for report_path in report_files:
             try:
                 content = report_path.read_text(encoding="utf-8")
@@ -4755,82 +6937,96 @@ def _list_crash_reports(limit: int = 50) -> List[Dict[str, Any]]:
                 title = "Crash Report"
                 service_name = "Unknown"
                 crash_time = report_path.stem.replace("_crash_", "").replace("_", ":")
-                
+
                 for line in lines[:20]:
                     if line.startswith("Service: "):
                         service_name = line.replace("Service: ", "")
                         title = f"{service_name} Crash"
                     elif line.startswith("Crash Time: "):
                         crash_time = line.replace("Crash Time: ", "")
-                
+
                 # Determine severity based on crash count
                 severity = "warning"
                 for line in lines[:30]:
                     if "CRITICAL" in line or "FATAL" in line:
                         severity = "critical"
                         break
-                
-                reports.append({
-                    "id": report_path.stem,
-                    "type": "crash_report",
-                    "title": title,
-                    "summary": f"{service_name} crashed - see details",
-                    "timestamp": crash_time,
-                    "severity": severity,
-                    "read": False,
-                    "details": {
-                        "filename": report_path.name,
-                        "content": content,
-                        "service": service_name,
+
+                reports.append(
+                    {
+                        "id": report_path.stem,
+                        "type": "crash_report",
+                        "title": title,
+                        "summary": f"{service_name} crashed - see details",
+                        "timestamp": crash_time,
+                        "severity": severity,
+                        "read": False,
+                        "details": {
+                            "filename": report_path.name,
+                            "content": content,
+                            "service": service_name,
+                        },
                     }
-                })
+                )
             except Exception as e:
                 logger.warning(f"Failed to read crash report {report_path}: {e}")
     except Exception as e:
         logger.warning(f"Failed to list crash reports: {e}")
-    
+
     return reports
 
 
 @app.get("/api/inbox/crash-reports")
-async def get_crash_reports(limit: int = 50, _auth: None = Depends(require_webui_login)):
+async def get_crash_reports(
+    limit: int = 50, _auth: None = Depends(require_webui_login)
+):
     """List crash reports from error_reports directory."""
     reports = _list_crash_reports(limit)
     return {"reports": reports, "total": len(reports)}
 
 
 @app.get("/api/inbox/messages")
-async def get_inbox_messages(limit: int = 50, _auth: None = Depends(require_webui_login)):
+async def get_inbox_messages(
+    limit: int = 50, _auth: None = Depends(require_webui_login)
+):
     """Get all inbox messages including crash reports, discovery notifications, and system messages."""
     messages = []
-    
+
     # Add crash reports
     crash_reports = _list_crash_reports(limit // 2)
     messages.extend([InboxMessage(**r).dict() for r in crash_reports])
-    
+
     # Add discovery notifications
     if DISCOVERY_AVAILABLE and get_latest_discovery_notification:
         try:
             discovery = get_latest_discovery_notification()
             if discovery:
-                messages.append({
-                    "id": f"discovery_{discovery.get('timestamp', 'now')}",
-                    "type": "discovery",
-                    "title": discovery.get("title", "Discovery Report"),
-                    "summary": discovery.get("summary", "New discovery findings available"),
-                    "timestamp": discovery.get("timestamp", ""),
-                    "severity": "info",
-                    "read": False,
-                    "details": discovery
-                })
+                messages.append(
+                    {
+                        "id": f"discovery_{discovery.get('timestamp', 'now')}",
+                        "type": "discovery",
+                        "title": discovery.get("title", "Discovery Report"),
+                        "summary": discovery.get(
+                            "summary", "New discovery findings available"
+                        ),
+                        "timestamp": discovery.get("timestamp", ""),
+                        "severity": "info",
+                        "read": False,
+                        "details": discovery,
+                    }
+                )
         except Exception as e:
             logger.warning(f"Failed to get discovery notification: {e}")
-    
+
     # Sort by timestamp (newest first)
     messages.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
     messages = messages[:limit]
-    
-    return {"messages": messages, "total": len(messages), "unread": sum(1 for m in messages if not m.get("read", False))}
+
+    return {
+        "messages": messages,
+        "total": len(messages),
+        "unread": sum(1 for m in messages if not m.get("read", False)),
+    }
 
 
 @app.get("/api/inbox/unread-count")
@@ -4838,7 +7034,7 @@ async def get_inbox_unread_count(_auth: None = Depends(require_webui_login)):
     """Get count of unread inbox messages."""
     crash_reports = _list_crash_reports(100)
     unread_crashes = sum(1 for r in crash_reports if not r.get("read", False))
-    
+
     unread_discovery = 0
     if DISCOVERY_AVAILABLE and get_latest_discovery_notification:
         try:
@@ -4847,32 +7043,38 @@ async def get_inbox_unread_count(_auth: None = Depends(require_webui_login)):
                 unread_discovery = 1
         except Exception:
             pass
-    
-    return {"unread": unread_crashes + unread_discovery, "crash_reports": unread_crashes, "discovery": unread_discovery}
+
+    return {
+        "unread": unread_crashes + unread_discovery,
+        "crash_reports": unread_crashes,
+        "discovery": unread_discovery,
+    }
 
 
-def _send_email_notification(subject: str, body: str, html_body: Optional[str] = None) -> bool:
+def _send_email_notification(
+    subject: str, body: str, html_body: str | None = None
+) -> bool:
     """Send email notification for critical inbox messages."""
     if not EMAIL_ENABLED:
         logger.warning("Email notifications disabled - missing credentials")
         return False
-    
+
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["From"] = EMAIL_SENDER
         msg["To"] = EMAIL_RECIPIENT
-        
+
         msg.attach(MIMEText(body, "plain"))
-        
+
         if html_body:
             msg.attach(MIMEText(html_body, "html"))
-        
+
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()
             server.login(EMAIL_SENDER, EMAIL_PASSWORD)
             server.sendmail(EMAIL_SENDER, EMAIL_RECIPIENT, msg.as_string())
-        
+
         logger.info(f"Email notification sent to {EMAIL_RECIPIENT}: {subject}")
         return True
     except Exception as e:
@@ -4880,14 +7082,14 @@ def _send_email_notification(subject: str, body: str, html_body: Optional[str] =
         return False
 
 
-def _send_crash_email_notification(crash_report: Dict[str, Any]) -> bool:
+def _send_crash_email_notification(crash_report: dict[str, Any]) -> bool:
     """Send email notification for a new crash report."""
     service_name = crash_report.get("details", {}).get("service", "Unknown service")
     crash_time = crash_report.get("timestamp", "Unknown time")
     severity = crash_report.get("severity", "warning")
-    
+
     subject = f"[FoveAI {severity.upper()}] {service_name} Crash Detected"
-    
+
     body = f"""FoveAI Service Crash Alert
 
 Service: {service_name}
@@ -4900,18 +7102,18 @@ Summary: {crash_report.get("summary", "No summary available")}
 This is an automated notification from your FoveAI system.
 To view full crash details, open the Web UI inbox.
 """
-    
+
     html_body = f"""
     <html>
     <body style="font-family: Arial, sans-serif; background: #0a0a0a; color: #e0e0e0;">
         <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: {'#ff4444' if severity == 'critical' else '#ffaa00'};">
+            <h2 style="color: {"#ff4444" if severity == "critical" else "#ffaa00"};">
                 ⚠️ FoveAI Service Crash Alert
             </h2>
-            <div style="background: #1a1a1a; padding: 20px; border-radius: 8px; border-left: 4px solid {'#ff4444' if severity == 'critical' else '#ffaa00'};">
+            <div style="background: #1a1a1a; padding: 20px; border-radius: 8px; border-left: 4px solid {"#ff4444" if severity == "critical" else "#ffaa00"};">
                 <p><strong>Service:</strong> {service_name}</p>
                 <p><strong>Crash Time:</strong> {crash_time}</p>
-                <p><strong>Severity:</strong> <span style="color: {'#ff4444' if severity == 'critical' else '#ffaa00'};">{severity.upper()}</span></p>
+                <p><strong>Severity:</strong> <span style="color: {"#ff4444" if severity == "critical" else "#ffaa00"};">{severity.upper()}</span></p>
                 <p><strong>Summary:</strong> {crash_report.get("summary", "No summary available")}</p>
             </div>
             <p style="margin-top: 20px; color: #888; font-size: 0.9em;">
@@ -4922,20 +7124,22 @@ To view full crash details, open the Web UI inbox.
     </body>
     </html>
     """
-    
+
     return _send_email_notification(subject, body, html_body)
 
 
 @app.get("/api/inbox/crash-report/{report_id}")
-async def get_crash_report_details(report_id: str, _auth: None = Depends(require_webui_login)):
+async def get_crash_report_details(
+    report_id: str, _auth: None = Depends(require_webui_login)
+):
     """Get full content of a specific crash report."""
     if not os.path.exists(ERROR_REPORTS_DIR):
         raise HTTPException(status_code=404, detail="No crash reports directory")
-    
+
     report_path = Path(ERROR_REPORTS_DIR) / f"{report_id}.txt"
     if not report_path.exists():
         raise HTTPException(status_code=404, detail=f"Report not found: {report_id}")
-    
+
     try:
         content = report_path.read_text(encoding="utf-8")
         return {"content": content, "filename": report_path.name}
@@ -4945,10 +7149,11 @@ async def get_crash_report_details(report_id: str, _auth: None = Depends(require
 
 class EmailConfig(BaseModel):
     """Email configuration for notifications."""
-    smtp_server: Optional[str] = None
-    smtp_port: Optional[int] = None
-    sender: Optional[str] = None
-    recipient: Optional[str] = None
+
+    smtp_server: str | None = None
+    smtp_port: int | None = None
+    sender: str | None = None
+    recipient: str | None = None
     enabled: bool = False
 
 
@@ -4966,10 +7171,12 @@ async def get_email_config(_auth: None = Depends(require_webui_login)):
 
 
 @app.put("/api/inbox/email-config")
-async def update_email_config(config: EmailConfig, _auth: None = Depends(require_webui_login)):
+async def update_email_config(
+    config: EmailConfig, _auth: None = Depends(require_webui_login)
+):
     """Update email notification configuration."""
     global EMAIL_SENDER, EMAIL_RECIPIENT, SMTP_SERVER, SMTP_PORT, EMAIL_ENABLED
-    
+
     if config.smtp_server:
         SMTP_SERVER = config.smtp_server
     if config.smtp_port:
@@ -4978,9 +7185,9 @@ async def update_email_config(config: EmailConfig, _auth: None = Depends(require
         EMAIL_SENDER = config.sender
     if config.recipient:
         EMAIL_RECIPIENT = config.recipient
-    
+
     EMAIL_ENABLED = config.enabled and EMAIL_SENDER
-    
+
     return {
         "enabled": EMAIL_ENABLED,
         "smtp_server": SMTP_SERVER,
@@ -4995,7 +7202,7 @@ async def send_test_email(_auth: None = Depends(require_webui_login)):
     """Send a test email to verify configuration."""
     if not EMAIL_ENABLED:
         raise HTTPException(status_code=400, detail="Email not configured")
-    
+
     subject = "[FoveAI] Email Test - Configuration Verified"
     body = """FoveAI Email Notification Test
 
@@ -5009,7 +7216,7 @@ If you received this, your FoveAI system can send you email alerts for:
 ---
 Sent from your FoveAI system
 """
-    
+
     html_body = """
     <html>
     <body style="font-family: Arial, sans-serif; background: #0a0a0a; color: #e0e0e0;">
@@ -5030,7 +7237,7 @@ Sent from your FoveAI system
     </body>
     </html>
     """
-    
+
     success = _send_email_notification(subject, body, html_body)
     if success:
         return {"ok": True, "message": "Test email sent successfully"}
@@ -5039,39 +7246,45 @@ Sent from your FoveAI system
 
 
 @app.post("/api/inbox/notify-crash")
-async def notify_crash_via_email(report_id: str, _auth: None = Depends(require_webui_login)):
+async def notify_crash_via_email(
+    report_id: str, _auth: None = Depends(require_webui_login)
+):
     """Send email notification for a specific crash report."""
     if not EMAIL_ENABLED:
-        raise HTTPException(status_code=400, detail="Email notifications not configured")
-    
+        raise HTTPException(
+            status_code=400, detail="Email notifications not configured"
+        )
+
     if not os.path.exists(ERROR_REPORTS_DIR):
         raise HTTPException(status_code=404, detail="No crash reports directory")
-    
+
     report_path = Path(ERROR_REPORTS_DIR) / f"{report_id}.txt"
     if not report_path.exists():
         raise HTTPException(status_code=404, detail=f"Report not found: {report_id}")
-    
+
     content = report_path.read_text(encoding="utf-8")
     lines = content.splitlines()
     service_name = "Unknown"
     crash_time = report_path.stem.replace("_crash_", "").replace("_", ":")
-    
+
     for line in lines[:20]:
         if line.startswith("Service: "):
             service_name = line.replace("Service: ", "")
         elif line.startswith("Crash Time: "):
             crash_time = line.replace("Crash Time: ", "")
-    
+
     crash_report = {
         "id": report_id,
         "type": "crash_report",
         "title": f"{service_name} Crash",
         "summary": f"{service_name} crashed - see details",
         "timestamp": crash_time,
-        "severity": "critical" if any("CRITICAL" in line or "FATAL" in line for line in lines[:30]) else "warning",
-        "details": {"service": service_name, "content": content}
+        "severity": "critical"
+        if any("CRITICAL" in line or "FATAL" in line for line in lines[:30])
+        else "warning",
+        "details": {"service": service_name, "content": content},
     }
-    
+
     success = _send_crash_email_notification(crash_report)
     if success:
         return {"ok": True, "message": f"Email sent for crash: {service_name}"}
@@ -5081,9 +7294,11 @@ async def notify_crash_via_email(report_id: str, _auth: None = Depends(require_w
 
 # ── Director Healing Mission Endpoints ─────────────────────────────────────────
 
+
 class DirectorHealingRequest(BaseModel):
     """Request for Director to analyze a crash and direct healing."""
-    crash_report_id: Optional[str] = None
+
+    crash_report_id: str | None = None
     service_name: str
     crash_count: int = 1
     time_window_minutes: int = 5
@@ -5099,9 +7314,9 @@ async def _run_director_healing(
     """Run Director healing analysis for a service crash."""
     if not DIRECTOR_MANAGER_AVAILABLE:
         return {"success": False, "error": "Director Manager not available"}
-    
+
     mission_id = f"healing_{service_name}_{int(time.time())}"
-    
+
     # Build healing prompt
     user_prompt = DIRECTOR_HEALING_PROMPT_TEMPLATE.format(
         mission_id=mission_id,
@@ -5114,38 +7329,54 @@ async def _run_director_healing(
         python_version=f"{sys.version_info.major}.{sys.version_info.minor}",
         os_info=f"Windows {os.name}",
     )
-    
+
     try:
         async with httpx.AsyncClient(timeout=300.0) as client:
             response = await client.post(
                 f"{os.getenv('FOVEAI_DIRECTOR_BASE_URL', 'https://ollama.com/v1').rstrip('/')}/chat/completions",
-                headers=_cloud_headers(os.getenv("FOVEAI_DIRECTOR_API_KEY", os.getenv("FOVEAI_REPERTOIRE_OLLAMA_API_KEY", ""))),
+                headers=_cloud_headers(
+                    os.getenv(
+                        "FOVEAI_DIRECTOR_API_KEY",
+                        os.getenv("FOVEAI_REPERTOIRE_OLLAMA_API_KEY", ""),
+                    )
+                ),
                 json={
                     "model": os.getenv("FOVEAI_DIRECTOR_MODEL", "deepseek-v4-pro:1m"),
                     "messages": [
-                        {"role": "system", "content": DIRECTOR_SYSTEM_PROMPT.replace("feature indexing", "service healing and diagnostics")},
-                        {"role": "user", "content": user_prompt}
+                        {
+                            "role": "system",
+                            "content": DIRECTOR_SYSTEM_PROMPT.replace(
+                                "feature indexing", "service healing and diagnostics"
+                            ),
+                        },
+                        {"role": "user", "content": user_prompt},
                     ],
                     "temperature": 0.3,
                     "max_tokens": 8192,
                     "stream": False,
-                }
+                },
             )
             response.raise_for_status()
             data = response.json()
             raw_content = data["choices"][0]["message"]["content"]
-            
+
             # Try to parse JSON response
             try:
                 healing_plan = json.loads(raw_content)
             except json.JSONDecodeError:
                 # Extract JSON from markdown code block
-                match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw_content, re.DOTALL)
+                match = re.search(
+                    r"```(?:json)?\s*(\{.*?\})\s*```", raw_content, re.DOTALL
+                )
                 if match:
                     healing_plan = json.loads(match.group(1))
                 else:
-                    healing_plan = {"diagnosis": raw_content, "severity": "unknown", "immediate_actions": []}
-            
+                    healing_plan = {
+                        "diagnosis": raw_content,
+                        "severity": "unknown",
+                        "immediate_actions": [],
+                    }
+
             return {
                 "success": True,
                 "mission_id": mission_id,
@@ -5153,28 +7384,34 @@ async def _run_director_healing(
                 "healing_plan": healing_plan,
                 "raw_response": raw_content,
             }
-            
+
     except Exception as e:
         logger.exception("Director healing failed")
         return {"success": False, "error": str(e)}
 
 
 @app.post("/api/director/heal")
-async def post_director_heal(req: DirectorHealingRequest, _auth: None = Depends(require_webui_login)):
+async def post_director_heal(
+    req: DirectorHealingRequest, _auth: None = Depends(require_webui_login)
+):
     """Request Director to analyze a crash and direct healing swarm."""
     if not DIRECTOR_MANAGER_AVAILABLE:
         raise HTTPException(status_code=503, detail="Director Manager not available")
-    
+
     # Get crash report content
     crash_content = ""
     if req.crash_report_id:
-        report_path = Path(ERROR_REPORTS_DIR) / f"{req.crash_report_id}.txt" if ERROR_REPORTS_DIR else None
+        report_path = (
+            Path(ERROR_REPORTS_DIR) / f"{req.crash_report_id}.txt"
+            if ERROR_REPORTS_DIR
+            else None
+        )
         if report_path and report_path.exists():
             crash_content = report_path.read_text(encoding="utf-8")
-    
+
     if not crash_content:
         crash_content = f"Service {req.service_name} has crashed {req.crash_count} times in {req.time_window_minutes} minutes."
-    
+
     # Run Director healing
     result = await _run_director_healing(
         service_name=req.service_name,
@@ -5182,32 +7419,37 @@ async def post_director_heal(req: DirectorHealingRequest, _auth: None = Depends(
         crash_count=req.crash_count,
         time_window_minutes=req.time_window_minutes,
     )
-    
+
     if not result.get("success"):
-        raise HTTPException(status_code=500, detail=result.get("error", "Director healing failed"))
-    
+        raise HTTPException(
+            status_code=500, detail=result.get("error", "Director healing failed")
+        )
+
     # Auto-execute if requested
     if req.auto_execute and result.get("healing_plan", {}).get("immediate_actions"):
         # Queue actions for swarm orchestrator
         # pyrefly: ignore [missing-import]
         from swarm_orchestrator import execute_swarm_task
+
         if SWARM_AVAILABLE and execute_swarm_task:
             healing_plan = result["healing_plan"]
-            swarm_context = json.dumps({
-                "service": req.service_name,
-                "diagnosis": healing_plan.get("diagnosis", ""),
-                "actions": healing_plan.get("immediate_actions", []),
-            })
+            swarm_context = json.dumps(
+                {
+                    "service": req.service_name,
+                    "diagnosis": healing_plan.get("diagnosis", ""),
+                    "actions": healing_plan.get("immediate_actions", []),
+                }
+            )
             try:
                 await execute_swarm_task(
                     f"Heal {req.service_name}: {healing_plan.get('diagnosis', 'Unknown issue')}",
-                    swarm_context
+                    swarm_context,
                 )
                 result["swarm_executed"] = True
             except Exception as e:
                 logger.warning(f"Swarm execution failed: {e}")
                 result["swarm_executed"] = False
-    
+
     return result
 
 
@@ -5227,12 +7469,13 @@ async def get_director_heal_status(_auth: None = Depends(require_webui_login)):
 try:
     # pyrefly: ignore [missing-import]
     from director_manager import (
+        DIRECTOR_AUTO_APPLY,
+        DIRECTOR_CLOUD_ENABLED,
         DirectorManager,
         IndexWorker,
         run_director_analysis,
-        DIRECTOR_CLOUD_ENABLED,
-        DIRECTOR_AUTO_APPLY,
     )
+
     DIRECTOR_MANAGER_AVAILABLE = True
 except Exception as _dm_err:
     DIRECTOR_MANAGER_AVAILABLE = False
@@ -5259,8 +7502,9 @@ except Exception as _dm_err:
 
 class DirectorAnalysisRequest(BaseModel):
     """Request to run Director analysis on existing discovery report."""
-    report_filename: Optional[str] = None
-    auto_apply: Optional[bool] = None
+
+    report_filename: str | None = None
+    auto_apply: bool | None = None
 
 
 @app.get("/api/director/status")
@@ -5276,7 +7520,9 @@ async def get_director_status(_auth: None = Depends(require_webui_login)):
 
 
 @app.post("/api/director/analyze")
-async def post_director_analyze(req: DirectorAnalysisRequest, _auth: None = Depends(require_webui_login)):
+async def post_director_analyze(
+    req: DirectorAnalysisRequest, _auth: None = Depends(require_webui_login)
+):
     """Run Director analysis on an existing discovery report.
 
     If report_filename is provided, loads that report from .logs/discovery_reports/
@@ -5286,12 +7532,14 @@ async def post_director_analyze(req: DirectorAnalysisRequest, _auth: None = Depe
         raise HTTPException(status_code=503, detail="Director Manager not available")
 
     # pyrefly: ignore [missing-import]
-    from discovery_swarm import list_discovery_reports, _load_inventory_flat
+    from discovery_swarm import _load_inventory_flat, list_discovery_reports
 
     # Get report to analyze
     reports = list_discovery_reports(limit=10)
     if req.report_filename:
-        report = next((r for r in reports if r.get("_filename") == req.report_filename), None)
+        report = next(
+            (r for r in reports if r.get("_filename") == req.report_filename), None
+        )
     else:
         report = reports[0] if reports else None
 
@@ -5322,15 +7570,17 @@ async def post_director_analyze(req: DirectorAnalysisRequest, _auth: None = Depe
             else:
                 cat = "other"
 
-            unindexed_features.append({
-                "source_file": feature.get("source_file", ""),
-                "feature_type": feature.get("feature_type", ""),
-                "name": feature.get("name", ""),
-                "description": feature.get("description", ""),
-                "proposed_category": cat,
-                "proposed_tier": feature.get("tier_guess", "C"),
-                "evidence": feature.get("evidence", ""),
-            })
+            unindexed_features.append(
+                {
+                    "source_file": feature.get("source_file", ""),
+                    "feature_type": feature.get("feature_type", ""),
+                    "name": feature.get("name", ""),
+                    "description": feature.get("description", ""),
+                    "proposed_category": cat,
+                    "proposed_tier": feature.get("tier_guess", "C"),
+                    "evidence": feature.get("evidence", ""),
+                }
+            )
 
     # Load current inventory
     inventory_rows = _load_inventory_flat()
@@ -5348,7 +7598,9 @@ async def post_director_analyze(req: DirectorAnalysisRequest, _auth: None = Depe
         if result.get("success"):
             return {"ok": True, "result": result}
         else:
-            raise HTTPException(status_code=500, detail=result.get("error", "Director analysis failed"))
+            raise HTTPException(
+                status_code=500, detail=result.get("error", "Director analysis failed")
+            )
 
     except Exception as e:
         logger.exception("Director analysis failed")
@@ -5356,7 +7608,9 @@ async def post_director_analyze(req: DirectorAnalysisRequest, _auth: None = Depe
 
 
 @app.get("/api/director/reports")
-async def get_director_reports(limit: int = 20, _auth: None = Depends(require_webui_login)):
+async def get_director_reports(
+    limit: int = 20, _auth: None = Depends(require_webui_login)
+):
     """List Director analysis reports (files with _director.json suffix)."""
     # pyrefly: ignore [missing-import]
     from discovery_swarm import REPORTS_DIR
@@ -5365,7 +7619,9 @@ async def get_director_reports(limit: int = 20, _auth: None = Depends(require_we
         return {"reports": []}
 
     reports = []
-    for p in sorted(REPORTS_DIR.glob("*_director.json"), key=lambda x: x.name, reverse=True)[:limit]:
+    for p in sorted(
+        REPORTS_DIR.glob("*_director.json"), key=lambda x: x.name, reverse=True
+    )[:limit]:
         try:
             data = json.loads(p.read_text(encoding="utf-8"))
             data["_filename"] = p.name
@@ -5377,7 +7633,9 @@ async def get_director_reports(limit: int = 20, _auth: None = Depends(require_we
 
 
 @app.post("/api/director/apply")
-async def post_director_apply(req: Dict[str, Any], _auth: None = Depends(require_webui_login)):
+async def post_director_apply(
+    req: dict[str, Any], _auth: None = Depends(require_webui_login)
+):
     """Apply Director decisions from a report to FEATURE_INVENTORY.md.
 
     Expects: {"report_filename": "20260502_195944_director.json"}
@@ -5394,7 +7652,9 @@ async def post_director_apply(req: Dict[str, Any], _auth: None = Depends(require
 
     report_path = REPORTS_DIR / report_filename
     if not report_path.is_file():
-        raise HTTPException(status_code=404, detail=f"Report not found: {report_filename}")
+        raise HTTPException(
+            status_code=404, detail=f"Report not found: {report_filename}"
+        )
 
     try:
         report_data = json.loads(report_path.read_text(encoding="utf-8"))
@@ -5405,16 +7665,18 @@ async def post_director_apply(req: Dict[str, Any], _auth: None = Depends(require
 
         decisions = []
         for d in report_data.get("decisions", []):
-            decisions.append(DirectorIndexDecision(
-                source_file=d.get("source_file", ""),
-                feature_type=d.get("feature_type", ""),
-                name=d.get("name", ""),
-                description=d.get("description", ""),
-                category=d.get("category", "other"),
-                tier=d.get("tier", "C"),
-                reasoning=d.get("reasoning", ""),
-                action=d.get("action", "skip"),
-            ))
+            decisions.append(
+                DirectorIndexDecision(
+                    source_file=d.get("source_file", ""),
+                    feature_type=d.get("feature_type", ""),
+                    name=d.get("name", ""),
+                    description=d.get("description", ""),
+                    category=d.get("category", "other"),
+                    tier=d.get("tier", "C"),
+                    reasoning=d.get("reasoning", ""),
+                    action=d.get("action", "skip"),
+                )
+            )
 
         analysis = DirectorAnalysis(
             mission_id=report_data.get("mission_id", ""),
@@ -5444,19 +7706,21 @@ async def post_director_apply(req: Dict[str, Any], _auth: None = Depends(require
 # ============================================
 
 # Session storage for album art generation workflow
-_album_art_sessions: Dict[str, Dict[str, Any]] = {}
+_album_art_sessions: dict[str, dict[str, Any]] = {}
+
 
 class AlbumArtSession(BaseModel):
     """Request model for album art generation session."""
+
     band_name: str = ""
     album_title: str = ""
-    songs: List[Dict[str, str]] = Field(default_factory=list)
-    reference_album_id: Optional[str] = None
-    art_style_id: Optional[str] = None
-    color_profile_id: Optional[str] = None
-    custom_colors: Optional[List[str]] = None
+    songs: list[dict[str, str]] = Field(default_factory=list)
+    reference_album_id: str | None = None
+    art_style_id: str | None = None
+    color_profile_id: str | None = None
+    custom_colors: list[str] | None = None
     controlnet_strength: float = 0.5
-    seed: Optional[int] = None
+    seed: int | None = None
     width: int = 512
     height: int = 512
     steps: int = 4
@@ -5478,6 +7742,7 @@ async def get_reference_albums(_auth: None = Depends(require_webui_login)):
     """Get list of famous album covers for reference."""
     try:
         from album_art_generator import get_famous_albums
+
         return {"albums": get_famous_albums()}
     except Exception as e:
         logger.warning(f"Failed to load reference albums: {e}")
@@ -5489,6 +7754,7 @@ async def get_reference_styles(_auth: None = Depends(require_webui_login)):
     """Get list of art styles."""
     try:
         from album_art_generator import get_art_styles
+
         return {"styles": get_art_styles()}
     except Exception as e:
         logger.warning(f"Failed to load art styles: {e}")
@@ -5500,6 +7766,7 @@ async def get_reference_colors(_auth: None = Depends(require_webui_login)):
     """Get list of color profiles."""
     try:
         from album_art_generator import get_color_profiles
+
         return {"profiles": get_color_profiles()}
     except Exception as e:
         logger.warning(f"Failed to load color profiles: {e}")
@@ -5511,6 +7778,7 @@ async def get_controlnet_presets_api(_auth: None = Depends(require_webui_login))
     """Get ControlNet strength presets."""
     try:
         from album_art_generator import get_controlnet_presets
+
         return {"presets": get_controlnet_presets()}
     except Exception as e:
         logger.warning(f"Failed to load controlnet presets: {e}")
@@ -5519,8 +7787,7 @@ async def get_controlnet_presets_api(_auth: None = Depends(require_webui_login))
 
 @app.post("/api/album-art/session/create")
 async def create_album_art_session(
-    session_data: AlbumArtSession,
-    _auth: None = Depends(require_webui_login)
+    session_data: AlbumArtSession, _auth: None = Depends(require_webui_login)
 ):
     """Create a new album art generation session."""
     session_id = str(uuid.uuid4())
@@ -5536,13 +7803,12 @@ async def create_album_art_session(
 
 @app.get("/api/album-art/session/{session_id}")
 async def get_album_art_session(
-    session_id: str,
-    _auth: None = Depends(require_webui_login)
+    session_id: str, _auth: None = Depends(require_webui_login)
 ):
     """Get session data including all generated images and choices."""
     if session_id not in _album_art_sessions:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     session = _album_art_sessions[session_id]
     return {
         "session_id": session_id,
@@ -5554,29 +7820,27 @@ async def get_album_art_session(
 
 @app.delete("/api/album-art/session/{session_id}")
 async def delete_album_art_session(
-    session_id: str,
-    _auth: None = Depends(require_webui_login)
+    session_id: str, _auth: None = Depends(require_webui_login)
 ):
     """Delete a generation session."""
-    if session_id in _album_art_sessions:
-        del _album_art_sessions[session_id]
-    
+    _album_art_sessions.pop(session_id, None)
+
     # Also delete from disk
     try:
         from album_art_generator import ALBUM_ART_DIR
+
         session_dir = os.path.join(ALBUM_ART_DIR, session_id)
         if os.path.exists(session_dir):
             shutil.rmtree(session_dir)
     except Exception as e:
         logger.warning(f"Failed to delete session directory: {e}")
-    
+
     return {"status": "deleted", "session_id": session_id}
 
 
 @app.post("/api/album-art/generate/album")
 async def generate_album_art(
-    request: Dict[str, Any],
-    _auth: None = Depends(require_webui_login)
+    request: dict[str, Any], _auth: None = Depends(require_webui_login)
 ):
     """
     Generate album cover art using the creative service.
@@ -5586,49 +7850,53 @@ async def generate_album_art(
         session_id = request.get("session_id")
         if not session_id or session_id not in _album_art_sessions:
             raise HTTPException(status_code=400, detail="Invalid or missing session_id")
-        
+
         session = _album_art_sessions[session_id]
         project = session["project"]
-        
+
         # Get reference data
         from album_art_generator import (
-            get_famous_albums, get_art_styles, get_color_profiles,
-            build_album_art_prompt
+            build_album_art_prompt,
+            get_art_styles,
+            get_color_profiles,
+            get_famous_albums,
         )
-        
+
         ref_album = None
         if project.get("reference_album_id"):
             for album in get_famous_albums():
                 if album["id"] == project["reference_album_id"]:
                     ref_album = album
                     break
-        
+
         art_style = None
         if project.get("art_style_id"):
             for style in get_art_styles():
                 if style["id"] == project["art_style_id"]:
                     art_style = style
                     break
-        
+
         color_profile = None
         if project.get("color_profile_id"):
             for profile in get_color_profiles():
                 if profile["id"] == project["color_profile_id"]:
                     color_profile = profile
                     break
-        
+
         # Build prompt
         prompt, negative_prompt = build_album_art_prompt(
             band_name=project.get("band_name", ""),
             album_title=project.get("album_title", ""),
-            song_contexts=[{"title": s.get("title", ""), "description": s.get("description", "")} 
-                          for s in project.get("songs", [])],
+            song_contexts=[
+                {"title": s.get("title", ""), "description": s.get("description", "")}
+                for s in project.get("songs", [])
+            ],
             reference_album=ref_album,
             art_style=art_style,
             color_profile=color_profile,
             custom_colors=project.get("custom_colors"),
         )
-        
+
         # Call creative service
         async with httpx.AsyncClient(timeout=120.0) as client:
             creative_payload = {
@@ -5643,10 +7911,10 @@ async def generate_album_art(
             }
             resp = await client.post(f"{CREATIVE_URL}/api/dream", json=creative_payload)
             result = resp.json()
-        
+
         # Get image data
         image_data = result.get("image", result.get("base64", ""))
-        
+
         # Store generation option
         option_id = f"album_{int(time.time())}"
         session["generated_images"][option_id] = image_data
@@ -5654,7 +7922,7 @@ async def generate_album_art(
             "prompt": prompt,
             "negative_prompt": negative_prompt,
         }
-        
+
         return {
             "session_id": session_id,
             "option_id": option_id,
@@ -5662,19 +7930,20 @@ async def generate_album_art(
             "prompt": prompt,
             "negative_prompt": negative_prompt,
         }
-        
+
     except httpx.RequestError as e:
         logger.exception("Creative service unavailable")
-        raise HTTPException(status_code=503, detail=f"Creative service unavailable: {str(e)}")
+        raise HTTPException(
+            status_code=503, detail=f"Creative service unavailable: {e!s}"
+        )
     except Exception as e:
         logger.exception("Album art generation failed")
-        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Generation failed: {e!s}")
 
 
 @app.post("/api/album-art/generate/song")
 async def generate_song_art(
-    request: Dict[str, Any],
-    _auth: None = Depends(require_webui_login)
+    request: dict[str, Any], _auth: None = Depends(require_webui_login)
 ):
     """
     Generate individual song cover art.
@@ -5682,38 +7951,40 @@ async def generate_song_art(
     try:
         session_id = request.get("session_id")
         song_index = request.get("song_index", 0)
-        
+
         if not session_id or session_id not in _album_art_sessions:
             raise HTTPException(status_code=400, detail="Invalid or missing session_id")
-        
+
         session = _album_art_sessions[session_id]
         project = session["project"]
         songs = project.get("songs", [])
-        
+
         if song_index >= len(songs):
             raise HTTPException(status_code=400, detail="Invalid song index")
-        
+
         song = songs[song_index]
-        
+
         # Get reference data
         from album_art_generator import (
-            get_art_styles, get_color_profiles, build_song_art_prompt
+            build_song_art_prompt,
+            get_art_styles,
+            get_color_profiles,
         )
-        
+
         art_style = None
         if project.get("art_style_id"):
             for style in get_art_styles():
                 if style["id"] == project["art_style_id"]:
                     art_style = style
                     break
-        
+
         color_profile = None
         if project.get("color_profile_id"):
             for profile in get_color_profiles():
                 if profile["id"] == project["color_profile_id"]:
                     color_profile = profile
                     break
-        
+
         # Build prompt
         prompt, negative_prompt = build_song_art_prompt(
             band_name=project.get("band_name", ""),
@@ -5724,7 +7995,7 @@ async def generate_song_art(
             color_profile=color_profile,
             custom_colors=project.get("custom_colors"),
         )
-        
+
         # Call creative service
         async with httpx.AsyncClient(timeout=120.0) as client:
             creative_payload = {
@@ -5739,9 +8010,9 @@ async def generate_song_art(
             }
             resp = await client.post(f"{CREATIVE_URL}/api/dream", json=creative_payload)
             result = resp.json()
-        
+
         image_data = result.get("image", result.get("base64", ""))
-        
+
         # Store generation option
         option_id = f"song_{song_index}_{int(time.time())}"
         session["generated_images"][option_id] = image_data
@@ -5749,7 +8020,7 @@ async def generate_song_art(
             "prompt": prompt,
             "negative_prompt": negative_prompt,
         }
-        
+
         return {
             "session_id": session_id,
             "song_index": song_index,
@@ -5757,19 +8028,20 @@ async def generate_song_art(
             "image": image_data,
             "prompt": prompt,
         }
-        
+
     except httpx.RequestError as e:
         logger.exception("Creative service unavailable")
-        raise HTTPException(status_code=503, detail=f"Creative service unavailable: {str(e)}")
+        raise HTTPException(
+            status_code=503, detail=f"Creative service unavailable: {e!s}"
+        )
     except Exception as e:
         logger.exception("Song art generation failed")
-        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Generation failed: {e!s}")
 
 
 @app.post("/api/album-art/choose")
 async def choose_artwork(
-    request: Dict[str, Any],
-    _auth: None = Depends(require_webui_login)
+    request: dict[str, Any], _auth: None = Depends(require_webui_login)
 ):
     """
     Choose a generated artwork as the final version.
@@ -5777,20 +8049,20 @@ async def choose_artwork(
     session_id = request.get("session_id")
     option_id = request.get("option_id")
     art_type = request.get("art_type", "album")
-    
+
     if not session_id or not option_id:
         raise HTTPException(status_code=400, detail="Missing session_id or option_id")
-    
+
     if session_id not in _album_art_sessions:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     session = _album_art_sessions[session_id]
     if option_id not in session["generated_images"]:
         raise HTTPException(status_code=404, detail="Option not found")
-    
+
     # Store choice
     session["choices"][art_type] = option_id
-    
+
     return {
         "session_id": session_id,
         "art_type": art_type,
@@ -5801,8 +8073,7 @@ async def choose_artwork(
 
 @app.post("/api/album-art/upscale")
 async def upscale_artwork(
-    request: Dict[str, Any],
-    _auth: None = Depends(require_webui_login)
+    request: dict[str, Any], _auth: None = Depends(require_webui_login)
 ):
     """
     Upscale generated artwork by 4x.
@@ -5810,43 +8081,44 @@ async def upscale_artwork(
     session_id = request.get("session_id")
     option_id = request.get("option_id")
     factor = request.get("factor", 4)
-    
+
     if not session_id or not option_id:
         raise HTTPException(status_code=400, detail="Missing session_id or option_id")
-    
+
     if session_id not in _album_art_sessions:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     session = _album_art_sessions[session_id]
     if option_id not in session["generated_images"]:
         raise HTTPException(status_code=404, detail="Option not found")
-    
+
     # Decode image
-    from album_art_generator import upscale_image_pil, enhance_image_colors
+    from album_art_generator import enhance_image_colors, upscale_image_pil
+
     image_data = session["generated_images"][option_id]
-    
+
     # Handle different image data formats
     if image_data.startswith("data:image"):
         # Data URL format
         image_data = image_data.split(",")[1]
-    
+
     image_bytes = base64.b64decode(image_data)
     image = Image.open(io.BytesIO(image_bytes))
-    
+
     # Upscale
     upscaled = upscale_image_pil(image, factor=factor)
     upscaled = enhance_image_colors(upscaled)
-    
+
     # Save to buffer
     output = io.BytesIO()
     upscaled.save(output, format="PNG")
     output.seek(0)
     upscaled_data = base64.b64encode(output.read()).decode("utf-8")
-    
+
     # Store upscaled version
     upscaled_id = f"{option_id}_upscaled"
     session["generated_images"][upscaled_id] = upscaled_data
-    
+
     return {
         "option_id": upscaled_id,
         "original_size": {"width": image.width, "height": image.height},
@@ -5857,18 +8129,16 @@ async def upscale_artwork(
 
 @app.get("/api/album-art/download/{session_id}")
 async def download_artwork_zip(
-    session_id: str,
-    upscale: bool = False,
-    _auth: None = Depends(require_webui_login)
+    session_id: str, upscale: bool = False, _auth: None = Depends(require_webui_login)
 ):
     """
     Download all artwork as a ZIP file.
     """
     if session_id not in _album_art_sessions:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     session = _album_art_sessions[session_id]
-    
+
     # Prepare images dictionary
     images = {}
     for option_id, image_data in session["generated_images"].items():
@@ -5876,20 +8146,23 @@ async def download_artwork_zip(
             continue
         if not upscale and option_id.endswith("_upscaled"):
             continue
-        
+
         # Handle different image data formats
         if image_data.startswith("data:image"):
             image_data = image_data.split(",")[1]
-        
+
         images[option_id] = base64.b64decode(image_data)
-    
+
     if not images:
         raise HTTPException(status_code=404, detail="No images to download")
-    
+
     # Create ZIP
     from album_art_generator import create_zip_download
-    zip_data, filename = create_zip_download(session_id, images, upscale_factor=4 if upscale else 1)
-    
+
+    zip_data, filename = create_zip_download(
+        session_id, images, upscale_factor=4 if upscale else 1
+    )
+
     return Response(
         content=zip_data,
         media_type="application/zip",
@@ -5925,7 +8198,7 @@ VISION_SOURCES = {
 }
 
 # Cache for vision feeds
-_vision_cache: Dict[str, Dict[str, Any]] = {}
+_vision_cache: dict[str, dict[str, Any]] = {}
 
 
 class VisionSource(BaseModel):
@@ -5933,13 +8206,13 @@ class VisionSource(BaseModel):
     name: str
     type: str
     enabled: bool
-    last_capture: Optional[str] = None
+    last_capture: str | None = None
 
 
 class VisionFeedResponse(BaseModel):
     source_id: str
     source_name: str
-    image_data: Optional[str] = None  # base64 encoded JPEG
+    image_data: str | None = None  # base64 encoded JPEG
     timestamp: str
     width: int = 640
     height: int = 480
@@ -5962,32 +8235,35 @@ async def list_vision_sources(_auth: None = Depends(require_webui_login)):
         last_capture = None
         if source_id in _vision_cache:
             last_capture = _vision_cache[source_id].get("timestamp")
-        sources.append(VisionSource(
-            id=source_id,
-            name=config["name"],
-            type=config["type"],
-            enabled=config["enabled"],
-            last_capture=last_capture,
-        ))
+        sources.append(
+            VisionSource(
+                id=source_id,
+                name=config["name"],
+                type=config["type"],
+                enabled=config["enabled"],
+                last_capture=last_capture,
+            )
+        )
     return {"sources": sources}
 
 
 @app.get("/api/vision/feed/{source_id}")
-async def get_vision_feed(
-    source_id: str,
-    _auth: None = Depends(require_webui_login)
-):
+async def get_vision_feed(source_id: str, _auth: None = Depends(require_webui_login)):
     """
     Get the latest vision feed from a source.
     Returns cached image or generates a new capture.
     """
     if source_id not in VISION_SOURCES:
-        raise HTTPException(status_code=404, detail=f"Unknown vision source: {source_id}")
-    
+        raise HTTPException(
+            status_code=404, detail=f"Unknown vision source: {source_id}"
+        )
+
     config = VISION_SOURCES[source_id]
     if not config["enabled"]:
-        raise HTTPException(status_code=400, detail=f"Vision source {source_id} is disabled")
-    
+        raise HTTPException(
+            status_code=400, detail=f"Vision source {source_id} is disabled"
+        )
+
     # Return cached image if recent (within 5 seconds)
     if source_id in _vision_cache:
         cached = _vision_cache[source_id]
@@ -6001,10 +8277,10 @@ async def get_vision_feed(
                 width=cached.get("width", 640),
                 height=cached.get("height", 480),
             )
-    
+
     # Generate new capture based on source type
     image_data, width, height = await _capture_vision_source(source_id)
-    
+
     if image_data:
         timestamp = datetime.utcnow().isoformat() + "Z"
         _vision_cache[source_id] = {
@@ -6023,32 +8299,34 @@ async def get_vision_feed(
             height=height,
         )
     else:
-        raise HTTPException(status_code=500, detail=f"Failed to capture from {source_id}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to capture from {source_id}"
+        )
 
 
 @app.post("/api/vision/capture")
 async def request_vision_capture(
-    req: VisionCaptureRequest,
-    _auth: None = Depends(require_webui_login)
+    req: VisionCaptureRequest, _auth: None = Depends(require_webui_login)
 ):
     """
     Request a fresh vision capture from a source.
     """
     if req.source_id not in VISION_SOURCES:
-        raise HTTPException(status_code=404, detail=f"Unknown vision source: {req.source_id}")
-    
+        raise HTTPException(
+            status_code=404, detail=f"Unknown vision source: {req.source_id}"
+        )
+
     config = VISION_SOURCES[req.source_id]
     if not config["enabled"]:
-        raise HTTPException(status_code=400, detail=f"Vision source {req.source_id} is disabled")
-    
+        raise HTTPException(
+            status_code=400, detail=f"Vision source {req.source_id} is disabled"
+        )
+
     # Generate new capture
     image_data, width, height = await _capture_vision_source(
-        req.source_id, 
-        req.width, 
-        req.height,
-        req.quality
+        req.source_id, req.width, req.height, req.quality
     )
-    
+
     if image_data:
         timestamp = datetime.utcnow().isoformat() + "Z"
         _vision_cache[req.source_id] = {
@@ -6067,15 +8345,14 @@ async def request_vision_capture(
             height=height,
         )
     else:
-        raise HTTPException(status_code=500, detail=f"Failed to capture from {req.source_id}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to capture from {req.source_id}"
+        )
 
 
 async def _capture_vision_source(
-    source_id: str, 
-    width: int = 640, 
-    height: int = 480,
-    quality: int = 80
-) -> tuple[Optional[str], int, int]:
+    source_id: str, width: int = 640, height: int = 480, quality: int = 80
+) -> tuple[str | None, int, int]:
     """
     Capture image from a vision source.
     Returns (base64_jpeg, width, height) or (None, 0, 0) on failure.
@@ -6094,28 +8371,31 @@ async def _capture_vision_source(
     return None, 0, 0
 
 
-async def _capture_desktop(width: int, height: int, quality: int) -> tuple[Optional[str], int, int]:
+async def _capture_desktop(
+    width: int, height: int, quality: int
+) -> tuple[str | None, int, int]:
     """Capture desktop screen using pyscreenshot or mss."""
     try:
+        import io
+
         import pyscreenshot as ImageGrab  # type: ignore
         from PIL import Image
-        import io
-        
+
         # Capture full screen
         screenshot = ImageGrab.grab()
-        
+
         # Resize to requested dimensions (maintain aspect ratio)
         orig_w, orig_h = screenshot.size
         scale = min(width / orig_w, height / orig_h)
         new_w = int(orig_w * scale)
         new_h = int(orig_h * scale)
         screenshot = screenshot.resize((new_w, new_h), Image.Resampling.LANCZOS)
-        
+
         # Convert to JPEG
         buffer = io.BytesIO()
         screenshot.save(buffer, format="JPEG", quality=quality)
         image_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
-        
+
         return image_data, new_w, new_h
     except ImportError:
         logger.warning("pyscreenshot not available, desktop capture disabled")
@@ -6125,43 +8405,52 @@ async def _capture_desktop(width: int, height: int, quality: int) -> tuple[Optio
         return None, 0, 0
 
 
-async def _capture_phone_camera(width: int, height: int, quality: int) -> tuple[Optional[str], int, int]:
+async def _capture_phone_camera(
+    width: int, height: int, quality: int
+) -> tuple[str | None, int, int]:
     """
     Handle phone camera capture.
     For mobile app, this endpoint signals the app to upload a photo.
     The actual image comes from the mobile app's camera.
     """
     # Check if there's a recently uploaded phone camera image
-    phone_cam_cache = os.path.join(os.path.dirname(BASE_DIR), "scratch", "phone_camera_latest.jpg")
+    phone_cam_cache = os.path.join(
+        os.path.dirname(BASE_DIR), "scratch", "phone_camera_latest.jpg"
+    )
     if os.path.exists(phone_cam_cache):
         try:
-            from PIL import Image
             import io
-            
+
+            from PIL import Image
+
             img = Image.open(phone_cam_cache)
             img = img.resize((width, height), Image.Resampling.LANCZOS)
-            
+
             buffer = io.BytesIO()
             img.save(buffer, format="JPEG", quality=quality)
             image_data = base64.b64encode(buffer.getvalue()).decode("utf-8")
-            
+
             return image_data, width, height
         except Exception as e:
             logger.error(f"Phone camera cache read failed: {e}")
-    
+
     # No image available - return placeholder
     logger.warning("No phone camera image available")
     return None, 0, 0
 
 
-async def _capture_vr_passthrough(width: int, height: int, quality: int) -> tuple[Optional[str], int, int]:
+async def _capture_vr_passthrough(
+    width: int, height: int, quality: int
+) -> tuple[str | None, int, int]:
     """Capture VR headset passthrough camera feed."""
     # TODO: Implement VR passthrough capture via OpenXR
     logger.warning("VR passthrough capture not yet implemented")
     return None, 0, 0
 
 
-async def _capture_security_cam(width: int, height: int, quality: int) -> tuple[Optional[str], int, int]:
+async def _capture_security_cam(
+    width: int, height: int, quality: int
+) -> tuple[str | None, int, int]:
     """Capture from IP security camera."""
     # TODO: Implement IP camera capture
     logger.warning("Security camera capture not yet implemented")
@@ -6170,8 +8459,7 @@ async def _capture_security_cam(width: int, height: int, quality: int) -> tuple[
 
 @app.post("/api/vision/upload/phone_camera")
 async def upload_phone_camera_image(
-    request: Request,
-    _auth: None = Depends(require_webui_login)
+    request: Request, _auth: None = Depends(require_webui_login)
 ):
     """
     Upload a phone camera image to the vision feed.
@@ -6180,24 +8468,24 @@ async def upload_phone_camera_image(
     try:
         body = await request.json()
         image_data = body.get("image_data")  # base64 encoded
-        
+
         if not image_data:
             raise HTTPException(status_code=400, detail="No image_data in request")
-        
+
         # Decode and save to cache
         if image_data.startswith("data:image"):
             image_data = image_data.split(",")[1]
-        
+
         image_bytes = base64.b64decode(image_data)
-        
+
         # Save to scratch directory
         cache_dir = os.path.join(os.path.dirname(BASE_DIR), "scratch")
         os.makedirs(cache_dir, exist_ok=True)
         cache_path = os.path.join(cache_dir, "phone_camera_latest.jpg")
-        
+
         with open(cache_path, "wb") as f:
             f.write(image_bytes)
-        
+
         # Update vision cache
         timestamp = datetime.utcnow().isoformat() + "Z"
         _vision_cache["phone_camera"] = {
@@ -6207,19 +8495,15 @@ async def upload_phone_camera_image(
             "width": 640,
             "height": 480,
         }
-        
+
         return {"status": "uploaded", "timestamp": timestamp}
     except Exception as e:
         logger.error(f"Phone camera upload failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @app.get("/api/web/scrape")
-async def scrape_web_page(
-    url: str,
-    _auth: None = Depends(require_webui_login)
-):
+async def scrape_web_page(url: str, _auth: None = Depends(require_webui_login)):
     """
     Scrape a web page and return its title + text content.
     Used by WebSearch.ts readPage() for page snapshots.
@@ -6271,20 +8555,22 @@ async def scrape_web_page(
             verify=False,
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                              "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 FoveAI-WebSearch/1.0",
+                "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 FoveAI-WebSearch/1.0",
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.5",
-            }
+            },
         ) as client:
             resp = await client.get(url)
             if resp.status_code >= 400:
                 raise HTTPException(
-                    status_code=502,
-                    detail=f"Target server returned {resp.status_code}"
+                    status_code=502, detail=f"Target server returned {resp.status_code}"
                 )
 
             content_type = resp.headers.get("content-type", "")
-            if "text/html" not in content_type and "application/xhtml" not in content_type:
+            if (
+                "text/html" not in content_type
+                and "application/xhtml" not in content_type
+            ):
                 # Non-HTML response — return raw text preview
                 raw = resp.text[:5000] if resp.text else ""
                 return {
@@ -6316,7 +8602,9 @@ async def scrape_web_page(
     except httpx.TimeoutException:
         raise HTTPException(status_code=504, detail="Request timed out")
     except httpx.ConnectError:
-        raise HTTPException(status_code=502, detail="Could not connect to target server")
+        raise HTTPException(
+            status_code=502, detail="Could not connect to target server"
+        )
     except HTTPException:
         raise
     except Exception as e:
@@ -6324,18 +8612,15 @@ async def scrape_web_page(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @app.post("/api/dev/aider")
-async def run_aider_agent(
-    request: Request,
-    _auth: None = Depends(require_webui_login)
-):
+async def run_aider_agent(request: Request, _auth: None = Depends(require_webui_login)):
     """
     Execute the direct Antigravity coding agent (agy) to search and edit files.
     Accepts JSON body: { "prompt": "instructions..." }
     Streams raw agent planning and file modification logs.
     """
     from fastapi.responses import StreamingResponse
+
     try:
         body = await request.json()
     except Exception:
@@ -6348,19 +8633,25 @@ async def run_aider_agent(
     try:
         # pyrefly: ignore [missing-import]
         from ag_coder import run_antigravity_agent
+
         return StreamingResponse(run_antigravity_agent(prompt), media_type="text/plain")
     except Exception as e:
         logger.error(f"[J-Aider] Failed to load ag_coder: {e}")
+
         async def fallback_generator():
             yield f"[System Error] Failed to initialize Antigravity Coder Engine: {e}\n"
+
         return StreamingResponse(fallback_generator(), media_type="text/plain")
+
 
 @app.get("/api/agy/stream")
 async def agy_bridge_stream():
     """SSE stream bridging the Antigravity IDE and the XR Vessel."""
     import asyncio
     import json
+
     from fastapi.responses import StreamingResponse
+
     async def event_generator():
         bridge_file = os.path.join(FoveAI_ROOT, "Forge", "scratch", "agy_bridge.txt")
         # Ensure file exists
@@ -6368,9 +8659,9 @@ async def agy_bridge_stream():
         if not os.path.exists(bridge_file):
             with open(bridge_file, "w", encoding="utf-8") as f:
                 f.write("")
-        
+
         last_pos = os.path.getsize(bridge_file)
-        
+
         while True:
             await asyncio.sleep(0.5)
             curr_pos = os.path.getsize(bridge_file)
@@ -6400,28 +8691,52 @@ async def agy_bridge_stream():
 sys.path.insert(0, os.path.join(FoveAI_ROOT, "Mind", "Cognition"))
 try:
     # pyrefly: ignore [missing-import]
-    from code_sheriff import snapshot_file, validate_file, edit_file as sheriff_edit_file, NO_TOUCH_LIST
+    from code_sheriff import (
+        NO_TOUCH_LIST,
+        snapshot_file,
+        validate_file,
+    )
+    from code_sheriff import (
+        edit_file as sheriff_edit_file,
+    )
+
     CODE_SHERIFF_AVAILABLE = True
 except Exception as _cs_err:
     CODE_SHERIFF_AVAILABLE = False
     logger.warning(f"[CodeAgency] code_sheriff not available: {_cs_err}")
 
-CODE_PROTECTED = [".env", ".git/", "__pycache__", "venv/", "node_modules/", "backups/autosave/", ".venv/", "*.log", "*.tmp"]
+CODE_PROTECTED = [
+    ".env",
+    ".git/",
+    "__pycache__",
+    "venv/",
+    "node_modules/",
+    "backups/autosave/",
+    ".venv/",
+    "*.log",
+    "*.tmp",
+]
+
 
 def _is_safe_path(path: str) -> bool:
     path = path.replace("\\", "/")
     if CODE_SHERIFF_AVAILABLE:
         for forbidden in NO_TOUCH_LIST:
-            if forbidden in path: return False
+            if forbidden in path:
+                return False
     for protected in CODE_PROTECTED:
-        if protected.endswith("/") and protected in path: return False
-        if protected.startswith("*") and path.endswith(protected[1:]): return False
-        if protected in path: return False
+        if protected.endswith("/") and protected in path:
+            return False
+        if protected.startswith("*") and path.endswith(protected[1:]):
+            return False
+        if protected in path:
+            return False
     try:
         (Path(FoveAI_ROOT) / path).resolve().relative_to(Path(FoveAI_ROOT).resolve())
         return True
     except ValueError:
         return False
+
 
 @app.get("/api/code/ls")
 async def code_ls(dir: str = ".", _auth: None = Depends(require_webui_login)):
@@ -6432,53 +8747,88 @@ async def code_ls(dir: str = ".", _auth: None = Depends(require_webui_login)):
         files = []
         for item in sorted(target_dir.iterdir()):
             stat = item.stat()
-            files.append({"path": str(item.relative_to(FoveAI_ROOT)).replace("\\", "/"), "size": stat.st_size, "isDir": item.is_dir(), "modified": datetime.fromtimestamp(stat.st_mtime).isoformat()})
+            files.append(
+                {
+                    "path": str(item.relative_to(FoveAI_ROOT)).replace("\\", "/"),
+                    "size": stat.st_size,
+                    "isDir": item.is_dir(),
+                    "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                }
+            )
         return {"files": files}
     except Exception as e:
         logger.error(f"[CodeAgency] ls failed: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+
 @app.get("/api/code/read")
-async def code_read(path: str, maxLines: int = 500, _auth: None = Depends(require_webui_login)):
+async def code_read(
+    path: str, maxLines: int = 500, _auth: None = Depends(require_webui_login)
+):
     try:
-        if not _is_safe_path(path): return JSONResponse(status_code=403, content={"error": "Protected path"})
+        if not _is_safe_path(path):
+            return JSONResponse(status_code=403, content={"error": "Protected path"})
         file_path = Path(FoveAI_ROOT) / path
-        if not file_path.exists(): return JSONResponse(status_code=404, content={"error": "File not found"})
+        if not file_path.exists():
+            return JSONResponse(status_code=404, content={"error": "File not found"})
         content = file_path.read_text(encoding="utf-8", errors="replace")
         lines = content.split("\n")
-        if len(lines) > maxLines: content = "\n".join(lines[:maxLines]) + f"\n\n... [{len(lines) - maxLines} more lines]"
+        if len(lines) > maxLines:
+            content = (
+                "\n".join(lines[:maxLines])
+                + f"\n\n... [{len(lines) - maxLines} more lines]"
+            )
         return {"content": content, "truncated": len(lines) > maxLines}
     except Exception as e:
         logger.error(f"[CodeAgency] read failed: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
+
 
 @app.post("/api/code/write")
 async def code_write(request: Request, _auth: None = Depends(require_webui_login)):
     try:
         data = await request.json()
         path, content = data.get("path", ""), data.get("content", "")
-        if not _is_safe_path(path): return JSONResponse(status_code=403, content={"success": False, "message": "Protected path"})
+        if not _is_safe_path(path):
+            return JSONResponse(
+                status_code=403, content={"success": False, "message": "Protected path"}
+            )
         file_path = Path(FoveAI_ROOT) / path
-        if CODE_SHERIFF_AVAILABLE and file_path.exists(): snapshot_file(str(file_path))
+        if CODE_SHERIFF_AVAILABLE and file_path.exists():
+            snapshot_file(str(file_path))
         file_path.parent.mkdir(parents=True, exist_ok=True)
         file_path.write_text(content, encoding="utf-8")
         validation_errors = []
         if CODE_SHERIFF_AVAILABLE:
             valid, errors = validate_file(str(file_path))
-            if not valid: validation_errors = errors
-        return {"success": True, "message": f"Wrote {len(content)} chars to {path}", "validationErrors": validation_errors}
+            if not valid:
+                validation_errors = errors
+        return {
+            "success": True,
+            "message": f"Wrote {len(content)} chars to {path}",
+            "validationErrors": validation_errors,
+        }
     except Exception as e:
         logger.error(f"[CodeAgency] write failed: {e}")
-        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
+        return JSONResponse(
+            status_code=500, content={"success": False, "message": str(e)}
+        )
+
 
 @app.post("/api/code/edit")
 async def code_edit(request: Request, _auth: None = Depends(require_webui_login)):
     try:
         data = await request.json()
         path, blocks = data.get("path", ""), data.get("blocks", [])
-        if not _is_safe_path(path): return JSONResponse(status_code=403, content={"success": False, "message": "Protected path"})
+        if not _is_safe_path(path):
+            return JSONResponse(
+                status_code=403, content={"success": False, "message": "Protected path"}
+            )
         file_path = Path(FoveAI_ROOT) / path
-        if not file_path.exists(): return JSONResponse(status_code=404, content={"success": False, "message": "File not found"})
+        if not file_path.exists():
+            return JSONResponse(
+                status_code=404, content={"success": False, "message": "File not found"}
+            )
         if CODE_SHERIFF_AVAILABLE:
             result = sheriff_edit_file(str(file_path), blocks)
             return result
@@ -6486,23 +8836,45 @@ async def code_edit(request: Request, _auth: None = Depends(require_webui_login)
             content = file_path.read_text(encoding="utf-8")
             for block in blocks:
                 search, replace = block.get("search", ""), block.get("replace", "")
-                if search in content: content = content.replace(search, replace, 1)
+                if search in content:
+                    content = content.replace(search, replace, 1)
             file_path.write_text(content, encoding="utf-8")
             return {"success": True, "message": f"Edited {path} ({len(blocks)} blocks)"}
     except Exception as e:
         logger.error(f"[CodeAgency] edit failed: {e}")
-        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
+        return JSONResponse(
+            status_code=500, content={"success": False, "message": str(e)}
+        )
+
 
 @app.get("/api/code/search")
-async def code_search(q: str, glob: str = "*", _auth: None = Depends(require_webui_login)):
+async def code_search(
+    q: str, glob: str = "*", _auth: None = Depends(require_webui_login)
+):
     import fnmatch
+
     results = []
     try:
         base_path = Path(FoveAI_ROOT)
         for root, dirs, files in os.walk(base_path):
-            dirs[:] = [d for d in dirs if not any(p in d for p in ["__pycache__", "node_modules", ".git", "venv", ".venv", "backups/autosave"])]
+            dirs[:] = [
+                d
+                for d in dirs
+                if not any(
+                    p in d
+                    for p in [
+                        "__pycache__",
+                        "node_modules",
+                        ".git",
+                        "venv",
+                        ".venv",
+                        "backups/autosave",
+                    ]
+                )
+            ]
             for filename in files:
-                if not fnmatch.fnmatch(filename, glob): continue
+                if not fnmatch.fnmatch(filename, glob):
+                    continue
                 filepath = Path(root) / filename
                 try:
                     rel_path = filepath.relative_to(base_path)
@@ -6510,64 +8882,126 @@ async def code_search(q: str, glob: str = "*", _auth: None = Depends(require_web
                     lines = content.split("\n")
                     for i, line in enumerate(lines, 1):
                         if q.lower() in line.lower():
-                            results.append({"file": str(rel_path).replace("\\", "/"), "line": i, "content": line[:200], "match": q})
-                            if sum(1 for r in results if r["file"] == str(rel_path).replace("\\", "/")) >= 5: break
-                except Exception: continue
+                            results.append(
+                                {
+                                    "file": str(rel_path).replace("\\", "/"),
+                                    "line": i,
+                                    "content": line[:200],
+                                    "match": q,
+                                }
+                            )
+                            if (
+                                sum(
+                                    1
+                                    for r in results
+                                    if r["file"] == str(rel_path).replace("\\", "/")
+                                )
+                                >= 5
+                            ):
+                                break
+                except Exception:
+                    continue
         return {"results": results[:100]}
     except Exception as e:
         logger.error(f"[CodeAgency] search failed: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
+
 
 @app.post("/api/code/exec")
 async def code_exec(request: Request, _auth: None = Depends(require_webui_login)):
     try:
         data = await request.json()
         command = data.get("command", "")
-        SAFE_PREFIXES = ["npm run", "npx tsc", "python -m py_compile", "node --check", "git status", "git diff", "huggingface-cli download", "huggingface-cli"]
+        SAFE_PREFIXES = [
+            "npm run",
+            "npx tsc",
+            "python -m py_compile",
+            "node --check",
+            "git status",
+            "git diff",
+            "huggingface-cli download",
+            "huggingface-cli",
+        ]
         is_safe = any(command.strip().startswith(prefix) for prefix in SAFE_PREFIXES)
-        if not is_safe: return JSONResponse(status_code=403, content={"success": False, "message": "Command not in safe list"})
-        result = subprocess.run(command, shell=True, capture_output=True, text=True, cwd=FoveAI_ROOT, timeout=120)
-        return {"success": result.returncode == 0, "message": result.stdout if result.returncode == 0 else result.stderr, "exitCode": result.returncode}
+        if not is_safe:
+            return JSONResponse(
+                status_code=403,
+                content={"success": False, "message": "Command not in safe list"},
+            )
+        result = subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            cwd=FoveAI_ROOT,
+            timeout=120,
+        )
+        return {
+            "success": result.returncode == 0,
+            "message": result.stdout if result.returncode == 0 else result.stderr,
+            "exitCode": result.returncode,
+        }
     except subprocess.TimeoutExpired:
-        return JSONResponse(status_code=504, content={"success": False, "message": "Command timed out"})
+        return JSONResponse(
+            status_code=504, content={"success": False, "message": "Command timed out"}
+        )
     except Exception as e:
         logger.error(f"[CodeAgency] exec failed: {e}")
-        return JSONResponse(status_code=500, content={"success": False, "message": str(e)})
+        return JSONResponse(
+            status_code=500, content={"success": False, "message": str(e)}
+        )
+
 
 @app.get("/api/code/git/status")
 async def code_git_status(_auth: None = Depends(require_webui_login)):
     try:
-        result = subprocess.run(["git", "status", "--short"], capture_output=True, text=True, cwd=FoveAI_ROOT, timeout=30)
+        result = subprocess.run(
+            ["git", "status", "--short"],
+            capture_output=True,
+            text=True,
+            cwd=FoveAI_ROOT,
+            timeout=30,
+        )
         return {"status": result.stdout, "exitCode": result.returncode}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+
 @app.get("/api/code/config")
-async def code_config(section: str, key: str, _auth: None = Depends(require_webui_login)):
+async def code_config(
+    section: str, key: str, _auth: None = Depends(require_webui_login)
+):
     try:
         env_path = Path(FoveAI_ROOT) / ".env"
-        if not env_path.exists(): return {"value": None}
+        if not env_path.exists():
+            return {"value": None}
         content = env_path.read_text(encoding="utf-8")
         pattern = rf"^{re.escape(key)}\s*=\s*(.+)$"
         match = re.search(pattern, content, re.MULTILINE)
-        if match: return {"value": match.group(1).strip().strip('"').strip("'")}
+        if match:
+            return {"value": match.group(1).strip().strip('"').strip("'")}
         return {"value": None}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+
 @app.get("/api/code/deadsure/status")
 async def code_deadsure_status(_auth: None = Depends(require_webui_login)):
     import httpx
+
     try:
         async with httpx.AsyncClient() as client:
             r = await client.get("http://127.0.0.1:8112/status", timeout=5.0)
             if r.status_code == 200:
                 return r.json()
     except Exception as e:
-        return {"status": "UNAVAILABLE", "error": str(e), "healed_count": 0, "broken_files": {}}
+        return {
+            "status": "UNAVAILABLE",
+            "error": str(e),
+            "healed_count": 0,
+            "broken_files": {},
+        }
     return {"status": "UNAVAILABLE", "healed_count": 0, "broken_files": {}}
-
-
 
 
 # Catch-all for root-level build assets (vrm, glb, manifest, etc.)
@@ -6575,13 +9009,29 @@ async def code_deadsure_status(_auth: None = Depends(require_webui_login)):
 async def serve_static_fallback(file_path: str, request: Request):
     # Only try to serve if it's a file extension we expect
     ext = os.path.splitext(file_path)[1].lower()
-    if ext in ['.vrm', '.glb', '.vrma', '.json', '.js', '.png', '.jpg', '.svg', '.wav', '.mp3', '.ext2', '.bvh', '.fbx']:
+    if ext in [
+        ".vrm",
+        ".glb",
+        ".vrma",
+        ".json",
+        ".js",
+        ".png",
+        ".jpg",
+        ".svg",
+        ".wav",
+        ".mp3",
+        ".ext2",
+        ".bvh",
+        ".fbx",
+    ]:
         # 1. Try local build folder (Production Mode)
         local_path = os.path.join(XR_DIST, file_path)
-        logger.info(f"[Static] Checking local_path: {local_path} (exists: {os.path.exists(local_path)})")
+        logger.info(
+            f"[Static] Checking local_path: {local_path} (exists: {os.path.exists(local_path)})"
+        )
         if os.path.exists(local_path):
             return FileResponse(local_path)
-            
+
         # 2. Try Vite Dev Server (Development Mode)
         # Vite serves the 'public/' folder contents at the root
         query = request.url.query
@@ -6592,9 +9042,9 @@ async def serve_static_fallback(file_path: str, request: Request):
                 resp = await client.get(url, timeout=5.0)
                 if resp.status_code == 200:
                     return Response(
-                        content=resp.content, 
-                        status_code=resp.status_code, 
-                        media_type=resp.headers.get("content-type")
+                        content=resp.content,
+                        status_code=resp.status_code,
+                        media_type=resp.headers.get("content-type"),
                     )
         except Exception as e:
             logger.debug(f"Vite asset proxy failed for {file_path}: {e}")
@@ -6606,59 +9056,65 @@ async def serve_static_fallback(file_path: str, request: Request):
     raise HTTPException(status_code=404)
 
 
-
-
-
 # --- Forge Feature Inventory API ---
 @app.post("/api/forge/index")
 async def api_forge_index():
     """Index latest Forge discovery report to FEATURE_INVENTORY.md"""
     try:
         import subprocess
-        import json as json_lib
-        
+
         # Run the indexer script
         result = subprocess.run(
-            [sys.executable, str(Path(__file__).parent.parent / "Scripts" / "index_forge_findings.py"), "--dry-run"],
+            [
+                sys.executable,
+                str(
+                    Path(__file__).parent.parent / "Scripts" / "index_forge_findings.py"
+                ),
+                "--dry-run",
+            ],
             capture_output=True,
             text=True,
-            timeout=30
+            timeout=30,
         )
-        
+
         # Parse output to get counts
         output = result.stdout
         report_name = ""
         total = 0
         worthwhile = 0
-        
-        for line in output.split('\n'):
-            if 'from' in line and '.json' in line:
-                report_name = line.split('from')[-1].strip()
-            if 'Found' in line and 'meaningful' in line:
+
+        for line in output.split("\n"):
+            if "from" in line and ".json" in line:
+                report_name = line.split("from")[-1].strip()
+            if "Found" in line and "meaningful" in line:
                 parts = line.split()
                 for i, p in enumerate(parts):
-                    if p == 'Found':
-                        total = int(parts[i+1])
-                        worthwhile = int(parts[i+3]) if len(parts) > i+3 else 0
-        
-        return JSONResponse({
-            "success": True,
-            "added": worthwhile,
-            "total_discovered": total,
-            "worthwhile": worthwhile,
-            "report_name": report_name
-        })
+                    if p == "Found":
+                        total = int(parts[i + 1])
+                        worthwhile = int(parts[i + 3]) if len(parts) > i + 3 else 0
+
+        return JSONResponse(
+            {
+                "success": True,
+                "added": worthwhile,
+                "total_discovered": total,
+                "worthwhile": worthwhile,
+                "report_name": report_name,
+            }
+        )
     except Exception as e:
-        return JSONResponse({
-            "success": False,
-            "error": str(e)
-        })
+        return JSONResponse({"success": False, "error": str(e)})
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # ENVIRONMENT CONFIG ROUTES
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @app.post("/api/environment/config")
-async def save_environment_config(request: Request, _auth: None = Depends(require_webui_login)):
+async def save_environment_config(
+    request: Request, _auth: None = Depends(require_webui_login)
+):
     """Saves the spatial environment configuration from the UI."""
     try:
         data = await request.json()
@@ -6667,11 +9123,15 @@ async def save_environment_config(request: Request, _auth: None = Depends(requir
         return {"success": True, "message": "Environment config saved successfully."}
     except Exception as e:
         logger.error(f"[Environment] Failed to save config: {e}")
-        return JSONResponse(content={"success": False, "error": str(e)}, status_code=500)
+        return JSONResponse(
+            content={"success": False, "error": str(e)}, status_code=500
+        )
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# LIBRARIAN INBOX ROUTES 
+# LIBRARIAN INBOX ROUTES
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @app.get("/api/inbox")
 async def get_inbox(_auth: None = Depends(require_webui_login)):
@@ -6680,19 +9140,20 @@ async def get_inbox(_auth: None = Depends(require_webui_login)):
         inbox_path = os.path.join(FoveAI_ROOT, "inbox.md")
         if not os.path.exists(inbox_path):
             return {"messages": []}
-            
+
         with open(inbox_path, "r", encoding="utf-8") as f:
             content = f.read().strip()
-            
+
         if not content:
             return {"messages": []}
-            
+
         # Very simple parser: split by lines, filter empty
         messages = [m.strip() for m in content.split("\n") if m.strip()]
         return {"messages": messages}
     except Exception as e:
         logger.error(f"[Inbox] Failed to read inbox: {e}")
         return {"messages": []}
+
 
 @app.post("/api/inbox/clear")
 async def clear_inbox(_auth: None = Depends(require_webui_login)):
@@ -6705,7 +9166,10 @@ async def clear_inbox(_auth: None = Depends(require_webui_login)):
         return {"success": True}
     except Exception as e:
         logger.error(f"[Inbox] Failed to clear inbox: {e}")
-        return JSONResponse(content={"success": False, "error": str(e)}, status_code=500)
+        return JSONResponse(
+            content={"success": False, "error": str(e)}, status_code=500
+        )
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # CODE AGENCY ROUTES — Mount /api/code/* endpoints for avatar self-modification
@@ -6715,7 +9179,9 @@ async def clear_inbox(_auth: None = Depends(require_webui_login)):
 # /api/code/write, /api/code/edit, /api/code/exec, /api/code/git/status,
 # and /api/code/config endpoints are registered at startup.
 try:
-    _ca_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "code_agency_routes.py")
+    _ca_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "code_agency_routes.py"
+    )
     with open(_ca_path, "r", encoding="utf-8") as _ca_f:
         _ca_code = _ca_f.read()
     # Strip the shebang/docstring header and exec the route definitions
@@ -6728,4 +9194,5 @@ except Exception as _ca_err:
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=_WEBUI_PORT)

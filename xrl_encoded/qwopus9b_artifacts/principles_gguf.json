@@ -1,0 +1,74 @@
+[
+  {
+    "prompt": "Explain semantic compression.",
+    "text_preview": "Explain semantic compression.\nA. It compresses data by removing redundant data.\nB. It compresses data by removing unnece",
+    "principle_strength": null,
+    "volatility": null,
+    "trend": null,
+    "role": "text_only_thread",
+    "note": "no confidence path available"
+  },
+  {
+    "prompt": "Write a Python function that adds two numbers.",
+    "text_preview": "Write a Python function that adds two numbers. Then, write a second function that accepts two strings, adds them togethe",
+    "principle_strength": null,
+    "volatility": null,
+    "trend": null,
+    "role": "text_only_thread",
+    "note": "no confidence path available"
+  },
+  {
+    "prompt": "Describe pruning vs quantization.",
+    "text_preview": "Describe pruning vs quantization.\n\nHere is a detailed description of **Pruning** and **Quantization**, two of the most p",
+    "principle_strength": null,
+    "volatility": null,
+    "trend": null,
+    "role": "text_only_thread",
+    "note": "no confidence path available"
+  },
+  {
+    "prompt": "Summarize the concept of attention in transformers.",
+    "text_preview": "Summarize the concept of attention in transformers.\n\nHere is a summary of the concept of attention in Transformers, stru",
+    "principle_strength": null,
+    "volatility": null,
+    "trend": null,
+    "role": "text_only_thread",
+    "note": "no confidence path available"
+  },
+  {
+    "prompt": "Implement a retry loop with exponential backoff in Python.",
+    "text_preview": "Implement a retry loop with exponential backoff in Python. The loop should retry a function call up to 3 times, starting",
+    "principle_strength": null,
+    "volatility": null,
+    "trend": null,
+    "role": "text_only_thread",
+    "note": "no confidence path available"
+  },
+  {
+    "prompt": "Debug: a FastAPI endpoint returns 500 only under load. What do you check first?",
+    "text_preview": "Debug: a FastAPI endpoint returns 500 only under load. What do you check first?\n\nStep 1: Reproduce with logging\n\nRun the",
+    "principle_strength": null,
+    "volatility": null,
+    "trend": null,
+    "role": "text_only_thread",
+    "note": "no confidence path available"
+  },
+  {
+    "prompt": "Refactor a nested for-loop into a comprehension and explain the trade-off.",
+    "text_preview": "Refactor a nested for-loop into a comprehension and explain the trade-off.\n\nHere's a function that generates a list of s",
+    "principle_strength": null,
+    "volatility": null,
+    "trend": null,
+    "role": "text_only_thread",
+    "note": "no confidence path available"
+  },
+  {
+    "prompt": "Explain the difference between a process and a thread to a friend.",
+    "text_preview": "Explain the difference between a process and a thread to a friend. Use a simple analogy involving a restaurant to help i",
+    "principle_strength": null,
+    "volatility": null,
+    "trend": null,
+    "role": "text_only_thread",
+    "note": "no confidence path available"
+  }
+]

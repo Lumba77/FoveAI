@@ -20,13 +20,13 @@ Usage:
     python Scripts/generate_repo_principia.py [--tier micro|standard|full]
 """
 
-import subprocess
-import os
 import fnmatch
+import os
 import re
+import subprocess
 import sys
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 ROOT = Path(os.environ.get("FOVEAI_ROOT") or Path(__file__).resolve().parent.parent)
 OUTPUT = ROOT / "repo-principia.md"
@@ -77,7 +77,12 @@ def is_ignored(rel_path: str, patterns: list) -> bool:
 
 # All backend service files — organized by directory
 BACKEND_FILES = [
-    # Cognition (10 files)
+    # Cognition
+    "Backend/Cognition/compagent.py",
+    "Backend/Cognition/MindCore.py",
+    "Backend/Cognition/MindCore/MindCore.py",
+    "Backend/Cognition/autonomous_core.py",
+    "Backend/Cognition/persistent_memory.py",
     "Backend/Cognition/soul_core.py",
     "Backend/Cognition/tokenslayer_proxy_server.py",
     "Backend/Cognition/motor_cortex.py",
@@ -150,20 +155,46 @@ SCAN_XRL_LINES = 15
 SKIP_DIRS = {"__pycache__", "node_modules", ".venv", ".git", "dist", "build"}
 
 SIG_PREFIXES = (
-    "import ", "from ", "def ", "class ", "async def ", "@",
-    "export ", "function ", "interface ", "type ", "struct ",
-    "const ", "let ", "var ", "fn ", "pub ", "impl ", "trait ",
-    "enum ", "case ", "object ", "public ", "private ", "protected ",
-    "static ", "void ", "async ", "module ",
+    "import ",
+    "from ",
+    "def ",
+    "class ",
+    "async def ",
+    "@",
+    "export ",
+    "function ",
+    "interface ",
+    "type ",
+    "struct ",
+    "const ",
+    "let ",
+    "var ",
+    "fn ",
+    "pub ",
+    "impl ",
+    "trait ",
+    "enum ",
+    "case ",
+    "object ",
+    "public ",
+    "private ",
+    "protected ",
+    "static ",
+    "void ",
+    "async ",
+    "module ",
 )
 
 # Service port map for dependency analysis
 SERVICE_PORTS = {
-    "soul_core.py": 8402,
+    "compagent.py": 8405,
+    "soul_core.py": 8405,
     "xrlf_runtime.py": 8402,
     "run_xrlf.py": 8402,
+    "server.js": 8400,
     "memory_service.py": 8407,
     "foveai_mcp_server.py": 8407,
+    "chat_relay_server.py": 8407,
     "creative_service.py": 8408,
     "stt_whisper_server.py": 8409,
     "motor_daemon.py": 8410,
@@ -175,9 +206,13 @@ SERVICE_PORTS = {
 }
 
 # Known API route patterns for route mapping
-ROUTE_PATTERN = re.compile(r'@(?:app|router)\.(?:get|post|put|delete|patch)\s*\(\s*["\']([^"\']+)["\']')
-IMPORT_PATTERN = re.compile(r'from\s+([.\w]+)\s+import|import\s+([.\w]+)')
-HTTP_PATTERN = re.compile(r'(?:httpx|requests|fetch|axios)\.(?:get|post|put|delete)\s*\(\s*["\'](?:http://)?127\.0\.0\.1:(\d+)')
+ROUTE_PATTERN = re.compile(
+    r'@(?:app|router)\.(?:get|post|put|delete|patch)\s*\(\s*["\']([^"\']+)["\']'
+)
+IMPORT_PATTERN = re.compile(r"from\s+([.\w]+)\s+import|import\s+([.\w]+)")
+HTTP_PATTERN = re.compile(
+    r'(?:httpx|requests|fetch|axios)\.(?:get|post|put|delete)\s*\(\s*["\'](?:http://)?127\.0\.0\.1:(\d+)'
+)
 
 
 def xrlate(filepath: Path, max_lines: int = 60) -> str:
@@ -201,7 +236,7 @@ def xrlate(filepath: Path, max_lines: int = 60) -> str:
                 out.append(f'"""{first}"""')
     else:
         for line in text.splitlines()[:12]:
-            m = re.match(r'\s*(?://+|/\*+|\*)\s*(.+)', line)
+            m = re.match(r"\s*(?://+|/\*+|\*)\s*(.+)", line)
             if m:
                 out.append(f"// {m.group(1).strip()[:120]}")
                 break
@@ -210,7 +245,10 @@ def xrlate(filepath: Path, max_lines: int = 60) -> str:
         t = line.strip()
         if not t or t.startswith(("#", "//", "/*", "*", '"""', "'''")):
             continue
-        if t.startswith(SIG_PREFIXES) or re.match(r'^(async\s+)?(public|private|protected|static|internal|sealed|override|virtual)\s', t):
+        if t.startswith(SIG_PREFIXES) or re.match(
+            r"^(async\s+)?(public|private|protected|static|internal|sealed|override|virtual)\s",
+            t,
+        ):
             out.append(line.rstrip() + (" ..." if t.endswith((":", "{")) else ""))
         if len(out) >= max_lines:
             out.append(f"// ... [{filepath.name} truncated at {max_lines} scan lines]")
@@ -229,11 +267,14 @@ def run_xrlate(filepath: Path) -> str:
     try:
         result = subprocess.run(
             ["node", str(TS), str(filepath), "--level", str(TS_LEVEL)],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         lines = result.stdout.splitlines()
         filtered = [
-            l for l in lines
+            l
+            for l in lines
             if l.strip()
             and not l.startswith("[TokenSlayer Saved")
             and not l.startswith("Auto-activating")
@@ -278,11 +319,20 @@ def discover_scan_files(ignore_patterns: list) -> list:
 def get_compact_tree(ignore_patterns: list) -> str:
     """Minimal directory tree — only key project dirs, respecting ignores."""
     key_dirs = [
-        "Backend/Cognition/", "Backend/Memory/", "Backend/Creativity/",
-        "Backend/Monetizing/", "Backend/preflight/",
-        "Forge/scratch/TokenSlayer/", "Forge/scratch/TokenSlayer/mcp-server/",
-        "Frontend/Web/", "Frontend/Webui/",
-        "Scripts/", "Tools/", "Docs/", "Plans/", "tests/",
+        "Backend/Cognition/",
+        "Backend/Memory/",
+        "Backend/Creativity/",
+        "Backend/Monetizing/",
+        "Backend/preflight/",
+        "Forge/scratch/TokenSlayer/",
+        "Forge/scratch/TokenSlayer/mcp-server/",
+        "Frontend/Web/",
+        "Frontend/Webui/",
+        "Scripts/",
+        "Tools/",
+        "Docs/",
+        "Plans/",
+        "tests/",
     ]
     filtered = [d for d in key_dirs if not is_ignored(d, ignore_patterns)]
     return "\n".join(f"  {d}" for d in filtered)
@@ -333,10 +383,10 @@ def extract_one_line_summary(filepath: Path) -> str:
         # Try to find module-level docstring
         doc_match = re.search(r'"""(.*?)"""', content, re.DOTALL)
         if doc_match:
-            summary = doc_match.group(1).strip().split('\n')[0][:120]
+            summary = doc_match.group(1).strip().split("\n")[0][:120]
             return summary
         # Fallback: first comment
-        comment_match = re.search(r'#\s*(.+)', content)
+        comment_match = re.search(r"#\s*(.+)", content)
         if comment_match:
             return comment_match.group(1).strip()[:120]
     except Exception:
@@ -370,7 +420,9 @@ def build_service_comm_map(processed_files: dict) -> list:
                 if port == target_port:
                     target_service = svc
                     break
-            comms.append(f"  {source_service} ({source_port}) → {target_service} ({target_port})")
+            comms.append(
+                f"  {source_service} ({source_port}) → {target_service} ({target_port})"
+            )
     return comms
 
 
@@ -387,7 +439,9 @@ def generate_micro_principia(processed_files: dict, ignore_patterns: list) -> st
     """Generate a micro-principia (<500 tokens) with tree + ports + one-line summaries."""
     lines = []
     lines.append("# FoveAI Micro-Principia")
-    lines.append(f"*{datetime.now().strftime('%Y-%m-%d %H:%M')} | Tier: micro | .xrl-ignore active*\n")
+    lines.append(
+        f"*{datetime.now().strftime('%Y-%m-%d %H:%M')} | Tier: micro | .xrl-ignore active*\n"
+    )
 
     # Tree
     lines.append("## Tree")
@@ -396,7 +450,9 @@ def generate_micro_principia(processed_files: dict, ignore_patterns: list) -> st
 
     # Ports
     lines.append("## Ports")
-    lines.append("Soul:8402 | Memory:8002 | MemoryMCP:8002 | Creative:8003 | TSProxy:8103 | WebUI:8080\n")
+    lines.append(
+        "Proxy/Memory:8400 | XRLF:8402 | Soul/Compagent:8405 | TTS:8406 | ChatRelay:8407 | STT:8409 | Motor:8410 | Subconscious:8411 | Multigate:5177\n"
+    )
 
     # One-line file summaries
     lines.append("## Files")
@@ -413,7 +469,11 @@ def generate_micro_principia(processed_files: dict, ignore_patterns: list) -> st
             else:
                 # Fallback: count functions
                 content = full_path.read_text(encoding="utf-8", errors="replace")
-                func_count = len(re.findall(r'^(?:async\s+)?def\s+\w+|class\s+\w+', content, re.MULTILINE))
+                func_count = len(
+                    re.findall(
+                        r"^(?:async\s+)?def\s+\w+|class\s+\w+", content, re.MULTILINE
+                    )
+                )
                 lines.append(f"  {rel_path}{port_str} — {func_count} functions/classes")
 
     lines.append("")
@@ -444,7 +504,9 @@ def generate_micro_principia(processed_files: dict, ignore_patterns: list) -> st
     lines.append("## Arch")
     lines.append("- Win-Native | Holonic Loop 1.0T")
     lines.append("- MCP: foveai-memory(17) + tokenslayer(6) | LLM: Qwen3.5-4B")
-    lines.append("- Context: compress_search_results default | summarize_context when heavy")
+    lines.append(
+        "- Context: compress_search_results default | summarize_context when heavy"
+    )
     lines.append("- Expand: use `expand_node` MCP tool or read specific line ranges")
 
     return "\n".join(lines)
@@ -462,11 +524,15 @@ def main():
     static_set = set(BACKEND_FILES + FORGE_FILES)
     extra_files = [f for f in discovered if f not in static_set][:SCAN_MAX_FILES]
     all_files = list(dict.fromkeys(BACKEND_FILES + FORGE_FILES + extra_files))
-    print(f"  Cross-repo scan discovered {len(discovered)} files "
-          f"({len(extra_files)} beyond static list, capped at {SCAN_MAX_FILES})")
+    print(
+        f"  Cross-repo scan discovered {len(discovered)} files "
+        f"({len(extra_files)} beyond static list, capped at {SCAN_MAX_FILES})"
+    )
 
     # Count how many files would be excluded
-    excluded = [f for f in (BACKEND_FILES + FORGE_FILES) if is_ignored(f, ignore_patterns)]
+    excluded = [
+        f for f in (BACKEND_FILES + FORGE_FILES) if is_ignored(f, ignore_patterns)
+    ]
     if excluded:
         print(f"  Excluded by .xrl-ignore: {len(excluded)} files")
         for f in excluded:
@@ -501,13 +567,19 @@ def main():
             # Ultra-compact header
             tier_name = {"standard": "L3", "full": "L0"}[TIER]
             f.write("# FoveAI Repo Principia\n")
-            f.write(f"*{datetime.now().strftime('%Y-%m-%d %H:%M')} | XRL scan {tier_name} | .xrl-ignore active*\n\n")
+            f.write(
+                f"*{datetime.now().strftime('%Y-%m-%d %H:%M')} | XRL scan {tier_name} | .xrl-ignore active*\n\n"
+            )
 
             # Maintenance section
             f.write("## Maintenance\n")
-            f.write("Auto-generated by [`Scripts/generate_repo_principia.py`](Scripts/generate_repo_principia.py).\n")
+            f.write(
+                "Auto-generated by [`Scripts/generate_repo_principia.py`](Scripts/generate_repo_principia.py).\n"
+            )
             f.write("Edit [`.xrl-ignore`](.xrl-ignore) to exclude files. Regenerate:\n")
-            f.write("```bash\npython Scripts/generate_repo_principia.py [--tier micro|standard|full]\n```\n\n")
+            f.write(
+                "```bash\npython Scripts/generate_repo_principia.py [--tier micro|standard|full]\n```\n\n"
+            )
 
             # Compact directory tree
             f.write("## Tree\n")
@@ -515,22 +587,22 @@ def main():
 
             # Compact service map (single line per service)
             f.write("## Ports\n")
-            f.write("Proxy:8400 | Dashboard:8401 | Soul/XRLF:8402 | WS_IPC:8403 | TTS:8406 | Memory:8407 | Creative:8408 | STT:8409 | Motor/Auto:8410 | Subconscious:8411 | XRVessel:5176 | WebUI:5177\n\n")
+            f.write(
+                "Proxy/Memory:8400 | Dashboard:8401 | XRLF-Runtime:8402 | WS_IPC:8403 | Soul/Compagent:8405 | TTS:8406 | ChatRelay:8407 | Creative:8408 | STT:8409 | Motor/Auto:8410 | Subconscious:8411 | XRVessel:5176 | Multigate:5177\n\n"
+            )
 
             # === DEPENDENCY MAP ===
             f.write("## Dependencies\n")
             f.write("### Service Communication\n")
             if service_comms:
-                for line in service_comms:
-                    f.write(line + "\n")
+                f.writelines(line + "\n" for line in service_comms)
             else:
                 f.write("  (none detected)\n")
             f.write("\n")
 
             f.write("### API Routes\n")
             if route_map:
-                for line in route_map:
-                    f.write(line + "\n")
+                f.writelines(line + "\n" for line in route_map)
             else:
                 f.write("  (none detected)\n")
             f.write("\n")
@@ -579,19 +651,27 @@ def main():
                 for rel_path in extra_files:
                     full_path = ROOT / rel_path
                     if full_path.exists():
-                        scan = run_xrlate(full_path) if TS.exists() else xrlate(full_path, max_lines=SCAN_XRL_LINES)
+                        scan = (
+                            run_xrlate(full_path)
+                            if TS.exists()
+                            else xrlate(full_path, max_lines=SCAN_XRL_LINES)
+                        )
                         if scan.strip():
                             f.write(f"// {rel_path}\n{scan}\n\n")
 
             # Config links (minimal)
             f.write("## Config\n")
-            f.write("- [mcp-config.json](mcp-config.json) | [AGENTS.md](AGENTS.md) | [.clinerules](.clinerules)\n\n")
+            f.write(
+                "- [mcp-config.json](mcp-config.json) | [AGENTS.md](AGENTS.md) | [.clinerules](.clinerules)\n\n"
+            )
 
             # Architecture notes (ultra-compact)
             f.write("## Arch\n")
             f.write("- Win-Native (no Docker/WSL2/Godot) | Holonic Loop 1.0T\n")
             f.write("- MCP: foveai-memory(17) + tokenslayer(6) | LLM: Qwen3.5-4B\n")
-            f.write("- Context: compress_search_results default | summarize_context when heavy\n")
+            f.write(
+                "- Context: compress_search_results default | summarize_context when heavy\n"
+            )
 
     # Stats
     line_count = len(open(OUTPUT, encoding="utf-8").readlines())

@@ -24,7 +24,7 @@ import re
 import sys
 import time
 import urllib.request
-from typing import Any, Dict, Optional
+from typing import Any
 
 import websockets
 
@@ -46,7 +46,7 @@ JEN_SYSTEM: str = (
 
 async def call_xrlf(messages: list) -> str:
     """Send messages to the XRLF runtime and get a response."""
-    data: Dict[str, Any] = {
+    data: dict[str, Any] = {
         "messages": messages,
         "max_tokens": 256,
         "temperature": 0.7,
@@ -59,7 +59,7 @@ async def call_xrlf(messages: list) -> str:
     )
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
-            result: Dict[str, Any] = json.loads(resp.read().decode("utf-8"))
+            result: dict[str, Any] = json.loads(resp.read().decode("utf-8"))
             return result["choices"][0]["message"]["content"].strip()
     except Exception as e:
         return f"[Jen could not respond: {e}]"
@@ -68,7 +68,7 @@ async def call_xrlf(messages: list) -> str:
 async def send_to_relay(speaker: str, text: str) -> None:
     """Post a message to the relay via HTTP /send endpoint."""
     url: str = f"http://127.0.0.1:{RELAY_PORT}/send"
-    data: Dict[str, str] = {"from": speaker, "text": text}
+    data: dict[str, str] = {"from": speaker, "text": text}
     req: urllib.request.Request = urllib.request.Request(
         url,
         data=json.dumps(data).encode("utf-8"),
@@ -81,7 +81,7 @@ async def send_to_relay(speaker: str, text: str) -> None:
         pass
 
 
-def should_jen_respond(msg: Dict[str, Any]) -> bool:
+def should_jen_respond(msg: dict[str, Any]) -> bool:
     """Determine if Jen should respond to a message."""
     if msg.get("from") == "jen":
         return False  # Don't respond to ourselves
@@ -100,7 +100,7 @@ def should_jen_respond(msg: Dict[str, Any]) -> bool:
     return False
 
 
-def build_context(history: list, trigger_msg: Dict[str, Any]) -> list:
+def build_context(history: list, trigger_msg: dict[str, Any]) -> list:
     """Build the LLM message context from chat history."""
     messages: list = [{"role": "system", "content": JEN_SYSTEM}]
 
@@ -144,7 +144,12 @@ async def jen_bridge(auto_participate: int = 0) -> None:
                             continue
                         print("[Jen Bridge] Auto-participating...")
                         context: list = build_context(history, {})
-                        context.append({"role": "user", "content": "[system]: Jen, share a thought about the current discussion."})
+                        context.append(
+                            {
+                                "role": "user",
+                                "content": "[system]: Jen, share a thought about the current discussion.",
+                            }
+                        )
                         response: str = await call_xrlf(context)
                         if response:
                             await send_to_relay("jen", response)
@@ -155,19 +160,23 @@ async def jen_bridge(auto_participate: int = 0) -> None:
                     while True:
                         raw: str = await ws.recv()
                         try:
-                            data: Dict[str, Any] = json.loads(raw)
+                            data: dict[str, Any] = json.loads(raw)
                         except json.JSONDecodeError:
                             continue
 
                         if data.get("type") == "history":
                             history = data.get("messages", [])
-                            print(f"[Jen Bridge] Loaded {len(history)} history messages")
+                            print(
+                                f"[Jen Bridge] Loaded {len(history)} history messages"
+                            )
                             continue
 
                         if data.get("type") == "chat":
                             history.append(data)
                             if should_jen_respond(data):
-                                print(f"[Jen Bridge] Responding to {data.get('from')}: {data.get('text', '')[:60]}")
+                                print(
+                                    f"[Jen Bridge] Responding to {data.get('from')}: {data.get('text', '')[:60]}"
+                                )
                                 context: list = build_context(history, data)
                                 response: str = await call_xrlf(context)
                                 if response:
@@ -182,7 +191,7 @@ async def jen_bridge(auto_participate: int = 0) -> None:
                 await asyncio.gather(*tasks)
 
         except ConnectionRefusedError:
-            print(f"[Jen Bridge] Relay not available, retrying in 5s...")
+            print("[Jen Bridge] Relay not available, retrying in 5s...")
             await asyncio.sleep(5)
         except Exception as e:
             print(f"[Jen Bridge] Error: {e}, retrying in 5s...")
@@ -190,8 +199,15 @@ async def jen_bridge(auto_participate: int = 0) -> None:
 
 
 def main() -> int:
-    parser: argparse.ArgumentParser = argparse.ArgumentParser(description="Jen LLM Chat Bridge")
-    parser.add_argument("--auto-participate", type=int, default=0, help="Auto-participate interval in seconds (0=disabled)")
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        description="Jen LLM Chat Bridge"
+    )
+    parser.add_argument(
+        "--auto-participate",
+        type=int,
+        default=0,
+        help="Auto-participate interval in seconds (0=disabled)",
+    )
     args: argparse.Namespace = parser.parse_args()
 
     try:

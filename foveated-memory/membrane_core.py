@@ -24,7 +24,7 @@ import os
 import subprocess
 import sys
 import warnings
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 # Module-level state
 # ---------------------------------------------------------------------------
 
-_last_backend_info: Optional[Dict[str, Any]] = None
+_last_backend_info: dict[str, Any] | None = None
 """Stores the backend_info from the most recent weave_context call for cognitive reset detection."""
 
 # ---------------------------------------------------------------------------
@@ -70,7 +70,8 @@ def count_tokens(text: str) -> int:
 # Weaving rules loader
 # ---------------------------------------------------------------------------
 
-def load_weaving_rules(path: str) -> Dict[str, Any]:
+
+def load_weaving_rules(path: str) -> dict[str, Any]:
     """Load and validate the weaving_rules.json configuration file.
 
     Returns the parsed JSON dictionary. Raises FileNotFoundError or
@@ -89,6 +90,7 @@ def load_weaving_rules(path: str) -> Dict[str, Any]:
 # Summarization (dependency-injected)
 # ---------------------------------------------------------------------------
 
+
 def summarize(
     text: str,
     target_tokens: int,
@@ -104,11 +106,13 @@ def summarize(
         return text
 
     try:
-        payload = json.dumps({
-            "text": text,
-            "target_tokens": target_tokens,
-            "model": model,
-        })
+        payload = json.dumps(
+            {
+                "text": text,
+                "target_tokens": target_tokens,
+                "model": model,
+            }
+        )
         result = subprocess.run(
             [model],
             input=payload,
@@ -158,14 +162,14 @@ def _is_thin_red_thread(red_thread: str) -> bool:
     return not has_structure
 
 
-def _expand_skeleton(skeleton: str, tendrils: str) -> Tuple[str, str]:
+def _expand_skeleton(skeleton: str, tendrils: str) -> tuple[str, str]:
     """Expand the skeleton and deploy tendrils."""
     expanded = f"expanded:{skeleton}"
     deployed = f"deployed:{tendrils}" if tendrils else "deployed:"
     return expanded, deployed
 
 
-def _contract_skeleton(skeleton: str, tendrils: str) -> Tuple[str, str]:
+def _contract_skeleton(skeleton: str, tendrils: str) -> tuple[str, str]:
     """Contract the skeleton and retract tendrils."""
     contracted = f"contracted:{skeleton}"
     retracted = ""
@@ -178,11 +182,7 @@ def _compute_current_usage(
     tendrils: str,
 ) -> int:
     """Return the total token count of the three context components."""
-    return (
-        count_tokens(red_thread)
-        + count_tokens(skeleton)
-        + count_tokens(tendrils)
-    )
+    return count_tokens(red_thread) + count_tokens(skeleton) + count_tokens(tendrils)
 
 
 def balance(
@@ -190,7 +190,7 @@ def balance(
     skeleton: str,
     tendrils: str,
     token_budget: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Core balancer implementing the XRLF MEMBRANE BALANCER algorithm.
 
     Parameters
@@ -252,14 +252,15 @@ def balance(
 # Context weaver (orchestrator)
 # ---------------------------------------------------------------------------
 
+
 def weave_context(
     red_thread: str,
     skeleton: str,
     tendrils: str,
     token_budget: int,
-    backend_info: Optional[Dict[str, Any]] = None,
-    rules_path: Optional[str] = None,
-) -> Dict[str, Any]:
+    backend_info: dict[str, Any] | None = None,
+    rules_path: str | None = None,
+) -> dict[str, Any]:
     """Orchestrate the membrane balancer and return the merged context.
 
     Parameters
@@ -329,9 +330,7 @@ def weave_context(
 
     # --- Apply cognitive reset marker if triggered ---
     if cognitive_reset:
-        result["merged_stream"] = (
-            "[COGNITIVE_RESET]\n" + result["merged_stream"]
-        )
+        result["merged_stream"] = "[COGNITIVE_RESET]\n" + result["merged_stream"]
         result["cognitive_reset"] = True
     else:
         result["cognitive_reset"] = False
@@ -342,6 +341,7 @@ def weave_context(
 # ---------------------------------------------------------------------------
 # CLI entry point
 # ---------------------------------------------------------------------------
+
 
 def main() -> None:
     """Read a JSON object from stdin, call ``weave_context``, and write the
@@ -389,4 +389,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

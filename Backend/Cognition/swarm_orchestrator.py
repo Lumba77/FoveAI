@@ -11,25 +11,24 @@ Director Manager Integration:
 """
 
 import asyncio
-import os
-import json
 import logging
+import os
+from typing import Any
+
 import httpx
-import time
-import random
-from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger("SwarmOrchestrator")
 
 # ── Director Manager Integration ──────────────────────────────────────────────
 try:
     from director_manager import (
+        DIRECTOR_AUTO_APPLY,
+        DIRECTOR_CLOUD_ENABLED,
         DirectorManager,
         IndexWorker,
         run_director_analysis,
-        DIRECTOR_CLOUD_ENABLED,
-        DIRECTOR_AUTO_APPLY,
     )
+
     DIRECTOR_MANAGER_AVAILABLE = True
 except Exception as _dm_err:
     DIRECTOR_MANAGER_AVAILABLE = False
@@ -52,14 +51,18 @@ MAP_LOCATIONS = {
     "optimization_lab": {"x": 80, "y": 70},
 }
 
-def _interpolate_position(from_loc: str, to_loc: str, progress: float) -> Dict[str, int]:
+
+def _interpolate_position(
+    from_loc: str, to_loc: str, progress: float
+) -> dict[str, int]:
     """Calculate intermediate position for smooth drone animation."""
     from_pos = MAP_LOCATIONS.get(from_loc, {"x": 50, "y": 50})
     to_pos = MAP_LOCATIONS.get(to_loc, {"x": 50, "y": 50})
     return {
         "x": int(from_pos["x"] + (to_pos["x"] - from_pos["x"]) * progress),
-        "y": int(from_pos["y"] + (to_pos["y"] - from_pos["y"]) * progress)
+        "y": int(from_pos["y"] + (to_pos["y"] - from_pos["y"]) * progress),
     }
+
 
 # ── Global State for Visualizer ───────────────────────────────────────────────
 
@@ -103,23 +106,19 @@ SWARM_STATE = {
             "message": "",
             "position": MAP_LOCATIONS["base"].copy(),
             "color": "#e74c3c",  # Red for Sentry
-        }
+        },
     },
-    "results": {}
+    "results": {},
 }
 
 
-def get_swarm_state() -> Dict[str, Any]:
+def get_swarm_state() -> dict[str, Any]:
     """Return current swarm state for web visualizer."""
     return SWARM_STATE
 
 
 def _update_drone(
-    drone_id: str,
-    status: str,
-    location: str,
-    message: str,
-    progress_delta: int = 0
+    drone_id: str, status: str, location: str, message: str, progress_delta: int = 0
 ):
     """Update drone state with automatic position interpolation."""
     if drone_id not in SWARM_STATE["drones"]:
@@ -138,16 +137,15 @@ def _update_drone(
 
     # Update progress
     if progress_delta:
-        SWARM_STATE["progress_pct"] = min(100, SWARM_STATE["progress_pct"] + progress_delta)
+        SWARM_STATE["progress_pct"] = min(
+            100, SWARM_STATE["progress_pct"] + progress_delta
+        )
 
     logger.info(f"[Swarm:{drone_id.upper()}] @ {location} -> {message}")
 
 
 async def _animate_drone_movement(
-    drone_id: str,
-    from_loc: str,
-    to_loc: str,
-    duration_sec: float = 1.0
+    drone_id: str, from_loc: str, to_loc: str, duration_sec: float = 1.0
 ):
     """Animate drone movement between locations for visualizer."""
     if drone_id not in SWARM_STATE["drones"]:
@@ -168,7 +166,7 @@ async def _drone_task(
     context: str,
     model: str,
     host: str,
-    max_tokens: int = 256
+    max_tokens: int = 256,
 ) -> str:
     """Execute a single drone's analysis task."""
 
@@ -182,7 +180,7 @@ async def _drone_task(
         zone_map = {
             "scout": "target_files",
             "optimizer": "optimization_lab",
-            "sentry": "security_perimeter"
+            "sentry": "security_perimeter",
         }
         target_zone = zone_map.get(drone_id, "analysis_zone")
         await _animate_drone_movement(drone_id, "repo_root", target_zone, 0.5)
@@ -199,14 +197,25 @@ async def _drone_task(
                     "model": model,
                     "messages": [{"role": "user", "content": prompt}],
                     "max_tokens": max_tokens,
-                    "stream": False
-                }
+                    "stream": False,
+                },
             )
             if resp.status_code == 200:
-                answer = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "").strip()
+                answer = (
+                    resp.json()
+                    .get("choices", [{}])[0]
+                    .get("message", {})
+                    .get("content", "")
+                    .strip()
+                )
                 if drone_id != "director":
                     _update_drone(drone_id, "returning", "base", "Analysis complete.")
-                    await _animate_drone_movement(drone_id, SWARM_STATE["drones"][drone_id]["location"], "base", 0.5)
+                    await _animate_drone_movement(
+                        drone_id,
+                        SWARM_STATE["drones"][drone_id]["location"],
+                        "base",
+                        0.5,
+                    )
                 return answer
             else:
                 _update_drone(drone_id, "error", "base", f"HTTP {resp.status_code}")
@@ -217,14 +226,13 @@ async def _drone_task(
 
 
 async def _director_cloud_planning(
-    objective: str,
-    context: str,
-    cloud_model: str,
-    cloud_host: str
+    objective: str, context: str, cloud_model: str, cloud_host: str
 ) -> str:
     """Director creates high-level plan using cloud model."""
 
-    _update_drone("director", "planning", "cloud", "Formulating battle plan from cloud perch...")
+    _update_drone(
+        "director", "planning", "cloud", "Formulating battle plan from cloud perch..."
+    )
     SWARM_STATE["phase"] = "planning"
     SWARM_STATE["progress_pct"] = 10
 
@@ -248,7 +256,7 @@ async def _director_cloud_planning(
         context,
         cloud_model,
         cloud_host,
-        max_tokens=512
+        max_tokens=512,
     )
 
     _update_drone("director", "directing", "cloud", f"Plan established: {plan[:50]}...")
@@ -263,11 +271,16 @@ async def _director_cloud_synthesis(
     optimizer_report: str,
     sentry_report: str,
     cloud_model: str,
-    cloud_host: str
+    cloud_host: str,
 ) -> str:
     """Director synthesizes final verdict from drone reports."""
 
-    _update_drone("director", "synthesizing", "cloud", "Synthesizing drone reports into final verdict...")
+    _update_drone(
+        "director",
+        "synthesizing",
+        "cloud",
+        "Synthesizing drone reports into final verdict...",
+    )
     SWARM_STATE["phase"] = "synthesizing"
     SWARM_STATE["progress_pct"] = 85
 
@@ -307,10 +320,12 @@ Sentry Report:
         synthesis_context,
         cloud_model,
         cloud_host,
-        max_tokens=2048
+        max_tokens=2048,
     )
 
-    _update_drone("director", "idle", "base", "Mission complete. Final verdict delivered.")
+    _update_drone(
+        "director", "idle", "base", "Mission complete. Final verdict delivered."
+    )
     SWARM_STATE["progress_pct"] = 100
     SWARM_STATE["phase"] = "complete"
 
@@ -320,7 +335,7 @@ Sentry Report:
     return final_verdict
 
 
-async def execute_swarm_task(objective: str, context: str) -> Dict[str, Any]:
+async def execute_swarm_task(objective: str, context: str) -> dict[str, Any]:
     """
     Tiered Swarm Operation with Director Manager oversight:
 
@@ -345,23 +360,43 @@ async def execute_swarm_task(objective: str, context: str) -> Dict[str, Any]:
         if ".py" in line or ".json" in line or ".md" in line:
             parts = line.split()
             for p in parts:
-                if ("." in p and ("/" in p or "\\" in p)) or p.startswith("frontend/") or p.startswith("backend/"):
+                if (
+                    ("." in p and ("/" in p or "\\" in p))
+                    or p.startswith("frontend/")
+                    or p.startswith("backend/")
+                ):
                     target_files.append(p)
     SWARM_STATE["target_files"] = list(set(target_files))[:8]
 
     # Configure models
     local_model = os.getenv("FoveAI_SENTRY_SOLVER_MODEL", "qwen2.5-coder:3b").strip()
-    local_host = os.getenv(
-        "FoveAI_LOCAL_BASE_URL",
-        os.getenv("FoveAI_FALLBACK_BASE_URL", os.getenv("FoveAI_BACKUP_BASE_URL", "http://localhost:8888/v1"))
-    ).strip().rstrip("/")
+    local_host = (
+        os.getenv(
+            "FoveAI_LOCAL_BASE_URL",
+            os.getenv(
+                "FoveAI_FALLBACK_BASE_URL",
+                os.getenv("FoveAI_BACKUP_BASE_URL", "http://localhost:8888/v1"),
+            ),
+        )
+        .strip()
+        .rstrip("/")
+    )
 
     # Cloud config - prefer Director Manager model if available
     if DIRECTOR_MANAGER_AVAILABLE and DIRECTOR_CLOUD_ENABLED:
-        cloud_model = os.getenv("FoveAI_MODEL_DIRECTOR_ID", "deepseek-v4-pro:1m").strip()
-        cloud_host = os.getenv("FOVEAI_DIRECTOR_BASE_URL", "https://ollama.com/v1").strip().rstrip("/")
+        cloud_model = os.getenv(
+            "FoveAI_MODEL_DIRECTOR_ID", "deepseek-v4-pro:1m"
+        ).strip()
+        cloud_host = (
+            os.getenv("FOVEAI_DIRECTOR_BASE_URL", "https://ollama.com/v1")
+            .strip()
+            .rstrip("/")
+        )
     else:
-        cloud_model = os.getenv("FoveAI_CLOUD_MODEL_CODER", os.getenv("FoveAI_REPERTOIRE_MODEL_CODER", "qwen3.5:397b")).strip()
+        cloud_model = os.getenv(
+            "FoveAI_CLOUD_MODEL_CODER",
+            os.getenv("FoveAI_REPERTOIRE_MODEL_CODER", "qwen3.5:397b"),
+        ).strip()
         cloud_host = os.getenv("FoveAI_CLOUD_BASE_URL", local_host).strip().rstrip("/")
 
     logger.info(f"🚀 Launching Swarm. Director: {cloud_model}, Drones: {local_model}")
@@ -369,7 +404,9 @@ async def execute_swarm_task(objective: str, context: str) -> Dict[str, Any]:
 
     try:
         # PHASE 1: Director Planning (Cloud)
-        director_plan = await _director_cloud_planning(objective, context, cloud_model, cloud_host)
+        director_plan = await _director_cloud_planning(
+            objective, context, cloud_model, cloud_host
+        )
 
         # PHASE 2: Drones Execution (Local)
         SWARM_STATE["phase"] = "executing"
@@ -390,14 +427,38 @@ async def execute_swarm_task(objective: str, context: str) -> Dict[str, Any]:
                 f"You are the Swarm Security Sentry. The Director's Plan:\n{director_plan}\n\n"
                 "Your mission: Review for edge cases, race conditions, security vulnerabilities, "
                 "and potential failure modes. Flag any risks."
-            )
+            ),
         }
 
         # Launch drones in parallel
         tasks = [
-            _drone_task("scout", roles["scout"], objective, context, local_model, local_host, max_tokens=512),
-            _drone_task("optimizer", roles["optimizer"], objective, context, local_model, local_host, max_tokens=768),
-            _drone_task("sentry", roles["sentry"], objective, context, local_model, local_host, max_tokens=512)
+            _drone_task(
+                "scout",
+                roles["scout"],
+                objective,
+                context,
+                local_model,
+                local_host,
+                max_tokens=512,
+            ),
+            _drone_task(
+                "optimizer",
+                roles["optimizer"],
+                objective,
+                context,
+                local_model,
+                local_host,
+                max_tokens=768,
+            ),
+            _drone_task(
+                "sentry",
+                roles["sentry"],
+                objective,
+                context,
+                local_model,
+                local_host,
+                max_tokens=512,
+            ),
         ]
 
         SWARM_STATE["progress_pct"] = 50
@@ -412,7 +473,7 @@ async def execute_swarm_task(objective: str, context: str) -> Dict[str, Any]:
             drone_results[1],  # Optimizer
             drone_results[2],  # Sentry
             cloud_model,
-            cloud_host
+            cloud_host,
         )
 
         # Build final report
@@ -443,7 +504,7 @@ async def execute_swarm_task(objective: str, context: str) -> Dict[str, Any]:
             "scout": "",
             "optimizer": "",
             "sentry": "",
-            "final_verdict": ""
+            "final_verdict": "",
         }
 
     finally:

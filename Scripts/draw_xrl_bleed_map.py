@@ -20,7 +20,6 @@ import math
 import os
 import random
 import re
-import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -33,14 +32,14 @@ W, H = 3200, 3200
 CX, CY = W // 2, H // 2
 BG = (8, 10, 16)
 
-RING_RADII = [420, 780, 1140, 1450]          # ring0..ring3 orbit radius
+RING_RADII = [420, 780, 1140, 1450]  # ring0..ring3 orbit radius
 RING_COLORS = [
-    (0, 255, 220),   # ring0 — fovea, hot cyan
+    (0, 255, 220),  # ring0 — fovea, hot cyan
     (80, 200, 255),  # ring1 — parafovea, blue-cyan
     (90, 120, 255),  # ring2 — mid-field, indigo
-    (110, 110, 160), # ring3 — periphery, dim violet
+    (110, 110, 160),  # ring3 — periphery, dim violet
 ]
-UNWIRED_COLOR = (200, 90, 90)                # outer dark — cold red specks
+UNWIRED_COLOR = (200, 90, 90)  # outer dark — cold red specks
 EDGE_COLOR = (40, 140, 160)
 
 # ── Ring-0 seed: the prompt-injection chain ─────────────────────────
@@ -74,32 +73,63 @@ INJECTORS = {
 }
 
 SCAN_DIRS = [
-    "Backend", "runtime", "memory", "formats", "builder", "llama_bridge",
-    "foveated-memory", "Frontend/XR_Vessel/src", "Frontend/multigate/src",
-    "client_quest/Assets/Scripts", "Tools", "Scripts", "tests",
+    "Backend",
+    "runtime",
+    "memory",
+    "formats",
+    "builder",
+    "llama_bridge",
+    "foveated-memory",
+    "Frontend/XR_Vessel/src",
+    "Frontend/multigate/src",
+    "client_quest/Assets/Scripts",
+    "Tools",
+    "Scripts",
+    "tests",
 ]
 EXTS = {".py", ".ts", ".tsx", ".js", ".cs", ".sh", ".xrlf", ".json"}
-SKIP_DIRS = {"__pycache__", "node_modules", ".venv", ".git", "dist", "build", ".venv.bak.20260906", "out"}
+SKIP_DIRS = {
+    "__pycache__",
+    "node_modules",
+    ".venv",
+    ".git",
+    "dist",
+    "build",
+    ".venv.bak.20260906",
+    "out",
+}
 MAX_BYTES = 400_000
 
-IMPORT_RE = re.compile(r'^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))', re.M)
-CALL_RE = re.compile(r'(?:127\.0\.0\.1|localhost):(\d{4})')
-BIND_RE = re.compile(r'(?:\.listen\(\s*(\d{4})|uvicorn\.run\([^)]*port\s*=\s*(\d{4})|PORT\s*=\s*(\d{4})|port\s*=\s*(\d{4}))')
+IMPORT_RE = re.compile(r"^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))", re.MULTILINE)
+CALL_RE = re.compile(r"(?:127\.0\.0\.1|localhost):(\d{4})")
+BIND_RE = re.compile(
+    r"(?:\.listen\(\s*(\d{4})|uvicorn\.run\([^)]*port\s*=\s*(\d{4})|PORT\s*=\s*(\d{4})|port\s*=\s*(\d{4}))"
+)
 
 
 def load_ignores():
     f = ROOT / ".xrl-ignore"
     if not f.exists():
         f = ROOT / ".tokenslayer-ignore"
-    return [l.strip() for l in f.read_text().splitlines()
-            if l.strip() and not l.startswith("#")] if f.exists() else []
+    return (
+        [
+            l.strip()
+            for l in f.read_text().splitlines()
+            if l.strip() and not l.startswith("#")
+        ]
+        if f.exists()
+        else []
+    )
 
 
 def is_ignored(rel, pats):
     for p in pats:
         p = p.replace("\\", "/")
-        if fnmatch.fnmatch(rel, p) or (p.endswith("/") and rel.startswith(p)) \
-           or (not p.endswith("*") and (rel == p or rel.startswith(p + "/"))):
+        if (
+            fnmatch.fnmatch(rel, p)
+            or (p.endswith("/") and rel.startswith(p))
+            or (not p.endswith("*") and (rel == p or rel.startswith(p + "/")))
+        ):
             return True
     return False
 
@@ -162,7 +192,9 @@ def build_graph(files):
             if other == rel:
                 continue
             ostem = Path(other).stem
-            if len(ostem) >= 5 and re.search(rf'(?<![\w]){re.escape(ostem)}(?![\w])', text):
+            if len(ostem) >= 5 and re.search(
+                rf"(?<![\w]){re.escape(ostem)}(?![\w])", text
+            ):
                 edges.add((rel, other))
         if rel.endswith(".py"):
             for m in IMPORT_RE.finditer(text):
@@ -185,7 +217,11 @@ def assign_rings(files, edges):
         adj[b].add(a)
 
     ring = {}
-    seeds = [f for f in files if f in INJECTORS or Path(f).name in {Path(s).name for s in INJECTORS}]
+    seeds = [
+        f
+        for f in files
+        if f in INJECTORS or Path(f).name in {Path(s).name for s in INJECTORS}
+    ]
     for s in seeds:
         ring[s] = 0
     frontier = list(seeds)
@@ -200,14 +236,17 @@ def assign_rings(files, edges):
         frontier = nxt
         depth += 1
     for f in files:
-        ring.setdefault(f, 4)   # 4 = unwired outer dark
+        ring.setdefault(f, 4)  # 4 = unwired outer dark
     return ring
 
 
 def font(sz, bold=False):
-    for p in ("/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf" if bold else
-              "/usr/share/fonts/dejavu/DejaVuSans.ttf",
-              "/usr/share/fonts/liberation/LiberationSans-Regular.ttf"):
+    for p in (
+        "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf"
+        if bold
+        else "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/liberation/LiberationSans-Regular.ttf",
+    ):
         try:
             return ImageFont.truetype(p, sz)
         except Exception:
@@ -234,17 +273,22 @@ def draw():
     for i, r in enumerate(RING_RADII):
         c = RING_COLORS[i]
         for k in range(3):
-            dr.ellipse([CX - r - k, CY - r - k, CX + r + k, CY + r + k],
-                       outline=c + (60 - k * 18,))
+            dr.ellipse(
+                [CX - r - k, CY - r - k, CX + r + k, CY + r + k],
+                outline=c + (60 - k * 18,),
+            )
         # ring fill glow — fainter inside
-        dr.ellipse([CX - r, CY - r, CX + r, CY + r],
-                   fill=c + (10 if i == 0 else 6,))
+        dr.ellipse([CX - r, CY - r, CX + r, CY + r], fill=c + (10 if i == 0 else 6,))
 
     # core: the context window
     for r, a in [(90, 200), (140, 90), (200, 40)]:
         dr.ellipse([CX - r, CY - r, CX + r, CY + r], fill=(255, 255, 255, a))
-    dr.text((CX, CY - 14), "CONTEXT", font=font(34, True), fill=(10, 12, 20), anchor="mm")
-    dr.text((CX, CY + 18), "system prompt", font=font(22), fill=(30, 40, 60), anchor="mm")
+    dr.text(
+        (CX, CY - 14), "CONTEXT", font=font(34, True), fill=(10, 12, 20), anchor="mm"
+    )
+    dr.text(
+        (CX, CY + 18), "system prompt", font=font(22), fill=(30, 40, 60), anchor="mm"
+    )
 
     # node positions: even angular slots per ring, slight radial jitter
     per_ring = defaultdict(list)
@@ -282,38 +326,62 @@ def draw():
         dr.ellipse([x - sz, y - sz, x + sz, y + sz], fill=col + (alpha,))
 
     # labels — ring0 always, ring1 top by size
-    labeled = sorted(per_ring[0], key=lambda f: -sizes.get(f, 0))[:label_budget[0]]
-    labeled += sorted(per_ring[1], key=lambda f: -sizes.get(f, 0))[:label_budget[1]]
-    labeled += sorted(per_ring[2], key=lambda f: -sizes.get(f, 0))[:label_budget[2]]
+    labeled = sorted(per_ring[0], key=lambda f: -sizes.get(f, 0))[: label_budget[0]]
+    labeled += sorted(per_ring[1], key=lambda f: -sizes.get(f, 0))[: label_budget[1]]
+    labeled += sorted(per_ring[2], key=lambda f: -sizes.get(f, 0))[: label_budget[2]]
     for f in labeled:
         x, y = pos[f]
         name = Path(f).name
         if len(name) > 26:
             name = name[:24] + "…"
         r = ring[f]
-        dr.text((x + 12, y - 8), name, font=font(19, r == 0),
-                fill=RING_COLORS[r] + (255,))
+        dr.text(
+            (x + 12, y - 8), name, font=font(19, r == 0), fill=RING_COLORS[r] + (255,)
+        )
 
     # ring captions on the left axis
     for i, r in enumerate(RING_RADII):
-        dr.text((CX - r, CY - 18), ["RING 0 · FOVEA — injected",
-                                    "RING 1 · PARAFOVEA — one hop",
-                                    "RING 2 · MID-FIELD — fleet-wired",
-                                    "RING 3 · PERIPHERY — cold refs"][i],
-                font=font(22, True), fill=RING_COLORS[i] + (220,), anchor="rm")
-    dr.text((CX - 1560, CY - 18), "OUTER DARK — unwired", font=font(22, True),
-            fill=UNWIRED_COLOR + (230,), anchor="lm")
+        dr.text(
+            (CX - r, CY - 18),
+            [
+                "RING 0 · FOVEA — injected",
+                "RING 1 · PARAFOVEA — one hop",
+                "RING 2 · MID-FIELD — fleet-wired",
+                "RING 3 · PERIPHERY — cold refs",
+            ][i],
+            font=font(22, True),
+            fill=RING_COLORS[i] + (220,),
+            anchor="rm",
+        )
+    dr.text(
+        (CX - 1560, CY - 18),
+        "OUTER DARK — unwired",
+        font=font(22, True),
+        fill=UNWIRED_COLOR + (230,),
+        anchor="lm",
+    )
 
     # title + stats
-    dr.text((60, 50), "FoveAI — XRL Context Bleed-Radius Map", font=font(46, True),
-            fill=(235, 245, 255))
-    dr.text((60, 112),
-            f"{len(files)} files · {len(edges)} edges · "
-            f"r0:{counts[0]} injected · r1:{counts[1]} · r2:{counts[2]} · "
-            f"r3:{counts[3]} · unwired:{counts[4]}",
-            font=font(24), fill=(150, 170, 200))
-    dr.text((60, H - 70), "node size ∝ file size · edges = imports / port calls / stem references",
-            font=font(20), fill=(110, 125, 150))
+    dr.text(
+        (60, 50),
+        "FoveAI — XRL Context Bleed-Radius Map",
+        font=font(46, True),
+        fill=(235, 245, 255),
+    )
+    dr.text(
+        (60, 112),
+        f"{len(files)} files · {len(edges)} edges · "
+        f"r0:{counts[0]} injected · r1:{counts[1]} · r2:{counts[2]} · "
+        f"r3:{counts[3]} · unwired:{counts[4]}",
+        font=font(24),
+        fill=(150, 170, 200),
+    )
+    dr.text(
+        (60, H - 70),
+        "node size ∝ file size · edges = imports / port calls / stem references",
+        font=font(20),
+        fill=(110, 125, 150),
+    )
 
     img.save(OUT)
     print(f"wrote {OUT} ({OUT.stat().st_size // 1024} KB)")

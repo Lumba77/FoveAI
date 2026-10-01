@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="apple-touch-icon" href="/favicon.ico">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monetization Control Center</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --neon-pink: rgba(255, 0, 127, 1);
+            --neon-blue: rgba(0, 243, 255, 1);
+            --bg-color: #0a0f19;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 40px;
+            /* Grid Pattern */
+            background-image: 
+                linear-gradient(rgba(0, 243, 255, 0.03) 1px, transparent 1px), 
+                linear-gradient(90deg, rgba(0, 243, 255, 0.03) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .header-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            letter-spacing: 4px;
+            color: #fff;
+            text-shadow: 0 0 15px var(--neon-blue);
+            margin-bottom: 30px;
+            border-bottom: 2px solid var(--neon-blue);
+            padding-bottom: 15px;
+            display: inline-block;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .glass-panel {
+            background: rgba(10, 15, 25, 0.8);
+            border: 1px solid rgba(0, 243, 255, 0.2);
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5), inset 0 0 15px rgba(0, 243, 255, 0.05);
+            -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .glass-panel::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 4px; height: 100%;
+            background: var(--neon-blue);
+            box-shadow: 0 0 15px var(--neon-blue);
+        }
+
+        .glass-panel.pink-accent::before {
+            background: var(--neon-pink);
+            box-shadow: 0 0 15px var(--neon-pink);
+        }
+        
+        .glass-panel.pink-accent {
+            border-color: rgba(255, 0, 127, 0.2);
+        }
+
+        .panel-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            color: var(--neon-blue);
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-weight: 700;
+            letter-spacing: 2px;
+        }
+
+        .pink-accent .panel-title {
+            color: var(--neon-pink);
+        }
+
+        /* Agents Matrix Table */
+        table.matrix-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 2px;
+            font-size: 0.75rem;
+        }
+
+        .matrix-table th {
+            font-family: 'Orbitron', sans-serif;
+            text-align: left;
+            padding: 10px;
+            background: rgba(0, 243, 255, 0.15);
+            color: #fff;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .matrix-table td {
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255,255,255,0.03);
+            color: rgba(255,255,255,0.8);
+            transition: 0.3s;
+        }
+
+        .matrix-table tr:hover td {
+            background: rgba(0, 243, 255, 0.1);
+            color: #fff;
+            border-left: 2px solid var(--neon-pink);
+        }
+
+        /* Buttons */
+        .neon-btn {
+            position: relative;
+            overflow: hidden;
+            background: rgba(0,0,0,0.5);
+            color: #fff;
+            border: 1px solid var(--border);
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.75rem;
+            cursor: pointer;
+            letter-spacing: 1px;
+            transition: 0.3s;
+        }
+
+        .neon-btn:hover {
+            background: rgba(0, 243, 255, 0.15);
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
+        }
+
+        .neon-btn.action {
+            background: var(--neon-pink);
+            border: none;
+            box-shadow: 0 0 15px var(--neon-pink);
+            font-weight: 700;
+        }
+
+        .neon-btn.action:hover {
+            background: #fff;
+            color: var(--neon-pink);
+        }
+
+        /* Metrics */
+        .metric-block {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        .metric-label {
+            font-size: 0.8rem;
+            opacity: 0.7;
+        }
+
+        .metric-value {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--neon-blue);
+            text-shadow: 0 0 10px var(--neon-blue);
+        }
+
+    </style>
+
+    <style>
+        /* Auto-extracted inline styles */
+        .auto-style-1 { margin-bottom: 25px; display:flex; gap:15px; }
+        .auto-style-2 { text-align:center; padding: 20px; }
+        .auto-style-3 { margin-top: 20px; display:flex; gap:10px; }
+        .auto-style-4 { background:rgba(0,0,0,0.6); border:1px solid var(--border); color:#fff; padding:10px; border-radius:4px; font-family:'Inter'; outline:none; flex:1; }
+        .auto-style-5 { color:var(--neon-pink); text-shadow:0 0 10px var(--neon-pink); }
+        .auto-style-6 { color:#00ff88; text-shadow: 0 0 10px #00ff88; }
+        .auto-style-7 { margin-top: 25px; background:rgba(0,0,0,0.5); border-radius:4px; padding:10px; border:1px solid rgba(255,255,255,0.05); }
+        .auto-style-8 { color:var(--neon-blue); }
+        .auto-style-9 { padding:4px 8px; font-size:0.6rem; }
+        .auto-style-10 { text-align:center; padding:20px; opacity:0.5; }
+    </style>
+</head>
+<body>
+
+    <div class="header-title">MONETIZATION CONTROL CENTER</div>
+    
+    <div class="auto-style-1">
+        <button class="neon-btn action" id="btnRefresh">REFRESH SYSTEMS</button>
+        <button class="neon-btn" id="btnRunCycle">RUN DISCOVERY CYCLE</button>
+    </div>
+
+    <div class="dashboard-grid">
+        
+        <!-- Left Panel: Agent Management -->
+        <div class="glass-panel">
+            <div class="panel-title">SWARM AGENTS MATRIX</div>
+            <table class="matrix-table" id="agentsTable">
+                <thead>
+                    <tr>
+                        <th>Agent ID</th>
+                        <th>Status</th>
+                        <th>Role</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="4" class="auto-style-2">Fetching Agents...</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <div class="auto-style-3">
+                <input type="text" id="newAgentId" placeholder="Enter Agent ID" class="auto-style-4" aria-label="Form Input">
+                <button class="neon-btn" id="btnAddAgent">+ DEPLOY AGENT</button>
+            </div>
+        </div>
+
+        <!-- Right Panel: Treasury & Streams -->
+        <div class="glass-panel pink-accent">
+            <div class="panel-title">REVENUE STREAMS & TREASURY</div>
+            
+            <div class="metric-block">
+                <span class="metric-label">Ideas Discovered</span>
+                <span class="metric-value auto-style-5" id="valIdeasDiscovered" >0</span>
+            </div>
+            <div class="metric-block">
+                <span class="metric-label">Ideas Certified (AI Checked)</span>
+                <span class="metric-value" id="valIdeasCertified">0</span>
+            </div>
+            <div class="metric-block">
+                <span class="metric-label">Total Treasury Balance (Simulated)</span>
+                <span class="metric-value auto-style-6" >$ 14,250.00</span>
+            </div>
+
+            <!-- Revenue Chart -->
+            <div class="auto-style-7">
+                <canvas id="revenueChart" height="120"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Setup Chart.js
+        const ctx = document.getElementById('revenueChart').getContext('2d');
+        const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+        gradient.addColorStop(0, 'rgba(255, 0, 127, 0.5)');
+        gradient.addColorStop(1, 'rgba(255, 0, 127, 0.0)');
+
+        const revenueChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                datasets: [{
+                    label: 'Treasury Yield (USD)',
+                    data: [120, 190, 140, 210, 250, 310, 380],
+                    borderColor: 'rgba(255, 0, 127, 1)',
+                    backgroundColor: gradient,
+                    borderWidth: 2,
+                    tension: 0.4,
+                    fill: true,
+                    pointBackgroundColor: '#fff',
+                    pointBorderColor: 'rgba(255, 0, 127, 1)'
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#888' } },
+                    x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#888' } }
+                }
+            }
+        });
+
+        // API Interactions
+        async function fetchStatus() {
+            try {
+                const res = await fetch('/api/monetization/status');
+                const data = await res.json();
+                
+                document.getElementById('valIdeasDiscovered').innerText = data.ideas_discovered || 0;
+                document.getElementById('valIdeasCertified').innerText = data.ideas_certified || 0;
+
+                const tbody = document.querySelector('#agentsTable tbody');
+                tbody.innerHTML = '';
+                
+                if (data.agents_status && Object.keys(data.agents_status).length > 0) {
+                    for (const [agentId, statusObj] of Object.entries(data.agents_status)) {
+                        tbody.innerHTML += `
+                            <tr>
+                                <td><strong class="auto-style-8">${agentId}</strong></td>
+                                <td>${statusObj.status || 'Active'}</td>
+                                <td>Market Scout</td>
+                                <td><button class="neon-btn auto-style-9" onclick="removeAgent('${agentId}')" >REMOVE</button></td>
+                            </tr>
+                        `;
+                    }
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="4" class="auto-style-10">No active agents in matrix.</td></tr>';
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function runCycle() {
+            const btn = document.getElementById('btnRunCycle');
+            btn.innerText = 'DISCOVERING...';
+            btn.style.opacity = '0.5';
+            
+            try {
+                await fetch('/api/monetization/cycle', { method: 'POST' });
+                await fetchStatus();
+            } catch (err) {
+                console.error(err);
+            }
+            
+            btn.innerText = 'RUN DISCOVERY CYCLE';
+            btn.style.opacity = '1';
+        }
+
+        async function addAgent() {
+            const input = document.getElementById('newAgentId');
+            const agentId = input.value.trim();
+            if (!agentId) return;
+
+            await fetch('/api/monetization/agents', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ agent_id: agentId, action: 'add' })
+            });
+            input.value = '';
+            fetchStatus();
+        }
+
+        async function removeAgent(agentId) {
+            await fetch('/api/monetization/agents', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ agent_id: agentId, action: 'remove' })
+            });
+            fetchStatus();
+        }
+
+        document.getElementById('btnRefresh').addEventListener('click', fetchStatus);
+        document.getElementById('btnRunCycle').addEventListener('click', runCycle);
+        document.getElementById('btnAddAgent').addEventListener('click', addAgent);
+
+        // Initial Load
+        fetchStatus();
+    </script>
+</body>
+</html>

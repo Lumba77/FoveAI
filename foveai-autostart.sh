@@ -147,5 +147,6 @@ log "  Multigate:  $(ss -tlnp | grep -q ':5177' && echo active || echo inactive)
 log "  Backend:     $(ss -tlnp | grep -q ':8400' && echo active || echo inactive) on 0.0.0.0:8400"
 log "  APK Server:  $(ss -tlnp | grep -q ':8888' && echo active || echo inactive) on 0.0.0.0:8888"
 log ""
-log "LAN access:  http://192.168.8.100:5177"
+LAN_IP=$(cd "$(dirname "${BASH_SOURCE[0]}")" && .venv/bin/python -B -c 'from server_config import ServerConfig; print(ServerConfig.SERVER_IP)')
+log "LAN access:  http://${LAN_IP}:5177"
 log "Web access:  https://xarel.net (via Cloudflare Tunnel)"

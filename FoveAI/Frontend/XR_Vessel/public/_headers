@@ -1,0 +1,41 @@
+# LUMAX Cloudflare Pages Headers — CORS + Security
+# This file tells Cloudflare Pages to add CORS headers
+
+# Manifest needs CORS for PWA + Cloudflare Access
+/manifest.json
+  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Methods: GET
+  Access-Control-Allow-Headers: Content-Type
+  Content-Type: application/manifest+json
+
+# Service worker
+/sw.js
+  Content-Type: application/javascript
+  Service-Worker-Allowed: /
+
+# Static assets — cache control
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+  Access-Control-Allow-Origin: *
+
+# VRM/GLB models — CORS for Three.js
+/*.vrm
+  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Methods: GET, OPTIONS
+
+/*.glb
+  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Methods: GET, OPTIONS
+
+/*.vrma
+  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Methods: GET, OPTIONS
+
+# Root and HTML
+/
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

@@ -5,24 +5,22 @@ Port: 8110 | Service: Subconscious Motor Cortex (LM Studio SDK bridge)
 Wraps motor_cortex.py tool schemas behind a FastAPI service so the
 Sleipnir launcher can spawn it as a managed worker node.
 """
-import json
-import sys
+
 import os
-from typing import Dict, Any
+import sys
 
 # Ensure sibling imports work when spawned from project root
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-import uvicorn
-
-from motor_cortex import get_motor_tools_schema, format_sse_motor_event
+from motor_cortex import format_sse_motor_event, get_motor_tools_schema
 
 app = FastAPI(
     title="Motor Cortex Daemon",
     version="1.0.0",
-    description="Subconscious motor bridge for Jen's physical avatar — walk, gesture, emotion."
+    description="Subconscious motor bridge for Jen's physical avatar — walk, gesture, emotion.",
 )
 
 
@@ -53,18 +51,22 @@ async def execute_motor(request: Request):
     if tool_name not in valid_tools:
         return JSONResponse(
             status_code=400,
-            content={"error": f"Unknown tool '{tool_name}'. Valid: {sorted(valid_tools)}"}
+            content={
+                "error": f"Unknown tool '{tool_name}'. Valid: {sorted(valid_tools)}"
+            },
         )
 
     # In a full implementation this would bridge to LM Studio / Unreal / Godot.
     # For now, echo back the command so the frontend can consume it via SSE.
     sse_event = format_sse_motor_event(tool_name, args)
-    return JSONResponse(content={
-        "status": "dispatched",
-        "tool": tool_name,
-        "args": args,
-        "sse": sse_event.strip()
-    })
+    return JSONResponse(
+        content={
+            "status": "dispatched",
+            "tool": tool_name,
+            "args": args,
+            "sse": sse_event.strip(),
+        }
+    )
 
 
 @app.post("/motor/stream")
@@ -91,12 +93,13 @@ async def stream_motor(request: Request):
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
-        }
+        },
     )
 
 
 # --- Live event bus: soul_core publishes here, frontend subscribes ---
 import asyncio
+
 from fastapi.middleware.cors import CORSMiddleware
 
 app.add_middleware(
@@ -117,7 +120,7 @@ async def publish_motor(request: Request):
     """
     body = await request.json()
     event = format_sse_motor_event(body.get("tool", ""), body.get("args", {}))
-    for q in list(_subscribers):
+    for q in _subscribers:
         try:
             q.put_nowait(event)
         except asyncio.QueueFull:
@@ -136,7 +139,7 @@ async def subscribe_motor():
 
     async def event_stream():
         try:
-            yield "data: {\"type\":\"connected\"}\n\n"
+            yield 'data: {"type":"connected"}\n\n'
             while True:
                 event = await q.get()
                 yield event
@@ -150,16 +153,20 @@ async def subscribe_motor():
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
-        }
+        },
     )
 
 
 if __name__ == "__main__":
     import uvicorn
+
     try:
-        import sys, os
+        import os
+        import sys
+
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
         from server_config import ServerConfig as cfg
+
         _host = cfg.BIND_HOST
         _port = cfg.MOTOR_DAEMON_PORT
     except ImportError:

@@ -166,7 +166,7 @@ const { patchMessages }      = require('./core/system-prompt-patch');
 const { detectRecall, collectStream, collectJson, buildMemoryInjection }
                               = require('./core/recall-interceptor');
 const { compressContext } = require('./core/context-compressor');
-const { getAuthManager } = require('./core/auth-manager');
+const { getAuthManager, FEATURE_CATALOG } = require('./core/auth-manager');
 const { getSwarmRouter } = require('./core/swarm-router');
 const { saveContinuity, loadContinuity, buildResumeContext, getHistory: getContinuityHistory, clearContinuity } = require('./core/memory-continuity');
 const { checkQuality, quickCheck } = require('./core/quality-guard');
@@ -192,6 +192,182 @@ const RE_THINKING = /<thinking>.*?<\/thinking>/gsi;
 function stripThinking(content) {
     if (typeof content !== 'string') return content;
     return content.replace(RE_THINKING, '[thought]').trim();
+}
+
+// ── Avatar-protocol tag stripping (client-facing output boundary) ─────────────
+// XRLF persona emits machine directives inline: <emotion:…>, <movement:…>,
+// <thought:…>, <micro:…>, <mode:…>, <recall:…> etc. These belong to the
+// motor/XR/TTS layers — API consumers (IDE plugins, scripts) get them stripped.
+// Callers that need the raw stream send `xrlf_raw: true` or X-FoveAI-Raw: 1.
+// Upstream reasoning (reasoning_content) is surfaced in its own field instead
+// of being inlined — thinking models stay supported without leaking into prose.
+const PROTOCOL_TAGS = new Set([
+    'think', 'thinking', 'thought', 'emotion', 'movement', 'micro', 'mode',
+    'recall', 'zoom', 'saccade', 'accommodate', 'temporal_zoom',
+    'action', 'motor', 'gaze', 'posture', 'prosody', 'sfx', 'sound', 'persona',
+    'self', 'dev', 'audio', 'animation', 'request'
+]);
+const PROTOCOL_BLOCK_TAGS = new Set(['think', 'thinking', 'thought']); // paired <x>…</x>
+// Chat-template tokens that must never reach clients — stripped in ANY form
+// (<x>, </x>, <|x|>) since they carry no user-facing meaning.
+const TEMPLATE_TOKENS = new Set([
+    'start_of_turn', 'end_of_turn', 'im_start', 'im_end', 'turn',
+    'response', 'eot', 'eos'
+]);
+
+// Stateful stripper — safe across arbitrary chunk boundaries (SSE deltas can
+// split a tag mid-name). Unknown tags like <div> pass through untouched so
+// code/HTML in replies is preserved. Stripped <thought:>/<think> content is
+// captured into a reasoning buffer — thinking stays available to callers via
+// reasoning_content, just out of `content`.
+function createTagStripper() {
+    let pending = '';       // chars that might be an incomplete tag
+    let blockTag = null;    // name of the open <think>/<thinking>/<thought> block
+    let blockBuf = '';      // in-progress text of the open block
+    let inParenThought = false; // inside a (thought:…) paren marker
+    const thoughtParts = [];// captured thought/reasoning fragments
+    return {
+        feed(chunk) {
+            const s = pending + chunk;
+            pending = '';
+            let out = '', i = 0;
+            while (i < s.length) {
+                if (inParenThought) {
+                    // Inside (thought:… — capture until the closing paren.
+                    const close = s.indexOf(')', i);
+                    if (close === -1) {
+                        // hold a trailing '(' — could start a nested marker…
+                        // parens inside thought text are rare; treat the whole
+                        // remainder as thought and wait for the closer.
+                        blockBuf += s.slice(i);
+                        break;
+                    }
+                    blockBuf += s.slice(i, close);
+                    // a chunk-split "(thought" + ":" leaves a leading colon
+                    const parenThought = blockBuf.trim().replace(/^[:：\-–—]\s*/, '');
+                    if (parenThought) thoughtParts.push(parenThought);
+                    blockBuf = '';
+                    inParenThought = false;
+                    i = close + 1;
+                    continue;
+                }
+                if (blockTag) {
+                    const closer = '</' + blockTag;
+                    const close = s.indexOf(closer, i);
+                    if (close === -1) {
+                        // possible partial closer at buffer end — hold the tail
+                        const tailStart = Math.max(i, s.length - closer.length);
+                        const tail = s.slice(tailStart);
+                        const partial = tail.indexOf('</');
+                        let hold = -1;
+                        if (partial !== -1 && closer.startsWith(tail.slice(partial))) {
+                            hold = partial;
+                        }
+                        // capture block content as reasoning, minus held tail
+                        blockBuf += hold !== -1 ? s.slice(i, tailStart + hold) : s.slice(i);
+                        if (hold !== -1) pending = tail.slice(hold);
+                        break;
+                    }
+                    blockBuf += s.slice(i, close);
+                    if (blockBuf.trim()) thoughtParts.push(blockBuf.trim());
+                    blockBuf = '';
+                    const gt = s.indexOf('>', close);
+                    if (gt === -1) { pending = s.slice(close); break; }
+                    i = gt + 1;
+                    blockTag = null;
+                    continue;
+                }
+                // Scan for the next marker start: '<' (tag) or '(' (paren
+                // thought) — whichever comes first.
+                const lt = s.indexOf('<', i);
+                const po = s.indexOf('(', i);
+                const next = lt === -1 ? po : (po === -1 ? lt : Math.min(lt, po));
+                if (next === -1) { out += s.slice(i); break; }
+                out += s.slice(i, next);
+
+                if (s[next] === '(') {
+                    const rest = s.slice(next);
+                    const pm = rest.match(/^\(\s*(thought|think|thinking)\s*:?/i);
+                    if (pm) {
+                        inParenThought = true;
+                        i = next + pm[0].length;
+                        continue;
+                    }
+                    // Buffer ends in a possible marker prefix — hold it.
+                    const head = rest.match(/^\(\s*([a-z]*)$/i);
+                    if (head && (('thought'.startsWith(head[1].toLowerCase())) ||
+                                 ('think'.startsWith(head[1].toLowerCase())) ||
+                                 ('thinking'.startsWith(head[1].toLowerCase())))) {
+                        pending = rest;
+                        break;
+                    }
+                    out += '('; // ordinary paren — keep literally
+                    i = next + 1;
+                    continue;
+                }
+
+                const rest = s.slice(next);
+                const m = rest.match(/^<(\/?)(\|?[a-zA-Z_]+\|?)([^>]*)>/);
+                if (m) {
+                    const name = m[2].replace(/\|/g, '').toLowerCase();
+                    const isClose = m[1] === '/';
+                    // Markers use the <name:value> form — require the colon so
+                    // plain HTML/XML in code output (<audio controls>, <meta>)
+                    // survives. Block tags and stray closers strip unconditionally.
+                    // Template tokens (<start_of_turn>, <|im_end|>…) strip in
+                    // every form — they are never user-facing content.
+                    const isMarker = m[3].startsWith(':');
+                    if (TEMPLATE_TOKENS.has(name) ||
+                        (PROTOCOL_TAGS.has(name) && (isClose || isMarker || PROTOCOL_BLOCK_TAGS.has(name)))) {
+                        if (!isClose && isMarker && (name === 'thought' || name === 'think' || name === 'thinking')) {
+                            // <thought:the idea…> — capture the marker value
+                            const v = m[3].slice(1).trim();
+                            if (v) thoughtParts.push(v);
+                        } else if (!isClose && !isMarker && PROTOCOL_BLOCK_TAGS.has(name)) {
+                            blockTag = name; // <thought>/<think>/<thinking> — capture inner text until closer
+                        }
+                        // drop the tag itself
+                    } else {
+                        out += m[0]; // not a protocol tag — keep literally
+                    }
+                    i = lt + m[0].length;
+                } else if (/^<\/?\|?[a-zA-Z_|]*(:[^>]*)?$/.test(rest)) {
+                    pending = rest; // incomplete tag/marker ('<', '<em', '<micro:part'…) — wait for more
+                    break;
+                } else {
+                    out += '<'; // '<' not starting a tag (math, generics, etc.)
+                    i = lt + 1;
+                }
+            }
+            return out;
+        },
+        flush() {
+            // Commit any still-open thought block so its text isn't lost
+            if (blockBuf.trim()) thoughtParts.push(blockBuf.trim());
+            blockBuf = '';
+            // Anything still pending is an unterminated tag fragment — drop it
+            // only if it looks like a protocol tag; otherwise emit as text.
+            const s = pending; pending = '';
+            if (!blockTag && /^<\/?([a-zA-Z_]+)/.test(s)) {
+                const name = (s.match(/^<\/?([a-zA-Z_]+)/) || [])[1];
+                if (name && !PROTOCOL_TAGS.has(name.toLowerCase())) return s;
+                return '';
+            }
+            return blockTag ? '' : s;
+        },
+        takeThoughts() {
+            // strip stray tag fragments that leaked inside thought text
+            // (e.g. a model-written '</thought' inside a (thought:…) paren)
+            const t = thoughtParts.join(' ').replace(/<\/?[a-zA-Z_|][^>\s]*/g, '').replace(/\s{2,}/g, ' ').trim();
+            thoughtParts.length = 0;
+            return t;
+        }
+    };
+}
+function stripProtocolTags(text) {
+    if (typeof text !== 'string' || !text.includes('<')) return text;
+    const st = createTagStripper();
+    return st.feed(text) + st.flush();
 }
 
 // ── Multimodal Content Passthrough ──────────────────────────────────────────
@@ -399,6 +575,19 @@ function loadConfig(overrides = {}) {
 
 const config = loadConfig();
 
+// ── Conversation identity names (assistant + user) ─────────────────────────
+// Assistant name is canonical in Backend/Cognition/jen_soul.json (soul.soul_name);
+// falls back to config.identity_name. User name comes from config.user_name.
+let ASSISTANT_NAME = config.identity_name || 'Jen';
+const USER_NAME = config.user_name || 'You';
+try {
+    const soulPath = path.resolve(__dirname, '..', 'Backend', 'Cognition', 'jen_soul.json');
+    if (fs.existsSync(soulPath)) {
+        const soul = JSON.parse(fs.readFileSync(soulPath, 'utf8'));
+        ASSISTANT_NAME = soul?.soul?.soul_name || soul?.profile?.nickname || ASSISTANT_NAME;
+    }
+} catch (_) {}
+
 // ── XRLF Port Override ─────────────────────────────────────────────────────
 // Default port for the new canonical XRLF proxy is 8400.
 // Set XRLF_PROXY_PORT env var to override.
@@ -428,6 +617,25 @@ const NVIDIA_MODELS   = (process.env.XRLF_NVIDIA_MODELS ||
     'moonshotai/kimi-k3,deepseek-ai/deepseek-v4-flash-0731,nvidia/nemotron-3-super-120b-a12b')
     .split(',').map(s => s.trim()).filter(Boolean);
 const isNvidiaModel   = (m) => typeof m === 'string' && m.startsWith(NVIDIA_PREFIX);
+
+// Member-facing free cloud tier: 'nvidia-free' is the only cloud model ID
+// testers see — the real backend model is server-side config, not disclosed.
+const FREE_CLOUD_ID    = 'nvidia-free';
+const FREE_CLOUD_MODEL = process.env.FOVEAI_CLOUD_FREE_MODEL || 'nvidia/nemotron-3-super-120b-a12b';
+const isFreeCloudModel = (m) => m === FREE_CLOUD_ID;
+
+// ── BYOK side-route ─────────────────────────────────────────────────────────
+// Model name 'byok' or 'byok/<model>' routes through the caller's own stored
+// cloud key (set on /user-settings.html). The full XRLF pipeline — memory,
+// compression, persona — still applies; only the final upstream changes.
+const BYOK_PROVIDER_URLS = {
+    openai:     'https://api.openai.com/v1',
+    nvidia:     'https://integrate.api.nvidia.com/v1',
+    ollama:     'https://ollama.com/v1',
+    openrouter: 'https://openrouter.ai/api/v1',
+    lmstudio:   null, // requires user-supplied baseUrl
+};
+const isByokModel = (m) => typeof m === 'string' && /^byok(\/|$)/.test(m);
 
 // Architecture brief injected as a system message on nvidia/* requests so the
 // cloud model knows XRLF local models are the product and it is a dev helper.
@@ -685,6 +893,35 @@ app.use((req, res, next) => {
     next();
 });
 
+// ── Access telemetry ─────────────────────────────────────────────────────────
+// Every API call lands in the buffered JSONL request log. Chat completions are
+// skipped here — handleChatCompletion writes a richer record (model, route,
+// latency, thought counts) instead of this generic one.
+app.use((req, res, next) => {
+    const urlPath = req.path || (req.url ? req.url.split('?')[0] : '');
+    if (SILENT_LOG_PATHS.has(urlPath)
+        || urlPath === '/v1/chat/completions' || urlPath === '/chat/completions') {
+        return next();
+    }
+    const t0 = Date.now();
+    let written = false;
+    const writeEntry = (err) => {
+        if (written) return;
+        written = true;
+        logRequest({
+            route: 'api',
+            endpoint: `${req.method} ${urlPath}`,
+            status: res.statusCode,
+            latency_ms: Date.now() - t0,
+            user: req.userId || 'anonymous',
+            error: err || (res.statusCode >= 400 ? `http_${res.statusCode}` : undefined),
+        });
+    };
+    res.on('finish', () => writeEntry());
+    res.on('close', () => { if (!res.writableFinished) writeEntry('client_disconnect'); });
+    next();
+});
+
 // ── Dashboard static assets on port 8401 ─────────────────────────────────────
 const DASHBOARD_PORT = parseInt(process.env.XRLF_DASHBOARD_PORT || '8401', 10);
 const dashboardApp   = express();
@@ -822,6 +1059,7 @@ app.post('/api/XRLF/dispatch', handleXRLFDispatch);
 // POST /v1/switch-model  { "model": "kimi-k2.7-code" }
 // GET  /v1/profiles
 app.post(['/v1/switch-model', '/api/switch-model', '/api/settings'], (req, res) => {
+    if (!requireAdmin(req, res)) return;
     let { model, role, key, value } = req.body || {};
     if (!model && key === 'XRLF_MODEL_LOCAL_ID' && value) {
         model = value;
@@ -974,12 +1212,12 @@ dashboardApp.get('/api/proximity/state', (req, res) => {
 // proxy app mounted below.
 dashboardApp.use('/xrlf', async (req, res) => {
     try {
-        const r = await fetch(`http://127.0.0.1:8402${req.url}`, {
+        const r = await withLocalUpstream(() => fetch(`http://127.0.0.1:8402${req.url}`, {
             method: req.method,
             headers: { 'Content-Type': 'application/json' },
             body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body || {}),
             signal: AbortSignal.timeout(120000),
-        });
+        }));
         const text = await r.text();
         res.status(r.status).type(r.headers.get('content-type') || 'text/plain').send(text);
     } catch (e) {
@@ -1210,12 +1448,78 @@ function scaleConfigForModel(modelName, baseConfig) {
     return { scaledConfig: scaled, label };
 }
 
+// ── Local upstream serializer ────────────────────────────────────────────────
+// llama.cpp's CUDA pool asserts (GGML_ASSERT ptr == pool_addr + pool_used →
+// SIGABRT) when decodes overlap on a single context. Serialize every call to
+// the LOCAL runtime so only one upstream request is in flight at a time; the
+// slot is held until the response body is fully consumed (end/close/error).
+// Cloud routes (nvidia/*, cloud mode) bypass the queue.
+const { acquireLocalUpstream, withLocalUpstream } = require('./core/local-upstream-queue');
+const { logRequest, bodySnippet, readRecent, summarize } = require('./core/request-log');
+
 // ── Core request handler ────────────────────────────────────────────────────
 
 async function handleChatCompletion(req, res, injectMessages = null, store, workspaceId) {
     logDebug(`\n[${new Date().toISOString()}] handleChatCompletion started\n`);
     const body     = { ...req.body };
     const isStream = body.stream === true;
+
+    // ── Request telemetry (beta observability) ─────────────────────────────
+    // Buffered JSONL writes — never blocks the response. Privacy: message
+    // bodies only when FOVEAI_LOG_BODIES=1 (and then truncated snippets).
+    const _logStart = Date.now();
+    const _log = req._log = {
+        model: body.model || null,
+        stream: isStream,
+        prompt_chars: JSON.stringify(body.messages || []).length,
+        prompt_snip: bodySnippet(
+            extractTextFromContent(
+                (body.messages || []).filter(m => m && m.role === 'user').pop()?.content)),
+    };
+    let _logWritten = false;
+    const _writeLog = (forcedError) => {
+        if (_logWritten) return;
+        _logWritten = true;
+        logRequest({
+            route: _log.route || 'unknown',
+            model: _log.model,
+            stream: _log.stream,
+            status: res.statusCode,
+            latency_ms: Date.now() - _logStart,
+            user: req.userId || 'anonymous',
+            error: forcedError || _log.error
+                || (res.statusCode >= 400 ? `http_${res.statusCode}` : undefined),
+            workspace: workspaceId,
+            prompt_chars: _log.prompt_chars,
+            reply_chars: _log.reply_chars,
+            reasoning_chars: _log.reasoning_chars,
+            prompt_snip: _log.prompt_snip,
+            reply_snip: _log.reply_snip,
+        });
+    };
+    res.on('finish', () => _writeLog());
+    // Client abort mid-stream never emits 'finish' — catch it via 'close'.
+    res.on('close', () => { if (!res.writableFinished) _writeLog('client_disconnect'); });
+
+    // Protocol consumers (Multigate TTS/motor/XR) opt into raw avatar tags;
+    // everyone else gets them stripped at this API boundary.
+    const wantRaw = body.xrlf_raw === true || req.headers?.['x-foveai-raw'] === '1';
+    delete body.xrlf_raw; // strict upstreams (NVIDIA NIM) reject unknown fields
+
+    // Headless callers (IDE plugins, API scripts) get a soul prompt without
+    // avatar markup — nothing downstream consumes <emotion>/<movement> tags
+    // there, so generating them is wasted tokens/latency. Thought monologue
+    // stays (it feeds memory). Embodied clients opt out via xrlf_raw.
+    if (!wantRaw) body.xrlf_headless = true;
+
+    // X-Deep-Think (Multigate toggle) → xrlf_thinking. When explicitly 'false'
+    // the soul prompt drops the [MONOLOGUE] block so no <thought:> channel is
+    // prompted at all; unset/true keeps thoughts available at will. Body field
+    // `xrlf_thinking` works for direct callers; header takes precedence.
+    const deepThinkHeader = req.headers?.['x-deep-think'];
+    if (deepThinkHeader === 'true' || deepThinkHeader === 'false') {
+        body.xrlf_thinking = deepThinkHeader === 'true';
+    }
 
     // ── Auto-apply model profile ───────────────────────────────────────────────
     // Snap ALL settings (URL, mode, ctx, aggression, token caps) into place
@@ -1438,7 +1742,15 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
     // ── Smart Proxy Context Router ───────────────────────────────────────
     // The smart router's middleman (routing/compression) ALWAYS goes to local
     // LM Studio — never to the cloud. Cloud models handle chat only.
-    const SMART_PROXY_ENABLED = REPO_ENABLED && REPO_CONTEXT_OVERRIDE && process.env.XRLF_SMART_PROXY !== '0' && process.env.XRLF_SMART_PROXY !== 'false';
+    // Skipped for xrlf_server (local ctx is already guarded by the compressor,
+    // ContextHealer and runtime adapt_context), and OFF BY DEFAULT everywhere:
+    // the dedicated middleman/router models are gone, so routing runs through
+    // the main model and its keep-index decisions silently amputate context.
+    // Opt back in explicitly with XRLF_SMART_PROXY=1 if ever needed.
+    const isXrlfServer = (config._active_profile && config._active_profile.provider === 'xrlf_server')
+        || (config.upstream_url || '').replace(/\/v1\/?$/, '') === XRLF_RUNTIME_URL.replace(/\/v1\/?$/, '');
+    const SMART_PROXY_ENABLED = !isXrlfServer && REPO_ENABLED && REPO_CONTEXT_OVERRIDE
+        && (process.env.XRLF_SMART_PROXY === '1' || process.env.XRLF_SMART_PROXY === 'true');
     if (SMART_PROXY_ENABLED) {
         try {
             const { smartRouteMessages } = require('./core/smart-router');
@@ -1454,12 +1766,16 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
 
     logDebug(`[${new Date().toISOString()}] before patchMessages\n`);
     // Patch messages with ring block + ACTIVE RECALL instructions
-    // Skip for local XRLF server — its llama.cpp runtime doesn't accept injected system prompts.
-    const isXrlfServer = config._active_profile && config._active_profile.provider === 'xrlf_server';
-    // NVIDIA side-route: resolved early so nvidia/* requests also receive the
-    // memory/repo ring — the cloud model is a co-developer and needs context.
+    // Local XRLF (:8402) composes its own principia+membrane+soul system prompt
+    // via _inject_system — so skip the proxy RING there (avoids double memory
+    // injection), but still send the HUD (task board, repo skeleton, diagnostics),
+    // compact persona, memory protocol and resume context: the runtime merges
+    // them into its system message. Cloud/LLM-studio paths get the full ring.
     const nvidiaRequested = isNvidiaModel(body.model || '');
-    body.messages = (REPO_ENABLED && REPO_CAPABILITY_OVERRIDE && (!isXrlfServer || nvidiaRequested)) ? patchMessages(baseMessages, ringBlock, scaledConfig, body) : baseMessages;
+    const freeCloudRequested = isFreeCloudModel(body.model || '');
+    const byokRequested = isByokModel(body.model || '');
+    const patchRing = isXrlfServer ? hudBlock : ringBlock;
+    body.messages = (REPO_ENABLED && REPO_CAPABILITY_OVERRIDE) ? patchMessages(baseMessages, patchRing, scaledConfig, body) : baseMessages;
     logDebug(`[${new Date().toISOString()}] after patchMessages\n`);
 
     // ── Self-Healing Context Guard ────────────────────────────────────────
@@ -1512,7 +1828,53 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
     // In cloud mode, pass through the client's model name — don't override it.
     // Only override when: (a) local LM Studio needs a specific model, or (b) model is 'auto'/empty.
     // NVIDIA side-routes are exempt — the nvidia/<id> name selects the upstream below.
-    const shouldOverride = !nvidiaRequested &&
+    // Cloud quota: nvidia/* models ride the owner's shared free-tier key, so
+    // member access is feature-gated AND metered — per-user and pool-wide
+    // daily caps keep beta usage from flagging or exhausting the key.
+    // Legacy/local callers are exempt: the owner's own traffic is uncapped.
+    if (nvidiaRequested || freeCloudRequested) {
+        const mgr = getAuthManager(AUTH_DB_DIR);
+        const na = resolveRequestAuth(req);
+        if (!mgr.hasFeature({ role: na.role, features: na.features }, 'cloud')) {
+            return res.status(403).json({ error: 'cloud models are not enabled for this account' });
+        }
+        if (!na.isLegacy) {
+            const USER_CAP = parseInt(process.env.FOVEAI_CLOUD_DAILY_PER_USER || '50', 10);
+            const GLOBAL_CAP = parseInt(process.env.FOVEAI_CLOUD_DAILY_GLOBAL || '400', 10);
+            const used = mgr.usageToday(na.userId, 'cloud');
+            const pool = mgr.usageToday('__global__', 'cloud');
+            if (used >= USER_CAP || pool >= GLOBAL_CAP) {
+                return res.status(429).json({ error: `daily cloud quota reached (${Math.min(used, USER_CAP)}/${USER_CAP} yours · ${pool}/${GLOBAL_CAP} pool) — local models stay unlimited` });
+            }
+            mgr.bumpUsage(na.userId, 'cloud');
+            mgr.bumpUsage('__global__', 'cloud');
+        }
+    }
+
+    // BYOK: resolve the caller's own cloud key before any model override —
+    // 'byok' uses their stored default model, 'byok/<model>' overrides it.
+    let byokCfg = null;
+    if (byokRequested) {
+        const mgr = getAuthManager(AUTH_DB_DIR);
+        const byokAuth = resolveRequestAuth(req);
+        if (!mgr.hasFeature({ role: byokAuth.role, features: byokAuth.features }, 'byok')) {
+            return res.status(403).json({ error: 'byok feature not enabled for this account' });
+        }
+        byokCfg = req.userId && req.userId !== 'anonymous' ? mgr.getByok(req.userId) : null;
+        if (!byokCfg) {
+            return res.status(400).json({ error: 'no cloud key configured — add one under "Bring your own model" on /user-settings.html' });
+        }
+        body.model = String(body.model).replace(/^byok\/?/, '') || byokCfg.model;
+        if (!body.model) {
+            return res.status(400).json({ error: 'BYOK needs a model — set a default on your settings page or request byok/<model>' });
+        }
+        delete body.session_id; delete body._tasks; delete body.tasks;
+        delete body.persona; delete body.workspaceId; delete body.workspace_id;
+        delete body.xrlf_headless; delete body.xrlf_thinking;
+        console.log(`[BYOK] user=${req.userId} provider=${byokCfg.provider} model=${body.model}`);
+    }
+
+    const shouldOverride = !nvidiaRequested && !byokRequested && !freeCloudRequested &&
         ((isLocalLMStudio && COGNITIVE_MODE !== 'cloud') || originalModel === 'auto' || !originalModel);
     if (nvidiaRequested) {
         body.model = originalModel.slice(NVIDIA_PREFIX.length);
@@ -1524,7 +1886,29 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
         delete body.persona;
         delete body.workspaceId;
         delete body.workspace_id;
+        delete body.xrlf_headless; delete body.xrlf_thinking;
         console.log(`[NVIDIA] Routing '${originalModel}' → NVIDIA NIM as '${body.model}'`);
+    } else if (freeCloudRequested) {
+        body.model = FREE_CLOUD_MODEL;
+        body.messages = injectNvidiaContext(body.messages);
+        delete body.session_id;
+        delete body._tasks;
+        delete body.tasks;
+        delete body.persona;
+        delete body.workspaceId;
+        delete body.workspace_id;
+        delete body.xrlf_headless; delete body.xrlf_thinking;
+        console.log(`[NVIDIA] Routing '${FREE_CLOUD_ID}' → NVIDIA NIM as '${body.model}'`);
+    }
+    if (nvidiaRequested || freeCloudRequested) {
+        // NIM reasoning control + output cap. kimi-k3 defaults to
+        // reasoning_effort=max which — combined with the 64K supermemory
+        // ring — pushed every turn into the client-side timeout.
+        const effort = (process.env.FOVEAI_NVIDIA_REASONING || 'low').toLowerCase().trim();
+        body.reasoning_effort = { true: 'high', false: 'low', on: 'high', off: 'low' }[effort] || effort;
+        if (!body.max_tokens) {
+            body.max_tokens = parseInt(process.env.XRLF_NVIDIA_MAX_TOKENS || '2048', 10);
+        }
     }
     const currentEnvModel = COGNITIVE_MODE === 'cloud'
         ? (process.env.XRLF_MODEL_CLOUD_ID || process.env.XRLF_PROXY_MODEL || UPSTREAM_MODEL).trim()
@@ -1535,6 +1919,9 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
     } else {
         console.log(`[Model] Passthrough model: '${body.model}' (no override). Cognitive mode: ${COGNITIVE_MODE}`);
     }
+    _log.route = nvidiaRequested ? 'nvidia' : freeCloudRequested ? 'nvidia-free'
+        : byokRequested ? 'byok' : (config._cloud_mode ? 'cloud' : 'local');
+    _log.model = body.model;
 
     // ── Self-Healing Upstream Fetch (with retry loop) ────────────────────
     const MAX_CTX_RETRIES = parseInt(process.env.XRLF_CTX_MAX_RETRIES || '3', 10);
@@ -1546,8 +1933,10 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
     while (retryCount <= MAX_CTX_RETRIES) {
         try {
             const upstreamHeaders = { 'Content-Type': 'application/json' };
-            if (nvidiaRequested) {
+            if (nvidiaRequested || freeCloudRequested) {
                 upstreamHeaders['Authorization'] = `Bearer ${NVIDIA_API_KEY}`;
+            } else if (byokRequested) {
+                upstreamHeaders['Authorization'] = `Bearer ${byokCfg.apiKey}`;
             } else if (config._cloud_mode && config._api_key) {
                 upstreamHeaders['Authorization'] = `Bearer ${config._api_key}`;
             }
@@ -1555,10 +1944,16 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
             // P2P Swarm Routing: Determine best available local node based on capability
             const swarmRouter = getSwarmRouter(path.resolve(__dirname, 'memory_data'));
             const requiredCapability = swarmRouter.detectCapability(body.messages);
-            let targetUpstream = nvidiaRequested ? NVIDIA_BASE_URL : config.upstream_url;
+            let targetUpstream = (nvidiaRequested || freeCloudRequested) ? NVIDIA_BASE_URL
+                : byokRequested ? (byokCfg.baseUrl || BYOK_PROVIDER_URLS[byokCfg.provider])
+                : config.upstream_url;
+
+            if (byokRequested && !targetUpstream) {
+                return res.status(400).json({ error: `BYOK provider '${byokCfg.provider}' needs a custom base URL — set one on your settings page` });
+            }
 
             // Only use Swarm Router in local Cognitive Mode and when repo context override is enabled
-            if (!nvidiaRequested && COGNITIVE_MODE !== 'cloud' && REPO_ENABLED && REPO_CONTEXT_OVERRIDE) {
+            if (!nvidiaRequested && !freeCloudRequested && !byokRequested && COGNITIVE_MODE !== 'cloud' && REPO_ENABLED && REPO_CONTEXT_OVERRIDE) {
                 const bestNode = swarmRouter.route(requiredCapability);
                 if (bestNode) {
                     targetUpstream = bestNode;
@@ -1571,11 +1966,34 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
             if (targetUpstream.endsWith('/v1')) fetchUrl = `${targetUpstream}/chat/completions`;
 
             logDebug(`[${new Date().toISOString()}] before fetch to ${fetchUrl} (attempt ${retryCount + 1}/${MAX_CTX_RETRIES + 1})\n`);
-            upstreamRes = await fetch(fetchUrl, {
-                method: 'POST',
-                headers: upstreamHeaders,
-                body: JSON.stringify(body)
-            });
+            // Serialize concurrent requests to the local runtime — overlapping
+            // decode frees trip llama.cpp's CUDA pool assert → SIGABRT (see
+            // runtime_stderr.log). Slot is released when the response body ends.
+            const isLocalTarget = !nvidiaRequested && !freeCloudRequested && !byokRequested && !(config._cloud_mode && config._api_key);
+            let releaseSlot = null;
+            if (isLocalTarget) {
+                releaseSlot = await acquireLocalUpstream();
+            }
+            try {
+                upstreamRes = await fetch(fetchUrl, {
+                    method: 'POST',
+                    headers: upstreamHeaders,
+                    body: JSON.stringify(body),
+                    signal: AbortSignal.timeout(
+                        parseInt(process.env.XRLF_UPSTREAM_TIMEOUT_MS || '300000', 10))
+                });
+            } catch (fetchErr) {
+                if (releaseSlot) releaseSlot();
+                throw fetchErr;
+            }
+            if (releaseSlot) {
+                let released = false;
+                const rel = () => { if (!released) { released = true; releaseSlot(); } };
+                upstreamRes.body.once('end', rel);
+                upstreamRes.body.once('close', rel);
+                upstreamRes.body.once('error', rel);
+                setTimeout(rel, 10 * 60 * 1000).unref();
+            }
             logDebug(`[${new Date().toISOString()}] after fetch to upstream\n`);
 
             // Success — notify healer
@@ -1664,9 +2082,8 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
         res.setHeader('Connection', 'keep-alive');
 
         let buffer = '';
-        let thinkingStarted = false;
-        let thinkingEnded = false;
         let firstChunkSent = false;
+        const tagStripper = wantRaw ? null : createTagStripper();
 
         upstreamRes.body.on('data', (chunk) => {
             buffer += chunk.toString();
@@ -1680,8 +2097,17 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
                 }
                 const dataStr = line.slice(5).trim();
                 if (dataStr === '[DONE]') {
-                    if (thinkingStarted && !thinkingEnded) {
-                        res.write('data: ' + JSON.stringify({choices:[{delta:{content:'\\n</think>\\n\\n'}}]}) + '\n\n');
+                    if (tagStripper) {
+                        const tail = tagStripper.flush();
+                        const lastThoughts = tagStripper.takeThoughts();
+                        if (lastThoughts) {
+                            _log.reasoning_chars = (_log.reasoning_chars || 0) + lastThoughts.length;
+                            res.write('data: ' + JSON.stringify({choices:[{delta:{reasoning_content:lastThoughts}}]}) + '\n\n');
+                        }
+                        if (tail) {
+                            _log.reply_chars = (_log.reply_chars || 0) + tail.length;
+                            res.write('data: ' + JSON.stringify({choices:[{delta:{content:tail}}]}) + '\n\n');
+                        }
                     }
                     res.write('data: [DONE]\n\n');
                     continue;
@@ -1696,23 +2122,31 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
                             firstChunkSent = true;
                         }
 
-                        // Ollama Cloud returns reasoning in `delta.reasoning`; treat it like `reasoning_content`
-                        const reasoningText = delta.reasoning_content || delta.reasoning || '';
-                        if (reasoningText) {
-                            if (!thinkingStarted) {
-                                thinkingStarted = true;
-                                delta.content = '\n<thinking>\n' + reasoningText;
-                            } else {
-                                delta.content = reasoningText;
-                            }
-                            delete delta.reasoning_content;
-                            delete delta.reasoning;
-                        } else if (delta.content) {
-                            if (thinkingStarted && !thinkingEnded) {
-                                thinkingEnded = true;
-                                delta.content = '\n</thinking>\n\n' + delta.content;
+                        // Reasoning stays in its own standard field (Ollama's
+                        // `reasoning` is normalized to `reasoning_content`) —
+                        // never inlined into content, so nothing leaks to strip.
+                        if (delta.reasoning && !delta.reasoning_content) {
+                            delta.reasoning_content = delta.reasoning;
+                        }
+                        delete delta.reasoning;
+
+                        if (tagStripper && typeof delta.content === 'string') {
+                            delta.content = tagStripper.feed(delta.content);
+                            if (!delta.content) delete delta.content;
+                            // Captured <thought:>/<think> text rides out as
+                            // reasoning_content — thinking stays visible to
+                            // clients without polluting `content`.
+                            const newThoughts = tagStripper.takeThoughts();
+                            if (newThoughts) {
+                                _log.reasoning_chars = (_log.reasoning_chars || 0) + newThoughts.length;
+                                res.write(`data: ${JSON.stringify({
+                                    ...parsed,
+                                    choices: [{ ...parsed.choices[0], delta: { reasoning_content: newThoughts } }]
+                                })}\n\n`);
                             }
                         }
+                        if (delta.content) _log.reply_chars = (_log.reply_chars || 0) + delta.content.length;
+                        if (delta.reasoning_content) _log.reasoning_chars = (_log.reasoning_chars || 0) + delta.reasoning_content.length;
                         res.write(`data: ${JSON.stringify(parsed)}\n\n`);
                     } else {
                         res.write(line + '\n');
@@ -1725,25 +2159,24 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
 
         upstreamRes.body.on('end', () => {
             if (buffer) {
-                if (buffer.startsWith('data: ') && thinkingStarted && !thinkingEnded && buffer.includes('[DONE]')) {
-                    res.write('data: ' + JSON.stringify({choices:[{delta:{content:'\\n</think>\\n\\n'}}]}) + '\n\n');
-                }
                 res.write(buffer);
             }
             res.end();
         });
         upstreamRes.body.on('error', (e) => {
             console.error('[Passthrough] Stream error:', e);
+            _log.error = `stream_error: ${e.message || e}`;
             res.end();
         });
         return;
     }
 
     // Collect the response watching for <recall:>, <zoom:>, <saccade:>, <accommodate:>, <temporal_zoom:> tokens
-    let fullText, recallQuery, zoomQuery, saccadeQuery, accommodateQuery, temporalZoomQuery, rawJsonData;
+    let fullText, reasoningText, recallQuery, zoomQuery, saccadeQuery, accommodateQuery, temporalZoomQuery, rawJsonData;
     if (isStream) {
         const streamResult = await collectStream(upstreamRes);
         fullText = streamResult.fullText;
+        reasoningText = streamResult.reasoningText;
         recallQuery = streamResult.recallQuery;
         zoomQuery = streamResult.zoomQuery;
         saccadeQuery = streamResult.saccadeQuery;
@@ -1752,6 +2185,7 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
     } else {
         const jsonResult = await collectJson(upstreamRes);
         fullText = jsonResult.fullText;
+        reasoningText = jsonResult.reasoningText;
         recallQuery = jsonResult.recallQuery;
         zoomQuery = jsonResult.zoomQuery;
         saccadeQuery = jsonResult.saccadeQuery;
@@ -1759,9 +2193,13 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
         temporalZoomQuery = jsonResult.temporalZoomQuery;
         rawJsonData = jsonResult.data;
     }
+    _log.reply_chars = (fullText || '').length;
+    _log.reasoning_chars = (reasoningText || '').length;
+    _log.reply_snip = bodySnippet(fullText);
 
     if (!fullText && !recallQuery && !zoomQuery && !saccadeQuery && !accommodateQuery && !temporalZoomQuery) {
         console.warn('[handleChatCompletion] ⚠️ collect stream/json returned empty fullText — upstream likely OOM/crashed');
+        _log.error = 'empty_upstream_response';
 
         // Notify healer of empty response (likely context overflow)
         const { shrunk, reason } = onFailure(200, '', '');
@@ -1977,6 +2415,22 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
     const lastUser = [...(baseMessages)].reverse().find(m => m.role === 'user');
     if (lastUser) {
         const userContent = typeof lastUser.content === 'string' ? lastUser.content : '';
+        // Ping the soul layer (compagent :8405) — her autonomous loop's idle
+        // detection and tick context need to see the user talking. The chat
+        // path bypasses compagent entirely, so without this she's blind.
+        // Fire-and-forget: soul layer may be down, chat must not care.
+        // Skip [SYSTEM: pseudo-user continuations from recursive zoom/recall
+        // turns — the real user message already pinged on the first pass.
+        if (!userContent.startsWith('[SYSTEM:')) {
+            try {
+                fetch('http://127.0.0.1:8405/api/agent/activity', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: userContent.slice(0, 500), source: 'chat' })
+                }).catch(() => {});
+            } catch (_) {}
+        }
+
         const heuristicScore = scoreImportance(userContent, 'user');
         const userMetadata = {
             importance: heuristicScore,
@@ -2041,8 +2495,8 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
             console.warn(`[QualityGuard] ⚠️ Response flagged: score=${qualityResult.qualityScore} issues=${qualityResult.issues.join(',')}`);
         }
 
-        // Fire-and-forget speech dispatch to Mouth TTS service (port 8004 / 8001) for 3D avatar audio sync
-        const mouthUrl = process.env.MOUTH_URL || 'http://127.0.0.1:8004';
+        // Fire-and-forget speech dispatch to TTS service (:8406) for 3D avatar audio sync
+        const mouthUrl = process.env.TTS_URL || 'http://127.0.0.1:8406';
         try {
             const cleanSpeech = fullText.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/```[\s\S]*?```/g, '').replace(/[*_#`]/g, '').trim();
             if (cleanSpeech.length > 0 && cleanSpeech.length < 400) {
@@ -2056,6 +2510,19 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
         } catch (_) {}
     }
 
+    // Client-facing content: strip avatar-protocol tags unless the caller opted
+    // into raw (TTS/motor/XR consumers). Reasoning travels in its own field —
+    // <thought:>/<think> content stripped here is captured into it.
+    let clientText = fullText;
+    if (!wantRaw) {
+        const st = createTagStripper();
+        clientText = st.feed(fullText) + st.flush();
+        const captured = st.takeThoughts();
+        if (captured) {
+            reasoningText = reasoningText ? reasoningText + '\n' + captured : captured;
+        }
+    }
+
     // Return to client in the requested format
     if (isStream) {
         // Re-emit as SSE
@@ -2064,8 +2531,15 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
         res.setHeader('Connection', 'keep-alive');
 
         const id = `chatcmpl-${uuidv4().slice(0, 8)}`;
+        // Reasoning first, in the standard field — thinking-capable clients can render it
+        if (reasoningText) {
+            res.write(`data: ${JSON.stringify({
+                id, object: 'chat.completion.chunk',
+                choices: [{ delta: { reasoning_content: reasoningText }, index: 0, finish_reason: null }]
+            })}\n\n`);
+        }
         // Stream word-by-word for natural feel
-        const words = fullText.split(' ');
+        const words = clientText.split(' ');
         for (let i = 0; i < words.length; i++) {
             const token = (i === 0 ? '' : ' ') + words[i];
             const chunk = {
@@ -2087,8 +2561,8 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
         // Inject context warning if budget was shrunk
         const healerState = getHealerState();
         const responseContent = healerState.totalShrinks > 0 && healerState.currentBudget < healerState.maxBudget
-            ? injectWarning(fullText, `Context budget currently at ${healerState.currentBudget}/${healerState.maxBudget} chars (auto-shrunk ${healerState.totalShrinks}x). Will auto-restore.`)
-            : fullText;
+            ? injectWarning(clientText, `Context budget currently at ${healerState.currentBudget}/${healerState.maxBudget} chars (auto-shrunk ${healerState.totalShrinks}x). Will auto-restore.`)
+            : clientText;
 
         // Return as normal JSON response
         res.json({
@@ -2096,7 +2570,11 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
             object: 'chat.completion',
             model: body.model || 'foveated-proxy',
             choices: [{
-                message: { role: 'assistant', content: responseContent },
+                message: {
+                    role: 'assistant',
+                    content: responseContent,
+                    ...(reasoningText ? { reasoning_content: reasoningText } : {})
+                },
                 index: 0,
                 finish_reason: 'stop'
             }],
@@ -2138,20 +2616,19 @@ app.post('/_health/context/budget', (req, res) => {
 // ── Unified Voice API (STT + TTS) ──────────────────────────────────────────
 // The proxy is the single endpoint for all modalities.
 // Strategy: try the XRLF model first (when it supports audio natively),
-// fall back to external services (Whisper, Kokoro, Piper) on failure.
+// fall back to dedicated voice services on the 840x port series.
 //
-// SOUL_URL = STT fallback (Whisper on :8402)
-// MOUTH_URL = TTS fallback (Kokoro on :8004, Piper on :8001)
 // XRLF_URL = native model API (STT/TTS/vision on :8402)
-const SOUL_URL = process.env.SOUL_URL || 'http://127.0.0.1:8402';
-const MOUTH_URL = process.env.MOUTH_URL || 'http://127.0.0.1:8004';
-const PIPER_URL = process.env.PIPER_URL || 'http://127.0.0.1:8001';
+// TTS_URL  = TTS service (Kokoro on :8406)
+// STT_URL  = STT service (Whisper on :8409)
+const TTS_URL = process.env.TTS_URL || 'http://127.0.0.1:8406';
+const STT_URL = process.env.STT_URL || 'http://127.0.0.1:8409';
 const XRLF_URL = process.env.XRLF_URL || 'http://127.0.0.1:8402';
 
 // ── STT: POST /api/soul/stt ─────────────────────────────────────────────────
 // Accepts audio_base64, returns transcribed text.
 // Tries XRLF model native STT first, falls back to Soul/Whisper.
-app.post('/api/soul/stt', async (req, res) => {
+app.post('/api/soul/stt', requireFeature('voice'), async (req, res) => {
     const { audio_base64, format, filename } = req.body || {};
     if (!audio_base64) {
         return res.status(400).json({ error: 'audio_base64 required' });
@@ -2171,8 +2648,8 @@ app.post('/api/soul/stt', async (req, res) => {
         });
         if (r.ok) {
             const data = await r.json();
-            if (data.text) {
-                console.log(`[Voice/STT] ✅ Native model transcribed: "${(data.text || '').slice(0, 80)}"`);
+            if (typeof data.text === 'string') {
+                console.log(`[Voice/STT] ✅ Native model transcribed: "${data.text.slice(0, 80)}"`);
                 return res.json(data);
             }
         }
@@ -2181,9 +2658,9 @@ app.post('/api/soul/stt', async (req, res) => {
         console.warn(`[Voice/STT] Native STT unavailable: ${e.message}`);
     }
 
-    // Fallback: Soul server (Whisper) on :8000
+    // Fallback: STT service (Whisper) on :8409
     try {
-        const r = await fetch(`${SOUL_URL}/api/soul/stt`, {
+        const r = await fetch(`${STT_URL}/api/soul/stt`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ audio_base64, format: format || 'audio/webm', filename: filename || 'recording.webm' }),
@@ -2194,20 +2671,20 @@ app.post('/api/soul/stt', async (req, res) => {
             console.log(`[Voice/STT] ✅ Whisper transcribed: "${(data.text || '').slice(0, 80)}"`);
             return res.json(data);
         }
-        console.warn(`[Voice/STT] Soul returned ${r.status}`);
+        console.warn(`[Voice/STT] STT service returned ${r.status}`);
     } catch (e) {
-        console.warn(`[Voice/STT] Soul/Whisper unavailable: ${e.message}`);
+        console.warn(`[Voice/STT] Whisper STT (:8409) unavailable: ${e.message}`);
     }
 
     // Last resort: return empty so the frontend doesn't hang
     console.error('[Voice/STT] ❌ All STT backends failed');
-    res.status(503).json({ error: 'STT unavailable — no Whisper/Soul server running', text: '' });
+    res.status(503).json({ error: 'STT unavailable — no Whisper service running', text: '' });
 });
 
 // ── TTS: POST /api/tts ──────────────────────────────────────────────────────
 // Accepts text, returns audio or dispatches to TTS engine.
-// Tries XRLF model native TTS first, falls back to Mouth/Kokoro, then Piper.
-app.post('/api/tts', async (req, res) => {
+// Tries XRLF model native TTS first, falls back to the TTS service (Kokoro on :8406).
+app.post('/api/tts', requireFeature('voice'), async (req, res) => {
     const { text, voice } = req.body || {};
     if (!text) {
         return res.status(400).json({ error: 'text required' });
@@ -2243,9 +2720,9 @@ app.post('/api/tts', async (req, res) => {
         console.warn(`[Voice/TTS] Native TTS unavailable: ${e.message}`);
     }
 
-    // Fallback 1: Mouth server (Kokoro) on :8004 — uses /tts endpoint (not /say)
+    // Fallback 1: TTS service (Kokoro) on :8406
     try {
-        const r = await fetch(`${MOUTH_URL}/tts`, {
+        const r = await fetch(`${TTS_URL}/tts`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: cleanText, voice: voice || process.env.XRLF_KOKORO_VOICE || 'af_heart' }),
@@ -2262,36 +2739,52 @@ app.post('/api/tts', async (req, res) => {
             }
             return res.json({ status: 'ok', engine: 'kokoro', text: cleanText });
         }
-        console.warn(`[Voice/TTS] Mouth returned ${r.status}`);
+        console.warn(`[Voice/TTS] TTS service returned ${r.status}`);
     } catch (e) {
-        console.warn(`[Voice/TTS] Mouth/Kokoro unavailable: ${e.message}`);
+        console.warn(`[Voice/TTS] TTS service (:8406) unavailable: ${e.message}`);
     }
 
-    // Fallback 2: Piper on :8001
+    // Fallback 2: TTS service /say alias on :8406
     try {
-        const r = await fetch(`${PIPER_URL}/say`, {
+        const r = await fetch(`${TTS_URL}/say`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: cleanText }),
             signal: AbortSignal.timeout(5000)
         });
         if (r.ok) {
-            console.log(`[Voice/TTS] ✅ Piper spoke: "${cleanText.slice(0, 60)}"`);
+            console.log(`[Voice/TTS] ✅ TTS /say spoke: "${cleanText.slice(0, 60)}"`);
             const contentType = r.headers.get('content-type') || '';
             if (contentType.includes('audio')) {
                 const audioBuf = Buffer.from(await r.arrayBuffer());
                 res.setHeader('Content-Type', contentType);
                 return res.send(audioBuf);
             }
-            return res.json({ status: 'ok', engine: 'piper', text: cleanText });
+            return res.json({ status: 'ok', engine: 'kokoro', text: cleanText });
         }
     } catch (e) {
-        console.warn(`[Voice/TTS] Piper unavailable: ${e.message}`);
+        console.warn(`[Voice/TTS] TTS /say unavailable: ${e.message}`);
     }
 
     // Last resort: no audio, but don't crash the frontend
     console.error('[Voice/TTS] ❌ All TTS backends failed');
-    res.status(503).json({ error: 'TTS unavailable — no Kokoro/Piper server running', text: cleanText });
+    res.status(503).json({ error: 'TTS unavailable — no TTS service running', text: cleanText });
+});
+
+// ── TTS voices: GET /api/tts/voices ─────────────────────────────────────────
+// Passthrough to the TTS service's /voices endpoint (Kokoro on :8406).
+app.get('/api/tts/voices', async (req, res) => {
+    try {
+        const r = await fetch(`${TTS_URL}/voices`, { signal: AbortSignal.timeout(4000) });
+        if (r.ok) {
+            const data = await r.json();
+            return res.json(data);
+        }
+        console.warn(`[Voice/TTS] /voices returned ${r.status}`);
+    } catch (e) {
+        console.warn(`[Voice/TTS] /voices unavailable: ${e.message}`);
+    }
+    res.status(503).json({ error: 'TTS voices unavailable', voices: [] });
 });
 
 // ── Voice pipeline status ───────────────────────────────────────────────────
@@ -2306,22 +2799,24 @@ app.get('/api/voice/status', async (req, res) => {
             if (caps.audio_stt) { status.stt = 'native'; status.model_native = true; }
         }
     } catch {}
-    // Check Soul/Whisper (fallback STT)
+    // Check Whisper STT service (fallback, :8409) — WebSocket-only, so probe TCP
     if (status.stt === 'offline') {
         try {
-            const r = await fetch(`${SOUL_URL}/health`, { signal: AbortSignal.timeout(2000) });
-            if (r.ok) status.stt = 'whisper';
+            const sttPort = parseInt(new URL(STT_URL).port || '8409', 10);
+            await new Promise((resolve, reject) => {
+                const sock = require('net').connect({ host: '127.0.0.1', port: sttPort, timeout: 1500 });
+                sock.on('connect', () => { sock.end(); resolve(); });
+                sock.on('error', reject); sock.on('timeout', () => { sock.destroy(); reject(new Error('timeout')); });
+            });
+            status.stt = 'whisper';
         } catch {}
     }
-    // Check Mouth/Kokoro (fallback TTS)
+    // Check Kokoro TTS service (fallback, :8406)
     if (status.tts === 'offline') {
         try {
-            const r = await fetch(`${MOUTH_URL}/health`, { signal: AbortSignal.timeout(2000) });
+            const r = await fetch(`${TTS_URL}/health`, { signal: AbortSignal.timeout(2000) });
             if (r.ok) status.tts = 'kokoro';
-            else { try { const r2 = await fetch(`${PIPER_URL}/health`, { signal: AbortSignal.timeout(2000) }); if (r2.ok) status.tts = 'piper'; } catch {} }
-        } catch {
-            try { const r2 = await fetch(`${PIPER_URL}/health`, { signal: AbortSignal.timeout(2000) }); if (r2.ok) status.tts = 'piper'; } catch {}
-        }
+        } catch {}
     }
     res.json(status);
 });
@@ -2422,7 +2917,9 @@ app.post('/v1/memory/search', async (req, res) => {
 // external IDEs write through the same getStore(workspace) path as chat).
 app.post('/v1/memory/store', async (req, res) => {
     try {
-        const workspaceId = req.headers['authorization']?.replace('Bearer ', '') || config.workspace_id;
+        const _authz = resolveRequestAuth(req);
+        if (_authz.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+        const workspaceId = _authz.workspaceId;
         const { role, content, session } = req.body || {};
         if (!role || !content) return res.status(400).json({ error: 'role and content required' });
         const s = getStore(workspaceId);
@@ -2616,7 +3113,7 @@ app.post('/api/semantic-summary', async (req, res) => {
         // Falls back gracefully if the summarizer endpoint is unavailable.
         if (!SUMMARIZER_ENABLED) throw new Error('summarizer disabled in config');
         const summaryEndpoint = SUMMARIZER_ENDPOINT.replace(/\/v1\/?$/, '') + '/v1/chat/completions';
-        const r = await fetch(summaryEndpoint, {
+        const r = await withLocalUpstream(() => fetch(summaryEndpoint, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -2627,7 +3124,7 @@ app.post('/api/semantic-summary', async (req, res) => {
                 ],
                 max_tokens: Math.min(SUMMARIZER_MAX_TOKENS, 150), temperature: Math.min(SUMMARIZER_TEMP, 0.1), stream: false
             })
-        });
+        }));
         if (r.ok) {
             const data = await r.json();
             return res.json({ filepath, summary: data.choices?.[0]?.message?.content || 'No summary' });
@@ -2766,15 +3263,28 @@ app.post(['/v1/chat/completions', '/chat/completions'], (req, res) => {
         console.log(`[TransparentMode] 🔄 Passthrough to ${upstreamUrl}`);
         
         // Forward the request directly to upstream
-        fetch(`${baseUrl}/v1/chat/completions`, {
+        const isLocalTarget = !(config._cloud_mode && config._api_key);
+        let releaseSlot = null;
+        const slotTicket = isLocalTarget
+            ? acquireLocalUpstream().then(rel => { releaseSlot = rel; })
+            : Promise.resolve();
+        slotTicket.then(() => fetch(`${baseUrl}/v1/chat/completions`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': req.headers.authorization || ''
             },
             body: JSON.stringify(req.body)
-        })
+        }))
         .then(response => {
+            if (releaseSlot) {
+                let released = false;
+                const rel = () => { if (!released) { released = true; releaseSlot(); } };
+                response.body.once('end', rel);
+                response.body.once('close', rel);
+                response.body.once('error', rel);
+                setTimeout(rel, 10 * 60 * 1000).unref();
+            }
             // Forward all headers from upstream
             response.headers.forEach((value, key) => {
                 if (key.toLowerCase() !== 'transfer-encoding') {
@@ -2785,6 +3295,7 @@ app.post(['/v1/chat/completions', '/chat/completions'], (req, res) => {
             return response.body.pipe(res);
         })
         .catch(err => {
+            if (releaseSlot) releaseSlot();
             console.error('[TransparentMode] Passthrough error:', err);
             if (!res.headersSent) {
                 res.status(500).json({ error: 'Transparent mode passthrough failed', details: err.message });
@@ -2793,31 +3304,23 @@ app.post(['/v1/chat/completions', '/chat/completions'], (req, res) => {
         return;
     }
 
-    let workspaceId = config.workspace_id;
-    let userId = 'anonymous';
+    // Multi-user auth: session tokens, API tokens, and legacy workspace-name
+    // bearers all resolve through the same path so memory scoping is consistent
+    // across every endpoint.
+    const _authz = resolveRequestAuth(req);
+    if (_authz.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+    if (_authz.userId === 'anonymous') return res.status(401).json({ error: 'authentication required' });
+    if (!_authz._mgr.hasFeature({ role: _authz.role, features: _authz.features }, 'chat')) {
+        return res.status(403).json({ error: 'chat feature not enabled for this account' });
+    }
+    const workspaceId = _authz.workspaceId;
+    const userId = _authz.userId;
+    req.userId = userId;
+    req.authFeatures = _authz.features;
 
-    // Extract workspace from Bearer token
-    const auth = req.headers.authorization;
-    if (auth && auth.startsWith('Bearer ')) {
-        const token = auth.substring(7).trim();
-
-        // Multi-User / Swarm Mode Auth Routing
-        const authManager = getAuthManager(path.resolve(__dirname, 'memory_data'));
-        const resolved = authManager.resolveToken(token);
-        workspaceId = resolved.teamId;
-        userId = resolved.userId;
-        req.userId = userId;
-    } else if (COGNITIVE_MODE === 'cloud') {
-        // Cloud mode without a client token: use the configured API key as the
-        // collective memory scope so memory is shared for anyone using this key.
-        const collectiveKey = OLLAMA_API_KEY
-            ? `key_${OLLAMA_API_KEY.slice(0, 16)}`
-            : DEFAULT_FALLBACK_WORKSPACE;
-        workspaceId = collectiveKey;
-        if (!warnedMissingAuth) {
-            console.warn(`[Auth] No client Bearer token; using collective workspace "${collectiveKey}" based on proxy API key.`);
-            warnedMissingAuth = true;
-        }
+    if (!req.headers.authorization && COGNITIVE_MODE === 'cloud' && !warnedMissingAuth) {
+        console.warn(`[Auth] No client Bearer token; using collective workspace "${workspaceId}" based on proxy API key.`);
+        warnedMissingAuth = true;
     }
 
     const reqStore = getStore(workspaceId);
@@ -2903,15 +3406,47 @@ app.get(['/v1/models', '/models'], async (req, res) => {
             console.warn(`[Fovea] /v1/models profile injection failed: ${profileErr.message}`);
         }
 
-        // ── Inject NVIDIA NIM side-route models (nvidia/<id>) ────────────────
+        // ── Cloud models ────────────────────────────────────────────────────
+        // Members see exactly one friendly entry ('nvidia-free' → curated
+        // backend model, name undisclosed). Admins/legacy get the full
+        // nvidia/* side-route catalog.
         if (data && Array.isArray(data.data)) {
+            const na = resolveRequestAuth(req);
+            const mgr = getAuthManager(AUTH_DB_DIR);
+            const cloudOk = !na.rejected &&
+                mgr.hasFeature({ role: na.role, features: na.features }, 'cloud');
             const ids = new Set(data.data.map(m => m.id));
-            for (const m of NVIDIA_MODELS) {
-                const nid = NVIDIA_PREFIX + m;
-                if (!ids.has(nid)) {
-                    data.data.push({ id: nid, object: 'model', created: Math.floor(Date.now() / 1000), owned_by: 'nvidia-nim' });
+            if (cloudOk) {
+                const isAdminOrLegacy = na.isLegacy || na.role === 'admin';
+                if (isAdminOrLegacy) {
+                    for (const m of NVIDIA_MODELS) {
+                        const nid = NVIDIA_PREFIX + m;
+                        if (!ids.has(nid)) {
+                            data.data.push({ id: nid, object: 'model', created: Math.floor(Date.now() / 1000), owned_by: 'nvidia-nim' });
+                        }
+                    }
+                }
+                if (!ids.has(FREE_CLOUD_ID)) {
+                    data.data.push({ id: FREE_CLOUD_ID, object: 'model', created: Math.floor(Date.now() / 1000), owned_by: 'foveai-cloud' });
                 }
             }
+        }
+
+        // ── BYOK: callers with a stored cloud key see their own route ────────
+        if (data && Array.isArray(data.data)) {
+            try {
+                const ba = resolveRequestAuth(req);
+                if (!ba.rejected && ba.userId && ba.userId !== 'anonymous' && !ba.isLegacy) {
+                    const bk = getAuthManager(AUTH_DB_DIR).getByokPublic(ba.userId);
+                    if (bk) {
+                        for (const bid of (bk.model ? ['byok', `byok/${bk.model}`] : ['byok'])) {
+                            if (!data.data.find(m => m.id === bid)) {
+                                data.data.push({ id: bid, object: 'model', created: Math.floor(Date.now() / 1000), owned_by: `byok-${bk.provider}` });
+                            }
+                        }
+                    }
+                }
+            } catch (_) { /* byok listing is opportunistic */ }
         }
 
         // Always inject foveated-proxy-auto into the real model list
@@ -2947,7 +3482,9 @@ app.get(['/v1/models/:model', '/models/:model'], async (req, res) => {
 // Health check
 app.get('/health', async (req, res) => {
     try {
-        const workspaceId = req.headers['authorization']?.replace('Bearer ', '') || config.workspace_id;
+        const _authz = resolveRequestAuth(req);
+        if (_authz.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+        const workspaceId = _authz.workspaceId;
         const s = getStore(workspaceId);
         const storedCount = await s.count();
         res.json({
@@ -2970,7 +3507,9 @@ app.get('/health', async (req, res) => {
 // ── Debug: GET /memory/rings — show the current foveated ring block ──────────
 app.get('/memory/rings', async (req, res) => {
     try {
-        const workspaceId = req.headers['authorization']?.replace('Bearer ', '') || config.workspace_id;
+        const _authz = resolveRequestAuth(req);
+        if (_authz.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+        const workspaceId = _authz.workspaceId;
         const s = getStore(workspaceId);
         const scaledConfig = { ...config, ring_budgets: undefined }; // use defaults
         const ringBlock = await buildRingBlock(s, scaledConfig, SESSION_ID);
@@ -2989,7 +3528,9 @@ app.get('/memory/rings', async (req, res) => {
 // Memory audit — run a safety scan for misclassified messages
 app.get('/api/audit', async (req, res) => {
     try {
-        const workspaceId = req.headers['authorization']?.replace('Bearer ', '') || config.workspace_id;
+        const _authz = resolveRequestAuth(req);
+        if (_authz.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+        const workspaceId = _authz.workspaceId;
         const s = getStore(workspaceId);
         const dryRun = req.query.dryRun !== 'false'; // default to dry run
         const limit = parseInt(req.query.limit || '200', 10);
@@ -3003,7 +3544,9 @@ app.get('/api/audit', async (req, res) => {
 // Memory stats
 app.get('/memory/stats', async (req, res) => {
     try {
-        const workspaceId = req.headers['authorization']?.replace('Bearer ', '') || config.workspace_id;
+        const _authz = resolveRequestAuth(req);
+        if (_authz.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+        const workspaceId = _authz.workspaceId;
         const s = getStore(workspaceId);
         const storedCount = await s.count();
         res.json({
@@ -3020,7 +3563,9 @@ app.get('/memory/stats', async (req, res) => {
 
 app.get('/api/status', async (req, res) => {
     try {
-        const workspaceId = req.headers['authorization']?.replace('Bearer ', '') || config.workspace_id;
+        const _authz = resolveRequestAuth(req);
+        if (_authz.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+        const workspaceId = _authz.workspaceId;
         const s = getStore(workspaceId);
         const totalRaw = await s.count();
         let totalThemes = await s.countThemes();
@@ -3042,6 +3587,14 @@ app.get('/api/status', async (req, res) => {
             }
         } catch (_) {}
 
+        // Live runtime readiness — merged here so browser ignition probes don't
+        // need a session cookie against the shielded /xrlf surface.
+        let runtimeHealth = null;
+        try {
+            const hr = await fetch(`${config.upstream_url}/health`, { signal: AbortSignal.timeout(1500) });
+            if (hr.ok) runtimeHealth = await hr.json();
+        } catch (_) {}
+
         res.json({
             status: 'ONLINE',
             workspace_id: workspaceId,
@@ -3051,11 +3604,16 @@ app.get('/api/status', async (req, res) => {
             total_themes: totalThemes,
             total_sessions: totalSessions,
             model: config.model || 'auto',
+            assistant_name: ASSISTANT_NAME,
+            user_name: USER_NAME,
             upstream: config.upstream_url,
             session: SESSION_ID,
             vram_status: vramStatus,
             is_hybrid: vramStatus?.is_hybrid || false,
-            status_text: vramStatus?.status_text || ""
+            status_text: vramStatus?.status_text || "",
+            loaded: runtimeHealth?.loaded === true,
+            load_state: runtimeHealth?.load_state || (runtimeHealth ? 'unknown' : 'unreachable'),
+            load_error: runtimeHealth?.load_error || null
         });
     } catch (err) {
         res.status(500).json({ status: 'ERROR', error: err.message });
@@ -3065,7 +3623,9 @@ app.get('/api/status', async (req, res) => {
 // ── /api/sessions endpoint (returns list of available sessions across all stores) ────────────────
 app.get('/api/sessions', async (req, res) => {
     try {
-        const workspaceId = req.headers['authorization']?.replace('Bearer ', '') || config.workspace_id;
+        const _authz = resolveRequestAuth(req);
+        if (_authz.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+        const workspaceId = _authz.workspaceId;
 
         let subdirs = [];
         try {
@@ -3105,7 +3665,9 @@ app.get('/api/sessions', async (req, res) => {
 // ── /api/session/messages endpoint (returns history for specific session) ──────
 app.get('/api/session/messages', async (req, res) => {
     try {
-        const workspaceId = req.headers['authorization']?.replace('Bearer ', '') || config.workspace_id;
+        const _authz = resolveRequestAuth(req);
+        if (_authz.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+        const workspaceId = _authz.workspaceId;
         const sessionId = req.query.session_id || SESSION_ID;
         const s = getStore(workspaceId);
         const msgs = await s.getBySession(sessionId);
@@ -3115,10 +3677,28 @@ app.get('/api/session/messages', async (req, res) => {
     }
 });
 
+// ── /api/session/rename endpoint — manual title edit from the chat divider ────
+app.post('/api/session/rename', async (req, res) => {
+    try {
+        const _authz = resolveRequestAuth(req);
+        if (_authz.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+        const workspaceId = _authz.workspaceId;
+        const { session_id, title } = req.body || {};
+        if (!session_id || !title) throw new Error("Missing session_id or title");
+        const s = getStore(workspaceId);
+        await s.setSessionMeta(session_id, { title: String(title).slice(0, 120) });
+        res.json({ status: 'OK', session_id, title });
+    } catch (err) {
+        res.status(500).json({ status: 'ERROR', error: err.message });
+    }
+});
+
 // ── /api/session/generate-title endpoint ───────────────────────────────────────
 app.post('/api/session/generate-title', async (req, res) => {
     try {
-        const workspaceId = req.headers['authorization']?.replace('Bearer ', '') || config.workspace_id;
+        const _authz = resolveRequestAuth(req);
+        if (_authz.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+        const workspaceId = _authz.workspaceId;
         const sessionId = req.body.session_id;
         if (!sessionId) throw new Error("Missing session_id");
 
@@ -3155,16 +3735,21 @@ KEYWORDS_ROW2: <3-4 key issue/action tags, e.g. #FixSessionTitles #KeywordRows #
 Snippet:
 ${recentMsgs}`;
 
-        const r = await fetch(`${XRLF_RUNTIME_URL}/v1/chat/completions`, {
+        const r = await withLocalUpstream(() => fetch(`${XRLF_RUNTIME_URL}/v1/chat/completions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 model: SUMMARIZER_MODEL || MIDDLEMAN_MODEL,
                 messages: [{ role: 'user', content: prompt }],
                 temperature: 0.2,
-                max_tokens: 120
+                max_tokens: 120,
+                // Bare utility call — no soul injection, no memory persistence,
+                // so title generation never pollutes the session or persona state
+                xrlf_utility: true,
+                xrlf_headless: true,
+                xrlf_thinking: false
             })
-        });
+        }));
 
         if (!r.ok) throw new Error("LLM request failed");
         const data = await r.json();
@@ -3201,7 +3786,9 @@ ${recentMsgs}`;
 // ── /api/session/purge-and-retitle endpoint (Batch process legacy imported sessions) ─────────────
 app.post('/api/session/purge-and-retitle', async (req, res) => {
     try {
-        const workspaceId = req.headers['authorization']?.replace('Bearer ', '') || config.workspace_id;
+        const _authz = resolveRequestAuth(req);
+        if (_authz.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+        const workspaceId = _authz.workspaceId;
         const s = getStore(workspaceId);
         const sessions = await s.getRecentSessions();
         let purged = 0;
@@ -3231,16 +3818,19 @@ KEYWORDS_ROW2: <3-4 key issue/action tags, e.g. #FixSessionTitles #KeywordRows #
 Snippet:
 ${recentMsgs}`;
             try {
-                const r = await fetch(`${XRLF_RUNTIME_URL}/v1/chat/completions`, {
+                const r = await withLocalUpstream(() => fetch(`${XRLF_RUNTIME_URL}/v1/chat/completions`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         model: SUMMARIZER_MODEL || MIDDLEMAN_MODEL,
                         messages: [{ role: 'user', content: prompt }],
                         temperature: 0.2,
-                        max_tokens: 140
+                        max_tokens: 140,
+                        xrlf_utility: true,
+                        xrlf_headless: true,
+                        xrlf_thinking: false
                     })
-                });
+                }));
                 if (r.ok) {
                     const data = await r.json();
                     let raw = data.choices?.[0]?.message?.content || '';
@@ -3270,7 +3860,9 @@ ${recentMsgs}`;
 // ── /api/session/ingredients endpoint (Full session deep index & ingredients list) ─────────────
 app.post('/api/session/ingredients', async (req, res) => {
     try {
-        const workspaceId = req.headers['authorization']?.replace('Bearer ', '') || config.workspace_id;
+        const _authz = resolveRequestAuth(req);
+        if (_authz.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+        const workspaceId = _authz.workspaceId;
         const { session_id } = req.body;
         if (!session_id) return res.status(400).json({ error: 'session_id required' });
 
@@ -3303,16 +3895,19 @@ INGREDIENTS: <bullet points of files, APIs, components, or functions touched>
 Snippet:
 ${fullSnippet}`;
 
-        const r = await fetch(`${XRLF_RUNTIME_URL}/v1/chat/completions`, {
+        const r = await withLocalUpstream(() => fetch(`${XRLF_RUNTIME_URL}/v1/chat/completions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 model: SUMMARIZER_MODEL || MIDDLEMAN_MODEL,
                 messages: [{ role: 'user', content: prompt }],
                 temperature: 0.2,
-                max_tokens: 150
+                max_tokens: 150,
+                xrlf_utility: true,
+                xrlf_headless: true,
+                xrlf_thinking: false
             })
-        });
+        }));
 
         if (!r.ok) throw new Error("LLM request failed");
         const data = await r.json();
@@ -3334,7 +3929,9 @@ ${fullSnippet}`;
 // ── /api/consolidate endpoint (trigger theme consolidation) ───────────────────
 app.post('/api/consolidate', async (req, res) => {
     try {
-        const workspaceId = req.headers['authorization']?.replace('Bearer ', '') || config.workspace_id;
+        const _authz = resolveRequestAuth(req);
+        if (_authz.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+        const workspaceId = _authz.workspaceId;
         const s = getStore(workspaceId);
         const result = await s.consolidateRawMemories();
         res.json({ status: 'OK', ...result });
@@ -3435,6 +4032,14 @@ function startViteServer(frontend) {
     });
     probe.on('error', () => {
         console.log(`[Vite] Starting ${frontend} Vite dev server on :${port}…`);
+        if (IS_LINUX) {
+            const child = spawn('npm', ['run', 'dev'], {
+                cwd: frontendDir, detached: true, stdio: 'ignore'
+            });
+            child.unref();
+            console.log(`[Vite] ✅ ${frontend} dev server launched on :${port} (pid ${child.pid})`);
+            return;
+        }
         execFile('C:\\Windows\\System32\\cmd.exe',
             ['/c', 'start', '/min', '', 'npm', 'run', 'dev'],
             { cwd: frontendDir, windowsHide: true, detached: true },
@@ -3467,6 +4072,317 @@ function runPwsh(command, callback) {
 
 app.use(express.json());
 
+// ── Account auth — sessions, users, feature gates ──────────────────────────
+// Every endpoint resolves the Bearer credential through resolveRequestAuth so
+// a session token, an API token, or a legacy workspace-name token all land on
+// the same memory scope. A rejected (expired/unknown) session returns 401;
+// no Authorization header keeps the historical open-local behavior.
+const AUTH_DB_DIR = path.resolve(__dirname, 'memory_data');
+
+function resolveRequestAuth(req) {
+    const authManager = getAuthManager(AUTH_DB_DIR);
+    const auth = req.headers.authorization;
+    if (auth && auth.startsWith('Bearer ')) {
+        const token = auth.substring(7).trim();
+        const resolved = authManager.resolveToken(token);
+        if (!resolved) return { rejected: true };
+        return {
+            workspaceId: resolved.teamId,
+            userId: resolved.userId,
+            role: resolved.role || 'member',
+            features: resolved.features || [],
+            isLegacy: !!resolved.isLegacy,
+            _mgr: authManager,
+        };
+    }
+    if (COGNITIVE_MODE === 'cloud') {
+        const collectiveKey = OLLAMA_API_KEY
+            ? `key_${OLLAMA_API_KEY.slice(0, 16)}`
+            : DEFAULT_FALLBACK_WORKSPACE;
+        return { workspaceId: collectiveKey, userId: 'anonymous', role: 'admin', features: [], isLegacy: true, _mgr: authManager };
+    }
+    return { workspaceId: config.workspace_id, userId: 'anonymous', role: 'admin', features: [], isLegacy: true, _mgr: authManager };
+}
+
+// Feature gate middleware factory — account sessions need the named feature;
+// legacy bearers resolve to admin and pass through. Anonymous (no Bearer at
+// all) is refused: /api is reachable through the public tunnel gate-free, so
+// no-header cannot be allowed to ride the admin fallback.
+function requireFeature(feature) {
+    return (req, res, next) => {
+        const a = resolveRequestAuth(req);
+        if (a.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+        if (a.userId === 'anonymous') return res.status(401).json({ error: 'authentication required' });
+        if (!a._mgr.hasFeature({ role: a.role, features: a.features }, feature)) {
+            return res.status(403).json({ error: `'${feature}' feature not enabled for this account` });
+        }
+        next();
+    };
+}
+
+// Session-authenticated admin: a real fvs_ login, not a legacy bearer and
+// never anonymous. Account administration is reserved for this tier.
+function isSessionAdmin(a, mgr) {
+    return !a.rejected && !a.isLegacy && a.userId && a.userId !== 'anonymous'
+        && mgr.hasFeature({ role: a.role, features: a.features }, 'users_admin');
+}
+
+function requireAdmin(req, res) {
+    const a = resolveRequestAuth(req);
+    if (a.rejected) { res.status(401).json({ error: 'invalid or expired session' }); return null; }
+    // Anonymous (no Authorization header at all) never gets admin powers —
+    // the tunnel is public-facing, so "present on the LAN" is not a credential.
+    if (a.userId === 'anonymous') { res.status(401).json({ error: 'authentication required' }); return null; }
+    if (!a._mgr.hasFeature({ role: a.role, features: a.features }, 'settings_admin')) {
+        res.status(403).json({ error: 'admin role required' });
+        return null;
+    }
+    return a;
+}
+
+app.get('/api/auth/features', (req, res) => {
+    res.json({ features: FEATURE_CATALOG });
+});
+
+// ── Beta observability (admin-only) ─────────────────────────────────────────
+// Structured request telemetry written by handleChatCompletion → core/request-log.
+// Aggregate stats for the admin console; raw tail for debugging a tester report.
+app.get('/api/admin/usage', (req, res) => {
+    const a = requireAdmin(req, res);
+    if (!a) return;
+    const hours = Math.min(720, Math.max(1, parseInt(req.query.hours || '24', 10) || 24));
+    res.json(summarize(hours));
+});
+
+app.get('/api/admin/request-log', (req, res) => {
+    const a = requireAdmin(req, res);
+    if (!a) return;
+    const tail = Math.min(2000, Math.max(1, parseInt(req.query.tail || '200', 10) || 200));
+    res.json({ entries: readRecent(tail) });
+});
+
+app.post('/api/auth/login', (req, res) => {
+    const { username, password } = req.body || {};
+    if (!username || !password) return res.status(400).json({ error: 'username and password required' });
+    const mgr = getAuthManager(AUTH_DB_DIR);
+    const result = mgr.login(username, password);
+    if (!result) return res.status(401).json({ error: 'invalid credentials or disabled account' });
+    res.json(result);
+});
+
+app.post('/api/auth/logout', (req, res) => {
+    const auth = req.headers.authorization;
+    const token = auth && auth.startsWith('Bearer ') ? auth.substring(7).trim() : null;
+    res.json({ ok: token ? getAuthManager(AUTH_DB_DIR).logout(token) : false });
+});
+
+app.get('/api/auth/me', (req, res) => {
+    const a = resolveRequestAuth(req);
+    if (a.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+    const mgr = getAuthManager(AUTH_DB_DIR);
+    res.json({
+        userId: a.userId,
+        role: a.role,
+        workspaceId: a.workspaceId,
+        features: a.features,
+        legacy: a.isLegacy,
+        account: a.userId ? mgr.publicUser(a.userId) : null,
+        usage: {
+            cloud: {
+                used: mgr.usageToday(a.userId, 'cloud'),
+                cap: parseInt(process.env.FOVEAI_CLOUD_DAILY_PER_USER || '50', 10),
+            },
+        },
+    });
+});
+
+// Bootstrap: registration is open while zero accounts exist. Afterwards it
+// requires an admin session token — OR a valid beta invite code
+// (FOVEAI_BETA_CODE in .env). Invite signups always land as members;
+// role/features are never taken from the request body on this path.
+app.post('/api/auth/register', (req, res) => {
+    const mgr = getAuthManager(AUTH_DB_DIR);
+    const { username, password, displayName, inviteCode } = req.body || {};
+    let viaInvite = false;
+    if (mgr.userCount() > 0) {
+        const a = resolveRequestAuth(req);
+        if (!isSessionAdmin(a, mgr)) {
+            const code = (process.env.FOVEAI_BETA_CODE || '').toUpperCase();
+            // Case-forgiving compare — mobile keyboards mangle case; the
+            // code convention is uppercase letters anyway.
+            if (!code || String(inviteCode || '').trim().toUpperCase() !== code) {
+                return res.status(403).json({ error: code ? 'invalid beta invite code' : 'registration is closed — an admin must create accounts' });
+            }
+            viaInvite = true;
+        }
+    }
+    try {
+        const user = mgr.createUser(username, password, viaInvite ? { displayName } : { displayName, role: req.body.role, features: req.body.features });
+        res.status(201).json({ ok: true, user });
+    } catch (e) {
+        res.status(400).json({ error: e.message });
+    }
+});
+
+app.get('/api/auth/users', (req, res) => {
+    const mgr = getAuthManager(AUTH_DB_DIR);
+    const a = resolveRequestAuth(req);
+    if (a.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+    if (!isSessionAdmin(a, mgr)) {
+        // non-admin sees only their own account
+        const self = a.userId && a.userId !== 'anonymous' ? mgr.publicUser(a.userId) : null;
+        return res.json({ users: self ? [self] : [] });
+    }
+    res.json({ users: mgr.listUsers() });
+});
+
+app.post('/api/auth/users', (req, res) => {
+    const mgr = getAuthManager(AUTH_DB_DIR);
+    const a = resolveRequestAuth(req);
+    if (a.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+    if (!isSessionAdmin(a, mgr)) {
+        return res.status(403).json({ error: 'admin role required' });
+    }
+    const { username, password, displayName, role, features } = req.body || {};
+    try {
+        const user = mgr.createUser(username, password, { displayName, role, features });
+        res.status(201).json({ ok: true, user });
+    } catch (e) {
+        res.status(400).json({ error: e.message });
+    }
+});
+
+app.patch('/api/auth/users/:name', (req, res) => {
+    const mgr = getAuthManager(AUTH_DB_DIR);
+    const a = resolveRequestAuth(req);
+    if (a.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+    const target = String(req.params.name || '').toLowerCase();
+    const isSelf = a.userId === target;
+    const isAdmin = isSessionAdmin(a, mgr);
+    if (!isAdmin && !isSelf) return res.status(403).json({ error: 'admin role required' });
+    // self-service users may only change displayName/password
+    const patch = isAdmin ? (req.body || {}) : { displayName: req.body?.displayName, password: req.body?.password };
+    try {
+        res.json({ ok: true, user: mgr.updateUser(target, patch) });
+    } catch (e) {
+        res.status(400).json({ error: e.message });
+    }
+});
+
+app.delete('/api/auth/users/:name', (req, res) => {
+    const mgr = getAuthManager(AUTH_DB_DIR);
+    const a = resolveRequestAuth(req);
+    if (a.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+    if (!isSessionAdmin(a, mgr)) {
+        return res.status(403).json({ error: 'admin role required' });
+    }
+    const target = String(req.params.name || '').toLowerCase();
+    if (target === a.userId) return res.status(400).json({ error: 'cannot delete your own account' });
+    res.json({ ok: mgr.deleteUser(target) });
+});
+
+// ── Feedback + targeted questions ──────────────────────────────────────────
+const { getFeedbackStore } = require('./core/feedback');
+
+// User: submit feedback or answer a question. Requires an authenticated
+// identity — anonymous posts would be an unmoderated spam channel.
+app.post('/api/feedback', (req, res) => {
+    const a = resolveRequestAuth(req);
+    if (a.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+    if (a.userId === 'anonymous') return res.status(401).json({ error: 'authentication required' });
+    const { text, questionId } = req.body || {};
+    if (!text || !String(text).trim()) return res.status(400).json({ error: 'text required' });
+    const fb = getFeedbackStore(AUTH_DB_DIR);
+    const r = fb.addResponse(a.userId, String(text).trim(), questionId || null);
+    res.status(201).json({ ok: true, id: r.id });
+});
+
+// User: questions targeted at them (targets 'all' or their username).
+app.get('/api/feedback/questions', (req, res) => {
+    const a = resolveRequestAuth(req);
+    if (a.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+    const fb = getFeedbackStore(AUTH_DB_DIR);
+    res.json({ questions: fb.questionsFor(a.userId) });
+});
+
+// Admin: create a question for all or selected users.
+app.post('/api/feedback/questions', (req, res) => {
+    const a = requireAdmin(req, res);
+    if (!a) return;
+    const { text, targets } = req.body || {};
+    if (!text || !String(text).trim()) return res.status(400).json({ error: 'text required' });
+    const fb = getFeedbackStore(AUTH_DB_DIR);
+    res.status(201).json({ ok: true, question: fb.addQuestion(String(text).trim(), targets, a.userId) });
+});
+
+app.get('/api/feedback/questions/all', (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const fb = getFeedbackStore(AUTH_DB_DIR);
+    res.json({ questions: [...fb.data.questions].reverse() });
+});
+
+app.delete('/api/feedback/questions/:id', (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const fb = getFeedbackStore(AUTH_DB_DIR);
+    res.json({ ok: fb.deleteQuestion(req.params.id) });
+});
+
+// Admin: response inbox.
+app.get('/api/feedback/responses', (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const fb = getFeedbackStore(AUTH_DB_DIR);
+    res.json({ responses: fb.listResponses() });
+});
+
+app.post('/api/feedback/responses/:id/read', (req, res) => {
+    if (!requireAdmin(req, res)) return;
+    const fb = getFeedbackStore(AUTH_DB_DIR);
+    res.json({ ok: fb.markRead(req.params.id) });
+});
+
+// ── BYOK: user-managed cloud keys ──────────────────────────────────────────
+// Session-auth only (no anonymous, no legacy bearers — keys belong to people).
+function requireSession(req, res) {
+    const a = resolveRequestAuth(req);
+    if (a.rejected || a.isLegacy || !a.userId || a.userId === 'anonymous') {
+        res.status(401).json({ error: 'a signed-in account is required' });
+        return null;
+    }
+    return a;
+}
+
+app.get('/api/byok', (req, res) => {
+    const a = requireSession(req, res);
+    if (!a) return;
+    const mgr = getAuthManager(AUTH_DB_DIR);
+    res.json({ byok: mgr.getByokPublic(a.userId), providers: Object.keys(BYOK_PROVIDER_URLS) });
+});
+
+app.put('/api/byok', (req, res) => {
+    const a = requireSession(req, res);
+    if (!a) return;
+    const mgr = getAuthManager(AUTH_DB_DIR);
+    if (!mgr.hasFeature({ role: a.role, features: a.features }, 'byok')) {
+        return res.status(403).json({ error: 'byok feature not enabled for this account' });
+    }
+    const { provider, apiKey, baseUrl, model } = req.body || {};
+    if (provider && provider !== 'custom' && !(provider in BYOK_PROVIDER_URLS)) {
+        return res.status(400).json({ error: `unknown provider — use one of: ${[...Object.keys(BYOK_PROVIDER_URLS), 'custom'].join(', ')}` });
+    }
+    try {
+        res.json({ ok: true, byok: mgr.setByok(a.userId, { provider, apiKey, baseUrl, model }) });
+    } catch (e) {
+        res.status(400).json({ error: e.message });
+    }
+});
+
+app.delete('/api/byok', (req, res) => {
+    const a = requireSession(req, res);
+    if (!a) return;
+    const mgr = getAuthManager(AUTH_DB_DIR);
+    res.json({ ok: mgr.deleteByok(a.userId) });
+});
+
 // GET /api/setting?key=X — read the LIVE effective value (process.env is the
 // running source of truth shared with Commando/Commander writes via POST below).
 app.get('/api/setting', (req, res) => {
@@ -3476,6 +4392,9 @@ app.get('/api/setting', (req, res) => {
 });
 
 app.post('/api/setting', (req, res) => {
+    // Core server settings are admin-only for account users; legacy bearers
+    // (jenna-vscode, Commando) resolve to admin and keep working.
+    if (!requireAdmin(req, res)) return;
     const { key, val } = req.body || {};
     if (!key) return res.status(400).json({ error: 'missing key' });
     setEnvVar(key, String(val));
@@ -3583,20 +4502,29 @@ app.get('/api/subsystems', async (req, res) => {
         } catch (_) { return { ok: false, status: 0, body: null }; }
     };
     const checks = [
-        { name: 'Proxy',            port: 8400, http: '/health' },
-        { name: 'Dashboard',        port: 8401, http: '/api/status' },
-        { name: 'XRLF Runtime',     port: 8402, http: '/health' },
-        { name: 'WS IPC',           port: 8403 },
-        { name: 'Body',             port: 8404, http: '/health' },
-        { name: 'Subconscious IN',  port: 8405, http: '/health' },
-        { name: 'Subconscious OUT', port: 8406, http: '/health' },
-        { name: 'Chat Relay',       port: 8407, http: '/health' },
-        { name: 'LM Studio',        port: 1234, http: '/v1/models' },
-        { name: 'XR Vessel',        port: 5176, http: '/' },
-        { name: 'Multigate',        port: 5177, http: '/' },
+        { group: 'stack',   name: 'Proxy',            port: 8400, http: '/health' },
+        { group: 'stack',   name: 'Dashboard',        port: 8401, http: '/api/status' },
+        { group: 'stack',   name: 'XRLF Runtime',     port: 8402, http: '/health' },
+        { group: 'stack',   name: 'WS IPC',           port: 8403 },
+        { group: 'stack',   name: 'Soul / Compagent', port: 8405, http: '/health' },
+        { group: 'stack',   name: 'TTS (Kokoro)',     port: 8406, http: '/health' },
+        { group: 'stack',   name: 'Chat Relay',       port: 8407, http: '/health' },
+        { group: 'stack',   name: 'Creative / Dream', port: 8408, http: '/health' },
+        { group: 'stack',   name: 'STT (Whisper)',    port: 8409 },
+        { group: 'stack',   name: 'Body / Motor',     port: 8410, http: '/health' },
+        { group: 'stack',   name: 'Subconscious',     port: 8411, http: '/health' },
+        { group: 'stack',   name: 'LM Studio',        port: 1234, http: '/v1/models' },
+        { group: 'web',     name: 'XR Vessel',        port: 5176, http: '/' },
+        { group: 'web',     name: 'FoveAI Web',       port: 5177, http: '/' },
+        { group: 'remote',  name: 'noVNC Desktop',    port: 6080 },
+        { group: 'remote',  name: 'Remote Web (Guac)',port: 6081 },
+        { group: 'remote',  name: 'guacd',            port: 4822 },
+        { group: 'remote',  name: 'xrdp',             port: 3389 },
+        { group: 'remote',  name: 'Sunshine',         port: 47990 },
+        { group: 'machine', name: 'Netdata',          port: 19999, http: '/' },
     ];
     const results = await Promise.all(checks.map(async c => {
-        const out = { name: c.name, port: c.port };
+        const out = { name: c.name, port: c.port, group: c.group };
         if (!(await tcpCheck(c.port))) { out.state = 'offline'; return out; }
         if (!c.http) { out.state = 'listening'; return out; }
         const h = await httpCheck(c.port, c.http);
@@ -3893,7 +4821,7 @@ app.post('/api/control', (req, res) => {
             // Start XRLF runtime with a specific model.
             // If the runtime is already alive on :8402, hot-swap via /load (no process restart,
             // no port conflict). Only kill+restart if the runtime is down or /load fails.
-            const xrlfModel = req.body.model || (IS_LINUX ? 'gemma-4-e2b-multimodal-v1.0.xrlf' : 'foveai-omni-router-v2.xrlf');
+            const xrlfModel = req.body.model || (IS_LINUX ? 'qwopus3.5-9b-coder-mtp-moq.xrlf' : 'foveai-omni-router-v2.xrlf');
             const xrlfPort = req.body.port || 8402;
             const xrlfWsPort = req.body.ws_port || 8403;
 
@@ -4146,7 +5074,7 @@ KEYWORDS_ROW2: <3-4 key issue/action tags, e.g. #FixSessionTitles #KeywordRows #
 Snippet:
 ${recentMsgs}`;
                         const titleEndpoint = SUMMARIZER_ENDPOINT.replace(/\/v1\/?$/, '') + '/v1/chat/completions';
-                        const r = await fetch(titleEndpoint, {
+                        const r = await withLocalUpstream(() => fetch(titleEndpoint, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
                             signal: AbortSignal.timeout(15000),  // 15s timeout per request
@@ -4154,9 +5082,15 @@ ${recentMsgs}`;
                                 model: SUMMARIZER_MODEL,
                                 messages: [{ role: 'user', content: prompt }],
                                 temperature: Math.max(SUMMARIZER_TEMP, 0.2),
-                                max_tokens: Math.min(SUMMARIZER_MAX_TOKENS, 140)
+                                max_tokens: Math.min(SUMMARIZER_MAX_TOKENS, 140),
+                                // Bare utility call — no soul injection, no memory
+                                // persistence; sweep titling must not pollute
+                                // session history or persona state
+                                xrlf_utility: true,
+                                xrlf_headless: true,
+                                xrlf_thinking: false
                             })
-                        });
+                        }));
                         if (r.ok) {
                             _ecoWorkerConsecutiveFailures = 0;  // reset on success
                             const data = await r.json();
@@ -4209,3 +5143,107 @@ ${recentMsgs}`;
 setTimeout(runEcologicalContextWorker, 5000);
 setInterval(runEcologicalContextWorker, 180000);
 
+
+// ── Workspace file API ──────────────────────────────────────────────────────
+// Powers the Multigate Vibe IDE tab (and any agent tool surface). Every path
+// resolves inside FILES_ROOT — the repo root by default — or is refused;
+// symlinks are realpath-checked so nothing escapes the workspace. Gated by
+// the 'tools' feature, the same tier the jenna-vscode extension uses.
+const FILES_ROOT = fs.realpathSync(process.env.FOVEAI_FILES_ROOT || path.resolve(__dirname, '..'));
+const FILES_MAX_READ = 4 * 1024 * 1024;    // 4MB read cap
+const FILES_MAX_WRITE = 8 * 1024 * 1024;   // 8MB write cap
+
+// Resolves rel against FILES_ROOT and verifies the real path stays inside.
+// For existing paths, realpath the target itself; for new paths (write/mkdir),
+// walk up to the nearest existing ancestor and realpath that. Returns the
+// absolute path or null when the request escapes the root.
+async function resolveWorkspacePath(rel) {
+    if (typeof rel !== 'string') return null;
+    const abs = path.resolve(FILES_ROOT, rel.replace(/^[/\\]+/, ''));
+    if (abs !== FILES_ROOT && !abs.startsWith(FILES_ROOT + path.sep)) return null;
+    try {
+        const real = await fs.promises.realpath(abs);
+        return (real === FILES_ROOT || real.startsWith(FILES_ROOT + path.sep)) ? abs : null;
+    } catch {
+        let cur = path.dirname(abs);
+        while (cur.startsWith(FILES_ROOT)) {
+            try {
+                const real = await fs.promises.realpath(cur);
+                return (real === FILES_ROOT || real.startsWith(FILES_ROOT + path.sep)) ? abs : null;
+            } catch { cur = path.dirname(cur); }
+        }
+        return null;
+    }
+}
+
+// GET /api/files/tree?path=<rel> — one directory level: dirs first, then files.
+app.get('/api/files/tree', requireFeature('tools'), async (req, res) => {
+    const abs = await resolveWorkspacePath(req.query.path || '');
+    if (!abs) return res.status(403).json({ error: 'path outside workspace' });
+    try {
+        const entries = await fs.promises.readdir(abs, { withFileTypes: true });
+        const out = [];
+        for (const e of entries) {
+            if (e.name === '.git' || e.name === 'node_modules' || e.name === '__pycache__') continue;
+            try {
+                const st = await fs.promises.stat(path.join(abs, e.name));
+                out.push({
+                    name: e.name,
+                    type: e.isDirectory() ? 'dir' : 'file',
+                    size: e.isDirectory() ? null : st.size,
+                    mtime: st.mtime.toISOString(),
+                });
+            } catch { /* vanished between readdir/stat — skip */ }
+        }
+        out.sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'dir' ? -1 : 1));
+        res.json({ root: FILES_ROOT, path: path.relative(FILES_ROOT, abs) || '.', entries: out });
+    } catch (e) {
+        res.status(e.code === 'ENOTDIR' || e.code === 'ENOENT' ? 404 : 500).json({ error: e.message });
+    }
+});
+
+// GET /api/files/read?path=<rel> — utf8 text file, 4MB cap, binary refused.
+app.get('/api/files/read', requireFeature('tools'), async (req, res) => {
+    const abs = await resolveWorkspacePath(req.query.path);
+    if (!abs) return res.status(403).json({ error: 'path outside workspace' });
+    try {
+        const st = await fs.promises.stat(abs);
+        if (st.isDirectory()) return res.status(400).json({ error: 'path is a directory' });
+        if (st.size > FILES_MAX_READ) return res.status(413).json({ error: `file too large (${st.size} bytes, cap ${FILES_MAX_READ})` });
+        const buf = await fs.promises.readFile(abs);
+        if (buf.subarray(0, 8192).includes(0)) return res.status(415).json({ error: 'binary file — not editable as text' });
+        res.json({ path: path.relative(FILES_ROOT, abs), content: buf.toString('utf8'), size: st.size, mtime: st.mtime.toISOString() });
+    } catch (e) {
+        res.status(e.code === 'ENOENT' ? 404 : 500).json({ error: e.message });
+    }
+});
+
+// POST /api/files/write {path, content} — creates parent dirs, utf8 overwrite.
+app.post('/api/files/write', requireFeature('tools'), async (req, res) => {
+    const { path: rel, content } = req.body || {};
+    const abs = await resolveWorkspacePath(rel);
+    if (!abs) return res.status(403).json({ error: 'path outside workspace' });
+    if (typeof content !== 'string') return res.status(400).json({ error: 'content must be a string' });
+    const bytes = Buffer.byteLength(content, 'utf8');
+    if (bytes > FILES_MAX_WRITE) return res.status(413).json({ error: `content too large (${bytes} bytes, cap ${FILES_MAX_WRITE})` });
+    try {
+        await fs.promises.mkdir(path.dirname(abs), { recursive: true });
+        await fs.promises.writeFile(abs, content, 'utf8');
+        const st = await fs.promises.stat(abs);
+        res.json({ ok: true, path: path.relative(FILES_ROOT, abs), size: st.size, mtime: st.mtime.toISOString() });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// POST /api/files/mkdir {path} — recursive directory create.
+app.post('/api/files/mkdir', requireFeature('tools'), async (req, res) => {
+    const abs = await resolveWorkspacePath(req.body?.path);
+    if (!abs) return res.status(403).json({ error: 'path outside workspace' });
+    try {
+        await fs.promises.mkdir(abs, { recursive: true });
+        res.json({ ok: true, path: path.relative(FILES_ROOT, abs) });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});

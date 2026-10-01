@@ -1,0 +1,405 @@
+##### ---| FoveAI Workspace |--- #####
+##### ---| Fedora/Linux local runtime  |--- #####
+
+# Force HuggingFace to use local cache
+HF_HUB_OFFLINE=1
+TRANSFORMERS_OFFLINE=1
+# HF cache on Dev-NTFS (not inside FoveAI repo)
+HF_HOME=/home/lumba/Models/HF
+HF_HUB_CACHE=/home/lumba/Models/hub
+TRANSFORMERS_CACHE=/home/lumba/Models/hub
+# Linux system CA bundle (Cloudflare WARP not used on this host)
+REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+
+# XRLF Workspace Root
+XRLF_WORKSPACE_ROOT=/home/lumba/FoveAI
+LD_LIBRARY_PATH=/home/lumba/FoveAI/.venv/lib/python3.12/site-packages/nvidia/cu13/lib:/home/lumba/FoveAI/.venv/lib/python3.12/site-packages/nvidia/cudnn/lib:/home/lumba/FoveAI/.venv/lib/python3.12/site-packages/torch/lib
+
+# XRLF Contract Path
+XRLF_CONTRACT_PATH=/home/lumba/FoveAI/XRLF.CONTRACT.XRLF
+
+# XRLF Agent Identity
+XRLF_AGENT_ID=FoveAI_Agent_01
+
+# XRLF Runtime Mode
+XRLF_RUNTIME_MODE=local
+XRLF_COGNITIVE_MODE=local
+XRLF_MODEL_LOCAL_ID=qwopus3.5-9b-coder-mtp-moq.xrlf
+
+# XRLF Foveated Memory Proxy
+XRLF_MEMORY_PROXY_URL=http://127.0.0.1:8400
+
+# Web UI
+FoveAI_WEBUI_ALLOW_INSECURE=0
+FoveAI_WEBUI_PASSWORD=Vee+-++1*hhW
+WEBUI_PORT=8101
+
+# XRLF Context Reactor (foveated memory compression + context healing)
+XRLF_REPO_ENABLED=true
+XRLF_CONTEXT_OVERRIDE=true
+XRLF_PROXY_MODE=routing
+XRLF_FOVEATION_OVERRIDE=true
+XRLF_CTX_MAX_CHARS=16000
+XRLF_CTX_MIN_CHARS=4000
+
+# Soul API — compagent serves persona/DNA/presets on :8405 (foveai-soul.service)
+SOUL_PORT=8405
+SOUL_URL=http://127.0.0.1:8405
+
+# XRLF Phase Graph Mode
+XRLF_PHASE_GRAPH_MODE=strict
+
+# XRLF Geometry Mode
+XRLF_GEOMETRY_MODE=hybrid
+
+# XRLF Thermal Limit (percent)
+XRLF_THERMAL_LIMIT=85
+
+# XRLF Auto Refactor
+XRLF_AUTO_REFRACTOR=true
+
+# XRLF Holonic Schema Path
+XRLF_HOLON_SCHEMA_PATH=/home/lumba/FoveAI/.xrlf/holons.xrlf
+
+# XRLF Phase Graph Path
+XRLF_PHASE_GRAPH_PATH=/home/lumba/FoveAI/.xrlf/phasegraph.xrlf
+
+# XRLF Agents Definition Path
+XRLF_AGENTS_PATH=/home/lumba/FoveAI/.xrlf/agents.xrlf
+
+# XRLF Extensions Directory
+XRLF_EXTENSIONS_DIR=/home/lumba/FoveAI/.xrlf/extensions
+
+# XRLF Config Directory
+XRLF_CONFIG_DIR=/home/lumba/FoveAI/.xrlf/config
+
+# XRLF Geometry Config
+XRLF_GEOMETRY_CONFIG=/home/lumba/FoveAI/.xrlf/config/geometry.config.xrlf
+
+# XRLF Resonance Config
+XRLF_RESONANCE_CONFIG=/home/lumba/FoveAI/.xrlf/config/resonance.config.xrlf
+
+# XRLF Thermal Config
+XRLF_THERMAL_CONFIG=/home/lumba/FoveAI/.xrlf/config/thermal.config.xrlf
+
+# XRLF Runtime Config
+XRLF_RUNTIME_CONFIG=/home/lumba/FoveAI/.xrlf/config/runtime.config.xrlf
+
+# XRLF Agents Config
+XRLF_AGENTS_CONFIG=/home/lumba/FoveAI/.xrlf/config/agents.config.xrlf
+
+##### ---| FoveAI Backend Connection (Biological Cycle) |--- #####
+
+# ── Single source of truth for network addresses ──
+FOVEAI_BIND_HOST=0.0.0.0
+FOVEAI_SERVER_IP=
+
+# ── Port scheme: 8400 = Memory, 8402 = Soul, 8403 = WebSocket IPC ──
+FOVEAI_WS_PORT=8403
+FOVEAI_BACKEND_START_WS=true
+FOVEAI_LEGACY_WS_PORT=8400
+
+# Core cognitive servers
+FOVEAI_COMPAGENT_PORT=8405
+SOUL_PORT=8405
+FOVEAI_AUTONOMOUS_PORT=8410
+FOVEAI_MOTOR_PORT=8410
+FOVEAI_SUBCONSCIOUS_PORT=8411
+
+# Service servers
+FOVEAI_CREATIVE_PORT=8408
+FOVEAI_MEMORY_PORT=8407
+
+# XRLF Speculative Decoding (MTP) — disabled (CUDA VMM pool crash on 0.3.34)
+XRLF_SPECULATIVE_DECODING=false
+
+# Triad pipeline (router + summarizer on CPU, zero VRAM impact)
+XRLF_TRIAD_PIPELINE=true
+XRLF_ROUTER_GGUF=/home/lumba/Training/outputs/xrlf_router_qwen0.5b_q4_k_m.gguf
+XRLF_SUMMARIZER_GGUF=/home/lumba/Training/outputs/xrlf_summarizer_qwen0.6b_merged_gguf/xrlf_summarizer_qwen0.6b_merged.Q4_K_M.gguf
+
+# STT
+STT_PORT=8409
+STT_MODEL=small.en
+STT_DEVICE=cpu
+STT_COMPUTE_TYPE=int8
+
+# TTS
+FOVEAI_TTS_PORT=8406
+
+# XRLF API
+FOVEAI_XRLF_API_PORT=8300
+
+# Derived URL
+FOVEAI_BACKEND_URL=
+
+##### ---| Unity Quest Client |--- #####
+
+UNITY_PROJECT_PATH=/home/lumba/FoveAI/client_quest
+UNITY_SCENE_NAME=FoveAI
+UNITY_TARGET_PLATFORM=android
+UNITY_TARGET_ARCHITECTURE=ARM64
+UNITY_SCRIPTING_BACKEND=IL2CPP
+
+FoveAI_COGNITIVE_MODE=cloud
+# Cloud budget: cap successful cloud completions per UTC day (0 = unlimited)
+FoveAI_CLOUD_GENAI_DAILY_MAX=60
+# OpenRouter — paste your key (sk-or-...) to activate; free models by default.
+# With >=$10 credit deposited, free-tier limits rise to ~1000 req/day.
+FoveAI_CLOUD_OPENROUTER_API=
+FoveAI_CLOUD_OPENROUTER_BASEURL=https://openrouter.ai/api/v1
+FoveAI_MODEL_OPENROUTER_ID=deepseek/deepseek-chat-v3.1:free
+FoveAI_CHAT_PROVIDER=xrlf_runtime
+
+XRLF_FRONTEND_UI_PRESET=multigate
+XRLF_VOICE_ENABLED=true
+XRLF_MIC_ENABLED=true
+XRLF_FRONTEND_UI=multigate
+VITE_URL=http://127.0.0.1:5177
+XRLF_MODEL_THINKING=true
+FOVEAI_COGNITIVE_MODE=cloud
+FOVEAI_CHAT_PROVIDER=xrlf_runtime
+FOVEAI_CONTEXT_CONSENT=false
+XRLF_PROXY_AGGRESSION=3
+
+# XRLF boot configuration
+XRLF_AUTO_START_STACK=true
+XRLF_LEGACY_SERVICES=false
+
+# Active model — Qwen 4B (replaced Gemma E2B after crash recovery)
+FOVEAI_MODEL_ACTIVE_ID=qwopus3.5-9b-coder-mtp-moq.xrlf
+FOVEAI_MAIN_MODEL=qwopus3.5-9b-coder-mtp-moq.xrlf
+FOVEAI_FRONTEND_UI=multigate
+
+# Ported from ~/.env (was stranded by proxy settings path bug)
+XRLF_SMART_PROXY=true
+
+# ── recovered from Lumax old .env (secrets + tunables) ──
+HF_TOKEN=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
+VITE_HF_TOKEN=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
+GITHUB_TOKEN=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cfat_XrO4gFzsMaNdClWpDjIe88OYUBXUyIpHzCRkRIf6c43dead9
+NPMJS_TOKEN=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
+CLOUDFLARE_API_TOKEN=cfat_XrO4gFzsMaNdClWpDjIe88OYUBXUyIpHzCRkRIf6c43dead9
+CF_Access_Key_ID=7e7933cf37a63d6a6e5d9d5a7104a2cc
+CF_Secret_Access_Key=f26b234403def8f7b4525b03c35d2c0efad03e2b6945f5844fd3f1e72bd413d0
+FOVEAI_TOP_DOMAIN=xarel.net,1um6a.se
+LOG_LEVEL=WARNING
+FoveAI_KOKORO_VOICE=af_heart
+FOVEAI_PROXY_API_KEY=ab43d574af151ec9643f72ab41b97cae.sg9z7q4d9EbJt5ZB1dvvHwx8
+NODE_TLS_REJECT_UNAUTHORIZED=0
+FOVEA_COMPRESS_EVERY=4
+FOVEA_WINDOW=4
+FOVEAI_LOCAL_N_CTX=4096
+FOVEAI_MODEL_DORMANT_ID=smolvlm2-500m-multimodal-v1.0.xrlf
+FOVEAI_UNSLOTH_API_KEY=
+FOVEAI_LOCAL_HELPER=qwen2.5-0.5b-instruct
+FOVEAI_MODEL_THINKING=true
+FOVEAI_DEEP_THINK_DEFAULT=false
+FOVEAI_AUTONOMOUS_TURN_TAKING=true
+FOVEAI_AUTONOMY_CURIOSITY_BIAS=0.6
+FOVEAI_SELF_AWARENESS_BIAS=0.8
+FOVEAI_USER_ADORATION_BIAS=0.8
+FOVEAI_BEAUTY_ENJOYMENT_BIAS=0.6
+FOVEAI_EROTIC_AWARENESS_BIAS=0.7
+FOVEAI_AGENT_LOOP_ENABLED=true
+# 45s between autonomous ticks — she stays alive but sparse; cloud calls are reserved for Director/coder/deep-think only (loop thoughts run local)
+FOVEAI_AGENT_LOOP_INTERVAL=45.0
+FOVEAI_IDLE_LIFE_THRESHOLD=3600
+FOVEAI_SAFETY_BRAKE_CPU_PCT=90
+FOVEAI_SAFETY_BRAKE_RAM_PCT=95
+FOVEAI_SAFETY_BRAKE_ERROR_RATE=10
+FOVEAI_SAFETY_BRAKE_MAX_CONSECUTIVE_LOOPS=64
+FOVEAI_NVIDIA_URL=https://integrate.api.nvidia.com/v1/chat/completions
+FOVEAI_NVIDIA_API_KEY=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
+FOVEAI_NVIDIA_MODEL=google/gemma-4-31b-it
+FOVEAI_NVIDIA_REASONING=low
+FOVEAI_REPERTOIRE_NVIDIA_MAX_TOKENS=1024
+FOVEAI_MODEL_CLOUD_ID=glm-5.2
+FOVEAI_CODER_REASONING=high
+FOVEAI_MODEL_CODING_ID=kimi-k2.7-code
+OLLAMA_API_KEY=ab43d574af151ec9643f72ab41b97cae.sg9z7q4d9EbJt5ZB1dvvHwx8
+DEVIN_API_KEY=
+FOVEAI_REPERTOIRE_GEMINI_API_KEY=AIzaSyB9mcgHbEPR2ddre3yePSCsLLDoosGbuWE
+FOVEAI_MODEL_GEMINI_ID=gemini-3.1-pro
+GEMINI_API_KEY=AIzaSyB9mcgHbEPR2ddre3yePSCsLLDoosGbuWE
+FOVEAI_MODEL_DIRECTOR_ID=kimi-k2.7-code
+FOVEAI_DIRECTOR_API_KEY=ab43d574af151ec9643f72ab41b97cae.sg9z7q4d9EbJt5ZB1dvvHwx8
+FOVEAI_MODEL_SWARM_ID=qwen2.5-0.5b-instruct
+FOVEAI_MODEL_MCP_ID=no.2-smart-router_gguf
+FOVEAI_SOFT_GOV_ENABLED=true
+FOVEAI_SOFT_CPU_HOT_PCT=520
+FOVEAI_SOFT_CPU_FORCE_CLOUD_PCT=780
+FOVEAI_SOFT_PROMPT_TOKENS_HIGH=8192
+FOVEAI_SOFT_LOCAL_MAX_TOKENS_NORMAL=4096
+FOVEAI_SOFT_LOCAL_MAX_TOKENS_HOT=1024
+FOVEAI_SOFT_FORCE_CLOUD_PROMPT_TOKENS=33000
+FOVEAI_CLOUD_MAX_TOKENS=33000
+FOVEAI_CLOUD_MAX_TOKENS_CAP=8192
+FOVEAI_CLOUD_MAX_OUTPUT_TOKENS=
+FOVEAI_SPOOF_CONTEXT_WINDOW=128000
+FOVEAI_SAFE_MODE=false
+FOVEAI_ADAPTIVE_N_CTX=0
+FOVEAI_MODEL_SWAP_ENABLED=true
+FOVEAI_MODEL_SWAP_THRESHOLD=0.7
+FOVEAI_MODEL_SWAP_COOLDOWN=30
+FOVEAI_VOICE_ENABLED=true
+FOVEAI_MIC_ENABLED=true
+FOVEAI_MIDDLEMAN_MODEL=slim-summary-tiny-tool
+FOVEAI_MIDDLEMAN_MODEL_NO2=no.2-smart-router_gguf
+FOVEA_PASSTHROUGH_MODE=false
+FOVEAI_DELEGATION_ENABLED=false
+FOVEAI_ENV_AMBIENT=0
+FOVEAI_ENV_DIR=0
+FOVEAI_ENV_SHADOW=0.5
+FOVEAI_ENV_FOG=false
+FOVEAI_ENV_FOG_DENSITY=0.2
+FOVEAI_ENV_FOG_COLOR=#0a0a1a
+FOVEAI_ENV_FLOOR_COLOR=#1a1a2e
+FOVEAI_ENV_FLOOR_OPACITY=1
+FOVEAI_ENV_GRID=true
+FOVEAI_ENV_BG_COLOR=dark
+FOVEAI_MIDDLEMAN_CONTEXT_LENGTH=8300
+FOVEAI_MIDDLEMAN_GPU_OFFLOAD=1.0
+FOVEAI_TITLE_KEYWORD_MODEL=slim-summary-tiny-tool
+FOVEA_SUMMARY_TOKENS=128
+FOVEATED_OVERRIDES=
+FOVEAI_MIC_PTT=true
+FOVEAI_UI_SHELL=topbar
+FOVEAI_PROXY_AUTO_CHECKPOINT=false
+FOVEAI_API_KEY=ab43d574af151ec9643f72ab41b97cae.sg9z7q4d9EbJt5ZB1dvvHwx8
+FOVEAI_CLOUD_MODEL=kimi-k2.7-code
+FOVEAI_ECO_WORKER_INTERVAL_MS=3600000 # ecological sweeper once per hour
+XRLF_CLOUD_MAX_TOKENS_CAP=16384
+XRLF_MIC_PTT=true
+XRLF_CLOUD_PRESERVE_LAST=6
+XRLF_COMPRESSOR_MODEL=xrlf_runtime
+smart_router=true
+XRLF_PROXY_AUTO_CHECKPOINT=true
+
+# ── ported: consumed-by-code keys recovered from Lumax env ──
+CREATIVE_SERVICE_URL=http://127.0.0.1:8003
+EARS_URL=http://127.0.0.1:8001
+LM_STUDIO_URL=http://127.0.0.1:1234
+LOCAL_LLM_BASE=http://127.0.0.1:8402/v1
+LOCAL_LLM_MODEL=gemma-4-E2B-it
+LOCAL_LLM_TIMEOUT=180
+FOVEAI_DIRECTOR_AUTO_APPLY=true
+FOVEAI_DIRECTOR_BASE_URL=http://127.0.0.1:8400
+FOVEAI_DIRECTOR_CLOUD_ENABLED=true
+FOVEAI_DIRECTOR_MAX_INDEX_PER_MISSION=50
+TTS_URL=http://127.0.0.1:8406
+STT_URL=http://127.0.0.1:8409
+XRLF_CHAT_PROVIDER=xrlf_proxy
+XRLF_LLM_PROVIDER=xrlf_proxy
+XRLF_LOCAL_BASE_URL=http://127.0.0.1:8402/v1
+XRLF_TTS_PROVIDER=websocket
+FoveAI_TTS_PROVIDER=websocket
+FoveAI_VOICE_ENABLED=false
+FoveAI_MIC_ENABLED=false
+XRLF_STT_PROVIDER=browser
+FoveAI_STT_PROVIDER=browser
+
+XRLF_UI_SHELL=topbar
+XRLF_SPOOF_CONTEXT_WINDOW=8192
+thinking=true
+# Beta invite code — /api/auth/register accepts this (uppercase letters only)
+FOVEAI_BETA_CODE=BETA2026
+
+# === Rescued from LUMAX crash backup (lumax-crash-2026-09-95) — renamed LUMAX_→FOVEAI_, verify paths ===
+CF_S3_API_endpoint=https://ec209d52f30ad700a04876a84d7689bc.r2.cloudflarestorage.com
+CLOUDFLARE_ACCOUNT_ID=ec209d52f30ad700a04876a84d7689bc
+DEFAULT_EMISSIVE_INTENSITY=0.3
+DIRECTOR_MANAGER_ENABLED=true
+EMISSIVE_INTENSITY_OFFSET=-3
+FM_DASHBOARD_PORT=8401
+FORGE_NURSERY_ENABLED=true
+FORGE_NURSERY_MODELS_DIR=/home/lumba/.cache/huggingface/hub/lumax-forge
+FORGE_NURSERY_PORT=8105
+FOVEAI_BASE_URL=https://ollama.com/v1
+FOVEAI_CLOUDFLARE_EXE=/usr/local/bin/cloudflared
+FOVEAI_CLOUD_BASE_URL=https://ollama.com/v1
+FOVEAI_CLOUD_PRESERVE_LAST=4
+FOVEAI_COMPRESSOR_MODEL=reasoning-summarizer-800m-pre
+FOVEAI_COMPRESSOR_MODEL_NO2=no.2-smart-router_gguf
+FOVEAI_CPU_ONLY_MODELS=slim-summary-tiny-tool,smart-router_gguf,no.2-smart-router_gguf,reasoning-summarizer-800m-pre
+FOVEAI_CREATIVITY_DEFAULT_HEIGHT=512
+FOVEAI_CREATIVITY_DEFAULT_INFERENCE_STEPS=14
+FOVEAI_CREATIVITY_DEFAULT_MODEL_TYPE=turbo
+FOVEAI_CREATIVITY_DEFAULT_WIDTH=512
+FOVEAI_CREATIVITY_DISABLE_SD15_HUB_FALLBACK=0
+FOVEAI_CREATIVITY_GGUF_PATH=
+FOVEAI_CREATIVITY_IMAGEN_ROOT=/home/lumba/FoveAI/Backend/Creativity/Imagen
+FOVEAI_DELEGATOR_MODEL=no.2-smart-router_gguf
+FOVEAI_EXT_ID=laegoneiebmaheagojfdmikeldjnkfam
+FOVEAI_FALLBACK_BASE_URL=http://127.0.0.1:11434
+FOVEAI_FRONTEND_DESKTOP=/home/lumba/FoveAI/client_desktop
+FOVEAI_FRONTEND_MULTIGATE=/home/lumba/FoveAI/Frontend/multigate
+FOVEAI_FRONTEND_QUEST=/home/lumba/FoveAI/client_quest
+FOVEAI_FRONTEND_UI_PRESET=multigate
+FOVEAI_FRONTEND_XR_VESSEL=/home/lumba/FoveAI/Frontend/XR_Vessel
+FOVEAI_GGUF_NATIVE_VISION=false
+FOVEAI_IDE_BACKEND=nvidia
+FOVEAI_INVOKEAI_MERGE_CONTROLNETS=false
+FOVEAI_INVOKEAI_MODELS_CSV=/home/lumba/FoveAI/Tools/invokeai_models_inventory.csv
+FOVEAI_INVOKEAI_MODELS_HOST=D:/InvokeAI/models
+FOVEAI_INVOKEAI_MODELS_ROOT=D:/InvokeAI/models
+FOVEAI_KOKORO_VOICE=af_heart
+FOVEAI_LLM_PROVIDER=custom
+FOVEAI_LOCAL_BASE_URL=https://ollama.com/v1
+FOVEAI_LOCAL_ENGINE=lm_studio
+FOVEAI_LOCAL_VISION=false
+FOVEAI_LOCAL_VISION_ENABLED=false
+FOVEAI_MODELS_ROOT=/home/lumba/.cache/huggingface/hub/
+FOVEAI_MODEL_ACTIVE_PATH=/home/lumba/.cache/huggingface/hub/models--jica98--qwen3.5-4B-super-coder/snapshots/73c25a036706ebb5f09338f6743ec4d3ec0ce66e/qwen3.5-4B-super-coder.Q4_0.gguf
+FOVEAI_MODEL_DORMANT_PATH=/home/lumba/.cache/huggingface/hub/llmware/slim-summary-tiny-tool/tiny-summary.gguf
+FOVEAI_MODEL_EMBEDDING_ID=text-embedding-395309658a295cc893b3aa279136ce84f472fc62
+FOVEAI_MODEL_ID=73c25a036706ebb5f09338f6743ec4d3ec0ce66e@q4_0
+FOVEAI_MODEL_LOCAL_ID=slim-summary-tiny-tool
+FOVEAI_MODEL_LOCAL_PATH=/home/lumba/.cache/huggingface/hub/llmware/slim-summary-tiny-tool/tiny-summary.gguf
+FOVEAI_MPC_CONTEXT=False
+FOVEAI_MTP_DIR=/home/lumba/.cache/huggingface/hub/
+FOVEAI_OLLAMA_HOST_DIR=/usr/local/bin
+FOVEAI_PIPER_MODEL_DIR=F:/Lumax/Models/Frontend/Mouth/Speech/tts-piper-amy/en/en_US/amy/medium
+FOVEAI_PROVIDERS_CONFIG=/home/lumba/FoveAI/.xrlf/providers.json
+FOVEAI_PROXY_AGGRESSION=2
+FOVEAI_PROXY_MODE=routing
+FOVEAI_PROXY_MODEL=gemma-4-E2B-it
+FOVEAI_PROXY_MODEL_NO2=no.2-smart-router_gguf
+FOVEAI_PROXY_PORT=8400
+FOVEAI_PROXY_TARGET=https://ollama.com/v1
+FOVEAI_RECIEVER_MODEL=gemma-4-E2B-it
+FOVEAI_REPERTOIRE_GEMINI_BASE_URL=https://generativelanguage.googleapis.com
+FOVEAI_REPERTOIRE_GEMINI_LABEL="Google Gemini 3.1 Pro"
+FOVEAI_REPERTOIRE_GEMINI_MODEL_URL=https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-pro:generateContent
+FOVEAI_REPO_ROOT=/home/lumba/FoveAI
+FOVEAI_SMART_PROXY=false
+FOVEAI_TUNNEL_ENABLED=false # public localtunnel disabled (Cloudflare handles ingress)
+FOVEAI_UPSTREAM=http://127.0.0.1:8400
+FOVEAI_USER_DATA_DIR=/home/lumba/FoveAI/user_data
+FOVEAI_VARIANT_CODING=/home/lumba/.cache/huggingface/hub/w-ahmad/Gemma-4-12B-it-qat-GGUF-MoQ/MoQ-3.5.gguf
+FOVEAI_VARIANT_CODING_ID=w-ahmad/gemma-4-12b-it-qat-gguf-moq/moq-3.5.gguf
+FOVEAI_VARIANT_CODING_MTP=/home/lumba/.cache/huggingface/hub/models--unsloth--gemma-4-12B-it-qat-GGUF/snapshots/7102bdea62863acff919c945405ef29973113d66/mtp-gemma-4-12B-it.gguf
+FOVEAI_VARIANT_COMPANION=/home/lumba/.cache/huggingface/hub/w-ahmad/Gemma-4-12B-it-qat-GGUF-MoQ/MoQ-3.0.gguf
+FOVEAI_VARIANT_COMPANION_ID=w-ahmad/gemma-4-12b-it-qat-gguf-moq/moq-3.0.gguf
+FOVEAI_VARIANT_COMPANION_MTP=/home/lumba/.cache/huggingface/hub/models--unsloth--gemma-4-12B-it-qat-GGUF/snapshots/7102bdea62863acff919c945405ef29973113d66/mtp-gemma-4-12B-it.gguf
+FOVEAI_VENV_PATH=.venv
+FOVEAI_WEBUI_ALLOW_INSECURE=1
+GHOST_UI_MODE=TRAY
+MOUTH_URL=http://127.0.0.1:8406
+UNSLOTH_STUDIO_HOME=/home/lumba/.unsloth
+XLRF_BASEURL=http://127.0.0.1:8400
+XRLF_MODEL=qwopus3.5-9b-coder-mtp-moq
+XRLF_MODEL_FILE=qwopus3.5-9b-coder-mtp-moq.xrlf
+XRLF_MODEL_PATH=/home/lumba/FoveAI/xrl_encoded/qwopus3.5-9b-coder-mtp-moq.xrlf
+
+# ── Restored from migration-stripped env (crash tree) — paths remapped to this host ──
+FoveAI_GGUF_N_GPU_LAYERS=36
+FoveAI_PROXY_CHECKPOINT_THRESHOLD=65000
+FoveAI_PROXY_DRY_RUN=0
+FoveAI_PROXY_ENABLE_PRUNING=1
+FoveAI_REPERTOIRE_OPENROUTER_LABEL="OpenRouter Venice"
+XRLF_CAPABILITY_OVERRIDE=true
+FOVEAI_OMNI_ROUTER_MODEL=foveai-omni-router-v2.xrlf
+XRLF_ROUTER_MODEL=foveai-omni-router-v2.xrlf

@@ -29,6 +29,16 @@ namespace FoveAI.Comms
 
         private string Api => $"{baseUrl}{apiPath}";
 
+        private async void Awake()
+        {
+            // Resolve backend URL from shared config (serverIp + XRLF httpPort) if available
+            if (FoveAI.Config.ConfigLoader.Settings == null)
+                await FoveAI.Config.ConfigLoader.LoadConfigAsync();
+            var s = FoveAI.Config.ConfigLoader.Settings;
+            if (s != null)
+                baseUrl = $"http://{s.serverIp}:{s.httpPort}";
+        }
+
         // ── Data Models ──
 
         [System.Serializable]

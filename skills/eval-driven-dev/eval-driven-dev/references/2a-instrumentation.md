@@ -24,20 +24,36 @@ For each data point found, add a `wrap()` call in the application code:
 import pixie
 
 # External dependency data — function form (prevents the real call in eval mode)
-profile = pixie.wrap(db.get_profile, purpose="input", name="customer_profile",
-    description="Customer profile fetched from database")(user_id)
+profile = pixie.wrap(
+    db.get_profile,
+    purpose="input",
+    name="customer_profile",
+    description="Customer profile fetched from database",
+)(user_id)
 
 # External dependency data — function form (prevents the real call in eval mode)
-history = pixie.wrap(redis.get_history, purpose="input", name="conversation_history",
-    description="Conversation history from Redis")(session_id)
+history = pixie.wrap(
+    redis.get_history,
+    purpose="input",
+    name="conversation_history",
+    description="Conversation history from Redis",
+)(session_id)
 
 # App output — what the user receives
-response = pixie.wrap(response_text, purpose="output", name="response",
-    description="The assistant's response to the user")
+response = pixie.wrap(
+    response_text,
+    purpose="output",
+    name="response",
+    description="The assistant's response to the user",
+)
 
 # Intermediate state — internal decision relevant to evaluation
-selected_agent = pixie.wrap(selected_agent, purpose="state", name="routing_decision",
-    description="Which agent was selected to handle this request")
+selected_agent = pixie.wrap(
+    selected_agent,
+    purpose="state",
+    name="routing_decision",
+    description="Which agent was selected to handle this request",
+)
 ```
 
 ### Value vs. function wrapping
@@ -84,12 +100,20 @@ Track **downstream** from the LLM response to find where data leaves the app —
 
 ```python
 # Final response after the app's formatting pipeline
-response = pixie.wrap(formatted_response, purpose="output", name="response",
-    description="Final response sent to the user")
+response = pixie.wrap(
+    formatted_response,
+    purpose="output",
+    name="response",
+    description="Final response sent to the user",
+)
 
 # Side-effect output — data written to external storage
-pixie.wrap(saved_record, purpose="output", name="saved_summary",
-    description="Summary record saved to the database")
+pixie.wrap(
+    saved_record,
+    purpose="output",
+    name="saved_summary",
+    description="Summary record saved to the database",
+)
 ```
 
 **Principle**: output wraps are observation-only — they capture what the app produced so evaluators can score it. They are never mocked or injected during eval runs.
@@ -107,12 +131,20 @@ Common examples:
 
 ```python
 # Agent routing decision
-selected_agent = pixie.wrap(selected_agent, purpose="state", name="routing_decision",
-    description="Which agent was selected to handle this request")
+selected_agent = pixie.wrap(
+    selected_agent,
+    purpose="state",
+    name="routing_decision",
+    description="Which agent was selected to handle this request",
+)
 
 # Retrieved context fed to LLM
-pixie.wrap(retrieved_chunks, purpose="state", name="retrieved_context",
-    description="Document chunks retrieved by RAG before LLM call")
+pixie.wrap(
+    retrieved_chunks,
+    purpose="state",
+    name="retrieved_context",
+    description="Document chunks retrieved by RAG before LLM call",
+)
 ```
 
 **Principle**: only wrap state that an eval criterion actually needs. Don't wrap every variable — state wraps are for internal data that evaluators must see but that doesn't appear in the app's inputs or outputs.

@@ -51,8 +51,8 @@ import subprocess
 import sys
 import time
 import tkinter as tk
-from tkinter import messagebox
 from pathlib import Path
+from tkinter import messagebox
 
 # Enable DPI Awareness immediately to fix out-of-bounds rendering on high-res displays.
 if sys.platform == "win32":
@@ -112,7 +112,9 @@ MINUTE_HOT_MIN_SAMPLES = 24
 SUPPRESS_CPU_ALERT_WHEN_FOREGROUND_DOMINATES = False
 # sum(per-cpu %) across all logical CPUs — only apply suppression when the machine is clearly busy.
 FOREGROUND_DOMINANCE_MIN_AGG = 140.0
-FOREGROUND_DOMINANCE_RATIO = 0.42  # fg_ema / agg ≥ this ⇒ foreground likely owns the heat
+FOREGROUND_DOMINANCE_RATIO = (
+    0.42  # fg_ema / agg ≥ this ⇒ foreground likely owns the heat
+)
 
 # Curated quick picks (label → style); every name in STYLES stays available under “All styles…”
 METER_PRESETS: tuple[tuple[str, str], ...] = (
@@ -351,16 +353,23 @@ SWP_NOACTIVATE = 0x0010
 GWL_EXSTYLE = -20
 WS_EX_TOOLWINDOW = 0x00000080
 
+
 def win32_hwnd_topmost(hwnd: int) -> None:
     if sys.platform != "win32" or not hwnd:
         return
     try:
         ctypes.windll.user32.SetWindowPos(
-            hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW
+            hwnd,
+            HWND_TOPMOST,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
         )
     except (OSError, AttributeError, ctypes.ArgumentError, ValueError, TypeError):
         pass
+
 
 def win32_set_tool_window(hwnd: int) -> None:
     if sys.platform != "win32" or not hwnd:
@@ -421,7 +430,11 @@ def _try_nvidia_gpu_vram() -> tuple[float, float, str]:
         mused = float(parts[1])
         mtot = float(parts[2])
         vram = mused / max(mtot, 1.0)
-        return min(1.0, gpu), min(1.0, vram), f"{parts[0].strip()}% util, {parts[1]}/{parts[2]} MiB"
+        return (
+            min(1.0, gpu),
+            min(1.0, vram),
+            f"{parts[0].strip()}% util, {parts[1]}/{parts[2]} MiB",
+        )
     except (OSError, subprocess.TimeoutExpired, ValueError, IndexError):
         return 0.0, 0.0, ""
 
@@ -568,14 +581,16 @@ class Metrics:
             f"RAM\n{vm.percent:.0f}% used\n"
             f"{vm.used // (1024**3)} / {vm.total // (1024**3)} GiB"
         )
-        tip_vram = (
-            f"VRAM\n{vram_u * 100:.0f}% of reported VRAM (NVIDIA when available)"
-        )
+        tip_vram = f"VRAM\n{vram_u * 100:.0f}% of reported VRAM (NVIDIA when available)"
         tip_disk = (
             f"Disk I/O (read+write)\n{rw_bps / 1e6:.1f} MB/s total\n"
             f"(read {read_bps / 1e6:.1f}, write {write_bps / 1e6:.1f})"
         )
-        tip_swap = f"Swap\n{sw.percent:.0f}% used" if sw.total > 0 else "Swap\nno swap configured"
+        tip_swap = (
+            f"Swap\n{sw.percent:.0f}% used"
+            if sw.total > 0
+            else "Swap\nno swap configured"
+        )
         tip_net = (
             f"Network\n{net_bps / 1e6:.1f} MB/s in+out\n"
             f"(~{self._net_cap_bps // 1_000_000} MB/s cap for bar)"
@@ -843,7 +858,7 @@ class StressMeter(tk.Tk):
                 self.lift()
             except tk.TclError:
                 pass
-        
+
         # If the Shell has hidden/minimized us (Start Menu behavior),
         # force a restore to visibility.
         try:
@@ -876,10 +891,7 @@ class StressMeter(tk.Tk):
                 self._flow_bar_h = self._seg_h
             else:
                 self._ww = (
-                    self._pad * 2
-                    + N_METRICS * self._seg_w
-                    + (N_METRICS - 1) * gap
-                    + 4
+                    self._pad * 2 + N_METRICS * self._seg_w + (N_METRICS - 1) * gap + 4
                 )
             self._plate_bg = self.PLATE_BG
             self._alpha = 0.96
@@ -896,10 +908,7 @@ class StressMeter(tk.Tk):
             self._seg_h = 22
             self._hh = 44 if self._style == "stripe" else 42
             self._ww = (
-                self._pad * 2
-                + N_METRICS * self._seg_w
-                + (N_METRICS - 1) * gap
-                + 8
+                self._pad * 2 + N_METRICS * self._seg_w + (N_METRICS - 1) * gap + 8
             )
             self._plate_bg = self.PLATE_BG
             self._alpha = 0.94
@@ -907,11 +916,7 @@ class StressMeter(tk.Tk):
             self._pad = 6
             self._seg_w = 28
             self._seg_h = 28
-            self._ww = (
-                self._pad * 2
-                + N_METRICS * self._seg_w
-                + (N_METRICS - 1) * gap
-            )
+            self._ww = self._pad * 2 + N_METRICS * self._seg_w + (N_METRICS - 1) * gap
             self._hh = 44
             self._plate_bg = self.BG
             self._alpha = 0.92
@@ -1017,7 +1022,7 @@ class StressMeter(tk.Tk):
             # apply_bottom_appbar_band reserves the height strip across the whole screen.
             # We want that reservation, but we keep our own widget width (self._ww).
             ax, ay, aw, ah = apply_bottom_appbar_band(self)
-            
+
             # Use our intended width, but the AppBar's reserved height and Y position.
             # We place ourselves at the right side of the screen by default.
             new_x = aw - self._ww - 10
@@ -1025,7 +1030,7 @@ class StressMeter(tk.Tk):
                 self._hh = ah
                 self.canvas.configure(width=self._ww, height=ah)
                 self._build_segments()
-            
+
             self.geometry(f"{self._ww}x{ah}+{new_x}+{ay}")
             self._appbar_active = True
             self._apply_lock_from_config()
@@ -1046,7 +1051,7 @@ class StressMeter(tk.Tk):
                 # If the style has changed or we've updated the intended size (e.g. to 200px),
                 # we force the width/height to match our current self._ww / self._hh.
                 parts = geo.split("+")
-                size_part = parts[0] # e.g. "440x34"
+                size_part = parts[0]  # e.g. "440x34"
                 if "x" in size_part:
                     w_s, h_s = size_part.split("x")
                     if int(w_s) != self._ww or int(h_s) != self._hh:
@@ -1085,7 +1090,9 @@ class StressMeter(tk.Tk):
             cy + h / 2,
         ]
 
-    def _arrow_points_right(self, cx: float, cy: float, w: float, h: float) -> list[float]:
+    def _arrow_points_right(
+        self, cx: float, cy: float, w: float, h: float
+    ) -> list[float]:
         """Solid arrowhead pointing right (tip on +x)."""
         return [
             cx + w / 2,
@@ -1097,7 +1104,9 @@ class StressMeter(tk.Tk):
         ]
 
     @staticmethod
-    def _scale_poly_points(pts: list[float], cx: float, cy: float, scale: float) -> list[float]:
+    def _scale_poly_points(
+        pts: list[float], cx: float, cy: float, scale: float
+    ) -> list[float]:
         out: list[float] = []
         for i in range(0, len(pts), 2):
             x, y = pts[i], pts[i + 1]
@@ -1330,6 +1339,7 @@ class StressMeter(tk.Tk):
 
         row = tk.Frame(frm, bg="#12080c")
         row.pack(fill=tk.X, pady=(14, 0))
+
         def close_hot() -> None:
             try:
                 tw.destroy()
@@ -1402,7 +1412,7 @@ class StressMeter(tk.Tk):
             self._hover_seg = None
             self._close_hot_popup()
             return
-        
+
         span = (ix2 - ix1) / float(N_METRICS + 1)
         idx = int((e.x - ix1) / span) - 1
         idx = max(-1, min(N_METRICS - 1, idx))
@@ -1481,13 +1491,15 @@ class StressMeter(tk.Tk):
     def _build_flow(self) -> None:
         """Single horizontal bar: fill grows left-to-right; colour blue → red with load."""
         # Use solid integer coordinates for reliability
-        ix1 = int(self._ww * 0.24) + 4 # Proportional start (approx 24% text area + gap)
-        ix2 = self._ww - 10           # Explicit right padding for border
+        ix1 = (
+            int(self._ww * 0.24) + 4
+        )  # Proportional start (approx 24% text area + gap)
+        ix2 = self._ww - 10  # Explicit right padding for border
         bh = 18
         iy1 = int((self._hh - bh) / 2)
         iy2 = iy1 + bh
         self._flow_track = (float(ix1), float(iy1), float(ix2), float(iy2))
-        
+
         self.canvas.create_rectangle(
             ix1,
             iy1,
@@ -1499,7 +1511,7 @@ class StressMeter(tk.Tk):
             tags="flow_track",
         )
         self.canvas.tag_bind("flow_track", "<Button-1>", self._on_flow_click)
-        
+
         self._flow_fill_id = self.canvas.create_rectangle(
             ix1 + 1,
             iy1 + 1,
@@ -1831,7 +1843,10 @@ class StressMeter(tk.Tk):
         if self._cpu_hot_since is not None:
             sustained = time.monotonic() - self._cpu_hot_since
 
-        pulse_on = sustained >= PULSE_BORDER_AFTER_SEC and meta.get("cpu_load_01", 0) >= CPU_HOT_FRAC
+        pulse_on = (
+            sustained >= PULSE_BORDER_AFTER_SEC
+            and meta.get("cpu_load_01", 0) >= CPU_HOT_FRAC
+        )
         idle_border = self._idle_border_color()
         hot_border = self.BORDER_HOT
         if pulse_on:
@@ -1887,25 +1902,29 @@ class StressMeter(tk.Tk):
         fh = self._first_hot_index()
 
         fs = 8 if self._ww >= 200 else 7
-        active_idx = self._hover_seg if self._hover_seg is not None else self._focus_metric
+        active_idx = (
+            self._hover_seg if self._hover_seg is not None else self._focus_metric
+        )
         if active_idx is None:
             active_idx = -1
 
         # Stabilize redraws: only update canvas visuals every 5 seconds,
         # unless selection has changed.
         should_redraw = (
-            now - self._last_redraw_t >=  MEDIAN_WINDOW_SEC
+            now - self._last_redraw_t >= MEDIAN_WINDOW_SEC
             or active_idx != self._last_active_idx
         )
 
         if should_redraw:
             self._last_redraw_t = now
-            self.canvas.delete("hover_overlay", "focus_overlay", "thanks_overlay", "hot_banner")
+            self.canvas.delete(
+                "hover_overlay", "focus_overlay", "thanks_overlay", "hot_banner"
+            )
 
             if self._style == "flow":
                 if self._flow_fill_id is not None:
                     ix1, iy1, ix2, iy2 = self._flow_track
-                    tw = ix2 - ix1 - 2 # Inner width safety
+                    tw = ix2 - ix1 - 2  # Inner width safety
                     if self._hover_seg is not None or self._focus_metric is not None:
                         u = u_single
                     else:
@@ -1915,11 +1934,12 @@ class StressMeter(tk.Tk):
                             hi = self._rolling_mean.max() or 1.0
                             t = math.sin(now * 2.3) * 0.5 + 0.5
                             u = lo + t * (hi - lo)
-                    
-                    if self._hover_seg is not None and self._hover_seg >= 0 and self._hot_alert[self._hover_seg]:
-                        t = math.sin(now * 3.0) * 0.5 + 0.5
-                        fill = self._blend("#ff0000", "#ff6060", t)
-                    elif (
+
+                    if (
+                        self._hover_seg is not None
+                        and self._hover_seg >= 0
+                        and self._hot_alert[self._hover_seg]
+                    ) or (
                         fh is not None
                         and self._hover_seg is None
                         and self._focus_metric is None
@@ -1928,7 +1948,7 @@ class StressMeter(tk.Tk):
                         fill = self._blend("#ff0000", "#ff6060", t)
                     else:
                         fill = self._fill_blue_red(u)
-                    
+
                     w = tw * float(u)
                     self.canvas.coords(
                         self._flow_fill_id,
@@ -1952,7 +1972,11 @@ class StressMeter(tk.Tk):
             if active_idx is not None:
                 if active_idx == -1:
                     med = self._rolling_mean.median()
-                    pct = f"{med * 100:.0f}%" if med is not None else f"{mean_level * 100:.0f}%"
+                    pct = (
+                        f"{med * 100:.0f}%"
+                        if med is not None
+                        else f"{mean_level * 100:.0f}%"
+                    )
                     label_str = "SYS"
                     is_hot = False
                 else:
@@ -2033,7 +2057,7 @@ class StressMeter(tk.Tk):
                     fill="#ff5566",
                     tags="hot_banner",
                 )
-            
+
             self._last_active_idx = active_idx
 
         self.after(450, self._tick)
@@ -2070,9 +2094,7 @@ class StressMeter(tk.Tk):
         if self._tuning_plate and self._taskbar_rgb_base is not None:
             dy = self._tune_start_y_root - e.y_root
             delta = dy / 320.0
-            self._darken_factor = max(
-                0.65, min(1.0, self._darken_factor_start + delta)
-            )
+            self._darken_factor = max(0.65, min(1.0, self._darken_factor_start + delta))
             r, g, b = self._taskbar_rgb_base
             self._plate_bg = rgb_hex_darkened(r, g, b, self._darken_factor)
             self._apply_plate_bgs_to_chrome()
@@ -2265,7 +2287,9 @@ class StressMeter(tk.Tk):
             )
         m.add_separator()
         m.add_command(
-            label="Snap to taskbar band" if self._merge_taskbar else "Snap above taskbar",
+            label="Snap to taskbar band"
+            if self._merge_taskbar
+            else "Snap above taskbar",
             command=lambda: (self._place_window(), self._persist_config()),
         )
         m.add_separator()

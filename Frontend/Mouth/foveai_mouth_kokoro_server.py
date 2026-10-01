@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HTTP bridge for Kokoro TTS — primary MOUTH service for FoveAI (port 8004).
+HTTP bridge for Kokoro TTS — primary MOUTH service for FoveAI (port 8406).
 
 Kokoro provides high-quality, emotionally expressive TTS with minimal VRAM
 footprint, making it ideal for the 8GB RTX 4060 constraint.
@@ -12,12 +12,13 @@ Voice selection: explicit `voice` param > emotion-mapped > FoveAI_KOKORO_VOICE e
 
 Env vars:
   FoveAI_KOKORO_BIND         — host (default 0.0.0.0)
-  FoveAI_KOKORO_PORT         — port (default 8004)
+  FoveAI_KOKORO_PORT         — port (default FOVEAI_TTS_PORT or 8406)
   FoveAI_KOKORO_LANG_CODE    — language code (default "a" = American English)
   FoveAI_KOKORO_VOICE        — default voice when no emotion mapping (default "af_bella")
   FoveAI_KOKORO_SPEED         — default speed multiplier (default 1.0)
   LOG_LEVEL                  — logging verbosity
 """
+
 from __future__ import annotations
 
 import io
@@ -33,11 +34,17 @@ os.environ.pop("HF_HUB_OFFLINE", None)
 # ── PID Lock: prevent duplicate Kokoro instances ──────────────────────────
 # Two Kokoro processes = 2x VRAM/RAM for no reason. Exit early if already running.
 import sys
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'Scripts', 'windows'))
+
+sys.path.insert(
+    0, os.path.join(os.path.dirname(__file__), "..", "..", "Scripts", "windows")
+)
 try:
     from foveai_pid_lock import acquire_lock as _acquire_lock
+
     if not _acquire_lock("kokoro_tts", "kokoro"):
-        print("[Kokoro] Another instance is already running. Exiting to prevent duplicate VRAM usage.")
+        print(
+            "[Kokoro] Another instance is already running. Exiting to prevent duplicate VRAM usage."
+        )
         sys.exit(0)
 except ImportError:
     pass  # PID lock utility not available — continue anyway
@@ -45,7 +52,7 @@ except ImportError:
 import re
 import threading
 from contextlib import asynccontextmanager
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import soundfile as sf
@@ -56,7 +63,7 @@ from pydantic import BaseModel, Field
 
 _log = logging.getLogger("foveai.kokoro")
 _pipeline: Any = None
-_load_error: Optional[str] = None
+_load_error: str | None = None
 _model_lock = threading.Lock()
 _sample_rate: int = 24000
 
@@ -87,7 +94,7 @@ def _load_model_sync() -> None:
     lang = os.getenv("FoveAI_KOKORO_LANG_CODE", "a").strip()
     try:
         # Kokoro 0.9.x: KPipeline accepts lang_code and optionally repo_id/model
-        import torch
+
         # Kokoro is 82M params — instant on CPU, saves ~2GB VRAM (PyTorch CUDA overhead).
         # Only use GPU if explicitly requested via FoveAI_KOKORO_DEVICE=cuda.
         device = os.getenv("FoveAI_KOKORO_DEVICE", "cpu").strip()
@@ -141,14 +148,14 @@ async def _lifespan(app: FastAPI):
 
 class TTSBody(BaseModel):
     text: str = Field(..., min_length=1, max_length=8192)
-    voice: Optional[str] = None
-    style: Optional[str] = None
-    emotion: Optional[str] = None
+    voice: str | None = None
+    style: str | None = None
+    emotion: str | None = None
     speed: float = Field(default=1.08, ge=0.25, le=4.0)
-    lang_code: Optional[str] = None
+    lang_code: str | None = None
 
 
-app = FastAPI(title="Lumax Kokoro TTS (MOUTH :8004)", lifespan=_lifespan)
+app = FastAPI(title="Lumax Kokoro TTS (MOUTH :8406)", lifespan=_lifespan)
 
 
 @app.get("/health", response_model=None)
@@ -188,10 +195,15 @@ _STRIP_BRACKETS = re.compile(r"<[^>]+>")
 _STRIP_THOUGHTS = re.compile(r"\*[^*]+\*")
 
 
-async def _synthesize_edge_tts_async(text: str, voice: Optional[str] = None) -> bytes:
+async def _synthesize_edge_tts_async(text: str, voice: str | None = None) -> bytes:
     try:
         import edge_tts
-        edge_voice = voice if (voice and "Neural" in voice) else os.getenv("FoveAI_EDGETTS_VOICE", "en-US-AvaNeural").strip()
+
+        edge_voice = (
+            voice
+            if (voice and "Neural" in voice)
+            else os.getenv("FoveAI_EDGETTS_VOICE", "en-US-AvaNeural").strip()
+        )
         c = edge_tts.Communicate(text, edge_voice)
         data = b""
         async for chunk in c.stream():
@@ -202,9 +214,14 @@ async def _synthesize_edge_tts_async(text: str, voice: Optional[str] = None) -> 
         _log.error("EdgeTTS synthesis error: %s", e)
         raise e
 
+
 @app.post("/tts")
 def tts(body: TTSBody) -> Response:
-    provider = os.getenv("XRLF_TTS_PROVIDER", os.getenv("FoveAI_TTS_PROVIDER", "kokoro")).lower().strip()
+    provider = (
+        os.getenv("XRLF_TTS_PROVIDER", os.getenv("FoveAI_TTS_PROVIDER", "kokoro"))
+        .lower()
+        .strip()
+    )
 
     # Strip think blocks, bracket tokens, thought actions, and normalise whitespace
     text = _STRIP_THINK_BLOCK.sub("", body.text.strip())
@@ -218,6 +235,7 @@ def tts(body: TTSBody) -> Response:
     if provider == "edgetts" or (body.voice and "Neural" in body.voice):
         try:
             import asyncio
+
             audio_bytes = asyncio.run(_synthesize_edge_tts_async(text, body.voice))
             if audio_bytes:
                 return Response(content=audio_bytes, media_type="audio/mpeg")
@@ -227,19 +245,25 @@ def tts(body: TTSBody) -> Response:
     # FishSpeech Provider Routing (Port 8005)
     if provider in ["fish", "fishspeech"]:
         try:
-            import urllib.request, json as _json
+            import json as _json
+            import urllib.request
+
             req = urllib.request.Request(
                 "http://127.0.0.1:8005/v1/audio/speech",
-                data=_json.dumps({"input": text, "voice": body.voice or "default"}).encode("utf-8"),
+                data=_json.dumps(
+                    {"input": text, "voice": body.voice or "default"}
+                ).encode("utf-8"),
                 headers={"Content-Type": "application/json"},
-                method="POST"
+                method="POST",
             )
             with urllib.request.urlopen(req, timeout=5) as resp:
                 return Response(content=resp.read(), media_type="audio/wav")
         except Exception as e:
-            _log.warning("FishSpeech port 8005 unavailable, falling back to Kokoro: %s", e)
+            _log.warning(
+                "FishSpeech port 8005 unavailable, falling back to Kokoro: %s", e
+            )
 
-    # Kokoro / QwenTTS ONNX Provider (Port 8004 default)
+    # Kokoro / QwenTTS ONNX Provider (Port 8406 default)
     if _pipeline is None:
         raise HTTPException(status_code=503, detail=_load_error or "model_not_loaded")
 
@@ -315,9 +339,11 @@ def voices():
 def synthesize(body: TTSBody) -> Response:
     return tts(body)
 
+
 @app.post("/say")
 def say(body: TTSBody) -> Response:
     return tts(body)
+
 
 @app.post("/v1/audio/speech")
 def openai_speech(body: dict) -> Response:
@@ -337,11 +363,9 @@ def main() -> None:
         format="%(levelname)s %(name)s %(message)s",
     )
     host = os.getenv("FoveAI_KOKORO_BIND", "0.0.0.0").strip()
-    port = _env_int("FoveAI_KOKORO_PORT", 8004)
+    port = _env_int("FoveAI_KOKORO_PORT", _env_int("FOVEAI_TTS_PORT", 8406))
     _log.info("Starting Kokoro TTS on %s:%d", host, port)
-    uvicorn.run(
-        app, host=host, port=port, log_level=uvi_level
-    )
+    uvicorn.run(app, host=host, port=port, log_level=uvi_level)
 
 
 if __name__ == "__main__":

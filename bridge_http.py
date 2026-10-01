@@ -3,21 +3,22 @@ bridge_http.py — minimal OpenAI-compatible HTTP server for a raw .gguf model.
 Uses only the Python stdlib so it doesn't need uvicorn/flask/fastapi.
 """
 
+import argparse
 import json
 import time
 import uuid
-import argparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from threading import Thread
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from llama_cpp import Llama
 
-llm: Optional[Llama] = None
+llm: Llama | None = None
 model_id = "foveai-omni-router"
 
 
-def make_completion(messages: List[Dict[str, str]], max_tokens: int, temperature: float) -> str:
+def make_completion(
+    messages: list[dict[str, str]], max_tokens: int, temperature: float
+) -> str:
     result = llm.create_chat_completion(
         messages=messages,
         max_tokens=max_tokens,
@@ -41,17 +42,24 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/v1/models":
-            self._send_json(200, {
-                "object": "list",
-                "data": [{
-                    "id": model_id,
-                    "object": "model",
-                    "created": int(time.time()),
-                    "owned_by": "foveai-bridge",
-                }],
-            })
+            self._send_json(
+                200,
+                {
+                    "object": "list",
+                    "data": [
+                        {
+                            "id": model_id,
+                            "object": "model",
+                            "created": int(time.time()),
+                            "owned_by": "foveai-bridge",
+                        }
+                    ],
+                },
+            )
         elif self.path == "/health":
-            self._send_json(200, {"status": "ok", "model": model_id, "loaded": llm is not None})
+            self._send_json(
+                200, {"status": "ok", "model": model_id, "loaded": llm is not None}
+            )
         else:
             self._send_json(404, {"error": "not found"})
 
@@ -63,22 +71,34 @@ class Handler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(length).decode("utf-8")
             payload = json.loads(body)
-            messages = [{"role": m.get("role"), "content": m.get("content")} for m in payload.get("messages", [])]
+            messages = [
+                {"role": m.get("role"), "content": m.get("content")}
+                for m in payload.get("messages", [])
+            ]
             max_tokens = int(payload.get("max_tokens", 1024))
             temperature = float(payload.get("temperature", 0.7))
             content = make_completion(messages, max_tokens, temperature)
-            self._send_json(200, {
-                "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
-                "object": "chat.completion",
-                "created": int(time.time()),
-                "model": payload.get("model", model_id),
-                "choices": [{
-                    "index": 0,
-                    "message": {"role": "assistant", "content": content},
-                    "finish_reason": "stop",
-                }],
-                "usage": {"prompt_tokens": -1, "completion_tokens": -1, "total_tokens": -1},
-            })
+            self._send_json(
+                200,
+                {
+                    "id": f"chatcmpl-{uuid.uuid4().hex[:12]}",
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                    "model": payload.get("model", model_id),
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {"role": "assistant", "content": content},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": -1,
+                        "completion_tokens": -1,
+                        "total_tokens": -1,
+                    },
+                },
+            )
         except Exception as e:
             self._send_json(500, {"error": str(e)})
 
@@ -109,8 +129,9 @@ def main():
         server.serve_forever()
     except KeyboardInterrupt:
         pass
-    except Exception as e:
+    except Exception:
         import traceback
+
         traceback.print_exc()
     finally:
         server.server_close()

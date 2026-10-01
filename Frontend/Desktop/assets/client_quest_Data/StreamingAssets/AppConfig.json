@@ -1,0 +1,9 @@
+{
+    "serverIp": "192.168.8.100",
+    "portBaseSoul": 8400,
+    "portEyes": 8401,
+    "portThoughts": 8402,
+    "portAnimation": 8400,
+    "portTTS": 8400,
+    "portEars": 8400
+}

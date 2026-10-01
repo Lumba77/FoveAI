@@ -3,14 +3,13 @@ Quantizer for Forge Nursery
 Handles GGUF dequantization → training → MoQ requantization pipeline.
 Uses Unsloth's llama.cpp binaries for GGUF operations.
 """
-import os
+
 import json
-import subprocess
-import shutil
 import logging
-from pathlib import Path
-from typing import Optional
+import os
+import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -72,13 +71,14 @@ QUANT_TYPES = {
 @dataclass
 class QuantizeJob:
     """Tracks a quantization job."""
+
     job_id: str
     input_path: str  # Path to merged FP16 model
     output_path: str
     quant_type: str  # Key from QUANT_TYPES
     status: str = "queued"
     progress: float = 0.0
-    error: Optional[str] = None
+    error: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -108,7 +108,7 @@ class ForgeQuantizer:
         # Locate llama.cpp binaries (bundled with Unsloth)
         self._llama_cpp_dir = self._find_llama_cpp()
 
-    def _find_llama_cpp(self) -> Optional[str]:
+    def _find_llama_cpp(self) -> str | None:
         """Find llama.cpp binaries from Unsloth installation."""
         # Check Unsloth's bundled llama.cpp
         candidates = [
@@ -120,7 +120,9 @@ class ForgeQuantizer:
 
         for candidate in candidates:
             convert_py = os.path.join(candidate, "convert_hf_to_gguf.py")
-            quantize_exe = os.path.join(candidate, "build", "bin", "Release", "quantize.exe")
+            quantize_exe = os.path.join(
+                candidate, "build", "bin", "Release", "quantize.exe"
+            )
             if os.path.exists(convert_py) or os.path.exists(quantize_exe):
                 logger.info(f"Found llama.cpp at: {candidate}")
                 return candidate
@@ -138,12 +140,12 @@ class ForgeQuantizer:
         import time
 
         if quant_type not in QUANT_TYPES:
-            raise ValueError(f"Unknown quant type: {quant_type}. Options: {list(QUANT_TYPES.keys())}")
+            raise ValueError(
+                f"Unknown quant type: {quant_type}. Options: {list(QUANT_TYPES.keys())}"
+            )
 
         job_id = f"quant-{variant_id}-{int(time.time())}"
-        output_path = os.path.join(
-            self.output_base, variant_id, f"gguf-{quant_type}"
-        )
+        output_path = os.path.join(self.output_base, variant_id, f"gguf-{quant_type}")
         os.makedirs(output_path, exist_ok=True)
 
         job = QuantizeJob(
@@ -183,8 +185,7 @@ class ForgeQuantizer:
             quant_type_info = QUANT_TYPES[job.quant_type]
             # Make the output file name dynamic based on the variant_id (rather than hardcoded gemma-4-12b)
             output_file = os.path.join(
-                job.output_path,
-                f"{job.job_id.replace('quant-', '')}.gguf"
+                job.output_path, f"{job.job_id.replace('quant-', '')}.gguf"
             )
 
             success = self._quantize_gguf(
@@ -221,17 +222,13 @@ class ForgeQuantizer:
             logger.error(f"Quantization failed: {e}")
             return False
 
-    def _convert_to_gguf(self, job: QuantizeJob) -> Optional[str]:
+    def _convert_to_gguf(self, job: QuantizeJob) -> str | None:
         """Convert HuggingFace model to GGUF FP16 format."""
-        convert_script = os.path.join(
-            self._llama_cpp_dir, "convert_hf_to_gguf.py"
-        )
+        convert_script = os.path.join(self._llama_cpp_dir, "convert_hf_to_gguf.py")
 
         if not os.path.exists(convert_script):
             # Try the newer unified convert script
-            convert_script = os.path.join(
-                self._llama_cpp_dir, "convert_hf_to_gguf.py"
-            )
+            convert_script = os.path.join(self._llama_cpp_dir, "convert_hf_to_gguf.py")
 
         if not os.path.exists(convert_script):
             job.error = f"convert_hf_to_gguf.py not found in {self._llama_cpp_dir}"
@@ -241,11 +238,15 @@ class ForgeQuantizer:
         output_path = os.path.join(job.output_path, "model-fp16.gguf")
 
         import sys
+
         cmd = [
-            sys.executable, convert_script,
+            sys.executable,
+            convert_script,
             job.input_path,
-            "--outfile", output_path,
-            "--outtype", "f16",
+            "--outfile",
+            output_path,
+            "--outtype",
+            "f16",
         ]
 
         logger.info(f"Converting to GGUF: {' '.join(cmd)}")
@@ -270,8 +271,12 @@ class ForgeQuantizer:
         # Find quantize binary (support both legacy quantize.exe and modern llama-quantize.exe)
         quantize_exe = None
         for candidate in [
-            os.path.join(self._llama_cpp_dir, "build", "bin", "Release", "llama-quantize.exe"),
-            os.path.join(self._llama_cpp_dir, "build", "bin", "Release", "quantize.exe"),
+            os.path.join(
+                self._llama_cpp_dir, "build", "bin", "Release", "llama-quantize.exe"
+            ),
+            os.path.join(
+                self._llama_cpp_dir, "build", "bin", "Release", "quantize.exe"
+            ),
             os.path.join(self._llama_cpp_dir, "build", "bin", "llama-quantize.exe"),
             os.path.join(self._llama_cpp_dir, "build", "bin", "quantize.exe"),
             os.path.join(self._llama_cpp_dir, "llama-quantize.exe"),
@@ -303,7 +308,7 @@ class ForgeQuantizer:
         logger.info(f"Quantized model created: {output_path}")
         return True
 
-    def _build_quantize(self) -> Optional[str]:
+    def _build_quantize(self) -> str | None:
         """Attempt to build the quantize binary from llama.cpp source."""
         build_dir = os.path.join(self._llama_cpp_dir, "build")
         os.makedirs(build_dir, exist_ok=True)
@@ -319,7 +324,15 @@ class ForgeQuantizer:
             )
             # Build quantize target only
             subprocess.run(
-                ["cmake", "--build", ".", "--target", "quantize", "--config", "Release"],
+                [
+                    "cmake",
+                    "--build",
+                    ".",
+                    "--target",
+                    "quantize",
+                    "--config",
+                    "Release",
+                ],
                 cwd=build_dir,
                 capture_output=True,
                 timeout=600,
@@ -335,7 +348,7 @@ class ForgeQuantizer:
 
         return None
 
-    def get_job(self, job_id: str) -> Optional[QuantizeJob]:
+    def get_job(self, job_id: str) -> QuantizeJob | None:
         return self.jobs.get(job_id)
 
     def list_jobs(self) -> list[dict]:
@@ -374,7 +387,7 @@ class ForgeQuantizer:
 
 
 # Singleton
-_quantizer: Optional[ForgeQuantizer] = None
+_quantizer: ForgeQuantizer | None = None
 
 
 def get_quantizer(models_dir: str = None) -> ForgeQuantizer:

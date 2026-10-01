@@ -1,0 +1,30 @@
+[
+  {
+    "prompt": "Explain semantic compression.",
+    "thread": {
+      "text": "Explain semantic compression. What is the difference between semantic compression and the other types of compression? What are the advantages and disadvantages of semantic compression?\n\n<think>:\n\n</think>\n\n**Semantic compression** is a data compression technique that goes beyond simply reducing the number of bits (syntactic compression) by reducing the amount of information required to describe the *meaning* of the data. Instead of just finding patterns in how data is stored or transmitted, it exploits patterns in the *semantics* (the meaning or context) of the data to achieve higher compression ratios.\n\nHere is a detailed breakdown of what it is, how it differs from other methods, and its",
+      "note": "logits not available; text-only thread"
+    }
+  },
+  {
+    "prompt": "Write a Python function that adds two numbers.",
+    "thread": {
+      "text": "Write a Python function that adds two numbers. If both numbers are integers, the result must be printed as an integer. If at least one number is a float, the result must be printed as a float.\n\n```python\ndef add_two_numbers(a, b):\n    \"\"\"\n    Adds two numbers and returns the result in the appropriate numeric type.\n    - If both inputs are integers, the result is an integer.\n    - If at least one input is a float, the result is a float.\n    \"\"\"\n    # Determine the type of the result\n    if isinstance(a, int) and isinstance(b, int):\n        result = a +",
+      "note": "logits not available; text-only thread"
+    }
+  },
+  {
+    "prompt": "Describe pruning vs quantization.",
+    "thread": {
+      "text": "Describe pruning vs quantization.\n\n<think>\n\n</think>\n\n**Pruning** and **Quantization** are the two most common techniques used to optimize Deep Learning models. While both aim to make models faster, smaller, and more efficient for deployment on edge devices (like mobile phones or IoT sensors), they achieve these goals through fundamentally different mechanisms.\n\nHere is a detailed breakdown of how they differ, how they work, and their trade-offs.\n\n---\n\n### 1. Pruning: \"Removing Unnecessary Parts\"\n**Pruning** is a structural optimization technique. It works by identifying and removing redundant components (weights or neurons) from the network architecture without significantly",
+      "note": "logits not available; text-only thread"
+    }
+  },
+  {
+    "prompt": "Summarize the concept of attention in transformers.",
+    "thread": {
+      "text": "Summarize the concept of attention in transformers.\n\n<think>\n\n</think>\n\nIn the Transformer architecture, **attention** (specifically **Self-Attention**) is the core mechanism that allows the model to weigh the importance of different words (or tokens) in a sequence relative to one another.\n\nUnlike previous neural network architectures (like RNNs) that processed data sequentially and often struggled with long-range dependencies, self-attention enables the model to understand the relationship between any two tokens in a sentence simultaneously, regardless of their distance.\n\n### How It Works\n\nThe process typically involves three main steps applied to a sequence of input tokens:\n\n1.  **Query, Key, and Value",
+      "note": "logits not available; text-only thread"
+    }
+  }
+]

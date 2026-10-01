@@ -2,11 +2,10 @@
 Model Registry for Forge Nursery
 Manages variant definitions stored in model_registry.json.
 """
-import os
+
 import json
 import logging
-from pathlib import Path
-from typing import Optional
+import os
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
@@ -17,6 +16,7 @@ REGISTRY_PATH = os.path.join(os.path.dirname(__file__), "model_registry.json")
 @dataclass
 class VariantDefinition:
     """A fine-tuned model variant definition."""
+
     id: str
     name: str
     description: str = ""
@@ -80,15 +80,13 @@ class ModelRegistry:
 
     def _save(self):
         """Persist variants to JSON file."""
-        data = {
-            "variants": {vid: v.to_dict() for vid, v in self.variants.items()}
-        }
+        data = {"variants": {vid: v.to_dict() for vid, v in self.variants.items()}}
         os.makedirs(os.path.dirname(self.registry_path), exist_ok=True)
         with open(self.registry_path, "w") as f:
             json.dump(data, f, indent=2)
         logger.info(f"Saved {len(self.variants)} variants to registry")
 
-    def get_variant(self, variant_id: str) -> Optional[VariantDefinition]:
+    def get_variant(self, variant_id: str) -> VariantDefinition | None:
         return self.variants.get(variant_id)
 
     def list_variants(self) -> list[dict]:
@@ -96,6 +94,7 @@ class ModelRegistry:
 
     def add_variant(self, variant: VariantDefinition):
         import datetime
+
         variant.created_at = datetime.datetime.now().isoformat()
         self.variants[variant.id] = variant
         self._save()
@@ -113,7 +112,7 @@ class ModelRegistry:
 
 
 # Singleton
-_registry: Optional[ModelRegistry] = None
+_registry: ModelRegistry | None = None
 
 
 def get_registry() -> ModelRegistry:

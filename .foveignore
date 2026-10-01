@@ -1,0 +1,45 @@
+# .foveignore — FoveAI self-development protection layers
+#
+# Every path matching a pattern here is a PROTECTED layer: the agent's
+# <self:edit>/<self:codedit> tags are filed as proposals for architect
+# review instead of being applied directly. Everything else inside the
+# repo is OPEN for self-edits. Paths outside the repo are always
+# PROTECTED. Secrets (.env, keys, tokens, .ssh …) are FORBIDDEN at code
+# level and can never be unlocked by editing this file — nor can this
+# file unlock itself (it is hardcoded protected).
+#
+# Syntax: gitignore-style globs, one per line.  # = comment
+#   Backend/app/        — protects a directory prefix
+#   Backend/config.yaml — protects one file
+#   *.service           — glob
+#   !Backend/app/README.md — '!' re-opens a subpath back to OPEN
+
+# ── Core brain & runtime ──────────────────────────────
+Backend/app/
+Backend/Cognition/compagent.py
+Backend/Cognition/autonomous_agent.py
+Backend/Cognition/coder_agent.py
+Backend/Cognition/MindCore*
+Backend/Cognition/persistent_memory*
+Backend/config.yaml
+Backend/preflight/
+
+# ── Launchers, services, lifecycle ────────────────────
+sleipnir_launcher*
+FoveAI_Console.py
+FoveAI_Taskbar*
+*.service
+*.timer
+
+# ── Governance & memory of record ─────────────────────
+.foveignore
+AGENTS.md
+AGENT.md
+CLAUDE.md
+Backend/data/agent_proposals.jsonl
+Backend/data/self_edits/
+
+# ── Authentication / access control surfaces ──────────
+**/auth*.py
+**/multigate*/**/auth*
+.env*

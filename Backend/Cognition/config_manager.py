@@ -1,21 +1,27 @@
-import os
 import logging
+import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
+
+from dotenv import load_dotenv, set_key
 from fastapi import APIRouter
 from pydantic import BaseModel
-from dotenv import set_key, load_dotenv
 
 logger = logging.getLogger("foveai.config_manager")
 
 # Path to the actual .env file
-ENV_FILE_PATH = Path(os.getenv("FoveAI_REPO_ROOT", Path(__file__).resolve().parent.parent.parent)) / ".env"
+ENV_FILE_PATH = (
+    Path(os.getenv("FoveAI_REPO_ROOT", Path(__file__).resolve().parent.parent.parent))
+    / ".env"
+)
+
 
 class ConfigManager:
     """
     The central source of truth for FoveAI configurations.
     Operates directly on the .env file so changes are persistent and instantly reflected.
     """
+
     def __init__(self):
         # Reload the .env file into os.environ on startup just to be sure
         if ENV_FILE_PATH.exists():
@@ -33,7 +39,7 @@ class ConfigManager:
         val_str = str(value)
         # Update the OS environment immediately so the running app sees the change
         os.environ[key] = val_str
-        
+
         # Persist to the .env file
         if ENV_FILE_PATH.exists():
             try:
@@ -42,7 +48,10 @@ class ConfigManager:
             except Exception as e:
                 logger.error(f"ConfigManager: Failed to write {key} to .env - {e}")
         else:
-            logger.error(f"ConfigManager: Cannot write {key}, .env file missing at {ENV_FILE_PATH}")
+            logger.error(
+                f"ConfigManager: Cannot write {key}, .env file missing at {ENV_FILE_PATH}"
+            )
+
 
 # Singleton instance
 config = ConfigManager()
@@ -50,21 +59,26 @@ config = ConfigManager()
 # --- FastAPI Router Integration ---
 config_router = APIRouter(prefix="/api/config", tags=["config"])
 
+
 class ConfigUpdateRequest(BaseModel):
-    updates: Dict[str, Any]
+    updates: dict[str, Any]
+
 
 @config_router.get("/")
 async def get_config():
     """Return the current dynamic environment state for the UI."""
     return {
-        "status": "ok", 
+        "status": "ok",
         "overrides": {
             # We explicitly send back the values the UI cares about
             "FoveAI_CHAT_PROVIDER": os.getenv("FoveAI_CHAT_PROVIDER", "ollama_cloud"),
             "FoveAI_COGNITIVE_MODE": os.getenv("FoveAI_COGNITIVE_MODE", "normal"),
-            "FoveAI_SOFT_PROMPT_TOKENS_HIGH": os.getenv("FoveAI_SOFT_PROMPT_TOKENS_HIGH", "12000")
-        }
+            "FoveAI_SOFT_PROMPT_TOKENS_HIGH": os.getenv(
+                "FoveAI_SOFT_PROMPT_TOKENS_HIGH", "12000"
+            ),
+        },
     }
+
 
 @config_router.post("/")
 async def update_config(req: ConfigUpdateRequest):

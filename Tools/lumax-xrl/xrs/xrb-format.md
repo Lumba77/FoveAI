@@ -213,8 +213,10 @@ This is O(1) per token — no string parsing needed.
 @dataclass
 class User:
     """User model with authentication"""
+
     id: int
     name: str
+
     @flesh
     def authenticate(self, password: str) -> bool:
         # Implementation detail

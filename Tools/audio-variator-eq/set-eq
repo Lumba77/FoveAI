@@ -1,0 +1,709 @@
+#!/usr/bin/env python3
+"""
+set-eq — CLI & Engine for PipeWire EQ, Dual Freq Balancers, and Studio Pitch/Effects.
+Modulates PipeWire DSP nodes in real time with ZERO audio dropout.
+"""
+
+import argparse
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+CONF_PATH = Path.home() / ".config" / "pipewire" / "pipewire.conf.d" / "sink-eq.conf"
+STATE_PATH = Path.home() / ".config" / "pipewire" / "eq-state.json"
+PRESETS_PATH = Path.home() / ".config" / "pipewire" / "eq-presets.json"
+
+# which state keys belong to each output unit
+UNIT_KEYS = {
+    "EQ":    ["bass", "mid", "treble", "bass_freq", "mid_freq", "treble_freq",
+              "bass_q", "mid_q", "treble_q"],
+    "PITCH": ["pitch", "warp"],
+    "DYN":   ["compressor", "loudness"],
+    "SPACE": ["reverb", "reverb_type", "delay", "delay_type", "chorus", "chorus_type"],
+    "MOD":   ["modulator", "width"],
+    "TILT":  ["bal_low", "bal_high"],
+}
+
+# ---------------------------------------------------------------------------
+# Layer 1: unit preset atoms — each is a complete, carefully weighted unit
+# state named for the result it achieves. Values follow published mixing/
+# mastering conventions (iZotope/Sweetwater EQ cheat sheets, Eventide reverb
+# guides, bus-compression references): broad gentle moves, ±1-4 dB, mud cut at
+# 250-400 Hz, presence 2-5 kHz, air 10 kHz+, room 0.2-0.8 s / plate 1-3 s /
+# hall 1.8-4 s, bus glue ~2:1 1-2 dB GR.
+# ---------------------------------------------------------------------------
+FACTORY_UNIT_PRESETS = {
+    "EQ": {
+        "FLAT":        {"bass": 0, "mid": 0, "treble": 0, "bass_freq": 100, "mid_freq": 1000,
+                        "treble_freq": 8000, "bass_q": 1.0, "mid_q": 1.0, "treble_q": 1.0},
+        # the universal clarity win: narrow-ish cut in the 250-400 Hz box zone
+        "MUD CUT":     {"bass": 0, "mid": -2, "treble": 0, "bass_freq": 100, "mid_freq": 350,
+                        "mid_q": 1.0, "treble_freq": 8000, "bass_q": 1.0, "treble_q": 1.0},
+        # Pytten-style black metal: 350 Hz mud scoop, 80 Hz kick, presence shelf
+        "COLD SCOOP":  {"bass": 2, "mid": -3, "treble": 3, "bass_freq": 80, "bass_q": 1.4,
+                        "mid_freq": 350, "mid_q": 1.0, "treble_freq": 3500, "treble_q": 0.8},
+        # death metal: deeper 300 Hz scoop, 60 Hz weight, 4 kHz click
+        "DEATH SCOOP": {"bass": 4, "mid": -2, "treble": 3, "bass_freq": 60, "bass_q": 1.5,
+                        "mid_freq": 300, "mid_q": 0.7, "treble_freq": 4000, "treble_q": 1.0},
+        # doom/sludge: thick low-mids, dark top
+        "SLUDGE":      {"bass": 4, "mid": 1, "treble": -2, "bass_freq": 70, "bass_q": 1.2,
+                        "mid_freq": 450, "mid_q": 0.8, "treble_freq": 8000, "treble_q": 1.0},
+        # kick thump 60 Hz + snare body 2.5 kHz + cymbal air
+        "DRUM FOCUS":  {"bass": 5, "mid": 2, "treble": 2, "bass_freq": 60, "bass_q": 1.4,
+                        "mid_freq": 2500, "mid_q": 1.6, "treble_freq": 9000, "treble_q": 1.0},
+        # guitar meat honk at 1.6 kHz, narrow Q
+        "HONK":        {"bass": 1, "mid": 4, "treble": 2, "bass_freq": 100, "bass_q": 1.0,
+                        "mid_freq": 1600, "mid_q": 2.0, "treble_freq": 8000, "treble_q": 1.0},
+        # classic rock: 400 Hz congestion cut, broad presence lift from 2.5 kHz
+        "ROCK OPEN":   {"bass": 1, "mid": -2, "treble": 2, "bass_freq": 70, "bass_q": 1.0,
+                        "mid_freq": 400, "mid_q": 0.8, "treble_freq": 2500, "treble_q": 1.0},
+        # vocal forward: rumble cut 150 Hz, presence 3 kHz, air 10 kHz
+        "PRESENCE":    {"bass": -2, "mid": 4, "treble": 2, "bass_freq": 150, "bass_q": 1.0,
+                        "mid_freq": 3000, "mid_q": 1.2, "treble_freq": 10000, "treble_q": 1.0},
+        # synth bass shelf + sparkle
+        "SYNTH BASS":  {"bass": 3, "mid": 0, "treble": 2, "bass_freq": 60, "bass_q": 1.3,
+                        "mid_freq": 1000, "mid_q": 1.0, "treble_freq": 7500, "treble_q": 1.0},
+        # hip-hop: 50 Hz sub, 2.8 kHz vocal pocket
+        "808 POCKET":  {"bass": 5, "mid": 1, "treble": 1, "bass_freq": 50, "bass_q": 1.2,
+                        "mid_freq": 2800, "mid_q": 1.0, "treble_freq": 8000, "treble_q": 1.0},
+        # pop polish: gentle 70 Hz lift + 10 kHz air
+        "SHEEN":       {"bass": 1, "mid": 1, "treble": 2, "bass_freq": 70, "bass_q": 1.0,
+                        "mid_freq": 3000, "mid_q": 0.8, "treble_freq": 10000, "treble_q": 1.0},
+        # warm jazz body
+        "WARM JAZZ":   {"bass": 1, "mid": 1, "treble": 1, "bass_freq": 120, "bass_q": 1.0,
+                        "mid_freq": 1000, "mid_q": 1.0, "treble_freq": 8000, "treble_q": 1.0},
+        # lift the band through big spaces: 1.2 kHz mid push
+        "BAND LIFT":   {"bass": 1, "mid": 2, "treble": 1, "bass_freq": 100, "bass_q": 1.0,
+                        "mid_freq": 1200, "mid_q": 1.0, "treble_freq": 8000, "treble_q": 1.0},
+        # night-soft: warm low end, rolled highs
+        "SOFT":        {"bass": 2, "mid": 1, "treble": -2, "bass_freq": 100, "bass_q": 1.0,
+                        "mid_freq": 1000, "mid_q": 1.0, "treble_freq": 8000, "treble_q": 1.0},
+        # +1 everywhere, near-flat enhancement
+        "SMILE":       {"bass": 1, "mid": 1, "treble": 1, "bass_freq": 100, "bass_q": 1.0,
+                        "mid_freq": 1000, "mid_q": 1.0, "treble_freq": 8000, "treble_q": 1.0},
+        # club sub: deep 55 Hz shelf, 300 Hz mud pulled
+        "SUB CLUB":    {"bass": 6, "mid": -2, "treble": 1, "bass_freq": 55, "bass_q": 1.4,
+                        "mid_freq": 300, "mid_q": 1.0, "treble_freq": 8000, "treble_q": 1.0},
+        # cassette/lo-fi: 5 kHz rolloff, warm boxy mids
+        "LO-FI":       {"bass": 2, "mid": 2, "treble": -3, "bass_freq": 100, "bass_q": 1.0,
+                        "mid_freq": 800, "mid_q": 1.0, "treble_freq": 5000, "treble_q": 1.0},
+        # shoegaze/dream-pop: mild mid recess, low-mids kept per genre practice
+        "DREAM MIDS":  {"bass": 1, "mid": -1, "treble": 1, "bass_freq": 100, "bass_q": 1.0,
+                        "mid_freq": 900, "mid_q": 1.0, "treble_freq": 8000, "treble_q": 1.0},
+    },
+    # SPACE keys: reverb, reverb_type, delay, delay_type, chorus, chorus_type
+    "SPACE": {
+        "FLAT":        {"reverb": 0, "reverb_type": "room", "delay": 0, "delay_type": "1/8",
+                        "chorus": 0, "chorus_type": "duet"},
+        "TIGHT ROOM":  {"reverb": 8, "reverb_type": "room", "delay": 0, "delay_type": "1/8",
+                        "chorus": 0, "chorus_type": "duet"},
+        "ROOM GLUE":   {"reverb": 12, "reverb_type": "room", "delay": 0, "delay_type": "1/8",
+                        "chorus": 0, "chorus_type": "duet"},
+        "COLD PLATE":  {"reverb": 15, "reverb_type": "plate", "delay": 0, "delay_type": "1/8",
+                        "chorus": 0, "chorus_type": "duet"},
+        "PLATE AIR":   {"reverb": 12, "reverb_type": "plate", "delay": 0, "delay_type": "1/8",
+                        "chorus": 0, "chorus_type": "duet"},
+        "SLAPBACK":    {"reverb": 10, "reverb_type": "room", "delay": 10, "delay_type": "slap",
+                        "chorus": 0, "chorus_type": "duet"},
+        "VOCAL SPACE": {"reverb": 8, "reverb_type": "room", "delay": 6, "delay_type": "slap",
+                        "chorus": 0, "chorus_type": "duet"},
+        "LEAD SUSTAIN":{"reverb": 12, "reverb_type": "plate", "delay": 12, "delay_type": "1/8",
+                        "chorus": 10, "chorus_type": "duet"},
+        "SHEEN SPACE": {"reverb": 10, "reverb_type": "plate", "delay": 5, "delay_type": "1/8",
+                        "chorus": 8, "chorus_type": "duet"},
+        # synthwave: plate kept behind the dry signal, Juno-style chorus
+        "JUNO SPACE":  {"reverb": 22, "reverb_type": "plate", "delay": 18, "delay_type": "1/8",
+                        "chorus": 18, "chorus_type": "trio"},
+        # shoegaze: the space IS the sound — long hall, dotted-feel echoes
+        "WASH WALL":   {"reverb": 40, "reverb_type": "cath", "delay": 25, "delay_type": "trip",
+                        "chorus": 30, "chorus_type": "trio"},
+        # doom: cathedral weight + three-voice chorus
+        "SLUDGE SPACE":{"reverb": 28, "reverb_type": "cath", "delay": 8, "delay_type": "1/4",
+                        "chorus": 18, "chorus_type": "trio"},
+        "ARENA":       {"reverb": 32, "reverb_type": "cath", "delay": 15, "delay_type": "1/4",
+                        "chorus": 8, "chorus_type": "duet"},
+        "PING SPACE":  {"reverb": 20, "reverb_type": "plate", "delay": 6, "delay_type": "ping",
+                        "chorus": 15, "chorus_type": "trio"},
+        "TAPE ECHO":   {"reverb": 10, "reverb_type": "room", "delay": 0, "delay_type": "1/8",
+                        "chorus": 12, "chorus_type": "vib"},
+    },
+    # DYN keys: compressor, loudness — bus glue ~2:1 / 1-2 dB GR ≈ knob 30
+    "DYN": {
+        "FLAT":        {"compressor": 0, "loudness": 0},
+        "GENTLE":      {"compressor": 15, "loudness": 0},
+        "GLUE":        {"compressor": 30, "loudness": 0},
+        "FIRM":        {"compressor": 40, "loudness": 0},
+        "PUNCH":       {"compressor": 45, "loudness": 0},
+        "BUS POLISH":  {"compressor": 30, "loudness": 10},
+        "CLUB":        {"compressor": 45, "loudness": 20},
+        "NIGHT":       {"compressor": 50, "loudness": 30},
+    },
+    "PITCH": {
+        "FLAT":        {"pitch": 0, "warp": 0},
+        "DOWN 1":      {"pitch": -1, "warp": 0},
+        "DOWN 2":      {"pitch": -2, "warp": 0},
+        "UP 1":        {"pitch": 1, "warp": 0},
+        "COLD DRIFT":  {"pitch": 0, "warp": -5},
+        "DRIFT UP":    {"pitch": 0, "warp": 5},
+        "TAPE SAG":    {"pitch": 0, "warp": -15},
+    },
+    "MOD": {
+        "FLAT":        {"modulator": 0, "width": 0},
+        "FOCUS":       {"modulator": 0, "width": 20},
+        "CENTER":      {"modulator": 0, "width": 25},
+        "STAGE":       {"modulator": 0, "width": 45},
+        "WIDE":        {"modulator": 0, "width": 60},
+        "X-WIDE":      {"modulator": 0, "width": 75},
+    },
+    "TILT": {
+        "FLAT":        {"bal_low": "neutral", "bal_high": "neutral"},
+        "V-TILT":      {"bal_low": "low", "bal_high": "high"},
+        "DARK":        {"bal_low": "low", "bal_high": "neutral"},
+        "BRIGHT":      {"bal_low": "neutral", "bal_high": "high"},
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Educational commentary — what each atom does and why (edutainment layer).
+# ---------------------------------------------------------------------------
+FACTORY_UNIT_EDU = {
+    "EQ": {
+        "FLAT": "Unity reference — no tonal change. A/B against this to hear what the other presets actually do.",
+        "MUD CUT": "Cutting 250-400 Hz is the single biggest clarity win in mixing — this is where boxiness lives.",
+        "COLD SCOOP": "Pytten's black-metal balance: scoop 350 Hz mud, keep the 80 Hz kick, lift presence from 3.5 kHz so tremolo picking stays readable.",
+        "DEATH SCOOP": "Deeper scoop at 300 Hz with 60 Hz weight and 4 kHz pick-click — the Florida/Gothenburg death-metal signature.",
+        "SLUDGE": "Thick low-mids and a dark top — doom metal wants mass, not definition.",
+        "DRUM FOCUS": "Kick thump at 60 Hz, snare body at 2.5 kHz, cymbal air at 9 kHz — the classic drum lift.",
+        "HONK": "A narrow +4 dB at 1.6 kHz is where electric guitar 'meat' lives — cuts through any mix.",
+        "ROCK OPEN": "The classic rock remaster move: cut 400 Hz congestion, lift everything above 2.5 kHz gently.",
+        "PRESENCE": "Vocal-forward: rumble cut at 150 Hz, +4 dB presence at 3 kHz, air shelf at 10 kHz.",
+        "SYNTH BASS": "Tight 60 Hz synth-bass shelf plus 7.5 kHz sparkle — leaves mids clean for leads.",
+        "808 POCKET": "Sub at 50 Hz with a vocal pocket at 2.8 kHz — hip-hop's two anchors.",
+        "SHEEN": "Pop polish: small 70 Hz lift + 10 kHz air shelf. Enhancement, not surgery.",
+        "WARM JAZZ": "120 Hz body, gentle everything — jazz masters stay near-flat.",
+        "BAND LIFT": "1.2 kHz mid push keeps the band audible inside large-space reverbs.",
+        "SOFT": "Warm low end with rolled highs — easier on the ears at low volume.",
+        "SMILE": "+1 dB everywhere — the mildest possible enhancement curve.",
+        "SUB CLUB": "Deep 55 Hz shelf with the 300 Hz mud pulled out — club weight without box.",
+        "LO-FI": "5 kHz rolloff + boxy 800 Hz mids = cassette/vintage character.",
+        "DREAM MIDS": "Mild 900 Hz recess — shoegaze keeps its low-mids, just makes room for the wash.",
+    },
+    "SPACE": {
+        "FLAT": "No added space — the dry reference.",
+        "TIGHT ROOM": "A small 0.35 s room at low level — glues dry elements without audible echo.",
+        "ROOM GLUE": "Room reverb at mix-glue level — makes isolated sources sound recorded together.",
+        "COLD PLATE": "Plate reverb: dense and bright without suggesting a physical space — black metal's cold air.",
+        "PLATE AIR": "A touch of plate — depth without distance, the classic vocal/snare trick.",
+        "SLAPBACK": "Single 90 ms echo + small room — thickens rhythm the 50s/rockabilly way.",
+        "VOCAL SPACE": "Dry small room plus a whisper of slap — vocals stay upfront but gain a space.",
+        "LEAD SUSTAIN": "Plate + eighth-note echo + duet chorus — the lead-guitar sustain trinity.",
+        "SHEEN SPACE": "Light plate, short echo, duet chorus — pop gloss.",
+        "JUNO SPACE": "Synthwave: plate behind the dry signal, 1/8 echoes, Juno-style trio chorus.",
+        "WASH WALL": "Shoegaze: reverb IS the sound. Cathedral at 40% + dotted-feel echoes + thick chorus.",
+        "SLUDGE SPACE": "Cathedral weight plus three-voice chorus — the doom wall.",
+        "ARENA": "Long hall + quarter-note echoes — concert scale.",
+        "PING SPACE": "Ping-pong echoes bouncing between speakers plus plate air — headphone expander.",
+        "TAPE ECHO": "Small room + vibrato chorus — cassette wow/flutter character.",
+    },
+    "DYN": {
+        "FLAT": "No dynamics processing — full natural range.",
+        "GENTLE": "~1.5:1 — barely-there smoothing, jazz/acoustic level.",
+        "GLUE": "The mix-bus standard: ~2:1, 1-2 dB of gain reduction. Welds elements without flattening them.",
+        "FIRM": "~3:1 — vocals and rock bus level, keeps performances forward.",
+        "PUNCH": "~4:1, several dB of reduction — drums and dense metal, hits land together.",
+        "BUS POLISH": "Glue compression plus mild loudness contour — streaming-ready polish.",
+        "CLUB": "Heavy comp + loudness lift — maximum perceived loudness for club material.",
+        "NIGHT": "Strong compression + Fletcher-Munson loudness curve — full-range sound at whisper volume.",
+    },
+    "PITCH": {
+        "FLAT": "No pitch processing.",
+        "DOWN 1": "Everything down one semitone — instant sludge/de-tuned weight.",
+        "DOWN 2": "Two semitones down — extreme doom territory.",
+        "UP 1": "Up a semitone — brighter, tighter, chipmunk-adjacent at extremes.",
+        "COLD DRIFT": "5 cents flat — the barely-detectable detune that makes things feel cold and old.",
+        "DRIFT UP": "5 cents sharp — subtle lift, slight tension.",
+        "TAPE SAG": "15 cents flat — worn-cassette pitch droop.",
+    },
+    "MOD": {
+        "FLAT": "Mono-compatible center image.",
+        "FOCUS": "Narrow-ish image — keeps attention centered, good for vocals/subs.",
+        "CENTER": "Slightly narrow — focused but not cramped.",
+        "STAGE": "Natural stage width — a gentle spread.",
+        "WIDE": "Beyond-speakers width — hard-panned metal guitars get room to breathe.",
+        "X-WIDE": "Maximum width + surround crossfeed — headphone space expander.",
+    },
+    "TILT": {
+        "FLAT": "No frequency balancing.",
+        "V-TILT": "Tilts energy toward lows AND highs — the V-curve excitement button.",
+        "DARK": "Tilts toward the lows — warmer, heavier balance.",
+        "BRIGHT": "Tilts toward the highs — airier balance.",
+    },
+}
+
+# ---------------------------------------------------------------------------
+# Layer 2: scene presets — compositions that select one unit preset per unit.
+# Optional raw keys override resolved values; "cat" groups scenes in the UI.
+# ---------------------------------------------------------------------------
+FACTORY_SCENES = {
+    # --- genre chains: compositions of unit preset atoms ---
+    "BLACK METAL":   {"edu": "Pytten-style cold: mud scooped at 350 Hz, kick tight at 80 Hz, cold plate air, -5ct drift. Scene = EQ:COLD SCOOP + SPACE:COLD PLATE + DYN:GLUE + PITCH:COLD DRIFT + MOD:WIDE + TILT:V-TILT.", "cat": "METAL", "units": {"EQ": "COLD SCOOP", "SPACE": "COLD PLATE",
+                      "DYN": "GLUE", "PITCH": "COLD DRIFT", "MOD": "WIDE", "TILT": "V-TILT"}},
+    "DEATH GROOVE":  {"edu": "Death metal weight: deep 300 Hz scoop, 60 Hz low end, nearly dry so palm-mutes stay percussive.", "cat": "METAL", "units": {"EQ": "DEATH SCOOP", "SPACE": "TIGHT ROOM",
+                      "DYN": "PUNCH", "MOD": "STAGE", "TILT": "V-TILT"}},
+    "DOOM WALL":     {"edu": "Everything down a semitone into a cathedral — the space units carry the wall while EQ stays thick and dark.", "cat": "METAL", "units": {"EQ": "SLUDGE", "SPACE": "SLUDGE SPACE",
+                      "DYN": "GLUE", "PITCH": "DOWN 1", "MOD": "WIDE", "TILT": "DARK"}},
+    "THUNDER DRUM":  {"edu": "Kick thump + snare body + slap-back thickening + firm bus comp — drums that hit like weather.", "cat": "DRUMS", "units": {"EQ": "DRUM FOCUS", "SPACE": "SLAPBACK",
+                      "DYN": "PUNCH", "MOD": "STAGE"}},
+    "BASS PUNCH":    {"edu": "Deep 55 Hz club shelf, mud pulled at 300 Hz, heavy comp keeps the boost from clipping.", "cat": "DRUMS", "units": {"EQ": "SUB CLUB", "SPACE": "TIGHT ROOM",
+                      "DYN": "CLUB", "MOD": "FOCUS"}},
+    "GUITAR GRIT":   {"edu": "The 1.6 kHz honk that lets guitars cut, plus plate+echo sustain and duet chorus width.", "cat": "ROCK", "units": {"EQ": "HONK", "SPACE": "LEAD SUSTAIN",
+                      "DYN": "GENTLE", "MOD": "STAGE"}},
+    "CLASSIC ROCK":  {"edu": "The remaster recipe: cut 400 Hz congestion, gentle presence lift, glue comp, slap echo.", "cat": "ROCK", "units": {"EQ": "ROCK OPEN", "SPACE": "SLAPBACK",
+                      "DYN": "GLUE", "MOD": "STAGE"}},
+    "VOCAL CLARITY": {"edu": "3 kHz presence peak, rumble cut, 10 kHz air — voices step forward.", "cat": "VOCAL", "units": {"EQ": "PRESENCE", "SPACE": "VOCAL SPACE",
+                      "DYN": "FIRM", "MOD": "FOCUS"}},
+    "POP SHEEN":     {"edu": "The streaming polish: air shelf + gentle low lift + gloss space.", "cat": "VOCAL", "units": {"EQ": "SHEEN", "SPACE": "SHEEN SPACE",
+                      "DYN": "GLUE", "MOD": "STAGE"}},
+    "SYNTHWAVE":     {"edu": "Juno chorus + plate-behind-dry + 1/8 echoes + tight synth-bass shelf — neon 80s.", "cat": "ELECTRONIC", "units": {"EQ": "SYNTH BASS", "SPACE": "JUNO SPACE",
+                      "DYN": "BUS POLISH", "MOD": "WIDE"}},
+    "HIP-HOP":       {"edu": "50 Hz sub anchor + vocal pocket + firm comp, dry and centered.", "cat": "URBAN", "units": {"EQ": "808 POCKET", "SPACE": "FLAT",
+                      "DYN": "PUNCH", "MOD": "FOCUS"}},
+    "SHOEGAZE":      {"edu": "Reverb as the instrument: cathedral 40% + triplet echoes + trio chorus + upward drift.", "cat": "DREAM", "units": {"EQ": "DREAM MIDS", "SPACE": "WASH WALL",
+                      "DYN": "GENTLE", "PITCH": "DRIFT UP", "MOD": "X-WIDE", "TILT": "BRIGHT"}},
+    "JAZZ LOUNGE":   {"edu": "Near-bypass dynamics, warm body, hint of room — enhancement under 2 dB.", "cat": "DREAM", "units": {"EQ": "WARM JAZZ", "SPACE": "ROOM GLUE",
+                      "DYN": "GENTLE", "MOD": "CENTER"}},
+    "TAPE WARMTH":   {"edu": "Worn cassette: 5 kHz rolloff, -15ct sag, vib-chorus wow/flutter.", "cat": "DREAM", "units": {"EQ": "LO-FI", "SPACE": "TAPE ECHO",
+                      "DYN": "GENTLE", "PITCH": "TAPE SAG", "MOD": "STAGE"}},
+    "LIVE ARENA":    {"edu": "Cathedral + quarter-note echoes + max width, mids lifted so the band survives the space.", "cat": "SPACES", "units": {"EQ": "BAND LIFT", "SPACE": "ARENA",
+                      "DYN": "GENTLE", "MOD": "X-WIDE"}},
+    "WIDE STAGE":    {"edu": "Spatial expansion only — max width + ping echoes over near-flat EQ.", "cat": "SPACES", "units": {"EQ": "SMILE", "SPACE": "PING SPACE",
+                      "MOD": "X-WIDE"}},
+    "LATE NIGHT":    {"edu": "Fletcher-Munson loudness correction + soft compression — full sound at low volume.", "cat": "UTILITY", "units": {"EQ": "SOFT", "SPACE": "TIGHT ROOM",
+                      "DYN": "NIGHT", "MOD": "FOCUS"}},
+    "FLAT":          {"edu": "Reference state — everything neutral. The A/B baseline.",
+                      "cat": "UTILITY", "units": {"EQ": "FLAT", "SPACE": "FLAT",
+                      "DYN": "FLAT", "PITCH": "FLAT", "MOD": "FLAT", "TILT": "FLAT"}},
+}
+
+DEFAULT_STATE = {
+    "bypass": False,         # master FX on/off (all processing neutral)
+    "bass": 0.0,
+    "mid": 0.0,
+    "treble": 0.0,
+    "bass_freq": 100.0,      # band 1 lowshelf Hz (20-500)
+    "mid_freq": 1000.0,      # band 3 peaking Hz (200-8000)
+    "treble_freq": 8000.0,   # band 5 highshelf Hz (1500-16000)
+    "bass_q": 1.0,           # 0.3 - 8.0
+    "mid_q": 1.0,
+    "treble_q": 1.0,
+    "bal_low": "neutral",    # "neutral", "low", "mid"
+    "bal_high": "neutral",   # "neutral", "mid", "high"
+    "pitch": 0,              # -12 to +12 semitones
+    "warp": 0.0,             # -100 to +100 cents
+    "loudness": 0.0,         # 0 - 100 %
+    "compressor": 0.0,       # 0 - 100 %
+    "reverb": 0.0,           # 0 - 100 %
+    "reverb_type": "room",   # room / plate / cath
+    "delay": 0.0,            # 0 - 100 % echo level
+    "delay_type": "1/8",     # slap / 1/8 / 1/4 / trip / ping
+    "chorus": 0.0,           # 0 - 100 % chorus wet level
+    "chorus_type": "duet",   # duet / trio / vib
+    "modulator": 0.0,        # 0 - 100 %
+    "width": 0.0,            # 0 - 100 % (stereo widen -> surround sim past 50%)
+}
+
+SIDES = ("l", "r")
+
+
+def load_state() -> dict:
+    state = dict(DEFAULT_STATE)
+    if STATE_PATH.exists():
+        try:
+            state.update(json.loads(STATE_PATH.read_text(encoding="utf-8")))
+        except Exception:
+            pass
+    return state
+
+
+def save_state(state: dict):
+    STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    STATE_PATH.write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+
+def load_presets() -> dict:
+    presets = {"scenes": dict(FACTORY_SCENES),
+               "units": {u: dict(ps) for u, ps in FACTORY_UNIT_PRESETS.items()},
+               "cats": {}}
+    if PRESETS_PATH.exists():
+        try:
+            saved = json.loads(PRESETS_PATH.read_text(encoding="utf-8"))
+            presets["scenes"].update(saved.get("scenes", {}))
+            for unit, ps in saved.get("units", {}).items():
+                presets["units"].setdefault(unit, {}).update(ps)
+        except Exception:
+            pass
+    for name, sc in presets["scenes"].items():
+        presets["cats"][name] = sc.get("cat", "CUSTOM") if isinstance(sc, dict) else "CUSTOM"
+    # educational commentary: factory atom blurbs + per-scene edu fields
+    presets["edu"] = {
+        "units": {u: dict(edu) for u, edu in FACTORY_UNIT_EDU.items()},
+        "scenes": {n: sc.get("edu", "") for n, sc in presets["scenes"].items()
+                   if isinstance(sc, dict)},
+    }
+    return presets
+
+
+def save_presets(presets: dict):
+    # keep factory scenes and factory unit atoms out of the file; only user
+    # saves are persisted
+    user_scenes = {k: v for k, v in presets.get("scenes", {}).items()
+                   if k not in FACTORY_SCENES or v != FACTORY_SCENES[k]}
+    user_units = {}
+    for unit, ps in presets.get("units", {}).items():
+        keep = {n: v for n, v in ps.items()
+                if n not in FACTORY_UNIT_PRESETS.get(unit, {})
+                or v != FACTORY_UNIT_PRESETS[unit][n]}
+        if keep:
+            user_units[unit] = keep
+    PRESETS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    PRESETS_PATH.write_text(json.dumps({"scenes": user_scenes, "units": user_units}, indent=2),
+                            encoding="utf-8")
+
+
+def resolve_scene(scene: dict, units: dict) -> dict:
+    """Expand a scene's unit-preset references into raw state keys.
+
+    A scene is {"cat": ..., "units": {"EQ": "COLD SCOOP", ...}} — each value is
+    a unit preset name (or a list of names merged in order). Raw keys at the
+    top level override the resolved preset values. Plain value dicts (user-
+    saved snapshots) pass through unchanged.
+    """
+    vals = {}
+    if isinstance(scene, dict):
+        for unit, ref in scene.get("units", {}).items():
+            for name in (ref if isinstance(ref, list) else [ref]):
+                p = units.get(unit, {}).get(name, {})
+                for k, v in p.items():
+                    if k in UNIT_KEYS.get(unit, ()):
+                        vals[k] = v
+        for k, v in scene.items():
+            if k not in ("units", "cat", "desc", "edu"):
+                vals[k] = v
+    return vals
+
+
+def get_eq_node_id() -> int:
+    try:
+        out = subprocess.check_output(["pw-dump"], timeout=2).decode()
+        for obj in json.loads(out):
+            if obj.get("type") == "PipeWire:Interface:Node":
+                props = obj.get("info", {}).get("props", {})
+                if props.get("node.name") == "effect_input.eq":
+                    return obj["id"]
+    except Exception:
+        pass
+    return None
+
+
+def set_live_prop(node_id: int, param_name: str, val):
+    if not node_id:
+        return
+    payload = json.dumps({"params": [param_name, val]})
+    subprocess.run(["pw-cli", "s", str(node_id), "Props", payload],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def _set_both(node_id: int, fmt: str, val):
+    for s in SIDES:
+        set_live_prop(node_id, fmt.format(s=s), val)
+
+
+def _apply_bypass(node_id: int):
+    for s in SIDES:
+        for band in range(1, 6):
+            set_live_prop(node_id, f"eq_band_{band}_{s}:Gain", 0.0)
+        set_live_prop(node_id, f"eq_band_4_{s}:Freq", 3500.0)
+        set_live_prop(node_id, f"pitch_{s}:Pitch shift", 1.0)
+        set_live_prop(node_id, f"detune_{s}:Pitch shift", 1.0)
+        set_live_prop(node_id, f"detune2_{s}:Pitch shift", 1.0)
+        for g in range(2, 9):
+            set_live_prop(node_id, f"mix_{s}:Gain {g}", 0.0)
+    _set_both(node_id, "comp_{s}:Threshold", 0.0)
+    _set_both(node_id, "comp_{s}:Ratio", 1.0)
+    _set_both(node_id, "comp_{s}:Makeup", 0.0)
+
+
+def apply_all_live(state: dict):
+    node_id = get_eq_node_id()
+    if not node_id:
+        return
+
+    if state.get("bypass", False):
+        _apply_bypass(node_id)
+        return
+
+    b_low = state.get("bal_low", "neutral")
+    b_high = state.get("bal_high", "neutral")
+    loud = float(state.get("loudness", 0.0))
+    mod = float(state.get("modulator", 0.0))
+
+    # Dual Frequency Balancer offsets
+    bass_bias = +2.0 if b_low == "low" else (-1.0 if b_low == "mid" else 0.0)
+    mid_low_bias = +1.5 if b_low == "mid" else (-1.0 if b_low == "low" else 0.0)
+    mid_high_bias = +1.5 if b_high == "mid" else (-1.0 if b_high == "high" else 0.0)
+    treb_bias = +2.0 if b_high == "high" else (-1.0 if b_high == "mid" else 0.0)
+
+    # Loudness contour (+0 to +5 dB)
+    loud_bass = (loud / 100.0) * 5.0
+    loud_treble = (loud / 100.0) * 4.0
+
+    eff_bass = state["bass"] + bass_bias + loud_bass
+    eff_mid = state["mid"] + mid_low_bias + mid_high_bias
+    eff_treble = state["treble"] + treb_bias + loud_treble
+
+    bf = min(500.0, max(20.0, float(state.get("bass_freq", 100.0))))
+    mf = min(8000.0, max(200.0, float(state.get("mid_freq", 1000.0))))
+    tf = min(16000.0, max(1500.0, float(state.get("treble_freq", 8000.0))))
+    bq = min(8.0, max(0.3, float(state.get("bass_q", 1.0))))
+    mq = min(8.0, max(0.3, float(state.get("mid_q", 1.0))))
+    tq = min(8.0, max(0.3, float(state.get("treble_q", 1.0))))
+
+    for s in SIDES:
+        set_live_prop(node_id, f"eq_band_1_{s}:Gain", round(eff_bass, 1))
+        set_live_prop(node_id, f"eq_band_1_{s}:Freq", round(bf, 1))
+        set_live_prop(node_id, f"eq_band_1_{s}:Q", round(bq, 2))
+        set_live_prop(node_id, f"eq_band_3_{s}:Gain", round(eff_mid, 1))
+        set_live_prop(node_id, f"eq_band_3_{s}:Freq", round(mf, 1))
+        set_live_prop(node_id, f"eq_band_3_{s}:Q", round(mq, 2))
+        set_live_prop(node_id, f"eq_band_5_{s}:Gain", round(eff_treble, 1))
+        set_live_prop(node_id, f"eq_band_5_{s}:Freq", round(tf, 1))
+        set_live_prop(node_id, f"eq_band_5_{s}:Q", round(tq, 2))
+
+        # Freq Modulator: real swept peaking band (300 Hz -> 5 kHz, up to +7 dB)
+        mod_freq = 300.0 + (mod / 100.0) * 4700.0
+        mod_gain = (mod / 100.0) * 7.0 * (1.0 if b_high == "high" else 0.7)
+        set_live_prop(node_id, f"eq_band_4_{s}:Freq", round(mod_freq, 0))
+        set_live_prop(node_id, f"eq_band_4_{s}:Gain", round(mod_gain, 1))
+
+        # Pitch & Warp: semitones -> ratio (AM pitchshifter, real-time)
+        pitch_st = int(state.get("pitch", 0))
+        warp_cents = float(state.get("warp", 0.0))
+        set_live_prop(node_id, f"pitch_{s}:Pitch shift",
+                      round(2.0 ** ((pitch_st + warp_cents / 100.0) / 12.0), 4))
+
+        # Reverb: quadratic taper split between room (Gain 2) and cathedral (Gain 6)
+        rv = float(state.get("reverb", 0.0)) / 100.0
+        rt = state.get("reverb_type", "room")
+        wetA, wetB = {"room": (1.0, 0.0), "plate": (0.55, 0.65), "cath": (0.0, 1.0)}.get(rt, (1.0, 0.0))
+        set_live_prop(node_id, f"mix_{s}:Gain 2", round(rv * rv * 0.35 * wetA, 4))
+        set_live_prop(node_id, f"mix_{s}:Gain 6", round(rv * rv * 0.50 * wetB, 4))
+
+        # Echo delay: level -> Gain 7, division -> per-side delay times
+        dl = float(state.get("delay", 0.0)) / 100.0
+        dtimes = {"slap": (0.09, 0.09), "1/8": (0.25, 0.25), "trip": (0.33, 0.33),
+                  "1/4": (0.50, 0.50), "ping": (0.22, 0.45)}.get(state.get("delay_type", "1/8"), (0.25, 0.25))
+        set_live_prop(node_id, f"del_{s}:Delay (s)", dtimes[0] if s == "l" else dtimes[1])
+        set_live_prop(node_id, f"mix_{s}:Gain 7", round(dl * 0.5, 3))
+
+        # Chorus voices: duet = one detune voice, trio = +second voice, vib = wide cents
+        chor = float(state.get("chorus", 0.0)) / 100.0
+        ctype = state.get("chorus_type", "duet")
+        depth = 16.0 if ctype == "vib" else 7.0
+        cents = depth if s == "l" else -depth
+        set_live_prop(node_id, f"detune_{s}:Pitch shift", round(2.0 ** (cents / 1200.0), 5))
+        set_live_prop(node_id, f"mix_{s}:Gain 3", round(chor * 0.6, 3))
+        set_live_prop(node_id, f"mix_{s}:Gain 8", round(chor * (0.4 if ctype == "trio" else 0.0), 3))
+
+        # Stereo width: M/S side boost + delayed crossfeed (surround zone > 50%)
+        w = float(state.get("width", 0.0)) / 100.0
+        set_live_prop(node_id, f"mix_{s}:Gain 4", round(w * 0.7, 3))
+        set_live_prop(node_id, f"mix_{s}:Gain 5", round(max(0.0, w - 0.5) * 0.6, 3))
+
+    # Bus compressor (FoveAI fove_comp LADSPA pedal)
+    comp = float(state.get("compressor", 0.0)) / 100.0
+    _set_both(node_id, "comp_{s}:Threshold", round(-comp * 20.0, 1))
+    _set_both(node_id, "comp_{s}:Ratio", round(1.0 + comp * 3.0, 2))
+    _set_both(node_id, "comp_{s}:Makeup", round(comp * 6.0, 1))
+
+
+def main():
+    parser = argparse.ArgumentParser(description="PipeWire Live EQ, Dual Balancers & Pitch Engine")
+    parser.add_argument("--json", action="store_true", help="Output current state as JSON")
+    parser.add_argument("--status", action="store_true", help="Show text status")
+    parser.add_argument("--bypass", choices=["on", "off"], help="Master FX bypass on/off")
+    parser.add_argument("--toggle-bypass", action="store_true", help="Toggle master FX bypass")
+    parser.add_argument("--bass", type=float, help="Bass gain in dB (-12 to +12)")
+    parser.add_argument("--mid", type=float, help="Mid gain in dB (-12 to +12)")
+    parser.add_argument("--treble", type=float, help="Treble gain in dB (-12 to +12)")
+    parser.add_argument("--bass-freq", type=float, help="Bass shelf freq Hz (20-500)")
+    parser.add_argument("--mid-freq", type=float, help="Mid peak freq Hz (200-8000)")
+    parser.add_argument("--treble-freq", type=float, help="Treble shelf freq Hz (1500-16000)")
+    parser.add_argument("--bass-q", type=float, help="Bass band Q (0.3-8)")
+    parser.add_argument("--mid-q", type=float, help="Mid band Q (0.3-8)")
+    parser.add_argument("--treble-q", type=float, help="Treble band Q (0.3-8)")
+    parser.add_argument("--pitch", type=int, help="Pitch shift in semitones (-12 to +12)")
+    parser.add_argument("--warp", type=float, help="Warp / fine glide in cents (-100 to +100)")
+    parser.add_argument("--bal-low", choices=["neutral", "low", "mid"], help="Low balancer")
+    parser.add_argument("--bal-high", choices=["neutral", "mid", "high"], help="High balancer")
+    parser.add_argument("--toggle-bal-low", action="store_true", help="Cycle low balancer")
+    parser.add_argument("--toggle-bal-high", action="store_true", help="Cycle high balancer")
+    parser.add_argument("--loudness", type=float, help="Loudness contour (0-100 %)")
+    parser.add_argument("--compressor", type=float, help="Compressor level (0-100 %)")
+    parser.add_argument("--reverb", type=float, help="Reverb level (0-100 %)")
+    parser.add_argument("--reverb-type", choices=["room", "plate", "cath"], help="Reverb character")
+    parser.add_argument("--delay", type=float, help="Echo level (0-100 %)")
+    parser.add_argument("--delay-type", choices=["slap", "1/8", "1/4", "trip", "ping"], help="Echo division")
+    parser.add_argument("--chorus-type", choices=["duet", "trio", "vib"], help="Chorus voices/depth")
+    parser.add_argument("--chorus", type=float, help="Chorus level (0-100 %)")
+    parser.add_argument("--modulator", type=float, help="Frequency modulator (0-100 %)")
+    parser.add_argument("--width", type=float, help="Stereo width / surround sim (0-100 %)")
+    parser.add_argument("--reset", action="store_true", help="Reset all controls to flat / default")
+    parser.add_argument("--presets-json", action="store_true", help="Output all presets as JSON")
+    parser.add_argument("--preset", type=str, help="Apply a scene preset by name")
+    parser.add_argument("--save-preset", type=str, help="Save current state as a scene preset")
+    parser.add_argument("--unit-preset", nargs=2, metavar=("UNIT", "NAME"), help="Apply a unit preset")
+    parser.add_argument("--save-unit-preset", nargs=2, metavar=("UNIT", "NAME"), help="Save current unit settings as a preset")
+    parser.add_argument("--delete-preset", type=str, help="Delete a user scene preset")
+
+    args = parser.parse_args()
+    state = load_state()
+
+    if args.json:
+        print(json.dumps(state))
+        return
+
+    if args.presets_json:
+        print(json.dumps(load_presets()))
+        return
+
+    if args.save_preset:
+        presets = load_presets()
+        presets["scenes"][args.save_preset] = state
+        save_presets(presets)
+        print(f"Saved scene preset '{args.save_preset}'.")
+        return
+
+    if args.save_unit_preset:
+        unit, name = args.save_unit_preset
+        if unit not in UNIT_KEYS:
+            print(f"Unknown unit '{unit}'. Units: {', '.join(UNIT_KEYS)}", file=sys.stderr)
+            sys.exit(1)
+        presets = load_presets()
+        presets["units"].setdefault(unit, {})[name] = {k: state.get(k) for k in UNIT_KEYS[unit]}
+        save_presets(presets)
+        print(f"Saved {unit} preset '{name}'.")
+        return
+
+    if args.delete_preset:
+        presets = load_presets()
+        if args.delete_preset in presets["scenes"]:
+            del presets["scenes"][args.delete_preset]
+            save_presets(presets)
+            print(f"Deleted preset '{args.delete_preset}'.")
+        return
+
+    if args.preset:
+        presets = load_presets()
+        if args.preset not in presets["scenes"]:
+            print(f"Unknown preset '{args.preset}'. Have: {', '.join(presets['scenes'])}", file=sys.stderr)
+            sys.exit(1)
+        # a scene is a complete deterministic state: start from defaults so
+        # values from a previous scene can't bleed through, keep bypass as-is
+        state = dict(DEFAULT_STATE)
+        state["bypass"] = load_state().get("bypass", False)
+        state.update(resolve_scene(presets["scenes"][args.preset], presets["units"]))
+        save_state(state)
+        apply_all_live(state)
+        print(f"Applied scene '{args.preset}'.")
+        return
+
+    if args.unit_preset:
+        unit, name = args.unit_preset
+        presets = load_presets()
+        p = presets["units"].get(unit, {}).get(name)
+        if p is None:
+            print(f"Unknown {unit} preset '{name}'.", file=sys.stderr)
+            sys.exit(1)
+        state.update(p)
+        save_state(state)
+        apply_all_live(state)
+        print(f"Applied {unit} preset '{name}'.")
+        return
+
+    if args.reset:
+        state = dict(DEFAULT_STATE)
+        save_state(state)
+        apply_all_live(state)
+        print("Reset all EQ, Pitch & effects to default.")
+        return
+
+    changed = False
+
+    if args.toggle_bypass:
+        state["bypass"] = not state.get("bypass", False)
+        changed = True
+
+    if args.bypass:
+        state["bypass"] = args.bypass == "on"
+        changed = True
+
+    if args.toggle_bal_low:
+        order = ["neutral", "low", "mid"]
+        cur = state.get("bal_low", "neutral")
+        state["bal_low"] = order[(order.index(cur) + 1) % len(order)]
+        changed = True
+
+    if args.toggle_bal_high:
+        order = ["neutral", "mid", "high"]
+        cur = state.get("bal_high", "neutral")
+        state["bal_high"] = order[(order.index(cur) + 1) % len(order)]
+        changed = True
+
+    if args.bal_low:
+        state["bal_low"] = args.bal_low
+        changed = True
+
+    if args.bal_high:
+        state["bal_high"] = args.bal_high
+        changed = True
+
+    for param in ["reverb_type", "delay_type", "chorus_type"]:
+        val = getattr(args, param, None)
+        if val is not None:
+            state[param] = val
+            changed = True
+
+    for param in ["bass", "mid", "treble", "pitch", "warp", "loudness",
+                  "compressor", "reverb", "chorus", "modulator", "width",
+                  "bass_freq", "mid_freq", "treble_freq", "bass_q", "mid_q", "treble_q",
+                  "delay"]:
+        val = getattr(args, param, None)
+        if val is not None:
+            state[param] = val
+            changed = True
+
+    if changed:
+        save_state(state)
+        apply_all_live(state)
+
+    if args.status or changed or len(sys.argv) == 1:
+        print(f"--- PipeWire Audio State ---")
+        print(f"  FX Engine:   {'BYPASSED' if state.get('bypass') else 'ACTIVE':>8s}")
+        print(f"  Pitch:       {state['pitch']:>+3d} st")
+        print(f"  Warp:        {state['warp']:>+5.1f} ct")
+        print(f"  Bass:        {state['bass']:>+5.1f} dB")
+        print(f"  Freq.Bal.Low:{state['bal_low'].upper():>8s}")
+        print(f"  Mid:         {state['mid']:>+5.1f} dB")
+        print(f"  Freq.Bal.Hi: {state['bal_high'].upper():>8s}")
+        print(f"  Treble:      {state['treble']:>+5.1f} dB")
+        print(f"  Loudness:    {state['loudness']:>5.0f} %")
+        print(f"  Compressor:  {state['compressor']:>5.0f} %")
+        print(f"  Chorus:      {state['chorus']:>5.0f} %")
+        print(f"  Reverb:      {state['reverb']:>5.0f} %")
+        print(f"  Modulator:   {state['modulator']:>5.0f} %")
+        print(f"  S.Width:     {state['width']:>5.0f} %")
+
+
+if __name__ == "__main__":
+    main()

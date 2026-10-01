@@ -10,14 +10,15 @@ Usage:
     python foveai_corner_companion.py --width 380 --height 520
 """
 
-import sys
-import os
-import time
 import argparse
+import os
 import subprocess
+import sys
 
 # ── Defaults ────────────────────────────────────────────────────────────────
-DEFAULT_URL = os.environ.get("CORNER_COMPANION_URL", "http://127.0.0.1:8401/companion.html")
+DEFAULT_URL = os.environ.get(
+    "CORNER_COMPANION_URL", "http://127.0.0.1:8401/companion.html"
+)
 DEFAULT_WIDTH = 380
 DEFAULT_HEIGHT = 520
 
@@ -26,6 +27,7 @@ def get_corner_position(width, height):
     """Position the window in the bottom-right corner of the primary monitor."""
     try:
         import ctypes
+
         user32 = ctypes.windll.user32
         try:
             user32.SetProcessDpiAwareness(2)
@@ -61,7 +63,7 @@ def find_browser():
 def pin_window_on_top_ps(title_keyword, duration=3600):
     """Use PowerShell to find the window by title and pin it on top.
     Runs in a loop to re-pin if the window loses topmost status."""
-    ps_script = f'''
+    ps_script = f"""
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -106,11 +108,12 @@ if ($found) {{
         Start-Sleep -Seconds 2
     }}
 }}
-'''
+"""
     return subprocess.Popen(
-        ['powershell', '-NoProfile', '-Command', ps_script],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        creationflags=subprocess.CREATE_NO_WINDOW
+        ["powershell", "-NoProfile", "-Command", ps_script],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=subprocess.CREATE_NO_WINDOW,
     )
 
 
@@ -118,7 +121,9 @@ def main():
     parser = argparse.ArgumentParser(description="FoveAI Corner Companion")
     parser.add_argument("--url", default=DEFAULT_URL, help="URL to load")
     parser.add_argument("--width", type=int, default=DEFAULT_WIDTH, help="Window width")
-    parser.add_argument("--height", type=int, default=DEFAULT_HEIGHT, help="Window height")
+    parser.add_argument(
+        "--height", type=int, default=DEFAULT_HEIGHT, help="Window height"
+    )
     parser.add_argument("--title", default="FoveAI Companion", help="Window title")
     args = parser.parse_args()
 

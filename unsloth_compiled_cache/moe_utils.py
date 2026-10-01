@@ -13,15 +13,14 @@
 #
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-import torch
-import torch.nn.functional as F
+import importlib
+import importlib.util
 import os
 import shutil
 import sys
-import importlib
-import importlib.util
-from typing import Optional, Tuple
-from torch.autograd import Function
+
+import torch
+import torch.nn.functional as F
 from unsloth_zoo.mlx import is_mlx_available
 
 UNSLOTH_COMPILE_LOCATION = os.environ.get(
@@ -31,6 +30,7 @@ UNSLOTH_COMPILE_LOCATION = os.environ.get(
 try:
     import bitsandbytes as bnb
     from bitsandbytes.nn import Params4bit
+
     HAS_BNB = True
 except ImportError:
     HAS_BNB = False
@@ -87,7 +87,10 @@ def _load_cached_moe_utils_module():
     try:
         module_name = "unsloth_cached_moe_utils"
         module = sys.modules.get(module_name, None)
-        if module is not None and os.path.abspath(getattr(module, "__file__", "")) == cache_file:
+        if (
+            module is not None
+            and os.path.abspath(getattr(module, "__file__", "")) == cache_file
+        ):
             _CACHED_MOE_UTILS_MODULE = module
             return module
 
@@ -114,6 +117,7 @@ def get_forward_moe_backend():
     _CACHED_FORWARD_MOE_BACKEND = forward_moe_backend
     return _CACHED_FORWARD_MOE_BACKEND
 
+
 # Grouped MM wrapper around torch._grouped_mm; native backward works correctly.
 
 
@@ -131,7 +135,9 @@ def _grouped_mm_with_backward_fix(
     """
     inputs = inputs.contiguous()
     if not _transposed_view_grouped_mm_is_safe():
-        weight = weight.contiguous()   # #186365: view path unproven on this build -> safe copy
+        weight = (
+            weight.contiguous()
+        )  # #186365: view path unproven on this build -> safe copy
     try:
         return torch._grouped_mm(inputs, weight, offs=offsets)
     except RuntimeError as exc:
@@ -171,7 +177,7 @@ def _base_is_recomputable(source) -> bool:
     """True iff the base expert weight can be rebuilt in backward (frozen and
     grouped-mm capable). A trainable or unsupported base must use the pinned path."""
     try:
-        if not _should_use_separated_lora():          # merged LoRA folds the delta into base
+        if not _should_use_separated_lora():  # merged LoRA folds the delta into base
             return False
         if not _check_torch_grouped_mm_supported():
             return False
@@ -184,7 +190,9 @@ def _base_is_recomputable(source) -> bool:
             return not param.requires_grad
         if isinstance(param, torch.Tensor):
             return (not param.requires_grad) and param.dtype in (
-                torch.bfloat16, torch.float16, torch.float32,
+                torch.bfloat16,
+                torch.float16,
+                torch.float32,
             )
     except Exception:
         return False
@@ -222,6 +230,7 @@ def _moe_recompute_default(prefer_memory: bool = False) -> bool:
         return True
     try:
         from unsloth_zoo.gradient_checkpointing import in_gradient_checkpoint_recompute
+
         return not in_gradient_checkpoint_recompute()
     except Exception:
         return True  # safe default: recompute rather than pin across a full backward
@@ -239,7 +248,10 @@ def _source_pins_large_dequant(source) -> bool:
         param = source
         while hasattr(param, "base_layer"):
             param = param.base_layer
-        return isinstance(param, Params4bit) and getattr(param, "quant_state", None) is not None
+        return (
+            isinstance(param, Params4bit)
+            and getattr(param, "quant_state", None) is not None
+        )
     except Exception:
         return False
 
@@ -251,7 +263,7 @@ def _moe_recompute_enabled(source) -> bool:
     even under gradient checkpointing so the momentary pin never holds the full bf16
     expert dequant (see _source_pins_large_dequant)."""
     return _base_is_recomputable(source) and _moe_recompute_default(
-        prefer_memory = _source_pins_large_dequant(source)
+        prefer_memory=_source_pins_large_dequant(source)
     )
 
 
@@ -262,7 +274,9 @@ class _GroupedMMRecompute(torch.autograd.Function):
     @staticmethod
     def forward(ctx, inputs, offsets, weight_provider):
         ctx.weight_provider = weight_provider
-        ctx.save_for_backward(offsets)   # inputs is unused in backward (frozen base -> dX only)
+        ctx.save_for_backward(
+            offsets
+        )  # inputs is unused in backward (frozen base -> dX only)
         with torch.no_grad():
             out = _grouped_mm_with_backward_fix(inputs, weight_provider(), offsets)
         return out
@@ -272,7 +286,9 @@ class _GroupedMMRecompute(torch.autograd.Function):
         (offsets,) = ctx.saved_tensors
         with torch.no_grad():
             weight_t = ctx.weight_provider().transpose(-2, -1).contiguous()
-            grad_input = _grouped_mm_with_backward_fix(grad_output.contiguous(), weight_t, offsets)
+            grad_input = _grouped_mm_with_backward_fix(
+                grad_output.contiguous(), weight_t, offsets
+            )
         return grad_input, None, None
 
 
@@ -293,7 +309,8 @@ _TORCH_GROUPED_MM_SUPPORTED = None
 def _check_torch_grouped_mm_supported():
     """Check torch._grouped_mm support on the current GPU; a runtime probe is the only reliable check."""
     global _TORCH_GROUPED_MM_SUPPORTED
-    if _TORCH_GROUPED_MM_SUPPORTED is not None: return _TORCH_GROUPED_MM_SUPPORTED
+    if _TORCH_GROUPED_MM_SUPPORTED is not None:
+        return _TORCH_GROUPED_MM_SUPPORTED
 
     if not _TORCH_GROUPED_MM_AVAILABLE:
         _TORCH_GROUPED_MM_SUPPORTED = False
@@ -359,18 +376,24 @@ def _transposed_view_grouped_mm_is_safe():
             ok, ref = True, None
             for _ in range(6):
                 row_wise_max = A.abs().amax(dim=-1, keepdim=True)
-                _ = A / (row_wise_max / 448.0)     # the #186365 trigger (result discarded)
+                _ = A / (row_wise_max / 448.0)  # the #186365 trigger (result discarded)
                 r_view = torch._grouped_mm(A, w_t, offs=offs)
                 r_contig = torch._grouped_mm(A, w_tc, offs=offs)
-                if (r_view - r_contig).abs().max().item() > 1e-2:   # view disagrees with contiguous
-                    ok = False; break
+                if (
+                    r_view - r_contig
+                ).abs().max().item() > 1e-2:  # view disagrees with contiguous
+                    ok = False
+                    break
                 if ref is None:
                     ref = r_view
-                elif (r_view - ref).abs().max().item() > 1e-2:      # view not stable across calls
-                    ok = False; break
+                elif (
+                    r_view - ref
+                ).abs().max().item() > 1e-2:  # view not stable across calls
+                    ok = False
+                    break
             safe = ok
     except Exception:
-        safe = False   # anything unexpected -> keep the safe contiguous copy
+        safe = False  # anything unexpected -> keep the safe contiguous copy
 
     _TRANSPOSED_VIEW_GROUPED_MM_SAFE = safe
     return safe
@@ -384,7 +407,8 @@ _original_peft_get_peft_model = None
 def _init_triton_allocator():
     """Initialize a persistent Triton allocator to avoid per-call allocation overhead."""
     global _TRITON_ALLOCATOR_INITIALIZED, _PERSISTENT_BUFFER
-    if _TRITON_ALLOCATOR_INITIALIZED: return
+    if _TRITON_ALLOCATOR_INITIALIZED:
+        return
 
     try:
         import triton
@@ -416,14 +440,21 @@ def _init_triton_allocator():
 
 def _check_grouped_gemm_available():
     """Check if Unsloth grouped GEMM kernels are available."""
-    if os.environ.get("UNSLOTH_DISABLE_MOE_TRITON", "0") == "1": return False
-    if is_mlx_available(): return False
+    if os.environ.get("UNSLOTH_DISABLE_MOE_TRITON", "0") == "1":
+        return False
+    if is_mlx_available():
+        return False
 
     global _GROUPED_GEMM_AVAILABLE
-    if _GROUPED_GEMM_AVAILABLE is not None: return _GROUPED_GEMM_AVAILABLE
+    if _GROUPED_GEMM_AVAILABLE is not None:
+        return _GROUPED_GEMM_AVAILABLE
 
     try:
-        from unsloth.kernels.moe.grouped_gemm.interface import grouped_gemm, supports_tma
+        from unsloth.kernels.moe.grouped_gemm.interface import (
+            grouped_gemm,
+            supports_tma,
+        )
+
         _GROUPED_GEMM_AVAILABLE = True
         _init_triton_allocator()
     except (ImportError, ModuleNotFoundError):
@@ -450,7 +481,9 @@ def select_moe_backend():
             return "unsloth_triton"
         if requested == "native_torch":
             return "native_torch"
-        _log_info(f"Unsloth: '{requested}' backend requested but is not available. Falling back to next available.")
+        _log_info(
+            f"Unsloth: '{requested}' backend requested but is not available. Falling back to next available."
+        )
 
     if _check_torch_grouped_mm_supported():
         _log_info("Unsloth: Using MoE backend 'grouped_mm'")
@@ -461,7 +494,9 @@ def select_moe_backend():
     return "native_torch"
 
 
-def swap_moe_weights_for_call(experts_module, gate_up_proj, down_proj, forward_fn, *args):
+def swap_moe_weights_for_call(
+    experts_module, gate_up_proj, down_proj, forward_fn, *args
+):
     """Temporarily install dequantized weights for one forward call, then restore.
 
     Uses object.__setattr__ to bypass nn.Module Parameter (de)registration
@@ -501,8 +536,13 @@ def forward_moe_backend(
         )
     except ImportError:
         pass
-    if _moe_uses_bnb4bit_expert_weights is not None and _moe_uses_bnb4bit_expert_weights(self):
-        result = forward_moe_backend_bnb4bit(self, hidden_states, top_k_index, top_k_weights)
+    if (
+        _moe_uses_bnb4bit_expert_weights is not None
+        and _moe_uses_bnb4bit_expert_weights(self)
+    ):
+        result = forward_moe_backend_bnb4bit(
+            self, hidden_states, top_k_index, top_k_weights
+        )
         if result is not None:
             return result
 
@@ -519,9 +559,13 @@ def forward_moe_backend(
 
     backend = select_moe_backend()
     if backend == "grouped_mm":
-        return forward_native_grouped_mm(self, hidden_states, top_k_index, top_k_weights)
+        return forward_native_grouped_mm(
+            self, hidden_states, top_k_index, top_k_weights
+        )
     if backend == "unsloth_triton":
-        return forward_triton_grouped_gemm(self, hidden_states, top_k_index, top_k_weights)
+        return forward_triton_grouped_gemm(
+            self, hidden_states, top_k_index, top_k_weights
+        )
     return forward_native_moe_loop(self, hidden_states, top_k_index, top_k_weights)
 
 
@@ -536,7 +580,9 @@ def _get_routing_indices(selected_experts, num_experts):
     flat_experts = selected_experts.view(-1)
 
     # bincount avoids histc's float conversion overhead.
-    token_counts_by_expert = torch.bincount(flat_experts, minlength=num_experts).to(torch.int32)
+    token_counts_by_expert = torch.bincount(flat_experts, minlength=num_experts).to(
+        torch.int32
+    )
 
     # stable=True preserves order within each expert.
     gather_indices = flat_experts.argsort(stable=True)
@@ -571,7 +617,7 @@ def _canonical_lora_weights_for_grouped_mm(
     rank_per_expert: int,
     dim_A: int,
     dim_B: int,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     first_weight = weight_A.view(num_experts, rank_per_expert, dim_A)
     first_weight = first_weight.permute(0, 2, 1).contiguous()
     second_weight = weight_B.view(dim_B, num_experts, rank_per_expert)
@@ -586,7 +632,7 @@ def _reversed_lora_weights_for_grouped_mm(
     rank_per_expert: int,
     dim_A: int,
     dim_B: int,
-) -> Tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:
     first_weight = weight_B.view(dim_B, num_experts, rank_per_expert)
     first_weight = first_weight.permute(1, 0, 2).contiguous()
     second_weight = weight_A.view(num_experts, rank_per_expert, dim_A).contiguous()
@@ -650,7 +696,7 @@ def extract_moe_lora_weights_for_grouped_mm(
     model_name: str = "MoE",
     enable_logging: bool = None,
     logger_obj=None,
-) -> Tuple[torch.Tensor, torch.Tensor, float, int]:
+) -> tuple[torch.Tensor, torch.Tensor, float, int]:
     total_rank = weight_A.shape[0]
     rank_per_expert = total_rank // num_experts
     dim_A = weight_A.shape[1]
@@ -661,7 +707,8 @@ def extract_moe_lora_weights_for_grouped_mm(
 
     if input_dim is None or output_dim is None:
         inferred_input_dim, inferred_output_dim = _get_moe_lora_io_dims(
-            wrapper, experts_module=experts_module,
+            wrapper,
+            experts_module=experts_module,
         )
         if input_dim is None:
             input_dim = inferred_input_dim
@@ -684,23 +731,43 @@ def extract_moe_lora_weights_for_grouped_mm(
     if canonical_match and reversed_match:
         if bool(getattr(wrapper, "_did_swap_in_out_features", False)):
             first_weight, second_weight = _reversed_lora_weights_for_grouped_mm(
-                weight_A, weight_B, num_experts, rank_per_expert, dim_A, dim_B,
+                weight_A,
+                weight_B,
+                num_experts,
+                rank_per_expert,
+                dim_A,
+                dim_B,
             )
         else:
             first_weight, second_weight = _canonical_lora_weights_for_grouped_mm(
-                weight_A, weight_B, num_experts, rank_per_expert, dim_A, dim_B,
+                weight_A,
+                weight_B,
+                num_experts,
+                rank_per_expert,
+                dim_A,
+                dim_B,
             )
         return first_weight, second_weight, scaling, num_experts
 
     if canonical_match:
         first_weight, second_weight = _canonical_lora_weights_for_grouped_mm(
-            weight_A, weight_B, num_experts, rank_per_expert, dim_A, dim_B,
+            weight_A,
+            weight_B,
+            num_experts,
+            rank_per_expert,
+            dim_A,
+            dim_B,
         )
         return first_weight, second_weight, scaling, num_experts
 
     if reversed_match:
         first_weight, second_weight = _reversed_lora_weights_for_grouped_mm(
-            weight_A, weight_B, num_experts, rank_per_expert, dim_A, dim_B,
+            weight_A,
+            weight_B,
+            num_experts,
+            rank_per_expert,
+            dim_A,
+            dim_B,
         )
         return first_weight, second_weight, scaling, num_experts
 
@@ -714,17 +781,22 @@ def extract_moe_lora_weights_for_grouped_mm(
                 f"expected input_dim={input_dim}, output_dim={output_dim}, "
                 f"num_experts={num_experts}). Falling back to canonical layout. "
                 "If this is a new PEFT version, the LoRA delta may be wrong."
-        )
+            )
 
     first_weight, second_weight = _canonical_lora_weights_for_grouped_mm(
-        weight_A, weight_B, num_experts, rank_per_expert, dim_A, dim_B,
+        weight_A,
+        weight_B,
+        num_experts,
+        rank_per_expert,
+        dim_A,
+        dim_B,
     )
     return first_weight, second_weight, scaling, num_experts
 
 
 def _extract_lora_from_wrapper(
     wrapper, adapter_name: str = "default", experts_module=None
-) -> Optional[Tuple[torch.Tensor, torch.Tensor, float, int]]:
+) -> tuple[torch.Tensor, torch.Tensor, float, int] | None:
     """Extract LoRA weights from a PEFT ParamWrapper for MoE separated grouped_mm.
 
     PEFT 3D ParamWrapper gives lora_A: (E*R, in_dim), lora_B: (out_dim, E*R);
@@ -760,7 +832,9 @@ def _extract_lora_from_wrapper(
         num_experts = getattr(wrapper, "num_experts", 1)
 
         if experts_module is None:
-            experts_module = wrapper.get_base_layer() if hasattr(wrapper, "get_base_layer") else None
+            experts_module = (
+                wrapper.get_base_layer() if hasattr(wrapper, "get_base_layer") else None
+            )
 
         # Model-specific LoRA extractor attached to the experts module, if any.
         extractor_fn = getattr(experts_module, "_unsloth_lora_extractor_fn", None)
@@ -783,7 +857,7 @@ def _extract_lora_from_wrapper(
 
 def _extract_lora_weights(
     param, adapter_name: str = "default", num_experts: int = None, experts_module=None
-) -> Optional[Tuple[torch.Tensor, torch.Tensor, float]]:
+) -> tuple[torch.Tensor, torch.Tensor, float] | None:
     """Compat wrapper around _extract_lora_from_wrapper; returns (first, second, scaling)."""
     # This Unsloth Zoo code section is licensed under AGPL3
 
@@ -791,7 +865,9 @@ def _extract_lora_weights(
     if num_experts is not None and not hasattr(param, "num_experts"):
         param.num_experts = num_experts
 
-    result = _extract_lora_from_wrapper(param, adapter_name, experts_module=experts_module)
+    result = _extract_lora_from_wrapper(
+        param, adapter_name, experts_module=experts_module
+    )
     if result is None:
         return None
     return result[0], result[1], result[2]
@@ -987,7 +1063,10 @@ def _warn_ambiguous_layout_once(proj_type, shape, hidden_dim):
 
 
 def preprocess_weight(
-    weight: torch.Tensor, proj_type: str, hidden_dim: int, model_type=None,
+    weight: torch.Tensor,
+    proj_type: str,
+    hidden_dim: int,
+    model_type=None,
     experts_module=None,
 ):
     """Convert an expert weight to grouped_mm layout.
@@ -1000,7 +1079,9 @@ def preprocess_weight(
         return _WEIGHT_PREPROCESSORS[model_type](weight, proj_type, hidden_dim)
 
     # Non-square shapes reveal layout directly.
-    needs_transpose = _orientation_needs_transpose(tuple(weight.shape), proj_type, hidden_dim)
+    needs_transpose = _orientation_needs_transpose(
+        tuple(weight.shape), proj_type, hidden_dim
+    )
     if needs_transpose is not None:
         return weight.transpose(-2, -1) if needs_transpose else weight
 
@@ -1011,7 +1092,9 @@ def preprocess_weight(
         sibling = getattr(experts_module, sibling_name, None)
         if sibling is not None:
             sibling_transpose = _orientation_needs_transpose(
-                _logical_expert_shape(sibling), sibling_type, hidden_dim,
+                _logical_expert_shape(sibling),
+                sibling_type,
+                hidden_dim,
             )
             if sibling_transpose is not None:
                 return weight.transpose(-2, -1) if sibling_transpose else weight
@@ -1169,7 +1252,7 @@ def _is_moe_experts_module(module) -> bool:
     """
     # This Unsloth Zoo code section is licensed under AGPL3
 
-    import torch.nn as nn
+    from torch import nn
 
     # After PEFT's parametrize wrapping, gate_up_proj is a Tensor (not Parameter),
     # so accept both.
@@ -1420,10 +1503,22 @@ def forward_native_grouped_mm(
 
         # Provider re-derives the base weight on demand so Fix 3 can recompute it in
         # backward instead of pinning it (grouped_mm needs contiguous weights).
-        def _gate_up_provider(_src=_gate_up_src, _mt=model_type, _h=hidden_dim, _dt=hidden_states.dtype, _mod=self):
-            return preprocess_weight(_get_base_weight(_src, _dt), "gate_up", _h, _mt, experts_module=_mod)
+        def _gate_up_provider(
+            _src=_gate_up_src,
+            _mt=model_type,
+            _h=hidden_dim,
+            _dt=hidden_states.dtype,
+            _mod=self,
+        ):
+            return preprocess_weight(
+                _get_base_weight(_src, _dt), "gate_up", _h, _mt, experts_module=_mod
+            )
+
         mm1_out = _base_grouped_mm(
-            permuted_input, offsets, _gate_up_provider, _moe_recompute_enabled(_gate_up_src),
+            permuted_input,
+            offsets,
+            _gate_up_provider,
+            _moe_recompute_enabled(_gate_up_src),
         )
 
         # Separated LoRA: + ((X @ first) @ second) * scaling.
@@ -1435,7 +1530,9 @@ def forward_native_grouped_mm(
             second_weight = second_weight.to(permuted_input.dtype).contiguous()
 
             try:
-                lora_out = _grouped_mm_with_backward_fix(permuted_input, first_weight, offsets)
+                lora_out = _grouped_mm_with_backward_fix(
+                    permuted_input, first_weight, offsets
+                )
                 lora_out = lora_out.contiguous()
             except RuntimeError as e:
                 raise e
@@ -1506,7 +1603,9 @@ def forward_native_grouped_mm(
                         permuted_input, lora_A_t, offsets
                     )
                     lora_B_t = lora_B.transpose(-2, -1)
-                    lora_B_out = _grouped_mm_with_backward_fix(lora_A_out, lora_B_t, offsets)
+                    lora_B_out = _grouped_mm_with_backward_fix(
+                        lora_A_out, lora_B_t, offsets
+                    )
                     gate = gate + lora_B_out * scaling
 
             if _has_lora_adapters(self.w3):
@@ -1518,7 +1617,9 @@ def forward_native_grouped_mm(
                         permuted_input, lora_A_t, offsets
                     )
                     lora_B_t = lora_B.transpose(-2, -1)
-                    lora_B_out = _grouped_mm_with_backward_fix(lora_A_out, lora_B_t, offsets)
+                    lora_B_out = _grouped_mm_with_backward_fix(
+                        lora_A_out, lora_B_t, offsets
+                    )
                     up = up + lora_B_out * scaling
     else:
         raise AttributeError("MoE layer must have 'gate_up_proj' or 'w1'/'w3'.")
@@ -1533,7 +1634,7 @@ def forward_native_grouped_mm(
         up = up.clamp(min=-limit, max=limit)
         glu = gate * torch.sigmoid(gate * alpha)
         inter = (up + 1.0) * glu
-    elif hasattr(self, 'act_fn') and callable(self.act_fn):
+    elif hasattr(self, "act_fn") and callable(self.act_fn):
         inter = self.act_fn(gate) * up
     else:
         inter = F.silu(gate) * up
@@ -1585,15 +1686,30 @@ def forward_native_grouped_mm(
         and hasattr(self, "down_proj")
         and _has_lora_adapters(self.down_proj)
     ):
-        down_lora = _extract_lora_weights(self.down_proj, num_experts=self.num_experts, experts_module=self)
+        down_lora = _extract_lora_weights(
+            self.down_proj, num_experts=self.num_experts, experts_module=self
+        )
 
     if hasattr(self, "down_proj"):
         model_type = getattr(self, "_unsloth_model_type", None)
         _down_src = self.down_proj
-        def _down_provider(_src=_down_src, _mt=model_type, _h=hidden_dim, _dt=hidden_states.dtype, _mod=self):
-            return preprocess_weight(_get_base_weight(_src, _dt), "down", _h, _mt, experts_module=_mod)
+
+        def _down_provider(
+            _src=_down_src,
+            _mt=model_type,
+            _h=hidden_dim,
+            _dt=hidden_states.dtype,
+            _mod=self,
+        ):
+            return preprocess_weight(
+                _get_base_weight(_src, _dt), "down", _h, _mt, experts_module=_mod
+            )
+
         mm2_out = _base_grouped_mm(
-            inter, offsets, _down_provider, _moe_recompute_enabled(_down_src),
+            inter,
+            offsets,
+            _down_provider,
+            _moe_recompute_enabled(_down_src),
         )
 
         if down_lora is not None:
@@ -1607,7 +1723,9 @@ def forward_native_grouped_mm(
             lora_out = lora_out.contiguous()
 
             try:
-                lora_delta = _grouped_mm_with_backward_fix(lora_out, second_weight, offsets)
+                lora_delta = _grouped_mm_with_backward_fix(
+                    lora_out, second_weight, offsets
+                )
             except RuntimeError:
                 # Manual loop fallback.
                 lora_delta = torch.empty(
@@ -1644,7 +1762,9 @@ def forward_native_grouped_mm(
                 lora_A_t = lora_A.transpose(-2, -1).contiguous()
                 lora_A_out = _grouped_mm_with_backward_fix(inter, lora_A_t, offsets)
                 lora_B_t = lora_B.transpose(-2, -1).contiguous()
-                lora_B_out = _grouped_mm_with_backward_fix(lora_A_out, lora_B_t, offsets)
+                lora_B_out = _grouped_mm_with_backward_fix(
+                    lora_A_out, lora_B_t, offsets
+                )
                 mm2_out = mm2_out + lora_B_out * scaling
     else:
         raise AttributeError("MoE layer must have 'down_proj' or 'w2'.")
@@ -1681,8 +1801,8 @@ def forward_triton_grouped_gemm(
     """Grouped-GEMM MoE forward via Triton kernels (torch.compile-compatible, mode="max-autotune")."""
     # This Unsloth Zoo code section is licensed under AGPL3
 
-    from unsloth.kernels.moe.grouped_gemm.interface import grouped_gemm
     from unsloth.kernels.moe.autotune_cache import get_or_autotune_moe_kernels
+    from unsloth.kernels.moe.grouped_gemm.interface import grouped_gemm
 
     if not hasattr(self, "_unsloth_moe_configs"):
         self._unsloth_moe_configs = None
@@ -1791,7 +1911,7 @@ def forward_triton_grouped_gemm(
         first_gemm_output = first_gemm_output + gate_up_lora_delta
 
     # Activation + gate*up.
-    if hasattr(self, 'act_fn') and callable(self.act_fn):
+    if hasattr(self, "act_fn") and callable(self.act_fn):
         gate, up = first_gemm_output.chunk(2, dim=-1)
         intermediate = self.act_fn(gate) * up
     else:
@@ -1841,7 +1961,7 @@ def forward_triton_grouped_gemm(
             second_weight,
             offsets,
             scaling,
-            grouped_mm_func=native_moe_grouped_mm
+            grouped_mm_func=native_moe_grouped_mm,
         )
 
         second_gemm_output = second_gemm_output + lora_delta
@@ -1970,7 +2090,10 @@ def forward_native_moe_loop(
         if hasattr(self, "down_proj"):
             down_weight = self.down_proj[expert_idx]
             # Mirror gate_up: prefer the flag over the shape heuristic (unsafe at square dims).
-            if grouped_mm_format or down_weight.shape[-1] != current_hidden_states.shape[-1]:
+            if (
+                grouped_mm_format
+                or down_weight.shape[-1] != current_hidden_states.shape[-1]
+            ):
                 down_weight = down_weight.T
             down = F.linear(current_hidden_states, down_weight)
             if down_lora is not None:

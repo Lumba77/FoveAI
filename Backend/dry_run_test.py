@@ -3,17 +3,19 @@
 Starts the server, waits for /health, validates the payload, then shuts down.
 Writes results to dry_run_result.txt.
 """
+
+import json
 import os
+import subprocess
 import sys
 import time
-import json
-import subprocess
-import threading
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-RESULT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dry_run_result.txt")
+RESULT_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "dry_run_result.txt"
+)
 PORT = 8402
 
 
@@ -41,14 +43,20 @@ def main():
 
     # Kill anything on port 8402 first
     try:
-        netstat = subprocess.check_output("netstat -ano -p tcp", shell=True).decode(errors="ignore")
+        netstat = subprocess.check_output("netstat -ano -p tcp", shell=True).decode(
+            errors="ignore"
+        )
         for line in netstat.splitlines():
             if f":{PORT}" in line and "LISTENING" in line:
                 parts = line.split()
                 if len(parts) >= 5:
                     pid = parts[-1].strip()
                     if pid.isdigit():
-                        subprocess.run(["taskkill", "/F", "/PID", pid], shell=True, capture_output=True)
+                        subprocess.run(
+                            ["taskkill", "/F", "/PID", pid],
+                            shell=True,
+                            capture_output=True,
+                        )
     except Exception:
         pass
 
@@ -76,7 +84,7 @@ def main():
 
     elapsed = time.monotonic() - boot_start
 
-    result_lines = [f"DRY_RUN_START\n"]
+    result_lines = ["DRY_RUN_START\n"]
     result_lines.append(f"Boot elapsed: {elapsed:.3f}s\n")
     result_lines.append(f"Health status: {status}\n")
     result_lines.append(f"Health body: {body}\n")
@@ -89,7 +97,9 @@ def main():
             if xrlf_ver == "3.0":
                 result_lines.append("HEALTH_CHECK: PASS (xrlf_version=3.0)\n")
             else:
-                result_lines.append(f"HEALTH_CHECK: FAIL (xrlf_version={xrlf_ver}, expected 3.0)\n")
+                result_lines.append(
+                    f"HEALTH_CHECK: FAIL (xrlf_version={xrlf_ver}, expected 3.0)\n"
+                )
         except Exception as e:
             result_lines.append(f"HEALTH_CHECK: FAIL (json parse error: {e})\n")
 
@@ -103,7 +113,9 @@ def main():
         try:
             proc.terminate()
             _, stderr = proc.communicate(timeout=3)
-            result_lines.append(f"Server stderr: {stderr.decode(errors='ignore')[:500]}\n")
+            result_lines.append(
+                f"Server stderr: {stderr.decode(errors='ignore')[:500]}\n"
+            )
         except Exception:
             pass
 

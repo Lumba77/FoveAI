@@ -23,14 +23,21 @@ older history with a compact progress block + last few raw turns.
 
 import os
 import re
-from typing import List, Dict, Any, Optional, Tuple, Set
+from typing import Any
 
 # ── Constants ───────────────────────────────────────────────────────
 
 LARGE_FILES = {
-    "xr_app.py", "compagent.py", "MindCore.py", "cloud_repertoire.py",
-    "main.ts", "Dashboard.ts", "AgencyTab.ts", "AvatarManager.ts",
-    "VideoChat.ts", "ContextManager.ts",
+    "xr_app.py",
+    "compagent.py",
+    "MindCore.py",
+    "cloud_repertoire.py",
+    "main.ts",
+    "Dashboard.ts",
+    "AgencyTab.ts",
+    "AvatarManager.ts",
+    "VideoChat.ts",
+    "ContextManager.ts",
 }
 
 CHARS_PER_TOKEN = 4
@@ -41,12 +48,14 @@ _tiktoken_failed = False
 
 # ── Helpers ─────────────────────────────────────────────────────────
 
+
 def estimate_tokens(text: str) -> int:
     """Accurate token estimate using tiktoken if available, falling back to char // 4."""
     global _tiktoken_encoder, _tiktoken_failed
     if not _tiktoken_failed and _tiktoken_encoder is None:
         try:
             import tiktoken
+
             _tiktoken_encoder = tiktoken.get_encoding("cl100k_base")
         except Exception:
             _tiktoken_failed = True
@@ -60,21 +69,21 @@ def estimate_tokens(text: str) -> int:
     return max(1, len(text) // CHARS_PER_TOKEN)
 
 
-def extract_file_path(text: str) -> Optional[str]:
+def extract_file_path(text: str) -> str | None:
     """Extract a file path from tool result or message content."""
     m = re.search(
         r'([A-Za-z]:[\\/][^\s,"\']+|[a-zA-Z0-9_/.-]+\.(?:py|ts|js|json|md|xml|kt|html|css))',
-        text
+        text,
     )
     return m.group(1) if m else None
 
 
-def extract_line_range(text: str) -> Optional[Tuple[int, int]]:
+def extract_line_range(text: str) -> tuple[int, int] | None:
     """Extract start_line/end_line from a read_files or editor result."""
-    m = re.search(r'start_line[:\s=]+(\d+).*?end_line[:\s=]+(\d+)', text)
+    m = re.search(r"start_line[:\s=]+(\d+).*?end_line[:\s=]+(\d+)", text)
     if m:
         return (int(m.group(1)), int(m.group(2)))
-    m2 = re.search(r'[Ll]ines?\s+(\d+)\s*[-–to]+\s*(\d+)', text)
+    m2 = re.search(r"[Ll]ines?\s+(\d+)\s*[-–to]+\s*(\d+)", text)
     if m2:
         return (int(m2.group(1)), int(m2.group(2)))
     return None
@@ -82,13 +91,14 @@ def extract_line_range(text: str) -> Optional[Tuple[int, int]]:
 
 def strip_thinking(content: str) -> str:
     """Remove <thinking> blocks, replace with brief marker."""
-    pattern = re.compile(r'<thinking>.*?</thinking>', re.DOTALL)
+    pattern = re.compile(r"<thinking>.*?</thinking>", re.DOTALL)
     if pattern.search(content):
-        return pattern.sub('[thought]', content).strip()
+        return pattern.sub("[thought]", content).strip()
     return content
 
 
 # ── ContextStripper Class ───────────────────────────────────────────
+
 
 class ContextStripper:
     """Applies Tier 1 & 2 rules to message arrays."""
@@ -126,7 +136,7 @@ class ContextStripper:
 
         # 1. Background node extraction & context recycling
         self._extract_and_recycle_background(messages)
-        
+
         # 2. Prune verified turns (context recycling pruning)
         # DISABLED by default — replacing real conversation turns with
         # "[recycled context node]" placeholders destroys crucial context
@@ -178,7 +188,9 @@ class ContextStripper:
                         if rk in self._seen_file_ranges:
                             self._stats["reads_deduped"] += 1
                             nm = dict(msg)
-                            nm["content"] = f"[re-read] {fp}:{lr[0]}-{lr[1]} - already seen, skipped"
+                            nm["content"] = (
+                                f"[re-read] {fp}:{lr[0]}-{lr[1]} - already seen, skipped"
+                            )
                             stripped.append(nm)
                             continue
                         self._seen_file_ranges.add(rk)
@@ -203,12 +215,10 @@ class ContextStripper:
         # Inject [SKELETAL CONTEXT INDEX]
         try:
             import skeletal_memory
+
             skeletal_index = skeletal_memory.build_skeletal_index()
             if skeletal_index:
-                idx_msg = {
-                    "role": "system",
-                    "content": skeletal_index
-                }
+                idx_msg = {"role": "system", "content": skeletal_index}
                 at = 1 if (stripped and stripped[0].get("role") == "system") else 0
                 stripped.insert(at, idx_msg)
         except Exception:
@@ -230,28 +240,46 @@ class ContextStripper:
 
     def get_stats(self):
         saved = self._stats["tokens_before"] - self._stats["tokens_after"]
-        ratio = (1 - self._stats["tokens_after"] / max(1, self._stats["tokens_before"])) * 100 if self._stats["tokens_before"] > 0 else 0
-        return {**self._stats, "tokens_saved": saved, "compression_pct": round(ratio, 1), "checkpoint_active": self._checkpoint_active}
+        ratio = (
+            (1 - self._stats["tokens_after"] / max(1, self._stats["tokens_before"]))
+            * 100
+            if self._stats["tokens_before"] > 0
+            else 0
+        )
+        return {
+            **self._stats,
+            "tokens_saved": saved,
+            "compression_pct": round(ratio, 1),
+            "checkpoint_active": self._checkpoint_active,
+        }
 
-    def _score_turn_value(self, msg: Dict[str, Any]) -> int:
+    def _score_turn_value(self, msg: dict[str, Any]) -> int:
         """Scores a message for its semantic retention value."""
         role = msg.get("role", "")
         content = str(msg.get("content", ""))
         score = 0
-        
+
         # 1. Always keep system prompts
         if role == "system":
             return 1000
-            
+
         # 2. Check for explicit preserve markers
         if any(marker in content for marker in ["[KEEP]", "[PRESERVE]", "[IMPORTANT]"]):
             return 1000
-            
+
         # 3. Detect categories
-        has_file_ref = bool(re.search(r'([A-Za-z]:[\\/][^\s,"\']+|[a-zA-Z0-9_/.-]+\.(?:py|ts|js|json|md|xml|kt|html|css))', content))
+        has_file_ref = bool(
+            re.search(
+                r'([A-Za-z]:[\\/][^\s,"\']+|[a-zA-Z0-9_/.-]+\.(?:py|ts|js|json|md|xml|kt|html|css))',
+                content,
+            )
+        )
         has_code_edit = "```" in content or "<edit_file>" in content
-        has_error = any(err in content.lower() for err in ["traceback", "error", "exception", "failed", "stderr:"])
-        
+        has_error = any(
+            err in content.lower()
+            for err in ["traceback", "error", "exception", "failed", "stderr:"]
+        )
+
         # 4. Check if user role is actually a tool output
         is_tool_response = False
         if role == "user":
@@ -266,13 +294,13 @@ class ContextStripper:
                 r"STDOUT:",
                 r"STDERR:",
                 r"failed to get URL",
-                r"Encountered error in step execution"
+                r"Encountered error in step execution",
             ]
             for pat in tool_patterns:
                 if re.search(pat, content):
                     is_tool_response = True
                     break
-                    
+
         # 5. Score based on role and classification
         if is_tool_response:
             # Tool responses: only preserve if they are errors/failures
@@ -288,7 +316,7 @@ class ContextStripper:
             if role == "user":
                 # Direct user input prompt
                 score += 200
-                
+
         return score
 
     def _apply_checkpoint(self, messages):
@@ -296,14 +324,16 @@ class ContextStripper:
             return messages
         pc = min(self.preserve_last, len(messages))
         preserved = messages[-pc:] if pc > 0 else []
-        
+
         # Extract exceptions from the discarded history via semantic scoring
         discarded = messages[:-pc] if pc > 0 else messages
-        
+
         # Score and preserve high-value messages, keeping chronological order
-        scored_discarded = [(self._score_turn_value(msg), i, msg) for i, msg in enumerate(discarded)]
+        scored_discarded = [
+            (self._score_turn_value(msg), i, msg) for i, msg in enumerate(discarded)
+        ]
         exceptions = [msg for score, i, msg in scored_discarded if score >= 50]
-                
+
         ckpt = {
             "role": "user",
             "content": (
@@ -311,7 +341,7 @@ class ContextStripper:
                 f"messages summarized:\n\n{self._checkpoint_summary}"
             ),
         }
-        
+
         # Merge system and direct user exceptions before the checkpoint, then the last turns
         return exceptions + [ckpt] + preserved
 
@@ -324,10 +354,12 @@ class ContextStripper:
         import asyncio
         import hashlib
         import time
+
         try:
             import skeletal_memory
         except ImportError:
             import sys
+
             sys.path.insert(0, os.path.dirname(__file__))
             import skeletal_memory
 
@@ -349,14 +381,21 @@ class ContextStripper:
             if m1.get("role") == "user" and m2.get("role") == "assistant":
                 u_text = str(m1.get("content", "")).strip()
                 a_text = str(m2.get("content", "")).strip()
-                if u_text and a_text and "[re-read]" not in u_text and "[recycled" not in u_text:
+                if (
+                    u_text
+                    and a_text
+                    and "[re-read]" not in u_text
+                    and "[recycled" not in u_text
+                ):
                     turn_id = f"user: {u_text}\nassistant: {a_text}"
                     turn_hash = hashlib.sha256(turn_id.encode("utf-8")).hexdigest()
                     if turn_hash not in self._processed_turn_hashes:
                         # Only process this single turn
                         async def process_single_turn():
                             try:
-                                nodes = await skeletal_memory.extract_nodes_from_turn(turn_id)
+                                nodes = await skeletal_memory.extract_nodes_from_turn(
+                                    turn_id
+                                )
                                 if nodes:
                                     skeletal_memory.consolidate_nodes(nodes, turn_id)
                                 self._processed_turn_hashes.add(turn_hash)
@@ -378,6 +417,7 @@ class ContextStripper:
             import skeletal_memory
         except ImportError:
             import sys
+
             sys.path.insert(0, os.path.dirname(__file__))
             import skeletal_memory
 
@@ -394,19 +434,20 @@ class ContextStripper:
             msg = messages[idx]
             role = msg.get("role")
 
-            if (role == "user" and 
-                idx < total_msgs - 1 and 
-                messages[idx+1].get("role") == "assistant" and
-                idx < preserve_from):
-                
+            if (
+                role == "user"
+                and idx < total_msgs - 1
+                and messages[idx + 1].get("role") == "assistant"
+                and idx < preserve_from
+            ):
                 u_text = str(msg.get("content", "")).strip()
-                a_text = str(messages[idx+1].get("content", "")).strip()
+                a_text = str(messages[idx + 1].get("content", "")).strip()
                 turn_text = f"user: {u_text}\nassistant: {a_text}"
 
                 if skeletal_memory.should_prune_turn(turn_text):
                     pm_user = dict(msg)
                     pm_user["content"] = "[recycled context node]"
-                    pm_assistant = dict(messages[idx+1])
+                    pm_assistant = dict(messages[idx + 1])
                     pm_assistant["content"] = "[recycled details]"
 
                     pruned_messages.append(pm_user)

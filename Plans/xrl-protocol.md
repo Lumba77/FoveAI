@@ -178,11 +178,15 @@ MCP Tool: resolve_xrl(uri="xrl://lumax/Backend/Cognition/soul_core.py:97:a3f2b1"
 ```python
 import hashlib
 
-def generate_xrl(filepath: str, line: int, content: str, namespace: str = "lumax") -> str:
+
+def generate_xrl(
+    filepath: str, line: int, content: str, namespace: str = "lumax"
+) -> str:
     """Generate an XRL URI for a code location."""
     content_hash = hashlib.md5(content.encode("utf-8")).hexdigest()
     hash6 = content_hash[:6]
     return f"xrl://{namespace}/{filepath}:{line}:{hash6}"
+
 
 def parse_xrl(uri: str) -> dict:
     """Parse an XRL URI into its components."""
@@ -194,14 +198,9 @@ def parse_xrl(uri: str) -> dict:
     last_colon = rest.rfind(":")
     second_last_colon = rest.rfind(":", 0, last_colon)
     filepath = rest[:second_last_colon]
-    line = int(rest[second_last_colon+1:last_colon])
-    hash6 = rest[last_colon+1:]
-    return {
-        "namespace": namespace,
-        "filepath": filepath,
-        "line": line,
-        "hash": hash6
-    }
+    line = int(rest[second_last_colon + 1 : last_colon])
+    hash6 = rest[last_colon + 1 :]
+    return {"namespace": namespace, "filepath": filepath, "line": line, "hash": hash6}
 ```
 
 ## Cache Invalidation Strategy

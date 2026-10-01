@@ -22,28 +22,25 @@ Usage:
 """
 
 import argparse
-import json
 import os
 import shutil
 import sqlite3
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
 
 # Ensure project root is on path
 ROOT = os.path.dirname(os.path.abspath(__file__))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from formats.xrlf_parser import XRLFParser, SectionType
 from formats.xrlf_packer import XRLFPacker
-
+from formats.xrlf_parser import SectionType, XRLFParser
 
 BACKUP_DIR = os.path.join(ROOT, "memory_backups")
 XRL_ENCODED = os.path.join(ROOT, "xrl_encoded")
 
 
-def extract_memory_from_xrlf(xrlf_path: str, output_path: Optional[str] = None) -> str:
+def extract_memory_from_xrlf(xrlf_path: str, output_path: str | None = None) -> str:
     """Extract the SQLite memory DB from an XRLF bundle."""
     p = XRLFParser.open(xrlf_path)
     if not p.has_section(SectionType.XRL_MEMORY_DATA):
@@ -77,9 +74,9 @@ def extract_runtime_memory(cache_dir: str, output_path: str) -> str:
     return output_path
 
 
-def count_turns(db_path: str) -> Dict[str, int]:
+def count_turns(db_path: str) -> dict[str, int]:
     """Count rows in each table of a SQLite memory DB."""
-    counts: Dict[str, int] = {}
+    counts: dict[str, int] = {}
     try:
         conn = sqlite3.connect(db_path)
         cur = conn.cursor()
@@ -216,11 +213,12 @@ def cmd_restore(args):
 
     # Read existing XRLF to get all sections
     p = XRLFParser.open(args.xrlf)
-    sections: Dict[SectionType, bytes] = {}
+    sections: dict[SectionType, bytes] = {}
     for st in p._section_map:
         if st == SectionType.XRL_MEMORY_DATA:
             # Add 4-byte length prefix
             import struct
+
             sections[st] = struct.pack("<I", len(memory_data)) + memory_data
         else:
             sections[st] = p.get_section_bytes(st)
@@ -257,7 +255,9 @@ def main():
     p_restore = sub.add_parser("restore", help="Restore memory into XRLF bundle")
     p_restore.add_argument("xrlf", help="XRLF bundle to restore into")
     p_restore.add_argument("--from-cache", required=True, help="Source memory.db path")
-    p_restore.add_argument("--output", help="Output XRLF path (default: *_restored.xrlf)")
+    p_restore.add_argument(
+        "--output", help="Output XRLF path (default: *_restored.xrlf)"
+    )
     p_restore.set_defaults(func=cmd_restore)
 
     p_list = sub.add_parser("list", help="List all memory stores")

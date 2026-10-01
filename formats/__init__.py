@@ -1,18 +1,30 @@
 """
 formats/__init__.py
 """
-from formats.xrlf_schema import (
-    XRLFHeader, SectionEntry, XRLFManifest,
-    SectionType, SectionFlags, XRLFFlags,
-    MAGIC, FORMAT_VERSION,
-)
-from formats.xrlf_parser import XRLFParser, XRLFParseError
+
 from formats.xrlf_packer import XRLFPacker
+from formats.xrlf_parser import XRLFParseError, XRLFParser
+from formats.xrlf_schema import (
+    FORMAT_VERSION,
+    MAGIC,
+    SectionEntry,
+    SectionFlags,
+    SectionType,
+    XRLFFlags,
+    XRLFHeader,
+    XRLFManifest,
+)
 
 __all__ = [
-    "XRLFHeader", "SectionEntry", "XRLFManifest",
-    "SectionType", "SectionFlags", "XRLFFlags",
-    "MAGIC", "FORMAT_VERSION",
-    "XRLFParser", "XRLFParseError",
+    "FORMAT_VERSION",
+    "MAGIC",
+    "SectionEntry",
+    "SectionFlags",
+    "SectionType",
+    "XRLFFlags",
+    "XRLFHeader",
+    "XRLFManifest",
     "XRLFPacker",
+    "XRLFParseError",
+    "XRLFParser",
 ]

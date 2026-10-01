@@ -1,0 +1,181 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &4441405662112554040
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4441405662112554042}
+  - component: {fileID: 4441405662112554043}
+  m_Layer: 0
+  m_Name: Game Info
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4441405662112554042
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4441405662112554040}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: -36.292, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &4441405662112554043
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4441405662112554040}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c3cfb7a463824f40863d1feb65317af3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ConnectAction:
+    m_Name: Connect
+    m_Type: 1
+    m_ExpectedControlType: Button
+    m_Id: 5fdb0bf3-ba12-45a6-8b2d-edfb9a9ca7d1
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings:
+    - m_Name: 
+      m_Id: 213b619c-0109-47ed-92cd-0abbc553df85
+      m_Path: <OculusTouchController>{LeftHand}/primaryButton
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Connect
+      m_Flags: 0
+    m_Flags: 0
+  RotateAction:
+    m_Name: Rotate
+    m_Type: 1
+    m_ExpectedControlType: Button
+    m_Id: b2f36dc6-89a2-45f0-951d-9841325eb92e
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings:
+    - m_Name: 
+      m_Id: 625d8e50-f2a1-4aba-acdf-b4122509c5d2
+      m_Path: <OculusTouchController>{RightHand}/gripPressed
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Rotate
+      m_Flags: 0
+    m_Flags: 0
+  MoveAction:
+    m_Name: Move
+    m_Type: 1
+    m_ExpectedControlType: Button
+    m_Id: 95f5b928-f0ab-450b-9511-dae7d705b020
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings:
+    - m_Name: 
+      m_Id: 5dac6ac9-8d90-4ad3-828d-f9398d64de7e
+      m_Path: <OculusTouchController>{RightHand}/gripPressed
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Move
+      m_Flags: 0
+    m_Flags: 0
+  MoveDistAxisAction:
+    m_Name: Move Dist Axis
+    m_Type: 0
+    m_ExpectedControlType: Axis
+    m_Id: 0ff141bf-d247-4a36-984c-e0197b503a13
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings:
+    - m_Name: 
+      m_Id: da94a76d-ac96-4f16-8936-c76f512c4081
+      m_Path: <OculusTouchController>{RightHand}/devicePose/position/x
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Move Dist Axis
+      m_Flags: 0
+    m_Flags: 0
+  PauseAction:
+    m_Name: Pause
+    m_Type: 1
+    m_ExpectedControlType: Button
+    m_Id: 2bc207fb-eb0c-4e9f-b339-9597b544c4f3
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings:
+    - m_Name: 
+      m_Id: aaf87ffa-3ebe-40b5-bbbe-d859a98810ab
+      m_Path: <WMRSpatialController>{RightHand}/menu
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Pause
+      m_Flags: 0
+    - m_Name: 
+      m_Id: dc0fdefa-1801-4606-9d02-610db710f734
+      m_Path: <OculusTouchController>/menu
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Pause
+      m_Flags: 0
+    m_Flags: 0
+  DeleteAction:
+    m_Name: Delete
+    m_Type: 1
+    m_ExpectedControlType: Button
+    m_Id: 19addefc-cf1f-4040-9311-4223dcd7a74b
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings:
+    - m_Name: 
+      m_Id: c7359959-6c33-44c3-b027-1215d753f7e5
+      m_Path: <WMRSpatialController>{LeftHand}/gripPressed
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Delete
+      m_Flags: 0
+    - m_Name: 
+      m_Id: e7bef70b-8b08-4153-bc10-63f58ee374db
+      m_Path: <OculusTouchController>{LeftHand}/gripPressed
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Delete
+      m_Flags: 0
+    m_Flags: 0
+  UIClickAction:
+    m_Name: UI Click
+    m_Type: 0
+    m_ExpectedControlType: 
+    m_Id: ff75e847-0f86-41a0-902b-899b458d8e4b
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings:
+    - m_Name: 
+      m_Id: 0b569949-edf7-4f77-8ccf-cd69ff46bcb0
+      m_Path: <OculusTouchController>{RightHand}/trigger
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: UI Click
+      m_Flags: 0
+    m_Flags: 0

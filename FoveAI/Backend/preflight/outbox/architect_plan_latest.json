@@ -1,0 +1,10 @@
+{
+  "title": "architect-disabled",
+  "summary": "Architect escalation is disabled.",
+  "missing_capabilities": [],
+  "proposed_implementation": [],
+  "code_change_candidates": [],
+  "extended_tests": [],
+  "safety_guards": [],
+  "requires_user_approval": true
+}

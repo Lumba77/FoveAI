@@ -30,9 +30,10 @@ import os
 import signal
 import sys
 import time
+from collections.abc import Awaitable, Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Callable, Awaitable, Dict, Any, List
+from typing import Any
 
 logger = logging.getLogger("forge.cline_bridge")
 
@@ -48,7 +49,7 @@ EVENT_ERROR = "error"
 EVENT_SYSTEM = "system"
 
 # ── Subscriber callback type ─────────────────────────────────────────────
-Subscriber = Callable[[Dict[str, Any]], Awaitable[None]]
+Subscriber = Callable[[dict[str, Any]], Awaitable[None]]
 
 
 class ClineBridge:
@@ -75,15 +76,15 @@ class ClineBridge:
         self.max_buffer_lines = max_buffer_lines
 
         # Runtime state
-        self.process: Optional[asyncio.subprocess.Process] = None
-        self._session_id: Optional[str] = None
-        self._model: Optional[str] = None
-        self._started_at: Optional[float] = None
+        self.process: asyncio.subprocess.Process | None = None
+        self._session_id: str | None = None
+        self._model: str | None = None
+        self._started_at: float | None = None
         self._running: bool = False
-        self._subscribers: List[Subscriber] = []
-        self._event_buffer: List[Dict[str, Any]] = []
-        self._read_task: Optional[asyncio.Task] = None
-        self._stderr_task: Optional[asyncio.Task] = None
+        self._subscribers: list[Subscriber] = []
+        self._event_buffer: list[dict[str, Any]] = []
+        self._read_task: asyncio.Task | None = None
+        self._stderr_task: asyncio.Task | None = None
 
     # ── Subscriber Management ────────────────────────────────────────────
 
@@ -91,7 +92,9 @@ class ClineBridge:
         """Register an async callback to receive all parsed events."""
         if callback not in self._subscribers:
             self._subscribers.append(callback)
-            logger.debug(f"Subscriber added: {callback.__name__ if hasattr(callback, '__name__') else callback}")
+            logger.debug(
+                f"Subscriber added: {callback.__name__ if hasattr(callback, '__name__') else callback}"
+            )
 
     def unsubscribe(self, callback: Subscriber) -> None:
         """Remove a previously registered subscriber."""
@@ -107,8 +110,8 @@ class ClineBridge:
     async def spawn(
         self,
         model: str = "deepseek-v4-pro",
-        prompt: Optional[str] = None,
-        extra_args: Optional[List[str]] = None,
+        prompt: str | None = None,
+        extra_args: list[str] | None = None,
     ) -> str:
         """
         Spawn Cline CLI 3 as an async subprocess.
@@ -128,16 +131,20 @@ class ClineBridge:
             logger.warning("Bridge already running — stopping existing process first")
             await self.stop()
 
-        self._session_id = f"forge_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.getpid()}"
+        self._session_id = (
+            f"forge_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{os.getpid()}"
+        )
         self._model = model
         self._started_at = time.time()
 
         # Build command
         cmd = [
             self.cline_command,
-            "--json",              # Structured JSON output
-            "--model", model,
-            "--workspace", str(self.workspace),
+            "--json",  # Structured JSON output
+            "--model",
+            model,
+            "--workspace",
+            str(self.workspace),
         ]
 
         if prompt:
@@ -147,7 +154,9 @@ class ClineBridge:
             cmd.extend(extra_args)
 
         logger.info(f"Spawning Cline CLI 3: {' '.join(cmd)}")
-        logger.info(f"Session: {self._session_id} | Model: {model} | Workspace: {self.workspace}")
+        logger.info(
+            f"Session: {self._session_id} | Model: {model} | Workspace: {self.workspace}"
+        )
 
         try:
             self.process = await asyncio.create_subprocess_exec(
@@ -168,13 +177,15 @@ class ClineBridge:
         self._running = True
 
         # Emit session_start event
-        await self._emit({
-            "type": EVENT_SESSION_START,
-            "session_id": self._session_id,
-            "model": model,
-            "workspace": str(self.workspace),
-            "timestamp": datetime.now().isoformat(),
-        })
+        await self._emit(
+            {
+                "type": EVENT_SESSION_START,
+                "session_id": self._session_id,
+                "model": model,
+                "workspace": str(self.workspace),
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
         # Start stream readers
         self._read_task = asyncio.create_task(self._read_stdout())
@@ -221,13 +232,15 @@ class ClineBridge:
             pass  # Already exited
 
         # Emit session_end event
-        await self._emit({
-            "type": EVENT_SESSION_END,
-            "session_id": self._session_id,
-            "reason": reason,
-            "duration_s": round(duration_s, 1),
-            "timestamp": datetime.now().isoformat(),
-        })
+        await self._emit(
+            {
+                "type": EVENT_SESSION_END,
+                "session_id": self._session_id,
+                "reason": reason,
+                "duration_s": round(duration_s, 1),
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
 
         self._running = False
         self.process = None
@@ -305,13 +318,15 @@ class ClineBridge:
                 break
             except Exception as e:
                 logger.error(f"Error reading stdout: {e}")
-                await self._emit({
-                    "type": EVENT_ERROR,
-                    "message": f"Stdout read error: {e}",
-                    "code": "stdout_read_error",
-                    "session_id": self._session_id,
-                    "timestamp": datetime.now().isoformat(),
-                })
+                await self._emit(
+                    {
+                        "type": EVENT_ERROR,
+                        "message": f"Stdout read error: {e}",
+                        "code": "stdout_read_error",
+                        "session_id": self._session_id,
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
 
     async def _read_stderr(self) -> None:
         """Read stderr for error logging."""
@@ -327,13 +342,15 @@ class ClineBridge:
                 line = line_bytes.decode("utf-8", errors="replace").strip()
                 if line:
                     logger.warning(f"Cline stderr: {line}")
-                    await self._emit({
-                        "type": EVENT_SYSTEM,
-                        "stream": "stderr",
-                        "content": line,
-                        "session_id": self._session_id,
-                        "timestamp": datetime.now().isoformat(),
-                    })
+                    await self._emit(
+                        {
+                            "type": EVENT_SYSTEM,
+                            "stream": "stderr",
+                            "content": line,
+                            "session_id": self._session_id,
+                            "timestamp": datetime.now().isoformat(),
+                        }
+                    )
 
             except asyncio.CancelledError:
                 break
@@ -342,7 +359,7 @@ class ClineBridge:
 
     # ── Event Routing ─────────────────────────────────────────────────────
 
-    async def _route_event(self, event: Dict[str, Any]) -> None:
+    async def _route_event(self, event: dict[str, Any]) -> None:
         """
         Route a parsed event to all subscribers.
 
@@ -351,7 +368,7 @@ class ClineBridge:
         # Add to buffer (with cap)
         self._event_buffer.append(event)
         if len(self._event_buffer) > self.max_buffer_lines:
-            self._event_buffer = self._event_buffer[-self.max_buffer_lines:]
+            self._event_buffer = self._event_buffer[-self.max_buffer_lines :]
 
         # Fan out to all subscribers
         for subscriber in self._subscribers:
@@ -360,7 +377,7 @@ class ClineBridge:
             except Exception as e:
                 logger.error(f"Subscriber error: {e}")
 
-    async def _emit(self, event: Dict[str, Any]) -> None:
+    async def _emit(self, event: dict[str, Any]) -> None:
         """Emit an internally-generated event (not from Cline stdout)."""
         await self._route_event(event)
 
@@ -371,11 +388,11 @@ class ClineBridge:
         return self._running
 
     @property
-    def session_id(self) -> Optional[str]:
+    def session_id(self) -> str | None:
         return self._session_id
 
     @property
-    def model(self) -> Optional[str]:
+    def model(self) -> str | None:
         return self._model
 
     @property
@@ -384,13 +401,13 @@ class ClineBridge:
             return 0.0
         return time.time() - self._started_at
 
-    def get_recent_events(self, count: int = 50) -> List[Dict[str, Any]]:
+    def get_recent_events(self, count: int = 50) -> list[dict[str, Any]]:
         """Return the most recent events from the buffer."""
         return self._event_buffer[-count:]
 
-    def get_event_summary(self) -> Dict[str, int]:
+    def get_event_summary(self) -> dict[str, int]:
         """Return counts of each event type in the buffer."""
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
         for event in self._event_buffer:
             t = event.get("type", "unknown")
             counts[t] = counts.get(t, 0) + 1

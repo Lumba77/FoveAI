@@ -5,16 +5,16 @@ The **Director** (Super-Ego) **partly** guides that curriculum (tagged lore line
 including **world literacy** and **broad, non-dogmatic spirituality** alongside bond work;
 small models do the heavy lifting without blocking the main GGUF soul.
 """
+
 from __future__ import annotations
 
 import logging
 import os
 import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
-
 from ollama_http import ollama_http_headers
 
 logger = logging.getLogger("slow_burn")
@@ -26,11 +26,13 @@ ACTIVITY_KEY = "foveai:last_user_activity"
 LLM_GEN_NUM_CTX = int(os.getenv("FoveAI_LLM_GEN_NUM_CTX", "4096"))
 LLM_GEN_NUM_PREDICT = int(os.getenv("FoveAI_LLM_GEN_NUM_PREDICT", "256"))
 
+
 def _env_bool(name: str, default: bool = False) -> bool:
     raw = (os.getenv(name, "") or "").strip().lower()
     if not raw:
         return default
     return raw in ("1", "true", "yes", "on")
+
 
 PAN_QUERIES = [
     "trust warmth bond",
@@ -70,7 +72,7 @@ Digest:
 Director (one tagged line + optional one plain line of rationale):"""
 
 
-def _seconds_since_activity(redis_memory) -> Optional[float]:
+def _seconds_since_activity(redis_memory) -> float | None:
     if not redis_memory:
         return None
     raw = redis_memory.get(ACTIVITY_KEY)
@@ -109,15 +111,17 @@ def _next_phase(redis_memory) -> int:
         return int(time.time() // 3600) % 4
 
 
-async def _llm_generate(hc: httpx.AsyncClient, host: str, model: str, prompt: str, timeout: float = 90.0) -> str:
-    payload: Dict[str, Any] = {
-        "model": model, 
-        "messages": [{"role": "user", "content": prompt}], 
-        "stream": False
+async def _llm_generate(
+    hc: httpx.AsyncClient, host: str, model: str, prompt: str, timeout: float = 90.0
+) -> str:
+    payload: dict[str, Any] = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "stream": False,
     }
     if LLM_GEN_NUM_PREDICT > 0:
         payload["max_tokens"] = LLM_GEN_NUM_PREDICT
-        
+
     url = f"{host.rstrip('/')}/chat/completions"
     try:
         resp = await hc.post(
@@ -135,7 +139,9 @@ async def _llm_generate(hc: httpx.AsyncClient, host: str, model: str, prompt: st
         raise
     if resp.status_code != 200:
         return ""
-    return (resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")).strip()
+    return (
+        resp.json().get("choices", [{}])[0].get("message", {}).get("content", "")
+    ).strip()
 
 
 async def _phase_memorize(
@@ -144,13 +150,13 @@ async def _phase_memorize(
     session_id: str,
     ollama_host: str,
     smollm: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     hist = await redis_memory.get_session_history(session_id)
     if not hist.messages or len(hist.messages) < 4:
         return {"phase": "memorize", "detail": "not_enough_history"}
 
     tail = hist.messages[-24:]
-    lines: List[str] = []
+    lines: list[str] = []
     for m in tail:
         role = m.role
         c = str(m.content)
@@ -181,7 +187,7 @@ async def _phase_pan(
     session_id: str,
     ollama_host: str,
     smollm: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     import random
 
     q = random.choice(PAN_QUERIES)
@@ -214,13 +220,15 @@ async def _phase_director(
     session_id: str,
     ollama_host: str,
     smollm: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     hist = await redis_memory.get_session_history(session_id)
-    bits: List[str] = []
-    for m in (hist.messages[-12:] if hist.messages else []):
+    bits: list[str] = []
+    for m in hist.messages[-12:] if hist.messages else []:
         bits.append(f"{m.role}: {str(m.content)[:320]}")
     mems = await vector_memory.retrieve_memories(
-        session_id, "emotional arc bond growth world spirit ethics wonder learning", n_results=4
+        session_id,
+        "emotional arc bond growth world spirit ethics wonder learning",
+        n_results=4,
     )
     for m in mems:
         bits.append(f"memory: {m.get('text', '')[:200]}")
@@ -232,7 +240,9 @@ async def _phase_director(
     if not out:
         return {"phase": "director", "detail": "llm_empty"}
 
-    tagged = re.search(r"\[(NARRATE|DIRECTIVE|SEND_IMPULSE|TUTOR|AUGMENT_PERSONALITY)\]", out)
+    tagged = re.search(
+        r"\[(NARRATE|DIRECTIVE|SEND_IMPULSE|TUTOR|AUGMENT_PERSONALITY)\]", out
+    )
     line = f"[SLOW_BURN_DIRECTOR] {out[:2000]}"
     await vector_memory.add_memory(session_id, line, collection="lore")
     return {"phase": "director", "detail": "stored", "had_tag": bool(tagged)}
@@ -245,7 +255,7 @@ async def _phase_dream(
     redis_memory,
     vector_memory,
     session_id: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     ref_b64 = ""
     try:
         if redis_memory is not None:
@@ -267,15 +277,19 @@ async def _phase_dream(
         if not p:
             return {"phase": "dream", "detail": "no_prompt"}
         try:
-            body: Dict[str, Any] = {
+            body: dict[str, Any] = {
                 "prompt": p[:700],
                 "model_type": "turbo",
-                "num_inference_steps": int(os.getenv("FoveAI_SLOW_BURN_DREAM_STEPS", "14")),
+                "num_inference_steps": int(
+                    os.getenv("FoveAI_SLOW_BURN_DREAM_STEPS", "14")
+                ),
                 "control_image_b64": "",
             }
             if ref_b64:
                 body["reference_image_b64"] = ref_b64
-                body["strength"] = float(os.getenv("FoveAI_SLOW_BURN_REF_STRENGTH", "0.52"))
+                body["strength"] = float(
+                    os.getenv("FoveAI_SLOW_BURN_REF_STRENGTH", "0.52")
+                )
             dream_url = f"{creative_url.rstrip('/')}/api/dream"
             try:
                 r = await hc.post(
@@ -286,7 +300,11 @@ async def _phase_dream(
             except httpx.RequestError as e:
                 logger.warning("slow_burn dream httpx failed (%s): %s", dream_url, e)
                 raise
-            body = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+            body = (
+                r.json()
+                if r.headers.get("content-type", "").startswith("application/json")
+                else {}
+            )
             ok = r.status_code == 200 and (body.get("image_b64") or "")
             if ok and vector_memory is not None:
                 try:
@@ -295,7 +313,9 @@ async def _phase_dream(
                         + p[:480]
                         + f" | ref_image={'yes' if bool(ref_b64) else 'no'} | source=creative"
                     )
-                    await vector_memory.add_memory(session_id, line, collection="long_term")
+                    await vector_memory.add_memory(
+                        session_id, line, collection="long_term"
+                    )
                 except Exception as ex:
                     logger.debug("slow_burn dream memory write: %s", ex)
             return {
@@ -318,7 +338,7 @@ async def _phase_image_katharsis(
     dream_prompt: str,
     dream_ok: bool,
     had_ref: bool,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     if vector_memory is None:
         return {"phase": "katharsis", "detail": "vector_unavailable"}
     if not dream_prompt.strip():
@@ -331,7 +351,11 @@ async def _phase_image_katharsis(
         include_lore=True,
         lore_n_results=2,
     )
-    snippets = "\n".join(f"- {str(m.get('text', ''))[:220]}" for m in mems[:6]) if mems else "- (sparse memory)"
+    snippets = (
+        "\n".join(f"- {str(m.get('text', ''))[:220]}" for m in mems[:6])
+        if mems
+        else "- (sparse memory)"
+    )
     prompt = (
         "You are the identity's ember-phase catharsis processor. A dream-image phase just ran. "
         "Convert dream imagery + retrieved memories into concise emotional consolidation. "
@@ -371,7 +395,7 @@ async def execute_slow_burn_tick(
     smollm_model: str,
     creative_url: str,
     allow_dream: bool,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     if not _is_idle(redis_memory, idle_sec, force):
         return {"status": "skipped_active", "idle_sec": idle_sec}
 
@@ -379,17 +403,25 @@ async def execute_slow_burn_tick(
         return {"status": "error", "detail": "vector_memory_unavailable"}
 
     phase = _next_phase(redis_memory)
-    result: Dict[str, Any] = {"status": "ok", "phase_index": phase}
+    result: dict[str, Any] = {"status": "ok", "phase_index": phase}
     phase_names = ("memorize", "pan", "director", "dream")
 
     try:
         if phase == 0:
-            result.update(await _phase_memorize(redis_memory, vector_memory, session_id, ollama_host, smollm_model))
+            result.update(
+                await _phase_memorize(
+                    redis_memory, vector_memory, session_id, ollama_host, smollm_model
+                )
+            )
         elif phase == 1:
-            result.update(await _phase_pan(vector_memory, session_id, ollama_host, smollm_model))
+            result.update(
+                await _phase_pan(vector_memory, session_id, ollama_host, smollm_model)
+            )
         elif phase == 2:
             result.update(
-                await _phase_director(redis_memory, vector_memory, session_id, ollama_host, smollm_model)
+                await _phase_director(
+                    redis_memory, vector_memory, session_id, ollama_host, smollm_model
+                )
             )
         elif phase == 3 and allow_dream:
             dream_res = await _phase_dream(

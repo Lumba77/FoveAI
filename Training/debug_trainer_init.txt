@@ -1,0 +1,245 @@
+    def __init__(
+        self,
+        model,
+        args = None,
+        data_collator = None,
+        train_dataset = None,
+        eval_dataset = None,
+        processing_class = None,
+        compute_loss_func = None,
+        compute_metrics = None,
+        callbacks = None,
+        optimizer_cls_and_kwargs = None,
+        preprocess_logits_for_metrics = None,
+        peft_config = None,
+        formatting_func = None,
+        **kwargs
+    ):
+        if args is None: args = UnslothSFTConfig()
+        use_bf16 = getattr(args, 'bf16', False)
+        if type(use_bf16) is not bool: use_bf16 = False
+        use_fp16 = getattr(args, 'fp16', False)
+        if type(use_fp16) is not bool: use_fp16 = False
+        force_float32 = False
+        try:
+            from unsloth_zoo.device_type import device_is_bf16_supported as _bf16_supported
+        except Exception:
+            _bf16_supported = torch.cuda.is_bf16_supported
+        full_finetuning = os.environ.get('UNSLOTH_ENABLE_FULL_FINETUNING', '0') == '1'
+        if os.environ.get('UNSLOTH_FORCE_FLOAT32', '0') == '1' and not (full_finetuning and _bf16_supported()):
+            print('Unsloth: Switching to float32 training since model cannot work with float16')
+            force_float32 = True
+        mixed_precision_dtype = os.environ.get('UNSLOTH_MIXED_PRECISION', 'float32')
+        dtype = getattr(model.config, 'dtype', None) or getattr(model.config, 'torch_dtype', None)
+        if dtype is None: dtype = model.get_input_embeddings().weight.dtype
+        from unsloth_zoo.utils import _get_dtype
+        dtype = _get_dtype(dtype)
+        float16 = dtype == torch.float16
+        bfloat16 = dtype == torch.bfloat16
+        if full_finetuning:
+            if bfloat16 and use_fp16: use_fp16 = False
+            if float16 and use_bf16: use_bf16 = False
+        if not force_float32 and (float16 and use_bf16): raise TypeError('Unsloth: Model is in float16 precision but you want to use bfloat16 precision. Set fp16 to `True` and bf16 to `False`')
+        if not force_float32 and (bfloat16 and use_fp16): raise TypeError('Unsloth: Model is in bfloat16 precision but you want to use float16 precision. Set fp16 to `False` and bf16 to `True`')
+        if force_float32:
+            # Forced float32 training
+            args.fp16 = False
+            args.bf16 = False
+            os.environ['ACCELERATE_MIXED_PRECISION'] = 'no'
+            if hasattr(args, 'mixed_precision'): args.mixed_precision = 'no'
+            # args.mixed_precision is a new argument which needs to be set now
+        elif (not use_bf16 and not use_fp16) and mixed_precision_dtype == 'float32':
+            # Mixed precision training. bf16 only if the GPU supports it; V100/T4 use fp16.
+            use_bf16_amp = (not float16) and _bf16_supported()
+            args.fp16 = not use_bf16_amp
+            args.bf16 = use_bf16_amp
+            os.environ['ACCELERATE_MIXED_PRECISION'] = 'bf16' if use_bf16_amp else 'fp16'
+            if hasattr(args, 'mixed_precision'): args.mixed_precision = 'bf16' if use_bf16_amp else 'fp16'
+            # args.mixed_precision is a new argument which needs to be set now
+        elif mixed_precision_dtype == 'bfloat16':
+            # Both False since bfloat16 full finetuning doesn't do any autocasting.
+            args.fp16 = False
+            args.bf16 = False
+            os.environ['ACCELERATE_MIXED_PRECISION'] = 'no'
+            if hasattr(args, 'mixed_precision'): args.mixed_precision = 'no'
+            # args.mixed_precision is a new argument which needs to be set now
+        elif use_bf16 or use_fp16:
+            # transformers <5 exported this itself from fp16/bf16; 5.x dropped the write, so an
+            # explicit flag left it unset and GRPO readers defaulted to 'fp16', wrapping a
+            # bfloat16 model in a float16 autocast. See unslothai/unsloth#4891.
+            os.environ['ACCELERATE_MIXED_PRECISION'] = 'bf16' if use_bf16 else 'fp16'
+            if hasattr(args, 'mixed_precision'): args.mixed_precision = 'bf16' if use_bf16 else 'fp16'
+        
+        if getattr(args, 'eval_dataset', None) is not None and getattr(args, 'eval_strategy', 'no') == 'no':
+            args.eval_strategy = 'steps'
+            if getattr(args, 'eval_steps', None) is None: args.eval_steps = 0.1
+        ga_steps = getattr(args, 'gradient_accumulation_steps', None)
+        if ga_steps is not None and ga_steps > 1:
+            from transformers import __version__ as transformers_version
+            if Version(transformers_version) <= Version('4.45.2'):
+                print('**** Unsloth: Please use our fixed gradient_accumulation_steps by updating transformers, TRL and Unsloth!\n'
+                      '`pip install --upgrade --no-cache-dir --force-reinstall --no-deps unsloth transformers trl unsloth_zoo`')
+        if getattr(args, 'eval_strategy', 'no') != 'no':
+            eval_bsz = getattr(args, 'per_device_eval_batch_size', 8)
+            if eval_bsz == 8 and args.per_device_train_batch_size < eval_bsz: args.per_device_eval_batch_size = args.per_device_train_batch_size
+            if getattr(args, 'eval_accumulation_steps', None) is None and ga_steps is not None: args.eval_accumulation_steps = ga_steps
+        fp16_full_eval = getattr(args, 'fp16_full_eval', False)
+        if type(fp16_full_eval) is not bool: fp16_full_eval = False
+        bf16_full_eval = getattr(args, 'bf16_full_eval', False)
+        if type(bf16_full_eval) is not bool: bf16_full_eval = False
+        if args.fp16 and bf16_full_eval: args.bf16_full_eval = False; args.fp16_full_eval = True
+        if args.bf16 and fp16_full_eval: args.bf16_full_eval = True; args.fp16_full_eval = False
+        if force_float32:
+            args.bf16_full_eval = False
+            args.fp16_full_eval = False
+        elif os.environ.get('UNSLOTH_MIXED_PRECISION', 'float32') == 'bfloat16':
+            args.bf16_full_eval = True
+            args.fp16_full_eval = False
+        elif not bf16_full_eval and not fp16_full_eval:
+            args.bf16_full_eval = args.bf16
+            args.fp16_full_eval = args.fp16
+        _output_logits = False
+        if locals().get('compute_metrics', None) is not None: _output_logits = True
+        if locals().get('preprocess_logits_for_metrics', None) is not None: _output_logits = True
+        if _output_logits:
+            os.environ['UNSLOTH_RETURN_LOGITS'] = '1'
+        if model is not None:
+            _warnings_issued = getattr(model, 'warnings_issued', None)
+            if _warnings_issued is None:
+                model.warnings_issued = {}
+            elif not isinstance(_warnings_issued, dict):
+                try:
+                    model.warnings_issued = dict(_warnings_issued)
+                except Exception:
+                    model.warnings_issued = {}
+        if 'max_seq_length' not in locals() and not hasattr(args, 'max_seq_length'):
+            pass
+        else:
+            model_max_seq_length = getattr(model, 'max_seq_length', None)
+            args_max_seq_length  = getattr(args,  'max_seq_length', None)
+            if args_max_seq_length is None and model_max_seq_length is not None:
+                max_seq_length = model.max_seq_length
+                if hasattr(args, 'max_seq_length'): args.max_seq_length = max_seq_length
+            elif args_max_seq_length is not None and model_max_seq_length is not None:
+                if args_max_seq_length > model_max_seq_length:
+                    print('Unsloth: You set `max_seq_length` as ' + str(args_max_seq_length) + ' but '
+                           'the maximum the model supports is ' + str(model_max_seq_length) + '. We shall reduce it.')
+                    args.max_seq_length = model_max_seq_length
+        if 'max_length' not in locals() and not hasattr(args, 'max_length'):
+            pass
+        else:
+            if hasattr(args, 'max_seq_length') and args.max_seq_length is not None and args.max_seq_length > 0:
+                if hasattr(args, 'max_length'):
+                    args.max_length = args.max_seq_length
+                    max_length = args.max_length
+            else:
+                model_max_length = getattr(model, 'max_seq_length', None)
+                if model_max_length is None: model_max_length = getattr(model, 'max_length', None)
+                if model_max_length is not None:
+                    args.max_length = model_max_length
+                    max_length = args.max_length
+                elif hasattr(args, 'max_length') and args.max_length is not None:
+                    max_length = args.max_length
+                    # if we are here, then we are in a weird case where max_length is set but max_seq_length is not set
+                    setattr(model, 'max_seq_length', max_length)
+                else:
+                    print('Unsloth: We did not find `max_seq_length` or `max_length` in the model or args. We will set it to 1024.')
+                    args.max_length = 1024
+        if model is not None and hasattr(model, 'for_training'):
+            _use_gc = model._unsloth_gradient_checkpointing if hasattr(model, '_unsloth_gradient_checkpointing') else getattr(args, 'gradient_checkpointing', True)
+            model.for_training(use_gradient_checkpointing=_use_gc)
+        if 'tokenizer' in locals() and hasattr(tokenizer, 'padding_side'): tokenizer.padding_side = 'right'
+        if 'processing_class' in locals():
+            if hasattr(processing_class, 'padding_side'): processing_class.padding_side = 'right'
+            if hasattr(processing_class, 'tokenizer') and hasattr(processing_class.tokenizer, 'padding_side'): processing_class.tokenizer.padding_side = 'right'
+        __tokenizer = processing_class if 'processing_class' in locals() else tokenizer
+        from unsloth_zoo.vision_utils import UnslothVisionDataCollator
+        if not isinstance(data_collator, UnslothVisionDataCollator):
+            if isinstance(data_collator, DataCollatorForSeq2Seq) and 'labels' not in train_dataset.column_names:
+                data_collator = TransformersDataCollatorForLanguageModeling(
+                    __tokenizer,
+                    mlm = False,
+                    mlm_probability = 0.0,
+                    pad_to_multiple_of = getattr(args, 'pad_to_multiple_of', None),
+                )
+            elif isinstance(data_collator, TransformersDataCollatorForLanguageModeling) and 'labels' in train_dataset.column_names:
+                data_collator = DataCollatorForSeq2Seq(
+                    __tokenizer,
+                    pad_to_multiple_of = getattr(args, 'pad_to_multiple_of', None),
+                )
+        else:
+            if hasattr(args, 'remove_unused_columns'): args.remove_unused_columns = False
+            if hasattr(args, 'dataset_text_field'): args.dataset_text_field = ''
+            if hasattr(args, 'dataset_kwargs'): args.dataset_kwargs = {'skip_prepare_dataset': True}
+        if not isinstance(data_collator, UnslothVisionDataCollator):
+            if not hasattr(__tokenizer, 'pad') and hasattr(__tokenizer, 'tokenizer'):
+                if isinstance(data_collator, DataCollatorForSeq2Seq):
+                    data_collator = DataCollatorForSeq2Seq(
+                        __tokenizer.tokenizer,
+                        pad_to_multiple_of = getattr(args, 'pad_to_multiple_of', None),
+                    )
+                elif isinstance(data_collator, TransformersDataCollatorForLanguageModeling):
+                    data_collator = TransformersDataCollatorForLanguageModeling(
+                        __tokenizer.tokenizer,
+                        mlm = False,
+                        mlm_probability = 0.0,
+                        pad_to_multiple_of = getattr(args, 'pad_to_multiple_of', None),
+                    )
+        other_metrics = []
+        
+        from unsloth_zoo.logging_utils import PatchRLStatistics
+        PatchRLStatistics('sft_trainer', other_metrics)
+        IGNORED_TOKENIZER_NAMES = os.environ.get('UNSLOTH_IGNORED_TOKENIZER_NAMES', '').split('\n')
+        from unsloth_zoo.tokenizer_utils import fix_untrained_tokens
+        from unsloth_zoo.training_utils  import fix_zero_training_loss
+        if 'tokenizer' not in locals(): tokenizer = processing_class
+        fix_untrained_tokens(model, tokenizer, train_dataset, IGNORED_TOKENIZER_NAMES, eps = 1e-16)
+        fix_zero_training_loss(model, tokenizer, train_dataset)
+        
+        # [TODO] Fix up DataParallel multiplying batch sizes
+        # [TODO] DDP works, but DP seems to not work? [TODO]
+        if getattr(args, "parallel_mode", None) == ParallelMode.NOT_DISTRIBUTED and args.n_gpu > 1:
+            if getattr(args, "_n_gpu", 1) != 1:
+                args._n_gpu = 1
+        if "model" in locals() and hasattr(model, "for_training"):
+            _use_gc = model._unsloth_gradient_checkpointing if hasattr(model, '_unsloth_gradient_checkpointing') else getattr(args, 'gradient_checkpointing', True)
+            model.for_training(use_gradient_checkpointing=_use_gc)
+        super().__init__(
+            model = model,
+            args = args,
+            data_collator = data_collator,
+            train_dataset = train_dataset,
+            eval_dataset = eval_dataset,
+            processing_class = processing_class,
+            compute_loss_func = compute_loss_func,
+            compute_metrics = compute_metrics,
+            callbacks = callbacks,
+            optimizer_cls_and_kwargs = optimizer_cls_and_kwargs,
+            preprocess_logits_for_metrics = preprocess_logits_for_metrics,
+            peft_config = peft_config,
+            formatting_func = formatting_func,**kwargs)
+        if "model" in locals() and hasattr(model, "for_inference"):
+            model.for_inference()
+        if hasattr(self, 'neftune_hook_handle'):
+            self.neftune_hook_handle.remove()
+            if hasattr(self, 'neftune_hook_handle'): del self.neftune_hook_handle
+        if getattr(args, 'neftune_noise_alpha', None) is not None:
+            model.get_input_embeddings().neftune_noise_alpha = self.neftune_noise_alpha
+        pass
+        if hasattr(self, 'accelerator'):
+            scaler = self.accelerator.scaler
+            current_model = model
+            while hasattr(current_model, 'model'):
+                current_model.accelerator_scaler = scaler
+                current_model = current_model.model
+            current_model.accelerator_scaler = scaler
+        pass
+        if hasattr(self, 'train'):
+            self.train = MethodType(prepare_for_training_mode(self.__class__.train), self)
+        pass
+        if hasattr(self, 'llm') and self.llm is not None and hasattr(self.llm, 'get_tokenizer'):
+            _vllm_tok = self.llm.get_tokenizer()
+            _pc = getattr(self, 'processing_class', None) or getattr(self, 'tokenizer', None)
+            if _vllm_tok is not None and _pc is not None and getattr(_pc, 'chat_template', None) is not None and getattr(_vllm_tok, 'chat_template', None) is None:
+                _vllm_tok.chat_template = _pc.chat_template
+        pass

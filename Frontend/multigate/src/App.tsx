@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
 import AvatarOverlay from './AvatarOverlay';
-import IgnitionButton from './IgnitionButton';
 import IgnitionScreen from './IgnitionScreen';
+import { useBackendStatus } from './useBackendStatus';
 import Trackball from './trackball/Trackball';
-import { useTraits, boolDirs, fmtVal } from './trackball/useTraits';
+import { useTraits } from './trackball/useTraits';
 import { CanvasTab } from './components/tabs/CanvasTab';
 import { DiagnosticsTab } from './components/tabs/DiagnosticsTab';
 import { AgencyTab } from './components/tabs/AgencyTab';
@@ -12,10 +12,23 @@ import { MonetizationTab } from './components/tabs/MonetizationTab';
 import { PersonaTab } from './components/tabs/PersonaTab';
 import { SoundboardTab } from './components/tabs/SoundboardTab';
 import { RoleplayTab } from './components/tabs/RoleplayTab';
+import { RemoteTab } from './components/tabs/RemoteTab';
+import { NewsTab } from './components/tabs/NewsTab';
+import { DevKioskTab } from './components/tabs/DevKioskTab';
+import { MindTab } from './components/tabs/MindTab';
+import { SystemsTab } from './components/tabs/SystemsTab';
+import { NEWS } from './news';
+
+// Vibe IDE — lazy: pulls monaco-editor (~4MB chunk), only paid when the tab opens
+const CodeEditorTab = React.lazy(() =>
+  import('./components/tabs/CodeEditorTab').then(m => ({ default: m.CodeEditorTab }))
+);
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
+  reasoning?: string; // thinking-model chain-of-thought, kept out of content
+  divider?: { sessionId: string; title: string };  // session boundary marker
 }
 
 interface User {
@@ -25,6 +38,44 @@ interface User {
   firstName?: string;
   lastName?: string;
   aiName?: string;
+  features?: string[];
+}
+
+// Avatar-protocol tokens (<emotion:>, <movement:>, <micro:>, <mode:>, <thought:>,
+// <think>…</think>, *actions*) belong to the motor/XR/TTS layers — strip them from
+// display only. msg.content keeps the raw text so TTS keeps its emotion markers.
+function displayText(text: string): string {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/\(\s*thought\s*:[^)]*\)/gi, '')
+    // orphan thought fragments — "(…) </thought" leaks where the model
+    // opened a plain paren instead of the proper <thought:> channel
+    .replace(/\([^()]*\)\s*<\/\s*thought\b[^>]*>?/gi, '')
+    .replace(/<\/?\s*thought\b[^>]*>?/gi, '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/<[^>]*$/g, '')
+    .replace(/\*[^*]+\*/g, '')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+}
+
+// Thought channels stay visible: <thought:…> markers and <think>/<thinking>
+// blocks are pulled out of the raw stream and rendered as dim thought panels,
+// inline where the model emitted them — the "thinking codeblock" display.
+function renderAssistantContent(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  const re = /<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>|<thought:([^>]+)>|\(\s*thought\s*:\s*([^)]*)\)/gi;
+  let last = 0, m: RegExpExecArray | null, k = 0;
+  while ((m = re.exec(text)) !== null) {
+    const before = displayText(text.slice(last, m.index));
+    if (before) parts.push(<span key={k++}>{before}</span>);
+    const thought = (m[1] ?? m[2] ?? m[3] ?? '').trim();
+    if (thought) parts.push(<div key={k++} className="thought-block">{thought}</div>);
+    last = m.index + m[0].length;
+  }
+  const tail = displayText(text.slice(last));
+  if (tail) parts.push(<span key={k++}>{tail}</span>);
+  return parts;
 }
 
 function App() {
@@ -33,6 +84,9 @@ function App() {
       const saved = localStorage.getItem('foveai_foveai_user');
       if (saved) {
         const parsed = JSON.parse(saved);
+        // A real session token means the account was authenticated — restore it
+        // even if persona setup (aiName) hasn't run yet.
+        if (parsed.apiKey && parsed.username) return parsed;
         if (parsed.firstName && parsed.aiName) return parsed;
       }
       return null;
@@ -41,18 +95,129 @@ function App() {
     }
   });
 
-  const [showSetup, setShowSetup] = useState(() => !currentUser);
+  // Persona setup shows when an authenticated user hasn't named their AI yet.
+  // Derived from currentUser — no separate flag to drift out of sync.
+  const showSetup = !!currentUser && !currentUser.aiName;
   const [ignited, setIgnited] = useState(false);
+  const backend = useBackendStatus();
+  const backendDown = backend.state === 'down' || backend.state === 'offline' || backend.state === 'starting';
 
-  // Persist login state to localStorage
+  // Persist login state to localStorage. Also mirror the fvs_ session into
+  // the fvs_gate cookie — the vite dev server shields /remote-api, /novnc,
+  // /rdp and /ignition behind it (verified via /api/auth/me).
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('foveai_foveai_user', JSON.stringify(currentUser));
-      setShowSetup(false);
+      if (currentUser.apiKey?.startsWith('fvs_')) {
+        const secure = location.protocol === 'https:' ? '; Secure' : '';
+        // Domain=xarel.net lets the same session unlock novnc./metrics. subdomains
+        const domain = location.hostname.endsWith('xarel.net') ? '; Domain=xarel.net' : '';
+        document.cookie = `fvs_gate=${currentUser.apiKey}; Path=/; SameSite=Lax; Max-Age=${30 * 86400}${secure}${domain}`;
+      }
     } else {
       localStorage.removeItem('foveai_foveai_user');
+      document.cookie = 'fvs_gate=; Path=/; Max-Age=0';
     }
   }, [currentUser]);
+
+  // Session continuity — each app mount starts a fresh session that inherits
+  // the tail of the previous ones, with a named divider between them.
+  const [sessionId] = useState(() => `sess-${Date.now().toString(36)}`);
+  const [sessionTitles, setSessionTitles] = useState<Record<string, string>>({});
+  const [editingSession, setEditingSession] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const titledOnce = useRef(false);
+  const historyLoaded = useRef(false);
+  const sessionTurns = useRef(0);
+
+  // Load the tail of previous sessions once logged in — the chat "starts
+  // where the last one ended", separated by named session dividers.
+  useEffect(() => {
+    if (!currentUser?.apiKey || historyLoaded.current) return;
+    historyLoaded.current = true;
+    const auth = { Authorization: `Bearer ${currentUser.apiKey}` };
+    (async () => {
+      try {
+        const r = await fetch('/api/sessions', { headers: auth });
+        if (!r.ok) return;
+        const data = await r.json();
+        const sessions = (data.sessions || []).slice(0, 3);
+        const titles: Record<string, string> = {};
+        const history: Message[] = [];
+        for (const s of sessions) {
+          const sid = s.session_id || s.id;
+          if (!sid) continue;
+          titles[sid] = s.title || `Session ${String(sid).slice(-8)}`;
+          const mr = await fetch(`/api/session/messages?session_id=${encodeURIComponent(sid)}`, { headers: auth });
+          if (!mr.ok) continue;
+          const md = await mr.json();
+          const msgs = (md.messages || [])
+            .filter((m: any) => m.role === 'user' || m.role === 'assistant')
+            .slice(-10)
+            .map((m: any): Message => ({
+              role: m.role,
+              content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+            }));
+          if (msgs.length) history.push({ role: 'assistant', content: '', divider: { sessionId: sid, title: titles[sid] } }, ...msgs);
+        }
+        setSessionTitles(t => ({ ...titles, ...t }));
+        // Current session divider caps the loaded history
+        history.push({ role: 'assistant', content: '', divider: { sessionId, title: 'New session' } });
+        setMessages(history.length > 1 ? history : prev => prev);
+      } catch { /* history is best-effort — chat works without it */ }
+    })();
+  }, [currentUser?.apiKey, sessionId]);
+
+  // Autonomy channel — Jen's background loop (compagent :8405) queues
+  // spontaneous messages via <self:message>/<self:brief>/scheduled tasks.
+  // Drain the outbox into the chat so she can reach out unprompted.
+  // Held while a reply streams — otherwise her interjection collides with it.
+  const typingRef = useRef(false);
+  useEffect(() => {
+    if (!currentUser?.apiKey) return;
+    const poll = async () => {
+      if (typingRef.current) return;
+      try {
+        const r = await fetch('/api/agent/messages?limit=10');
+        if (!r.ok) return;
+        const d = await r.json();
+        const list = d.messages || [];
+        if (!list.length) return;
+        const ids: string[] = [];
+        const incoming: Message[] = [];
+        for (const m of list) {
+          if (!m.message) continue;
+          ids.push(String(m.id));
+          incoming.push({ role: 'assistant', content: m.message });
+        }
+        if (incoming.length) setMessages(prev => [...prev, ...incoming]);
+        if (ids.length) {
+          fetch('/api/agent/messages/mark', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(ids)
+          }).catch(() => {});
+        }
+      } catch { /* soul layer may be down — poll again next tick */ }
+    };
+    poll();
+    const t = setInterval(poll, 45000);
+    return () => clearInterval(t);
+  }, [currentUser?.apiKey]);
+
+  const commitRename = async (sid: string) => {
+    const t = editTitle.trim();
+    setEditingSession(null);
+    if (!t) return;
+    setSessionTitles(prev => ({ ...prev, [sid]: t }));
+    try {
+      await fetch('/api/session/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentUser?.apiKey}` },
+        body: JSON.stringify({ session_id: sid, title: t })
+      });
+    } catch { /* rename is best-effort — local title still updated */ }
+  };
 
   // Setup Form State
   const [firstNameInput, setFirstNameInput] = useState('');
@@ -62,6 +227,7 @@ function App() {
 
   // Auth Form State
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [inviteInput, setInviteInput] = useState('');
   const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState('');
@@ -72,13 +238,17 @@ function App() {
     { role: 'assistant', content: 'Welcome to your private FoveAI Copilot. How can I assist your workflow today?' }
   ]);
   const [activeTab, setActiveTab] = useState('Copilot');
+  const [newsOverlay, setNewsOverlay] = useState<number | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showAvatar, setShowAvatar] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  useEffect(() => { typingRef.current = isTyping; }, [isTyping]);
   const [proxyStatus, setProxyStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [activeSimulation, setActiveSimulation] = useState<any | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>('auto');
   const [availableModels, setAvailableModels] = useState<any[]>([]);
+  const [swappingModel, setSwappingModel] = useState<string | null>(null);
   const [chatProvider, setChatProvider] = useState<'xrlf_proxy' | 'lmstudio' | 'cloud'>('xrlf_proxy');
 
   // Provider-isolated model fleets
@@ -86,25 +256,26 @@ function App() {
   // LM Studio = local GGUF loader on :1234
   // Cloud = opt-in only (requires API key configured in settings)
   const MODEL_FLEETS: Record<string, { id: string; label: string }[]> = {
-    xrlf_proxy: [
-      { id: 'foveai-pfoveai-omni-router',     label: '🧠 XRLF Omni Router v1 (940MB)' },
-      { id: 'foveai-pfoveai-omni-router-v2',  label: '🧠 XRLF Omni Router v2 (1.3GB)' },
-      { id: 'no2-foveai-pfoveai-omni-router', label: '🧠 XRLF Omni Router No2 (32K ctx)' },
-    ],
+    // xrlf_proxy has no static fleet — its picker is populated live from
+    // /xrlf/v1/packages (the loadable .xrlf files the runtime can hot-swap).
+    xrlf_proxy: [],
     lmstudio: [
       { id: 'qwopus3.5-9b-coder-mtp-moq',           label: '💻 QwOpus 3.5 9B Coder' },
       { id: 'qwen3.5-4b-moq',                       label: '💻 Qwen MoQ 4B (32K ctx)' },
-      { id: 'w-ahmad/gemma-4-12b-it-qat-gguf-moq/moq-3.5.gguf', label: '💻 Gemma 4 12B MoQ' },
     ],
     cloud: [
       { id: 'auto',          label: '☁️ Cloud Auto-Route (requires API key)' },
     ],
   };
-  const [deepThink, setDeepThink] = useState(false);
+  const [deepThink, setDeepThink] = useState(true);
   const [contextBudget, setContextBudget] = useState(16000);
   const [compressionLevel, setCompressionLevel] = useState(3);
 
-  // Audio PTT state & refs
+  // Audio input mode — TXT (text only) / PTT (hold ball to talk) / VAD (hands-free)
+  const [inputMode, setInputMode] = useState<'TXT' | 'PTT' | 'VAD'>(() => {
+    const saved = localStorage.getItem('foveai_input_mode');
+    return saved === 'VAD' || saved === 'TXT' ? saved : 'PTT';
+  });
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessingAudio, setIsProcessingAudio] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -118,7 +289,8 @@ function App() {
     'EDUTAINMENT': false
   });
 
-  const siteName = window.location.hostname.toUpperCase();
+  // Site identity — the app is FoveAI; xarel.net is just where it lives.
+  const siteName = 'FoveAI';
   const proxyPort = import.meta.env.VITE_PROXY_PORT || '8400';
 
   const handleAssimilateDisorder = (disorderRow: any, mode: 'chat' | 'xr') => {
@@ -185,14 +357,29 @@ function App() {
           }
         } else if (chatProvider === 'lmstudio') {
           // LM Studio models from :1234
-          const res = await fetch('http://127.0.0.1:1234/v1/models');
+          const res = await fetch('/api/lmstudio/v1/models');
           if (res.ok) {
             const data = await res.json();
             if (data && data.data) setAvailableModels(data.data);
           }
         } else {
-          // XRLF proxy models — static fleet for now
-          setAvailableModels(MODEL_FLEETS.xrlf_proxy.map(m => ({ id: m.id, object: 'model', owned_by: 'xrlf' })));
+          // XRLF provider — loadable .xrlf packages from the runtime itself
+          // (:8402 via the /xrlf same-origin route). NOT the proxy's merged
+          // /v1/models registry, which mixes in router aliases and cloud
+          // providers that aren't selectable here.
+          const res = await fetch('/xrlf/v1/packages');
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.data && data.data.length) {
+              setAvailableModels(data.data);
+              const active = data.data.find((m: any) => m.active);
+              if (active) setSelectedModel(prev => (prev === 'auto' || !data.data.some((m: any) => m.id === prev)) ? active.id : prev);
+            } else {
+              setAvailableModels([]);
+            }
+          } else {
+            setAvailableModels([]);
+          }
         }
       } catch (e) {
         console.warn('Failed to fetch models', e);
@@ -207,88 +394,97 @@ function App() {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!usernameInput.trim() || !passwordInput.trim()) return;
-    
+
     setIsAuthLoading(true);
     setAuthError('');
-    
+
     try {
-      const endpoint = authMode === 'register' ? '/api/foveated/v1/auth/register' : '/api/foveated/v1/auth/login';
-      const res = await fetch(endpoint, {
+      // Register creates the account (bootstrap-open while no users exist,
+      // admin-only after); login returns a 30-day fvs_ session token.
+      const res = await fetch(`/api/auth/${authMode}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           username: usernameInput.trim(),
-          password: passwordInput
+          password: passwordInput,
+          ...(authMode === 'register' ? { inviteCode: inviteInput.trim() } : {})
         })
       });
-      
+
       const text = await res.text();
       let data: any;
       try { data = JSON.parse(text); } catch { data = null; }
-      
+
       if (!res.ok || !data) {
-        // Backend doesn't have auth endpoint — fall back to local user
-        const user: User = {
-          username: usernameInput.trim(),
-          role: usernameInput.trim().toLowerCase() === 'admin' ? 'Admin' : 'Beta Tester',
-          apiKey: 'foveai_operator'
-        };
-        setCurrentUser(user);
-        setUsernameInput('');
-        setPasswordInput('');
-      } else {
-        setCurrentUser({
-          username: data.username || usernameInput.trim(),
-          role: usernameInput.trim().toLowerCase() === 'admin' ? 'Admin' : 'Beta Tester',
-          apiKey: data.apiKey || 'foveai_operator'
-        });
-        setUsernameInput('');
-        setPasswordInput('');
+        setAuthError(data?.error || `Authentication failed (${res.status})`);
+        return;
       }
-    } catch (err) {
-      // Backend unreachable — fall back to local user
-      const user: User = {
-        username: usernameInput.trim(),
-        role: usernameInput.trim().toLowerCase() === 'admin' ? 'Admin' : 'Beta Tester',
-        apiKey: 'foveai_operator'
-      };
-      setCurrentUser(user);
+
+      // Register doesn't return a session — follow with a login.
+      let session = data;
+      if (authMode === 'register' && !data.token) {
+        const lr = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: usernameInput.trim(), password: passwordInput })
+        });
+        const lt = await lr.text();
+        try { session = JSON.parse(lt); } catch { session = null; }
+        if (!lr.ok || !session?.token) {
+          setAuthError(session?.error || 'Account created — please log in');
+          setAuthMode('login');
+          return;
+        }
+      }
+
+      const u = session.user || {};
+      setCurrentUser({
+        username: u.username || usernameInput.trim(),
+        firstName: u.displayName || u.username || usernameInput.trim(),
+        role: u.role === 'admin' ? 'Admin' : 'Member',
+        apiKey: session.token,          // every fetch already sends apiKey as Bearer
+        features: u.features || [],
+      });
       setUsernameInput('');
       setPasswordInput('');
+    } catch (err) {
+      setAuthError('FoveAI backend unreachable — is the stack running?');
     } finally {
       setIsAuthLoading(false);
     }
   };
 
   const handleLogout = () => {
+    // End the server-side session too, if there is one
+    if (currentUser?.apiKey?.startsWith('fvs_')) {
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${currentUser.apiKey}` },
+      }).catch(() => {});
+    }
     setCurrentUser(null);
-    setShowSetup(false);
     setMessages([{ role: 'assistant', content: 'Session closed.' }]);
   };
 
   const handleSetup = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!firstNameInput.trim() || !lastNameInput.trim() || !aiNameInput.trim()) {
-      setSetupError('Please fill in all fields');
+    if (!aiNameInput.trim()) {
+      setSetupError('Name your AI companion');
       return;
     }
-    const fullName = `${firstNameInput.trim()} ${lastNameInput.trim()}`;
+    // Preserve the authenticated session — only persona fields change.
     const newUser: User = {
-      username: fullName,
-      firstName: firstNameInput.trim(),
-      lastName: lastNameInput.trim(),
+      ...currentUser!,
+      firstName: firstNameInput.trim() || currentUser?.firstName,
+      lastName: lastNameInput.trim() || currentUser?.lastName,
       aiName: aiNameInput.trim(),
-      role: 'Admin',
-      apiKey: 'foveai_operator'
     };
-    localStorage.setItem('foveai_foveai_user', JSON.stringify(newUser));
     setCurrentUser(newUser);
-    setMessages([{ role: 'assistant', content: `Welcome, ${firstNameInput.trim()}. I am ${aiNameInput.trim()}. How can I help you today?` }]);
+    setMessages([{ role: 'assistant', content: `Welcome, ${newUser.firstName}. I am ${newUser.aiName}. How can I help you today?` }]);
     setFirstNameInput('');
     setLastNameInput('');
     setAiNameInput('');
     setSetupError('');
-    setShowSetup(false);
   };
 
   const handleSendMessage = async () => {
@@ -300,7 +496,7 @@ function App() {
     setIsTyping(true);
 
     try {
-      const recentMessages = messages.slice(-15);
+      const recentMessages = messages.filter(m => !m.divider).slice(-15);
       const payloadMessages = activeSimulation ? [
         { role: 'system', content: `[EPHEMERAL CLINICAL SIMULATION: ${activeSimulation.Disorder} | Cluster: ${activeSimulation.Cluster} | MEMORY SHIELD: ACTIVE - DO NOT SAVE TURNS TO PERMANENT MEMORY]` },
         ...recentMessages,
@@ -312,6 +508,7 @@ function App() {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${currentUser.apiKey || currentUser.username}`,
+          'X-Session-Id': sessionId,
           'X-Memory-Shield': activeSimulation ? 'true' : 'false',
           'X-Deep-Think': deepThink ? 'true' : 'false',
           'X-Context-Budget': String(contextBudget),
@@ -319,16 +516,39 @@ function App() {
         },
         body: JSON.stringify({
           model: selectedModel,
+          session_id: sessionId,
           messages: payloadMessages,
-          stream: false
+          stream: false,
+          // Keep avatar-protocol tags in content — TTS/motor/XR consume them
+          // from msg.content; displayText() strips them for the chat pane.
+          xrlf_raw: true
         })
       });
 
       const data = await response.json();
       const botReply = data.choices?.[0]?.message?.content;
+      const reasoning = data.choices?.[0]?.message?.reasoning_content;
       const fallback = data.error?.message || `Proxy error ${response.status}`;
-      
-      setMessages(prev => [...prev, { role: 'assistant', content: botReply || fallback }]);
+
+      setMessages(prev => [...prev, { role: 'assistant', content: botReply || fallback, ...(reasoning ? { reasoning } : {}) }]);
+
+      // Auto-title the session once it has a few turns to describe
+      sessionTurns.current += 1;
+      if (sessionTurns.current === 3 && !titledOnce.current) {
+        titledOnce.current = true;
+        fetch('/api/session/generate-title', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentUser.apiKey}` },
+          body: JSON.stringify({ session_id: sessionId })
+        })
+          .then(r => r.json())
+          .then(d => {
+            if (d.title && d.title !== 'Empty Session' && d.title !== 'Untitled Session') {
+              setSessionTitles(t => ({ ...t, [sessionId]: d.title }));
+            }
+          })
+          .catch(() => {});
+      }
     } catch (err) {
       setMessages(prev => [...prev, { 
         role: 'assistant', 
@@ -346,6 +566,100 @@ function App() {
     }
   };
 
+  // XRLF provider: choosing a package means "run this model" — hot-swap the
+  // runtime via POST /load (:8402 blocks until the model is loaded or fails).
+  const handleModelSelect = async (id: string) => {
+    setSelectedModel(id);
+    if (chatProvider !== 'xrlf_proxy' || id === 'auto') return;
+    const pkg = availableModels.find((m: any) => m.id === id);
+    if (!pkg || pkg.active) return;
+    setSwappingModel(id);
+    setMessages(prev => [...prev, { role: 'assistant', content: `⏳ Loading XRLF package **${id}** (${pkg.size_mb} MB) — swapping model in VRAM, this takes a minute…` }]);
+    try {
+      const r = await fetch('/xrlf/load', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: pkg.path })
+      });
+      const jr = await r.json().catch(() => ({}));
+      if (!r.ok || jr.status === 'error') {
+        setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Model load failed: ${jr.error || `HTTP ${r.status}`}` }]);
+        const still = availableModels.find((m: any) => m.active);
+        if (still) setSelectedModel(still.id);
+      } else {
+        setAvailableModels(prev => prev.map((m: any) => ({ ...m, active: m.id === id })));
+        setMessages(prev => [...prev, { role: 'assistant', content: `✅ Now running **${jr.model || id}** — full XRLF stack active.` }]);
+      }
+    } catch (e) {
+      setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Model load request failed: ${String(e)}` }]);
+      const still = availableModels.find((m: any) => m.active);
+      if (still) setSelectedModel(still.id);
+    } finally {
+      setSwappingModel(null);
+    }
+  };
+
+  // ── VAD mode — hands-free continuous listening over the Whisper bridge ──
+  // Records ~3.5s windows, transcribes each, accumulates text, auto-sends
+  // after ~2.2s of silence. (jenna-vscode uses SpeechRecognition; Firefox
+  // lacks it, so this loops MediaRecorder → /api/soul/stt instead.)
+  const sendRef = useRef(handleSendMessage);
+  sendRef.current = handleSendMessage;
+  const vadSendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (inputMode !== 'VAD' || !currentUser || activeTab !== 'Copilot') return;
+    let cancelled = false;
+    let recorder: MediaRecorder | null = null;
+    let stream: MediaStream | null = null;
+
+    const scheduleAutoSend = () => {
+      if (vadSendTimer.current) clearTimeout(vadSendTimer.current);
+      vadSendTimer.current = setTimeout(() => sendRef.current(), 2200);
+    };
+
+    const run = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (e) {
+        console.error('VAD mic access denied:', e);
+        setInputMode('PTT');
+        return;
+      }
+      while (!cancelled) {
+        const chunks: Blob[] = [];
+        const rec = new MediaRecorder(stream);
+        recorder = rec;
+        rec.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+        const stopped = new Promise<void>(res => { rec.onstop = () => res(); });
+        rec.start();
+        setIsRecording(true);
+        await new Promise(r => setTimeout(r, 3500));
+        if (rec.state !== 'inactive') rec.stop();
+        await stopped;
+        setIsRecording(false);
+        if (cancelled) break;
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        if (blob.size < 2000) continue;
+        const text = await transcribeAudioBlob(blob);
+        if (cancelled) break;
+        if (text.trim()) {
+          setInputValue(prev => (prev.trim() ? prev.trim() + ' ' : '') + text.trim());
+          scheduleAutoSend();
+        }
+      }
+      stream?.getTracks().forEach(t => t.stop());
+    };
+    run();
+    return () => {
+      cancelled = true;
+      if (vadSendTimer.current) clearTimeout(vadSendTimer.current);
+      try { if (recorder && recorder.state !== 'inactive') recorder.stop(); } catch {}
+      stream?.getTracks().forEach(t => t.stop());
+      setIsRecording(false);
+    };
+  }, [inputMode, currentUser, activeTab]);
+
   // ----------------------------------------------------
   // RENDER SETUP SCREEN
   // ----------------------------------------------------
@@ -354,7 +668,7 @@ function App() {
       <div className="auth-screen">
         <div className="glass-panel auth-card">
           <div className="auth-header">
-            <h1>{siteName}</h1>
+            <img src="/foveai-logo-light.png" alt="FoveAI" style={{ height: '52px', marginBottom: '4px' }} />
             <p>Configure your profile and AI companion</p>
           </div>
           <form className="auth-form" onSubmit={handleSetup}>
@@ -402,10 +716,35 @@ function App() {
   if (!currentUser) {
     return (
       <div className="auth-screen">
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap', justifyContent: 'center' }}>
+        {NEWS.length > 0 && (
+          <div className="glass-panel" style={{
+            maxWidth: '280px', padding: '18px',
+            border: '1px solid rgba(0,243,255,0.2)', borderRadius: '8px',
+          }}>
+            <div style={{ fontFamily: 'Share Tech Mono', fontSize: '0.6rem', letterSpacing: '2px', color: 'var(--accent-cyan)', marginBottom: '10px' }}>
+              📰 NEW THIS WEEK
+            </div>
+            {NEWS.slice(0, 3).map((n, i) => (
+              <div key={i} style={{ marginBottom: '10px' }}>
+                <div style={{ fontSize: '0.72rem', color: '#fff', fontWeight: 600 }}>{n.title}</div>
+                <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', fontFamily: 'Share Tech Mono' }}>{n.date}</div>
+              </div>
+            ))}
+            <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'Share Tech Mono', marginTop: '8px' }}>
+              Log in → 📰 Latest News for details
+            </div>
+          </div>
+        )}
         <div className="glass-panel auth-card">
           <div className="auth-header">
-            <h1>{siteName}</h1>
+            <img src="/foveai-logo-light.png" alt="FoveAI" style={{ height: '52px', marginBottom: '4px' }} />
             <p>Intelligence Nexus Portal</p>
+            <p style={{ marginTop: '6px' }}>
+              <a href="/beta.html" style={{ color: 'var(--accent-cyan)', fontSize: '0.8rem', textDecoration: 'none' }}>
+                🧪 What is this? — Beta program info
+              </a>
+            </p>
           </div>
           
           <form className="auth-form" onSubmit={handleAuth}>
@@ -438,7 +777,23 @@ function App() {
                 disabled={isAuthLoading}
               />
             </div>
-            
+
+            {authMode === 'register' && (
+              <div className="input-group">
+                <label>Beta Invite Code</label>
+                <input
+                  id="inviteCode"
+                  name="inviteCode"
+                  type="text"
+                  placeholder="Code from your invitation..."
+                  value={inviteInput}
+                  onChange={e => setInviteInput(e.target.value)}
+                  autoComplete="off"
+                  disabled={isAuthLoading}
+                />
+              </div>
+            )}
+
             <button type="submit" className="btn-primary" disabled={isAuthLoading}>
               {isAuthLoading ? 'Please wait...' : (authMode === 'login' ? 'Authenticate' : 'Register Beta Account')}
             </button>
@@ -477,6 +832,7 @@ function App() {
             </a>
           </div>
         </div>
+        </div>
       </div>
     );
   }
@@ -484,21 +840,16 @@ function App() {
   // ----------------------------------------------------
   // RENDER FULL-SCREEN Overlays
   // ----------------------------------------------------
-  if (activeTab === 'WebVM' || activeTab === 'NativeIDE') {
-    const isWebVM = activeTab === 'WebVM';
-    const title = isWebVM ? "Linux WebVM (In-Browser OS)" : "FoveAI Terminal IDE (Native Python)";
-    const protocol = window.location.protocol;
-    const hostname = window.location.hostname;
-    // Use the same protocol and hostname to prevent Mixed Content security warnings
-    const srcUrl = isWebVM ? `${protocol}//${hostname}:5176/webvm/` : `${protocol}//${hostname}:8085`;
-
+  if (activeTab === 'WebVM') {
+    // Served same-origin from public/webvm (see vite.config.ts middleware for
+    // the COOP/COEP headers CheerpX's SharedArrayBuffer needs).
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 9999, background: '#000' }}>
-        <button 
-          onClick={() => setActiveTab('Copilot')} 
+        <button
+          onClick={() => setActiveTab('Copilot')}
           style={{
-            position: 'absolute', top: '15px', right: '20px', zIndex: 10000, 
-            background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(0, 240, 255, 0.5)', 
+            position: 'absolute', top: '15px', right: '20px', zIndex: 10000,
+            background: 'rgba(0,0,0,0.5)', color: '#fff', border: '1px solid rgba(0, 240, 255, 0.5)',
             padding: '8px 16px', borderRadius: '6px', cursor: 'pointer',
             backdropFilter: 'blur(10px)', fontSize: '14px', fontWeight: 'bold',
             boxShadow: '0 4px 6px rgba(0,0,0,0.3)', transition: 'all 0.2s'
@@ -508,18 +859,47 @@ function App() {
         >
           ⎋ Exit Fullscreen
         </button>
-        <iframe 
-          src={srcUrl} 
-          style={{ width: '100%', height: '100%', border: 'none' }} 
+        <iframe
+          src="/webvm/"
+          style={{ width: '100%', height: '100%', border: 'none' }}
           sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
-          title={title}
+          title="Linux WebVM (In-Browser OS)"
         />
       </div>
     );
   }
 
+  // Shared STT — sends a webm blob to the Whisper bridge, returns transcript
+  const transcribeAudioBlob = async (audioBlob: Blob): Promise<string> => {
+    try {
+      const base64data: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(audioBlob);
+      });
+      const response = await fetch('/api/soul/stt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audio_base64: base64data,
+          format: 'audio/webm',
+          filename: 'recording.webm'
+        })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        return data.text || data.transcription || '';
+      }
+    } catch (e) {
+      console.error('STT error:', e);
+    }
+    return '';
+  };
+
   const startRecording = async () => {
     if (isTyping || isProcessingAudio) return;
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const recorder = new MediaRecorder(stream);
@@ -533,43 +913,13 @@ function App() {
       recorder.onstop = async () => {
         setIsProcessingAudio(true);
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        
-        // Stop all tracks
         stream.getTracks().forEach(t => t.stop());
 
-        if (audioBlob.size < 2000) {
-          setIsProcessingAudio(false);
-          return;
+        if (audioBlob.size >= 2000) {
+          const text = await transcribeAudioBlob(audioBlob);
+          if (text.trim()) setInputValue(text);
         }
-
-        try {
-          const reader = new FileReader();
-          reader.readAsDataURL(audioBlob);
-          reader.onloadend = async () => {
-            const base64data = (reader.result as string).split(',')[1];
-            const response = await fetch('/api/soul/stt', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                audio_base64: base64data,
-                format: 'audio/webm',
-                filename: 'recording.webm'
-              })
-            });
-
-            if (response.ok) {
-              const data = await response.json();
-              const text = data.text || data.transcription || '';
-              if (text.trim()) {
-                setInputValue(text);
-              }
-            }
-            setIsProcessingAudio(false);
-          };
-        } catch (e) {
-          console.error('STT error:', e);
-          setIsProcessingAudio(false);
-        }
+        setIsProcessingAudio(false);
       };
 
       recorder.start();
@@ -580,10 +930,11 @@ function App() {
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
+    const rec = mediaRecorderRef.current;
+    if (rec && rec.state !== 'inactive') {
+      rec.stop();
     }
+    setIsRecording(false);
   };
 
   const toggleCategory = (title: string) => {
@@ -608,6 +959,7 @@ function App() {
       title: 'AGENCY & INTELLIGENCE',
       icon: '⚡',
       items: [
+        { id: 'Mind', label: 'Her Mind', icon: '🧠' },
         { id: 'Agency', label: 'Agency Terminal', icon: '🤖' },
         { id: 'Persona', label: 'Persona & MBTI', icon: '🎭' }
       ]
@@ -616,7 +968,8 @@ function App() {
       title: 'DEVELOPMENT SUITE',
       icon: '🛠️',
       items: [
-        { id: 'NativeIDE', label: 'FoveAI Native IDE', icon: '⌨️' },
+        { id: 'VibeIDE', label: 'Vibe IDE', icon: '🧑‍💻' },
+        { id: 'DevKiosk', label: 'Dev Kiosk (App Forge)', icon: '🔧' },
         { id: 'WebVM', label: 'Linux WebVM (WASM)', icon: '🖥️' }
       ]
     },
@@ -639,9 +992,36 @@ function App() {
       ]
     },
     {
+      title: 'REMOTE ACCESS',
+      icon: '📡',
+      items: [
+        { id: 'Remote', label: 'Remote Console', icon: '🖥️' },
+        { id: 'ttyd_terminal', label: 'Remote Access (Web Terminal)', icon: '⌨️', isExternal: true, href: `http://${window.location.hostname}:7681` },
+        { id: 'novnc_web', label: 'noVNC Web Desktop', icon: '🌐', isExternal: true, href: '/novnc/vnc.html?autoconnect=true&resize=scale&reconnect=true' },
+        { id: 'web_rdp', label: 'Web RDP (Guacamole)', icon: '🪟', isExternal: true, href: '/rdp/' },
+        { id: 'sunshine_ui', label: 'Sunshine Web UI', icon: '☀️', isExternal: true, href: `https://${window.location.hostname}:47990` }
+      ]
+    },
+    {
+      title: 'SOFTWARE',
+      icon: '🧰',
+      items: [
+        { id: 'VibeIDE', label: 'Vibe IDE', icon: '🧑‍💻' },
+        { id: 'prompt_kiosk', label: 'Prompt Kiosk', icon: '⌨️', isExternal: true, href: '/dash/prompt-kiosk.html' },
+        { id: 'companion', label: 'Companion', icon: '🫂', isExternal: true, href: '/dash/companion.html' },
+        { id: 'launch_page', label: 'Launcher', icon: '🚀', isExternal: true, href: '/dash/launch.html' },
+        { id: 'garage', label: 'Garage', icon: '🛻', isExternal: true, href: '/dash/garage/' },
+        { id: 'graphtest', label: 'Graph Test', icon: '📊', isExternal: true, href: '/dash/graphtest.html' },
+        { id: 'beta_page', label: 'Beta Program', icon: '🧪', isExternal: true, href: '/dash/beta.html' }
+      ]
+    },
+    {
       title: 'SYSTEM',
       icon: '⚙️',
       items: [
+        { id: 'Statistics', label: 'Statistics', icon: '📊' },
+        { id: 'Services', label: 'Services (Zabbix light)', icon: '🛰️' },
+        { id: 'Metrics', label: 'Machine Metrics', icon: '📈' },
         { id: 'Settings', label: 'FoveAI Command', icon: '🎛️' }
       ]
     }
@@ -653,8 +1033,14 @@ function App() {
   return (
     <div className="app-container">
       {/* Sidebar Navigation */}
-      <aside className="sidebar">
+      <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
         <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {/* FoveAI mark — light variant for the dark sidebar. Files live in
+              public/: foveai-mark-light.png (here), foveai-icon.png (favicon),
+              foveai-logo{,-light}.png (full wordmark for splash pages). */}
+          <img src="/foveai-mark-light.png" alt="" style={{ height: '26px', display: 'none' }}
+            onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'block'; }}
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
           <h2 style={{ margin: 0 }}>{siteName}</h2>
           <div
             className={`dot ${proxyStatus === 'online' ? 'online' : 'offline'}`}
@@ -663,9 +1049,14 @@ function App() {
           />
         </div>
         
-        <nav className="nav-menu">
-          {/* PRIMARY QUICK START BUTTONS */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
+        {/* Tap a nav item → close the drawer (mobile); no-op on desktop.
+            Category headers expand in place without closing. */}
+        <nav className="nav-menu" onClick={(e) => {
+          if ((e.target as HTMLElement).closest('.nav-item, .sub-nav-item')) setSidebarOpen(false);
+        }}>
+          {/* PRIMARY QUICK START BUTTONS — gap 0: .nav-item's own 2px
+              margin-bottom gives the same spacing as the sub-nav items */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0', marginBottom: '4px' }}>
             <button 
               className={`nav-item ${activeTab === 'Copilot' ? 'active' : ''}`}
               onClick={() => setActiveTab('Copilot')}
@@ -673,19 +1064,26 @@ function App() {
             >
               <span style={{ fontSize: '1.2rem' }}>💬</span> Copilot Chat
             </button>
-            <button 
+            <button
               className={`nav-item ${activeTab === 'Memory' ? 'active' : ''}`}
               onClick={() => setActiveTab('Memory')}
               style={{ fontWeight: 600 }}
             >
               <span style={{ fontSize: '1.2rem' }}>🧠</span> Memory Vault
             </button>
+            <button
+              className={`nav-item ${activeTab === 'News' ? 'active' : ''}`}
+              onClick={() => setActiveTab('News')}
+              style={{ fontWeight: 600 }}
+            >
+              <span style={{ fontSize: '1.2rem' }}>📰</span> Latest News
+            </button>
           </div>
 
-          <div style={{ height: '1px', background: 'var(--border-glass)', margin: '4px 0 10px 0' }} />
+          <div style={{ height: '1px', background: 'var(--border-glass)', margin: '2px 0 4px 0' }} />
 
           {/* 4 MAIN CATEGORIES ACCORDION BUTTONS */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
             {MENU_CATEGORIES.map((cat) => {
               const isOpen = openCategories[cat.title] ?? true;
               const hasActiveChild = cat.items.some(i => i.id === activeTab);
@@ -749,10 +1147,6 @@ function App() {
           </div>
         </nav>
 
-        {/* the trackball instrument — sweep ring to arm a setting,
-            roll the ball to turn it, press to open FoveAI Command */}
-        <SidebarTrackball onOpenSettings={() => setActiveTab('Settings')} />
-
         <div className="user-profile">
           <div className="user-info">
             <div className="avatar">
@@ -768,12 +1162,15 @@ function App() {
           </button>
         </div>
       </aside>
+      {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
 
       {/* Main Content Area */}
       <main className="main-content">
         {/* Top Bar with Server Metrics & Quick Actions */}
         <header className="chat-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(0, 240, 255, 0.2)', padding: '12px 20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {/* Hamburger — only visible under the mobile media query */}
+            <button className="icon-btn menu-toggle" title="Menu" onClick={() => setSidebarOpen(!sidebarOpen)}>☰</button>
             {/* Quick Action Toolbar */}
             <div className="topbar-actions" style={{ display: 'flex', gap: '10px' }}>
               <button
@@ -839,9 +1236,9 @@ function App() {
         {/* Tab Router */}
         {activeTab === 'Memory' ? (
           <div style={{ flex: 1, width: '100%', height: '100%', overflow: 'hidden' }}>
-            <iframe 
-              src="https://foveai.1um6a.se/memory" 
-              style={{ width: '100%', height: '100%', border: 'none', background: '#000' }} 
+            <iframe
+              src="/dash/memory"
+              style={{ width: '100%', height: '100%', border: 'none', background: '#000' }}
               title="Memory Vault Dashboard"
             />
           </div>
@@ -869,12 +1266,45 @@ function App() {
             activeSimulation={activeSimulation}
             onClearSimulation={handleClearSimulation}
           />
+        ) : activeTab === 'Remote' ? (
+          <RemoteTab />
+        ) : activeTab === 'Metrics' ? (
+          <div style={{ flex: 1, width: '100%', height: '100%', overflow: 'hidden' }}>
+            {/* Netdata — real-time machine metrics, proxied same-origin
+                to :19999 via vite so it works on LAN and the tunnel */}
+            <iframe
+              src="/netdata"
+              style={{ width: '100%', height: '100%', border: 'none', background: '#0b0f1a' }}
+              title="Machine Metrics — Netdata"
+            />
+          </div>
+        ) : activeTab === 'Mind' ? (
+          <MindTab />
         ) : activeTab === 'Agency' ? (
           <AgencyTab />
         ) : activeTab === 'Monetization' ? (
           <MonetizationTab />
         ) : activeTab === 'Soundboard' ? (
           <SoundboardTab />
+        ) : activeTab === 'News' ? (
+          <NewsTab />
+        ) : activeTab === 'Statistics' ? (
+          <div style={{ flex: 1, width: '100%', height: '100%', overflow: 'hidden' }}>
+            {/* Foveated Memory dashboard — :8401 public/index.html via /dash */}
+            <iframe
+              src="/dash/"
+              style={{ width: '100%', height: '100%', border: 'none', background: '#0b0f1a' }}
+              title="FoveAI Statistics — Memory Dashboard"
+            />
+          </div>
+        ) : activeTab === 'Services' ? (
+          <SystemsTab />
+        ) : activeTab === 'VibeIDE' ? (
+          <React.Suspense fallback={<div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', color: '#666' }}>loading editor…</div>}>
+            <CodeEditorTab />
+          </React.Suspense>
+        ) : activeTab === 'DevKiosk' ? (
+          <DevKioskTab currentUser={currentUser.username} />
         ) : activeTab === 'Persona' ? (
           <PersonaTab 
             onNavigateToDiagnostics={() => setActiveTab('Diagnostics')}
@@ -883,8 +1313,176 @@ function App() {
           />
         ) : (
           <>
+            {/* Model/provider bar — sits above the chat area, not in the composer */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              padding: '6px 16px', fontFamily: 'Share Tech Mono',
+              borderBottom: '1px solid rgba(255,255,255,0.06)',
+              flexShrink: 0
+            }}>
+              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '0.1em' }}>MODEL</span>
+              <select
+                value={chatProvider}
+                onChange={e => {
+                  const p = e.target.value as 'xrlf_proxy' | 'lmstudio' | 'cloud';
+                  setChatProvider(p);
+                  setSelectedModel('auto');
+                }}
+                disabled={isTyping || !!swappingModel}
+                style={{
+                  padding: '6px 10px',
+                  background: 'rgba(0,0,0,0.4)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#fff',
+                  borderRadius: '6px',
+                  fontFamily: 'Share Tech Mono',
+                  fontSize: '0.75rem',
+                  outline: 'none',
+                  cursor: 'pointer'
+                }}
+                title="Chat Provider"
+              >
+                <option value="xrlf_proxy">🧠 XRLF Proxy</option>
+                <option value="lmstudio">💻 LM Studio</option>
+                <option value="cloud">☁️ Cloud</option>
+              </select>
+
+              <select
+                value={selectedModel}
+                onChange={e => handleModelSelect(e.target.value)}
+                disabled={isTyping || !!swappingModel}
+                style={{
+                  padding: '6px 10px',
+                  background: 'rgba(0,0,0,0.4)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#fff',
+                  borderRadius: '6px',
+                  fontFamily: 'Share Tech Mono',
+                  fontSize: '0.8rem',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  maxWidth: '340px'
+                }}
+                title="Select AI Model — XRLF choices hot-swap the runtime"
+              >
+                {chatProvider === 'cloud' && <option value="auto">auto (Cloud Auto-Route)</option>}
+                {chatProvider === 'xrlf_proxy' && <option value="auto">auto (Active XRLF Model)</option>}
+                {chatProvider === 'lmstudio' && <option value="auto">auto (Active LM Studio Model)</option>}
+                {(MODEL_FLEETS[chatProvider] || []).map(m => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+                {chatProvider === 'xrlf_proxy' && availableModels.map((m: any) => (
+                  <option key={m.id} value={m.id}>{m.active ? '● ' : '○ '}{m.id} ({m.size_mb} MB)</option>
+                ))}
+                {chatProvider === 'lmstudio' && availableModels.map((m: any) => (
+                  <option key={m.id} value={m.id}>{m.id}</option>
+                ))}
+                {chatProvider === 'cloud' && availableModels.map((m: any) => (
+                  <option key={m.id} value={m.id}>{m.id}</option>
+                ))}
+              </select>
+
+              {swappingModel && (
+                <span style={{ fontSize: '0.7rem', color: 'var(--accent-cyan)' }}>
+                  ⏳ loading {swappingModel}…
+                </span>
+              )}
+
+              <span style={{ flex: 1 }} />
+
+              <button
+                onClick={() => {
+                  const next = inputMode === 'TXT' ? 'PTT' : inputMode === 'PTT' ? 'VAD' : 'TXT';
+                  setInputMode(next);
+                  localStorage.setItem('foveai_input_mode', next);
+                  if (next !== 'PTT') stopRecording();
+                }}
+                style={{
+                  padding: '5px 12px',
+                  fontFamily: 'Share Tech Mono',
+                  fontSize: '0.75rem',
+                  letterSpacing: '0.08em',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  border: '1px solid',
+                  transition: 'all 0.2s',
+                  ...(inputMode === 'TXT' ? {
+                    color: 'var(--text-muted)',
+                    background: 'rgba(255,255,255,0.05)',
+                    borderColor: 'rgba(255,255,255,0.12)'
+                  } : inputMode === 'PTT' ? {
+                    color: '#39ff14',
+                    background: 'rgba(57,255,20,0.12)',
+                    borderColor: 'rgba(57,255,20,0.4)'
+                  } : {
+                    color: '#ff6b6b',
+                    background: 'rgba(255,107,107,0.15)',
+                    borderColor: 'rgba(255,107,107,0.5)'
+                  })
+                }}
+                title="Cycle input mode — TXT: text only · PTT: hold ball to talk · VAD: hands-free continuous"
+              >
+                {inputMode}
+              </button>
+            </div>
+
             <div className="chat-messages">
-              {messages.map((msg, idx) => (
+              {messages.length === 0 && NEWS.length > 0 && (
+                <div style={{ margin: '20px auto', maxWidth: '560px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ fontSize: '0.65rem', letterSpacing: '2px', color: 'var(--accent-cyan)', fontFamily: 'Share Tech Mono', padding: '0 4px' }}>
+                    📰 LATEST NEWS
+                  </div>
+                  {NEWS.slice(0, 3).map((n, i) => (
+                    <div
+                      key={i}
+                      onClick={() => setNewsOverlay(i)}
+                      style={{
+                        cursor: 'pointer', padding: '10px 14px', borderRadius: '6px',
+                        background: 'rgba(0,243,255,0.05)', border: '1px solid rgba(0,243,255,0.25)',
+                        fontFamily: 'Share Tech Mono',
+                      }}
+                    >
+                      <div style={{ fontSize: '0.82rem', color: '#fff', fontWeight: 600 }}>{n.title}</div>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        {n.date} — click to read
+                      </div>
+                    </div>
+                  ))}
+                  <div
+                    onClick={() => setActiveTab('News')}
+                    style={{ fontSize: '0.65rem', color: 'var(--accent-cyan)', fontFamily: 'Share Tech Mono', cursor: 'pointer', padding: '0 4px' }}
+                  >
+                    all {NEWS.length} updates →
+                  </div>
+                </div>
+              )}
+              {messages.map((msg, idx) => msg.divider ? (
+                <div key={idx} className="session-divider">
+                  <div className="session-divider-line" />
+                  {editingSession === msg.divider.sessionId ? (
+                    <input
+                      className="session-divider-input"
+                      value={editTitle}
+                      autoFocus
+                      onChange={e => setEditTitle(e.target.value)}
+                      onBlur={() => commitRename(msg.divider!.sessionId)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') commitRename(msg.divider!.sessionId);
+                        if (e.key === 'Escape') setEditingSession(null);
+                      }}
+                    />
+                  ) : (
+                    <div
+                      className="session-divider-title"
+                      title="click to rename this session"
+                      onClick={() => { setEditingSession(msg.divider!.sessionId); setEditTitle(sessionTitles[msg.divider!.sessionId] || msg.divider!.title); }}
+                    >
+                      {sessionTitles[msg.divider.sessionId] || msg.divider.title} ✎
+                    </div>
+                  )}
+                  <div className="session-divider-line" />
+                </div>
+              ) : (
                 <div key={idx} className={`message ${msg.role}`}>
                   <div className="message-avatar" title={msg.role === 'user' ? `${currentUser.firstName} ${currentUser.lastName}` : (currentUser.aiName || 'AI')}>
                     {msg.role === 'user' ? currentUser.firstName?.charAt(0).toUpperCase() || 'U' : (currentUser.aiName?.charAt(0).toUpperCase() || 'A')}
@@ -893,7 +1491,8 @@ function App() {
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
                       {msg.role === 'user' ? `${currentUser.firstName} ${currentUser.lastName}` : (currentUser.aiName || 'AI')}
                     </div>
-                    {msg.content}
+                    {msg.reasoning && <div className="thought-block">{msg.reasoning}</div>}
+                    {msg.role === 'assistant' ? renderAssistantContent(msg.content) : displayText(msg.content)}
                   </div>
                 </div>
               ))}
@@ -917,90 +1516,61 @@ function App() {
 
             <AvatarOverlay show={showAvatar} talking={isTyping} />
 
+            {/* Floating news reader — temporary, closes on backdrop or ✕ */}
+            {newsOverlay !== null && NEWS[newsOverlay] && (
+              <div
+                onClick={() => setNewsOverlay(null)}
+                style={{
+                  position: 'fixed', inset: 0, zIndex: 1200,
+                  background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <div
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    width: 'min(640px, 90vw)', maxHeight: '75vh', overflowY: 'auto',
+                    background: '#0b0f1a', border: '1px solid rgba(0,243,255,0.35)',
+                    borderRadius: '8px', padding: '22px 24px',
+                    boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
+                    fontFamily: 'Share Tech Mono', position: 'relative',
+                  }}
+                >
+                  <button
+                    onClick={() => setNewsOverlay(null)}
+                    style={{
+                      position: 'absolute', top: '10px', right: '12px',
+                      background: 'none', border: 'none', color: 'var(--text-muted)',
+                      fontSize: '1.1rem', cursor: 'pointer',
+                    }}
+                    title="Close"
+                  >✕</button>
+                  <div style={{ fontSize: '0.62rem', letterSpacing: '2px', color: 'var(--accent-cyan)', marginBottom: '8px' }}>
+                    📰 {NEWS[newsOverlay].date} · {NEWS[newsOverlay].tag.toUpperCase()}
+                  </div>
+                  <div style={{ fontSize: '1rem', color: '#fff', fontWeight: 600, marginBottom: '12px' }}>
+                    {NEWS[newsOverlay].title}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.8)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                    {NEWS[newsOverlay].detail || NEWS[newsOverlay].body}
+                  </div>
+                  <div
+                    onClick={() => { setNewsOverlay(null); setActiveTab('News'); }}
+                    style={{ fontSize: '0.65rem', color: 'var(--accent-cyan)', cursor: 'pointer', marginTop: '16px' }}
+                  >
+                    see all news →
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="input-area">
               <div className="input-wrapper" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                {/* Push To Talk (PTT) Button */}
-                <button
-                  onMouseDown={startRecording}
-                  onMouseUp={stopRecording}
-                  onTouchStart={startRecording}
-                  onTouchEnd={stopRecording}
-                  disabled={isTyping || isProcessingAudio}
-                  style={{
-                    padding: '10px 16px',
-                    background: isRecording ? 'var(--neon-pink)' : 'rgba(0, 240, 255, 0.1)',
-                    border: `1px solid ${isRecording ? 'var(--neon-pink)' : 'var(--accent-cyan)'}`,
-                    color: isRecording ? '#fff' : 'var(--accent-cyan)',
-                    borderRadius: '6px',
-                    fontFamily: 'Share Tech Mono',
-                    fontSize: '0.75rem',
-                    cursor: 'pointer',
-                    userSelect: 'none',
-                    transition: 'all 0.2s',
-                    whiteSpace: 'nowrap'
-                  }}
-                  title="Hold down to talk via microphone"
-                >
-                  {isRecording ? '🔴 RECORDING...' : isProcessingAudio ? '⚙️ TRANSCRIBING...' : '🎙️ PTT'}
-                </button>
-
-                <select
-                  value={chatProvider}
-                  onChange={e => {
-                    const p = e.target.value as 'xrlf_proxy' | 'lmstudio' | 'cloud';
-                    setChatProvider(p);
-                    const fleet = MODEL_FLEETS[p] || [];
-                    if (fleet.length > 0) setSelectedModel(fleet[0].id);
-                  }}
-                  disabled={isTyping}
-                  style={{
-                    padding: '10px 12px',
-                    background: 'rgba(0,0,0,0.4)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    color: '#fff',
-                    borderRadius: '6px',
-                    fontFamily: 'Share Tech Mono',
-                    fontSize: '0.75rem',
-                    outline: 'none',
-                    cursor: 'pointer',
-                    maxWidth: '120px'
-                  }}
-                  title="Chat Provider"
-                >
-                  <option value="xrlf_proxy">🧠 XRLF Proxy</option>
-                  <option value="lmstudio">💻 LM Studio</option>
-                  <option value="cloud">☁️ Cloud</option>
-                </select>
-
-                <select
-                  value={selectedModel}
-                  onChange={e => setSelectedModel(e.target.value)}
-                  disabled={isTyping}
-                  style={{
-                    padding: '10px 12px',
-                    background: 'rgba(0,0,0,0.4)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    color: '#fff',
-                    borderRadius: '6px',
-                    fontFamily: 'Share Tech Mono',
-                    fontSize: '0.8rem',
-                    outline: 'none',
-                    cursor: 'pointer',
-                    maxWidth: '180px'
-                  }}
-                  title="Select AI Model"
-                >
-                  {chatProvider === 'cloud' && <option value="auto">auto (Cloud Auto-Route)</option>}
-                  {chatProvider === 'xrlf_proxy' && <option value="auto">auto (Active XRLF Model)</option>}
-                  {chatProvider === 'lmstudio' && <option value="auto">auto (Active LM Studio Model)</option>}
-                  {(MODEL_FLEETS[chatProvider] || []).map(m => (
-                    <option key={m.id} value={m.id}>{m.label}</option>
-                  ))}
-                  {chatProvider === 'cloud' && availableModels.map((m: any) => (
-                    <option key={m.id} value={m.id}>{m.id}</option>
-                  ))}
-                </select>
-
+                {isProcessingAudio && (
+                  <span style={{ fontFamily: 'Share Tech Mono', fontSize: '0.7rem', color: 'var(--accent-cyan)', whiteSpace: 'nowrap' }}>
+                    ⚙️ TRANSCRIBING...
+                  </span>
+                )}
                 <input 
                   type="text" 
                   className="chat-input"
@@ -1011,54 +1581,57 @@ function App() {
                   disabled={isTyping}
                   style={{ flex: 1 }}
                 />
-                {/* the send-ball — socketed into the bar's right end,
-                    press seats it deep and fires the message */}
+                {/* the send-ball — socketed into the bar's right end.
+                    press seats it deep and fires the message;
+                    press-and-hold records voice (PTT) */}
                 <div
-                  className={`send-socket ${!inputValue.trim() || isTyping ? 'idle' : ''}`}
-                  title="press the ball to send"
+                  className={`send-socket ${backendDown ? 'down' : ''} ${!inputValue.trim() || isTyping ? 'idle' : ''} ${isRecording ? 'rec' : ''}`}
+                  title={backendDown ? 'backend is down — press to ignite' : 'press the ball to send · hold to talk'}
                 >
-                  <SendBall onSend={handleSendMessage} />
+                  <SendBall onSend={backend.state === 'down' ? backend.ignite : handleSendMessage}
+                    health={backend.state === 'up' ? 'ok' : backend.state === 'offline' ? 'off' : backend.state === 'down' ? 'down' : 'warn'}
+                    onHoldStart={!backendDown && inputMode === 'PTT' ? startRecording : undefined}
+                    onHoldEnd={!backendDown && inputMode === 'PTT' ? stopRecording : undefined}
+                    pressHint={backendDown ? 'backend down — press to ignite' : 'press to send · hold to talk'} />
+                  {backendDown && (
+                    <span className="send-boot">{backend.state === 'starting' ? 'STARTING' : 'STARTUP'}</span>
+                  )}
                 </div>
               </div>
             </div>
           </>
         )}
       </main>
-      <IgnitionButton />
+
+      {/* Mobile Bottom Navigation Bar */}
+      <nav className="bottom-nav">
+        <button className={`nav-item ${activeTab === 'Copilot' ? 'active' : ''}`} onClick={() => setActiveTab('Copilot')}>
+          <span className="icon">💬</span><span className="label">Copilot</span>
+        </button>
+        <button className={`nav-item ${activeTab === 'Memory' ? 'active' : ''}`} onClick={() => setActiveTab('Memory')}>
+          <span className="icon">🧠</span><span className="label">Memory</span>
+        </button>
+        <button className={`nav-item ${activeTab === 'News' ? 'active' : ''}`} onClick={() => setActiveTab('News')}>
+          <span className="icon">📰</span><span className="label">News</span>
+        </button>
+        <button className="nav-item menu-toggle-bottom" onClick={() => setSidebarOpen(!sidebarOpen)}>
+          <span className="icon">☰</span><span className="label">Menu</span>
+        </button>
+      </nav>
+
       {!ignited && currentUser && (
-        <IgnitionScreen userName={currentUser.firstName} onEnter={() => setIgnited(true)} />
+        <IgnitionScreen userName={currentUser.firstName} token={currentUser.apiKey} onEnter={() => setIgnited(true)} />
       )}
     </div>
   );
 }
 
-/* Sidebar-mounted instance of the trackball instrument. Owns its own
-   TraitStore — armed dial + values live here; rolling the ball turns
-   real settings through /api/setting, press opens FoveAI Command. */
-function SidebarTrackball({ onOpenSettings }: { onOpenSettings: () => void }) {
-  const tb = useTraits();
-  return (
-    <div className="sidebar-trackball" title="Trackball — sweep to arm, roll to turn, press for FoveAI Command">
-      <Trackball store={tb} size={252} ballScale={0.54} compact onPress={onOpenSettings}
-        pressHint="open FoveAI Command" />
-      <div className="sidebar-trackball-readout">
-        <b>{tb.armed.label}</b> = <b>{tb.displayVal(tb.armed)}</b>
-        {boolDirs(tb.armed) && (
-          <span className="sidebar-trackball-dirs">
-            ▲{fmtVal(boolDirs(tb.armed)!.up)} · ▼{fmtVal(boolDirs(tb.armed)!.down)}
-          </span>
-        )}
-      </div>
-    </div>
-  );
-}
-
 /* Composer send-ball — the bare trackball seated in a bezel at the right
-   end of the input bar. Press = send. Rolls for the feel of it, but
-   turns no dial (bare mode). */
-function SendBall({ onSend }: { onSend: () => void }) {
+   end of the input bar. Press = send, press-and-hold = PTT. Rolls for
+   the feel of it, but turns no dial (bare mode). */
+function SendBall({ onSend, onHoldStart, onHoldEnd, health, pressHint }: { onSend: () => void; onHoldStart?: () => void; onHoldEnd?: () => void; health?: 'ok' | 'warn' | 'down' | 'off' | null; pressHint?: string }) {
   const tb = useTraits();
-  return <Trackball store={tb} size={56} bare onPress={onSend} pressHint="press to send" />;
+  return <Trackball store={tb} size={56} bare health={health} onPress={onSend} onHoldStart={onHoldStart} onHoldEnd={onHoldEnd} pressHint={pressHint || 'press to send · hold to talk'} />;
 }
 
 export default App;

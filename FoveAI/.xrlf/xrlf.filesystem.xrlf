@@ -1,0 +1,44 @@
+XRLF.3.FILESYSTEM.SPEC.START
+
+This file enforces the filesystem layout defined in the root XRLF.CONTRACT.XRLF.
+
+LAYOUT:
+  XRLFRoot:
+    - /XRLF.CONTRACT.XRLF (root contract)
+    - /.xrlf/xrlf.contract.xrlf (internal routing anchor)
+
+  XRLFDirectory:
+    - /.xrlf/ reserved exclusively for XRLF files.
+    - No non-XRLF files permitted.
+
+  CoreFiles:
+    - xrlf.contract.xrlf
+    - xrlf.formatting.xrlf
+    - xrlf.filesystem.xrlf
+    - xrlf.phasegraph.xrlf
+    - xrlf.holons.xrlf
+    - xrlf.agents.xrlf
+    - xrlf.extensions.xrlf
+
+  ConfigFiles:
+    - /.xrlf/config/runtime.config.xrlf
+    - /.xrlf/config/geometry.config.xrlf
+    - /.xrlf/config/resonance.config.xrlf
+    - /.xrlf/config/thermal.config.xrlf
+    - /.xrlf/config/agents.config.xrlf
+
+  PhaseGraph:
+    - /.xrlf/phasegraph.xrlf
+
+  HolonicSchema:
+    - /.xrlf/holons.xrlf
+
+  Extensions:
+    - /.xrlf/extensions/
+
+  Enforcement:
+    - Validate filesystem compliance before any transformation.
+    - Halt and repair if violations detected.
+    - No commit until filesystem structure is fully compliant.
+
+XRLF.3.FILESYSTEM.SPEC.END

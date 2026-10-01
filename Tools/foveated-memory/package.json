@@ -1,0 +1,33 @@
+{
+  "name": "foveated-memory-proxy",
+  "version": "1.0.0",
+  "description": "Universal OpenAI-compatible proxy that gives any LLM infinite, on-demand foveated memory using XRL Active Recall and gradient ring compression.",
+  "main": "server.js",
+  "bin": {
+    "foveated-memory": "./bin/foveated-memory.js"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "commander": "^12.0.0",
+    "express": "^4.18.2",
+    "nedb-promises": "^6.2.1",
+    "node-fetch": "^2.7.0",
+    "openai": "^7.5.0",
+    "uuid": "^9.0.0"
+  },
+  "keywords": [
+    "foveated-memory",
+    "xrl",
+    "llm",
+    "memory",
+    "recall",
+    "proxy",
+    "openai"
+  ],
+  "author": "Daniel Lundberg / LUMAX",
+  "license": "MIT"
+}

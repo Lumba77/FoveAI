@@ -1,0 +1,17 @@
+﻿let _userHasInteracted = false;
+(window as any).lumaxUserInteracted = false;
+const _unlockInteraction = async () => {
+    if (_userHasInteracted) return;
+    _userHasInteracted = true;
+    (window as any).lumaxUserInteracted = true;
+    const overlay = document.getElementById('lumax-tap-overlay');
+    // Warm up speech synthesis engine
+    try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); speechSynthesis.cancel(); } catch { }
+
+    // Warm up AudioContext directly on the user gesture to prevent autoplay suspension
+    const AudioContextClass = (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (AudioContextClass && !(window as any).lumaxAudioContext) {
+        (window as any).lumaxAudioContext = new AudioContextClass();
+    }
+    if ((window as any).lumaxAudioContext && (window as any).lumaxAudioContext.state === 'suspended') {
+        (window as any).lumaxAudioContext.resume().catch((e: any) => console.warn('AudioContext resume failed:', e));

@@ -10,7 +10,15 @@
 set -euo pipefail
 
 PROJECT_DIR="/home/lumba/FoveAI/client_quest"
-UNITY_EDITOR="/home/lumba/Unity/Hub/Editor/6000.4.9f1/Editor/Unity"
+# Auto-detect the newest installed Unity 6000.x editor (Hub installs to ~/Unity/Hub/Editor/<ver>/Editor/Unity)
+UNITY_EDITOR="$(ls -d /home/lumba/Unity/Hub/Editor/*/Editor/Unity 2>/dev/null | sort -V | tail -1)"
+if [ -z "$UNITY_EDITOR" ] || [ ! -x "$UNITY_EDITOR" ]; then
+    echo "ERROR: No Unity editor found under /home/lumba/Unity/Hub/Editor/"
+    echo "Install Unity 6000.x via Unity Hub first (with Android Build Support)."
+    exit 1
+fi
+ANDROID_SDK_ROOT="$(dirname "$UNITY_EDITOR")/Data/PlaybackEngines/AndroidPlayer/SDK"
+ANDROID_NDK_ROOT="$(dirname "$UNITY_EDITOR")/Data/PlaybackEngines/AndroidPlayer/NDK"
 # Parse arguments
 CORES=6
 OUTPUT_APK="$PROJECT_DIR/AliceVR.apk"
@@ -51,6 +59,8 @@ else
     RUN_CMD=()
     EXTRA_UNITY_ARGS=()
 fi
+# Unity 6 aborts even in -batchmode without an X display on this machine (Xwayland on tty2)
+export DISPLAY="${DISPLAY:-:0}"
 echo ""
 
 # Clean old build artifacts (but keep Library for caching)
@@ -65,8 +75,8 @@ rm -f "$PROJECT_DIR/build/outputs/apk/android/AliceVR.apk" 2>/dev/null || true
     -projectPath "$PROJECT_DIR" \
     -executeMethod BuildAPKBatch.Build \
     -buildTarget Android \
-    -androidSdkPath "/home/lumba/Unity/Hub/Editor/6000.4.9f1/Editor/Data/PlaybackEngines/AndroidPlayer/SDK" \
-    -androidNdkPath "/home/lumba/Unity/Hub/Editor/6000.4.9f1/Editor/Data/PlaybackEngines/AndroidPlayer/NDK" \
+    -androidSdkPath "$ANDROID_SDK_ROOT" \
+    -androidNdkPath "$ANDROID_NDK_ROOT" \
     -keystore "" \
     -keyalias "" \
     2>&1 | tail -50

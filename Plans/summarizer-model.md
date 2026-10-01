@@ -195,7 +195,9 @@ class SummarizerCompressor:
         # Level 5: "Produce an atomic hash table..."
         pass
 
-    def _infer(self, prompt: str, max_tokens: int = 1024, temperature: float = 0.1) -> str:
+    def _infer(
+        self, prompt: str, max_tokens: int = 1024, temperature: float = 0.1
+    ) -> str:
         """Run inference with stop tokens."""
         pass
 

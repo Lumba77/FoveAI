@@ -31,8 +31,6 @@ import subprocess
 import sys
 import time
 import urllib.request
-from pathlib import Path
-from typing import Dict, Optional, Tuple
 
 FOVEAI_DIR = os.path.dirname(os.path.abspath(__file__))
 VENV_PYTHON = os.path.join(FOVEAI_DIR, ".venv", "bin", "python")
@@ -49,23 +47,28 @@ WS_IPC_PORT = 8403
 
 # ─── Service registry (full .env port scheme) ───────────────────────
 SERVICES = [
-    ("Memory Proxy",      8400, "/health"),
-    ("Dashboard",         8401, "/api/status"),
-    ("XRLF Runtime",      8402, "/health"),
-    ("WS IPC",            8403, None),
-    ("TTS",               8406, None),
-    ("Memory Service",    8407, None),
-    ("Creative Service",  8408, None),
-    ("STT / Ignition",    8409, None),
-    ("Motor/Autonomous",  8410, None),
-    ("Subconscious",      8411, None),
-    ("XR Vessel",         5176, "/"),
-    ("Multigate WebUI",   5177, "/"),
+    ("Memory Proxy", 8400, "/health"),
+    ("Dashboard", 8401, "/api/status"),
+    ("XRLF Runtime", 8402, "/health"),
+    ("WS IPC", 8403, None),
+    ("TTS", 8406, None),
+    ("Memory Service", 8407, None),
+    ("Creative Service", 8408, None),
+    ("STT / Ignition", 8409, None),
+    ("Motor/Autonomous", 8410, None),
+    ("Subconscious", 8411, None),
+    ("XR Vessel", 5176, "/"),
+    ("Multigate WebUI", 5177, "/"),
 ]
 
 FOVEA_LEVELS = {
-    0: "Auto", 1: "Minimal", 2: "Light", 3: "Moderate",
-    4: "Aggressive", 5: "Maximum", 6: "Off",
+    0: "Auto",
+    1: "Minimal",
+    2: "Light",
+    3: "Moderate",
+    4: "Aggressive",
+    5: "Maximum",
+    6: "Off",
 }
 
 PERSONA_MODELS = {
@@ -73,37 +76,56 @@ PERSONA_MODELS = {
         "name": "Gemma 4 E2B MTP (Default Persona)",
         "id": "gemma-4-e2b-multimodal-v1.0.xrlf",
         "xrlf_path": "xrl_encoded/gemma-4-e2b-multimodal-v1.0.xrlf",
-        "size_gb": 3.3, "multimodal": True,
+        "size_gb": 3.3,
+        "multimodal": True,
     },
     "gemma_12b": {
         "name": "Gemma 4 12B MTP (Heavy)",
         "id": "gemma-4-12b-mtp-xrlf-3.0.xrlf",
         "xrlf_path": "xrl_encoded/gemma-4-12b-mtp-xrlf-3.0.xrlf",
-        "size_gb": 5.1, "multimodal": True,
+        "size_gb": 5.1,
+        "multimodal": True,
     },
     "qwen_4b": {
         "name": "Qwen 3.5 4B MTP (Coder)",
         "id": "qwen3.5-4b-mtp-multimodal-v1.0.xrlf",
         "xrlf_path": "xrl_encoded/qwen3.5-4b-mtp-multimodal-v1.0.xrlf",
-        "size_gb": 2.9, "multimodal": True,
+        "size_gb": 2.9,
+        "multimodal": True,
     },
     "smolvlm2": {
         "name": "SmolVLM2 500M (Vision)",
         "id": "smolvlm2-500m-multimodal-v1.0.xrlf",
         "xrlf_path": "xrl_encoded/smolvlm2-500m-multimodal-v1.0.xrlf",
-        "size_gb": 0.5, "multimodal": True,
+        "size_gb": 0.5,
+        "multimodal": True,
     },
 }
 
 ROUTER_MODELS = {
-    "router_v2": {"name": "FoveAI Omni Router v2", "id": "foveai-omni-router-v2.xrlf",
-                  "xrlf_path": "foveai-omni-router-v2.xrlf", "size_gb": 1.4},
-    "router_v1": {"name": "FoveAI Omni Router v1 (Legacy)", "id": "foveai-omni-router.xrlf",
-                  "xrlf_path": "foveai-omni-router.xrlf", "size_gb": 0.9},
+    "router_v2": {
+        "name": "FoveAI Omni Router v2",
+        "id": "foveai-omni-router-v2.xrlf",
+        "xrlf_path": "foveai-omni-router-v2.xrlf",
+        "size_gb": 1.4,
+    },
+    "router_v1": {
+        "name": "FoveAI Omni Router v1 (Legacy)",
+        "id": "foveai-omni-router.xrlf",
+        "xrlf_path": "foveai-omni-router.xrlf",
+        "size_gb": 0.9,
+    },
 }
 
 SOFTLAYER_CONFIGS = ["behavior_config.js", "experience_config.js", "hud_config.js"]
-SOFTLAYER_MODULES = ["lighting.js", "sky.js", "particles.js", "chameleon.js", "clothing.js", "wall.js"]
+SOFTLAYER_MODULES = [
+    "lighting.js",
+    "sky.js",
+    "particles.js",
+    "chameleon.js",
+    "clothing.js",
+    "wall.js",
+]
 
 # ─── Helpers ────────────────────────────────────────────────────────
 
@@ -113,8 +135,8 @@ def env_path() -> str:
     return p if os.path.exists(p) else os.path.join(os.path.dirname(FOVEAI_DIR), ".env")
 
 
-def read_env() -> Dict[str, str]:
-    values: Dict[str, str] = {}
+def read_env() -> dict[str, str]:
+    values: dict[str, str] = {}
     try:
         with open(env_path(), "r", encoding="utf-8") as f:
             for line in f:
@@ -152,7 +174,11 @@ def set_env_key(key: str, value: str) -> None:
 
 def maybe_restart_for_key(key: str) -> None:
     """Set-FoveAISetting.ps1 auto-restart behavior for critical keys."""
-    if key == "XRLF_PROXY_AGGRESSION" or key.startswith("FoveAI_") or key.startswith("FOVEAI_"):
+    if (
+        key == "XRLF_PROXY_AGGRESSION"
+        or key.startswith("FoveAI_")
+        or key.startswith("FOVEAI_")
+    ):
         ans = input("  Restart services to apply? [y/N] ").strip().lower()
         if ans == "y":
             stack("restart")
@@ -167,7 +193,7 @@ def port_open(port: int) -> bool:
         return False
 
 
-def http_ok(port: int, path: Optional[str]) -> str:
+def http_ok(port: int, path: str | None) -> str:
     if not port_open(port):
         return "down"
     if not path:
@@ -188,7 +214,8 @@ def kill_port_listeners(ports: list) -> int:
     for port in ports:
         try:
             out = subprocess.check_output(
-                ["ss", "-tlnp", f"sport = :{port}"], text=True, timeout=2)
+                ["ss", "-tlnp", f"sport = :{port}"], text=True, timeout=2
+            )
             for line in out.splitlines():
                 if "pid=" not in line:
                     continue
@@ -217,7 +244,9 @@ def kill_process_by_name(name: str) -> int:
 
 def open_url(url: str) -> None:
     try:
-        subprocess.Popen(["xdg-open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(
+            ["xdg-open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
         print(f"  Opened {url}")
     except FileNotFoundError:
         print(f"  (no xdg-open — headless?) URL: {url}")
@@ -226,7 +255,7 @@ def open_url(url: str) -> None:
 # ─── Live API helpers (proxy :8400 + runtime :8402 + WS :8403) ────────
 
 
-def http_get_json(url: str, timeout: float = 3.0) -> Optional[dict]:
+def http_get_json(url: str, timeout: float = 3.0) -> dict | None:
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "FoveAI-Console/1.0"})
         with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -235,12 +264,20 @@ def http_get_json(url: str, timeout: float = 3.0) -> Optional[dict]:
         return None
 
 
-def http_post(url: str, payload: Optional[dict], timeout: float = 10.0) -> Tuple[int, str]:
+def http_post(
+    url: str, payload: dict | None, timeout: float = 10.0
+) -> tuple[int, str]:
     try:
         data = json.dumps(payload).encode() if payload is not None else b""
         req = urllib.request.Request(
-            url, data=data, method="POST",
-            headers={"Content-Type": "application/json", "User-Agent": "FoveAI-Console/1.0"})
+            url,
+            data=data,
+            method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "FoveAI-Console/1.0",
+            },
+        )
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return r.status, r.read().decode(errors="replace")[:400]
     except urllib.error.HTTPError as e:
@@ -263,17 +300,20 @@ def proxy_set(key: str, val: str) -> None:
         print("  proxy :8400 unreachable — .env written, applies on next start")
 
 
-def ws_send(payload: dict, host: str = "127.0.0.1", port: int = WS_IPC_PORT,
-            path: str = "/") -> bool:
+def ws_send(
+    payload: dict, host: str = "127.0.0.1", port: int = WS_IPC_PORT, path: str = "/"
+) -> bool:
     """Minimal dependency-free WebSocket text send (handshake + masked frame)."""
     try:
         s = socket.create_connection((host, port), timeout=2)
         key = base64.b64encode(os.urandom(16)).decode()
-        s.sendall((
-            f"GET {path} HTTP/1.1\r\nHost: {host}:{port}\r\n"
-            "Upgrade: websocket\r\nConnection: Upgrade\r\n"
-            f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n"
-        ).encode())
+        s.sendall(
+            (
+                f"GET {path} HTTP/1.1\r\nHost: {host}:{port}\r\n"
+                "Upgrade: websocket\r\nConnection: Upgrade\r\n"
+                f"Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n"
+            ).encode()
+        )
         resp = s.recv(4096)
         if b" 101" not in resp.split(b"\r\n", 1)[0]:
             s.close()
@@ -301,14 +341,22 @@ def ws_send(payload: dict, host: str = "127.0.0.1", port: int = WS_IPC_PORT,
 def send_ws_setting(setting: str, value) -> None:
     """Push a live setting to the runtime over the IPC socket (tts_engine etc)."""
     ok = ws_send({"event": "settings", "payload": {"setting": setting, "value": value}})
-    print(f"  WS :{WS_IPC_PORT} {setting}={value} → {'sent' if ok else 'FAILED (ws down?)'}")
+    print(
+        f"  WS :{WS_IPC_PORT} {setting}={value} → {'sent' if ok else 'FAILED (ws down?)'}"
+    )
 
 
-def vram() -> Tuple[float, float]:
+def vram() -> tuple[float, float]:
     try:
         out = subprocess.check_output(
-            ["nvidia-smi", "--query-gpu=memory.used,memory.total",
-             "--format=csv,noheader,nounits"], text=True, timeout=3)
+            [
+                "nvidia-smi",
+                "--query-gpu=memory.used,memory.total",
+                "--format=csv,noheader,nounits",
+            ],
+            text=True,
+            timeout=3,
+        )
         used, total = [float(x) / 1024 for x in out.strip().split(",")]
         return used, total
     except Exception:
@@ -330,7 +378,9 @@ def stack(action: str) -> None:
 def print_status() -> None:
     env = read_env()
     used, total = vram()
-    lan_ip = env.get("FOVEAI_SERVER_IP", "")
+    from server_config import detect_lan_ip
+
+    lan_ip = env.get("FOVEAI_SERVER_IP", "").strip() or detect_lan_ip()
     print("\n─── FoveAI Fleet ─────────────────────────────────")
     for name, port, path in SERVICES:
         st = http_ok(port, path)
@@ -349,14 +399,22 @@ def print_status() -> None:
         print(f"\n  VRAM: {used:.1f}/{total:.0f} GB ({pct:.0f}%)")
     if lan_ip:
         print(f"  LAN IP (Quest): {lan_ip}   panel: http://{lan_ip}:8401/settings.html")
-    print(f"\n  persona : {env.get('FOVEAI_MODEL_ACTIVE_ID', env.get('FOVEAI_MAIN_MODEL', '-'))}")
+    print(
+        f"\n  persona : {env.get('FOVEAI_MODEL_ACTIVE_ID', env.get('FOVEAI_MAIN_MODEL', '-'))}"
+    )
     print(f"  router  : {env.get('FOVEAI_OMNI_ROUTER_MODEL', '-')}")
-    print(f"  fovea   : {env.get('XRLF_PROXY_AGGRESSION', '0')} "
-          f"({FOVEA_LEVELS.get(int(env.get('XRLF_PROXY_AGGRESSION', '0') or 0), '?')})")
-    print(f"  mode    : {env.get('FoveAI_COGNITIVE_MODE', 'local')}  |  "
-          f"voice: {env.get('FoveAI_VOICE_ENABLED', '-')}  mic: {env.get('FoveAI_MIC_ENABLED', '-')}  |  "
-          f"tts: {env.get('FoveAI_TTS_PROVIDER', 'kokoro')}  stt: {env.get('FoveAI_STT_PROVIDER', 'whisper')}")
-    print(f"  frontend: {env.get('XRLF_FRONTEND_UI_PRESET', env.get('FOVEAI_FRONTEND_UI', '3d_avatar'))}")
+    print(
+        f"  fovea   : {env.get('XRLF_PROXY_AGGRESSION', '0')} "
+        f"({FOVEA_LEVELS.get(int(env.get('XRLF_PROXY_AGGRESSION', '0') or 0), '?')})"
+    )
+    print(
+        f"  mode    : {env.get('FoveAI_COGNITIVE_MODE', 'local')}  |  "
+        f"voice: {env.get('FoveAI_VOICE_ENABLED', '-')}  mic: {env.get('FoveAI_MIC_ENABLED', '-')}  |  "
+        f"tts: {env.get('FoveAI_TTS_PROVIDER', 'kokoro')}  stt: {env.get('FoveAI_STT_PROVIDER', 'whisper')}"
+    )
+    print(
+        f"  frontend: {env.get('XRLF_FRONTEND_UI_PRESET', env.get('FOVEAI_FRONTEND_UI', '3d_avatar'))}"
+    )
     print("──────────────────────────────────────────────────\n")
 
 
@@ -386,13 +444,15 @@ def menu(title: str, items: list) -> None:
 # ─── Runtime / Mode / Diagnostics (settings.html ports) ─────────────
 
 
-def runtime_status() -> Optional[dict]:
+def runtime_status() -> dict | None:
     h = http_get_json(f"{XRLF_API}/health", timeout=2)
     if h is None:
         print("  runtime :8402 — DOWN (port not listening)")
         return None
-    print(f"  runtime :8402 — state={h.get('load_state', '?')} "
-          f"loaded={h.get('loaded')} model={h.get('model') or '—'}")
+    print(
+        f"  runtime :8402 — state={h.get('load_state', '?')} "
+        f"loaded={h.get('loaded')} model={h.get('model') or '—'}"
+    )
     if h.get("load_error"):
         print(f"    load_error: {h['load_error']}")
     return h
@@ -443,10 +503,21 @@ def runtime_load_model(m: dict) -> None:
         e = os.environ.copy()
         e["XRLF_REPO_ENABLED"] = "true"
         subprocess.Popen(
-            [VENV_PYTHON, "run_xrlf.py", "--model", m["xrlf_path"],
-             "--port", "8402", "--ws-port", "8403"],
-            cwd=FOVEAI_DIR, env=e,
-            stdout=open("/home/lumba/xrlf_live.log", "a"), stderr=subprocess.STDOUT)
+            [
+                VENV_PYTHON,
+                "run_xrlf.py",
+                "--model",
+                m["xrlf_path"],
+                "--port",
+                "8402",
+                "--ws-port",
+                "8403",
+            ],
+            cwd=FOVEAI_DIR,
+            env=e,
+            stdout=open("/home/lumba/xrlf_live.log", "a"),
+            stderr=subprocess.STDOUT,
+        )
         print(f"  spawned run_xrlf.py → {m['name']} (log: ~/xrlf_live.log)")
 
 
@@ -463,7 +534,9 @@ def runtime_menu() -> None:
     """Port of the settings panel model card: status / load / unload / restart."""
 
     def load_model():
-        items = [(f"{m['name']} [{m['size_gb']}GB]", m) for m in PERSONA_MODELS.values()]
+        items = [
+            (f"{m['name']} [{m['size_gb']}GB]", m) for m in PERSONA_MODELS.values()
+        ]
         for i, (label, _) in enumerate(items, 1):
             print(f"  {i}. {label}")
         raw = input("  model # (0=cancel): ").strip()
@@ -477,20 +550,27 @@ def runtime_menu() -> None:
         st, txt = http_post(f"{XRLF_API}/unload", {}, timeout=60)
         print(f"  /unload → [{st}] {txt[:200]}")
 
-    menu("XRLF Runtime :8402/:8403", [
-        ("Status (load_state/model/error)", runtime_status),
-        ("Load / hot-swap model", load_model),
-        ("Unload model (frees VRAM, keeps process)", unload),
-        ("Wait until loaded (watch load_state)", lambda: wait_runtime_loaded()),
-        ("Kill runtime process", lambda: print(
-            f"  killed {kill_process_by_name('run_xrlf') + kill_port_listeners([8402, 8403])} proc(s)")),
-    ])
+    menu(
+        "XRLF Runtime :8402/:8403",
+        [
+            ("Status (load_state/model/error)", runtime_status),
+            ("Load / hot-swap model", load_model),
+            ("Unload model (frees VRAM, keeps process)", unload),
+            ("Wait until loaded (watch load_state)", lambda: wait_runtime_loaded()),
+            (
+                "Kill runtime process",
+                lambda: print(
+                    f"  killed {kill_process_by_name('run_xrlf') + kill_port_listeners([8402, 8403])} proc(s)"
+                ),
+            ),
+        ],
+    )
 
 
 ENGINE_PRESETS = {
-    "xrlf":     ("xrlf_proxy", "local", "http://127.0.0.1:8402/v1", "XRLF local"),
-    "lmstudio": ("lmstudio",   "local", "http://127.0.0.1:1234/v1", "LM Studio local"),
-    "cloud":    ("cloud",      "cloud", "https://ollama.com/v1",    "Cloud"),
+    "xrlf": ("xrlf_proxy", "local", "http://127.0.0.1:8402/v1", "XRLF local"),
+    "lmstudio": ("lmstudio", "local", "http://127.0.0.1:1234/v1", "LM Studio local"),
+    "cloud": ("cloud", "cloud", "https://ollama.com/v1", "Cloud"),
 }
 
 
@@ -508,11 +588,14 @@ def mode_menu() -> None:
     """Port of the panel's Mode/Engine steps — writes env + live-pushes routing."""
     env = read_env()
     cur = env.get("XRLF_LLM_PROVIDER", "xrlf_proxy")
-    menu(f"Mode & Engine (cur: {cur})", [
-        ("Local → XRLF Runtime (:8402)", lambda: engine_apply("xrlf")),
-        ("Local → LM Studio (:1234)", lambda: engine_apply("lmstudio")),
-        ("Cloud (Ollama/external)", lambda: engine_apply("cloud")),
-    ])
+    menu(
+        f"Mode & Engine (cur: {cur})",
+        [
+            ("Local → XRLF Runtime (:8402)", lambda: engine_apply("xrlf")),
+            ("Local → LM Studio (:1234)", lambda: engine_apply("lmstudio")),
+            ("Cloud (Ollama/external)", lambda: engine_apply("cloud")),
+        ],
+    )
 
 
 def _loaded_model_name() -> str:
@@ -522,10 +605,17 @@ def _loaded_model_name() -> str:
 
 def diag_system_test() -> None:
     print("  🧪 System test — chat ping via proxy :8400")
-    body = {"model": _loaded_model_name(),
-            "messages": [{"role": "user", "content":
-                          "Hello, can you hear me? Reply in one short sentence."}],
-            "stream": False, "max_tokens": 80}
+    body = {
+        "model": _loaded_model_name(),
+        "messages": [
+            {
+                "role": "user",
+                "content": "Hello, can you hear me? Reply in one short sentence.",
+            }
+        ],
+        "stream": False,
+        "max_tokens": 80,
+    }
     t0 = time.time()
     st, txt = http_post(f"{PROXY_API}/v1/chat/completions", body, timeout=60)
     ms = round((time.time() - t0) * 1000)
@@ -540,15 +630,21 @@ def diag_system_test() -> None:
 
 def diag_coherence() -> None:
     import random
-    q = random.choice([
-        "What is 7 multiplied by 8? Reply with just the number.",
-        "Name three colors in the rainbow.",
-        "If I have 5 apples and eat 2, how many are left? Reply with just the number.",
-    ])
-    print(f"  🧠 Coherence test — \"{q}\"")
-    body = {"model": _loaded_model_name(),
-            "messages": [{"role": "user", "content": q}],
-            "stream": False, "max_tokens": 100}
+
+    q = random.choice(
+        [
+            "What is 7 multiplied by 8? Reply with just the number.",
+            "Name three colors in the rainbow.",
+            "If I have 5 apples and eat 2, how many are left? Reply with just the number.",
+        ]
+    )
+    print(f'  🧠 Coherence test — "{q}"')
+    body = {
+        "model": _loaded_model_name(),
+        "messages": [{"role": "user", "content": q}],
+        "stream": False,
+        "max_tokens": 100,
+    }
     st, txt = http_post(f"{PROXY_API}/v1/chat/completions", body, timeout=60)
     try:
         data = json.loads(txt) if txt else {}
@@ -569,12 +665,18 @@ def diag_context() -> None:
     spoofed = int(env.get("XRLF_SPOOF_CONTEXT_WINDOW") or 32768)
     print(f"  provider : {env.get('XRLF_LLM_PROVIDER', '?')}")
     print(f"  mode     : {env.get('XRLF_COGNITIVE_MODE', '?')}")
-    print(f"  budget   : {real} / {healer.get('maxBudget', 0)} chars "
-          f"(shrinks={healer.get('totalShrinks', 0)}, ok-streak={healer.get('consecutiveOk', 0)})")
+    print(
+        f"  budget   : {real} / {healer.get('maxBudget', 0)} chars "
+        f"(shrinks={healer.get('totalShrinks', 0)}, ok-streak={healer.get('consecutiveOk', 0)})"
+    )
     width = 40
     filled = min(width, int(width * real / spoofed)) if spoofed else 0
-    print(f"  ctx      : [{'█' * filled}{'·' * (width - filled)}] real {real} / spoofed {spoofed}")
-    print(f"  pipeline : Client → Proxy (foveation) → XRLF :8402 → GGUF  (~{real // 4} tok/req)")
+    print(
+        f"  ctx      : [{'█' * filled}{'·' * (width - filled)}] real {real} / spoofed {spoofed}"
+    )
+    print(
+        f"  pipeline : Client → Proxy (foveation) → XRLF :8402 → GGUF  (~{real // 4} tok/req)"
+    )
 
 
 def diag_subsystems() -> None:
@@ -592,43 +694,66 @@ def diag_subsystems() -> None:
         mark = "✅" if ok else ("⚠️" if c["state"] == "dormant" else "❌")
         extra = f" http:{c['http_status']}" if c.get("http_status") else ""
         if c.get("port") == 8402 and c.get("load_state"):
-            extra += f" {c['load_state']}" + (f" ({c['model']})" if c.get("model") else "")
+            extra += f" {c['load_state']}" + (
+                f" ({c['model']})" if c.get("model") else ""
+            )
             if c.get("load_error"):
                 extra += f" ERR:{c['load_error'][:60]}"
         print(f"  {mark} :{c['port']:<5} {c['name']:<18} {c['state']}{extra}")
 
 
 def diagnostics_menu() -> None:
-    menu("Diagnostics", [
-        ("System test (chat ping :8400)", diag_system_test),
-        ("Coherence test (random question)", diag_coherence),
-        ("Context debugger (healer budget)", diag_context),
-        ("Subsystems health (server-side)", diag_subsystems),
-        ("Run all", lambda: (diag_subsystems(), diag_context(), diag_system_test())),
-    ])
+    menu(
+        "Diagnostics",
+        [
+            ("System test (chat ping :8400)", diag_system_test),
+            ("Coherence test (random question)", diag_coherence),
+            ("Context debugger (healer budget)", diag_context),
+            ("Subsystems health (server-side)", diag_subsystems),
+            (
+                "Run all",
+                lambda: (diag_subsystems(), diag_context(), diag_system_test()),
+            ),
+        ],
+    )
 
 
 def stack_menu() -> None:
-    menu("Stack (sleipnir)", [
-        ("Start FULL stack (proxy + XRLF model)", lambda: stack("start")),
-        ("Start LIGHT (backend only, no model)", lambda: stack("light")),
-        ("Restart stack", lambda: stack("restart")),
-        ("Stop stack", lambda: stack("stop")),
-        ("Fleet status", lambda: sleipnir("status")),
-    ])
+    menu(
+        "Stack (sleipnir)",
+        [
+            ("Start FULL stack (proxy + XRLF model)", lambda: stack("start")),
+            ("Start LIGHT (backend only, no model)", lambda: stack("light")),
+            ("Restart stack", lambda: stack("restart")),
+            ("Stop stack", lambda: stack("stop")),
+            ("Fleet status", lambda: sleipnir("status")),
+        ],
+    )
 
 
 def proxy_menu() -> None:
     def start():
         subprocess.Popen(
-            ["node", "server.js"], cwd=os.path.join(FOVEAI_DIR, "foveated-memory"),
-            stdout=open("/home/lumba/foveated_proxy.log", "a"), stderr=subprocess.STDOUT)
+            ["node", "server.js"],
+            cwd=os.path.join(FOVEAI_DIR, "foveated-memory"),
+            stdout=open("/home/lumba/foveated_proxy.log", "a"),
+            stderr=subprocess.STDOUT,
+        )
         print("  Proxy starting on :8400/:8401")
-    menu("Memory Proxy :8400/:8401", [
-        ("Start proxy", start),
-        ("Stop proxy", lambda: print(f"  killed {kill_port_listeners([8400, 8401])} listener(s)")),
-        ("Restart proxy", lambda: (kill_port_listeners([8400, 8401]), start())),
-    ])
+
+    menu(
+        "Memory Proxy :8400/:8401",
+        [
+            ("Start proxy", start),
+            (
+                "Stop proxy",
+                lambda: print(
+                    f"  killed {kill_port_listeners([8400, 8401])} listener(s)"
+                ),
+            ),
+            ("Restart proxy", lambda: (kill_port_listeners([8400, 8401]), start())),
+        ],
+    )
 
 
 def persona_menu() -> None:
@@ -650,10 +775,20 @@ def persona_menu() -> None:
         exists = os.path.exists(os.path.join(FOVEAI_DIR, m["xrlf_path"]))
         tag = "" if exists else " [MISSING]"
         mm = " [mm]" if m["multimodal"] else ""
-        items.append((f"{sel}{m['name']} [{m['size_gb']}GB]{mm}{tag}",
-                      (lambda kk: lambda: pick(kk))(k)))
-    items.append(("Unload models & free VRAM",
-                  lambda: print(f"  killed {kill_process_by_name('run_xrlf') + kill_process_by_name('llama-server')} proc(s)")))
+        items.append(
+            (
+                f"{sel}{m['name']} [{m['size_gb']}GB]{mm}{tag}",
+                (lambda kk: lambda: pick(kk))(k),
+            )
+        )
+    items.append(
+        (
+            "Unload models & free VRAM",
+            lambda: print(
+                f"  killed {kill_process_by_name('run_xrlf') + kill_process_by_name('llama-server')} proc(s)"
+            ),
+        )
+    )
     menu("Persona Model", items)
 
 
@@ -668,8 +803,10 @@ def router_menu() -> None:
         print(f"  Router → {m['name']}")
 
     items = [
-        (f"{'✓ ' if m['id'] == cur else '  '}{m['name']} [{m['size_gb']}GB]",
-         (lambda kk: lambda: pick(kk))(k))
+        (
+            f"{'✓ ' if m['id'] == cur else '  '}{m['name']} [{m['size_gb']}GB]",
+            (lambda kk: lambda: pick(kk))(k),
+        )
         for k, m in ROUTER_MODELS.items()
     ]
     menu("Router Model", items)
@@ -687,16 +824,25 @@ def settings_menu() -> None:
 
     def show_env():
         for k, v in sorted(read_env().items()):
-            disp = "***" if any(t in k.upper() for t in ("KEY", "TOKEN", "SECRET", "PASS")) else v
+            disp = (
+                "***"
+                if any(t in k.upper() for t in ("KEY", "TOKEN", "SECRET", "PASS"))
+                else v
+            )
             print(f"  {k}={disp}")
 
-    menu("Settings", [
-        (f"Open settings panel ({SETTINGS_URL})", lambda: open_url(SETTINGS_URL)),
-        ("Set .env key (Set-FoveAISetting port)", set_key),
-        (f"Set foveation level ({'/'.join(f'{k}={v}' for k, v in FOVEA_LEVELS.items())})",
-         lambda: set_fovea_cli()),
-        ("Show .env (secrets masked)", show_env),
-    ])
+    menu(
+        "Settings",
+        [
+            (f"Open settings panel ({SETTINGS_URL})", lambda: open_url(SETTINGS_URL)),
+            ("Set .env key (Set-FoveAISetting port)", set_key),
+            (
+                f"Set foveation level ({'/'.join(f'{k}={v}' for k, v in FOVEA_LEVELS.items())})",
+                lambda: set_fovea_cli(),
+            ),
+            ("Show .env (secrets masked)", show_env),
+        ],
+    )
 
 
 def set_fovea_cli() -> None:
@@ -721,15 +867,24 @@ def voice_menu() -> None:
     m = env.get("FoveAI_MIC_ENABLED", "").lower() == "true"
     t = env.get("FoveAI_TTS_PROVIDER", "kokoro")
     s = env.get("FoveAI_STT_PROVIDER", "whisper")
-    menu("Voice", [
-        (f"Voice output [{'on' if v else 'off'}] → toggle", lambda: tog("FoveAI_VOICE_ENABLED", not v)),
-        (f"Microphone [{'on' if m else 'off'}] → toggle", lambda: tog("FoveAI_MIC_ENABLED", not m)),
-        (f"TTS → kokoro (cur: {t})", lambda: set_tts("kokoro")),
-        (f"TTS → websocket (cur: {t})", lambda: set_tts("websocket")),
-        (f"TTS → edgetts (cur: {t})", lambda: set_tts("edgetts")),
-        (f"STT → whisper (cur: {s})", lambda: set_stt("whisper")),
-        (f"STT → browser (cur: {s})", lambda: set_stt("browser")),
-    ])
+    menu(
+        "Voice",
+        [
+            (
+                f"Voice output [{'on' if v else 'off'}] → toggle",
+                lambda: tog("FoveAI_VOICE_ENABLED", not v),
+            ),
+            (
+                f"Microphone [{'on' if m else 'off'}] → toggle",
+                lambda: tog("FoveAI_MIC_ENABLED", not m),
+            ),
+            (f"TTS → kokoro (cur: {t})", lambda: set_tts("kokoro")),
+            (f"TTS → websocket (cur: {t})", lambda: set_tts("websocket")),
+            (f"TTS → edgetts (cur: {t})", lambda: set_tts("edgetts")),
+            (f"STT → whisper (cur: {s})", lambda: set_stt("whisper")),
+            (f"STT → browser (cur: {s})", lambda: set_stt("browser")),
+        ],
+    )
 
 
 def set_tts(p: str) -> None:
@@ -764,12 +919,19 @@ def softlayer_menu() -> None:
 
     items = [
         ("List modules", list_mods),
-        ("Reload all (frontend re-fetches on next init)", lambda: hit("/softlayer/modules")),
+        (
+            "Reload all (frontend re-fetches on next init)",
+            lambda: hit("/softlayer/modules"),
+        ),
     ]
-    items += [(f"Reload config {c}", (lambda cc: lambda: hit(f"/softlayer/{cc}"))(c))
-              for c in SOFTLAYER_CONFIGS]
-    items += [(f"Reload module {m}", (lambda mm: lambda: hit(f"/softlayer/modules/{mm}"))(m))
-              for m in SOFTLAYER_MODULES]
+    items += [
+        (f"Reload config {c}", (lambda cc: lambda: hit(f"/softlayer/{cc}"))(c))
+        for c in SOFTLAYER_CONFIGS
+    ]
+    items += [
+        (f"Reload module {m}", (lambda mm: lambda: hit(f"/softlayer/modules/{mm}"))(m))
+        for m in SOFTLAYER_MODULES
+    ]
     menu("SoftLayer (XR Vessel :8402)", items)
 
 
@@ -777,7 +939,8 @@ def tools_menu() -> None:
     def top_ram():
         try:
             out = subprocess.check_output(
-                ["ps", "-eo", "comm,rss", "--sort=-rss"], text=True, timeout=3)
+                ["ps", "-eo", "comm,rss", "--sort=-rss"], text=True, timeout=3
+            )
             for line in out.splitlines()[1:8]:
                 parts = line.split()
                 print(f"  {parts[0]:<24} {int(parts[1]) // 1024} MB")
@@ -795,44 +958,67 @@ def tools_menu() -> None:
         except Exception as e:
             print(f"  XRLF health: {e}")
 
-    menu("Tools", [
-        ("XRLF /health", health),
-        ("Top RAM consumers", top_ram),
-        ("Free VRAM (kill run_xrlf/llama-server)", lambda: print(
-            f"  killed {kill_process_by_name('run_xrlf') + kill_process_by_name('llama-server')} proc(s)")),
-        ("Drop caches / free RAM", drop_caches),
-        ("Kill zombie port listeners (8400-8411)",
-         lambda: print(f"  killed {kill_port_listeners(list(range(8400, 8412)))} listener(s)")),
-    ])
+    menu(
+        "Tools",
+        [
+            ("XRLF /health", health),
+            ("Top RAM consumers", top_ram),
+            (
+                "Free VRAM (kill run_xrlf/llama-server)",
+                lambda: print(
+                    f"  killed {kill_process_by_name('run_xrlf') + kill_process_by_name('llama-server')} proc(s)"
+                ),
+            ),
+            ("Drop caches / free RAM", drop_caches),
+            (
+                "Kill zombie port listeners (8400-8411)",
+                lambda: print(
+                    f"  killed {kill_port_listeners(list(range(8400, 8412)))} listener(s)"
+                ),
+            ),
+        ],
+    )
 
 
 def openers_menu() -> None:
-    menu("Open", [
-        (f"Settings panel — {SETTINGS_URL}", lambda: open_url(SETTINGS_URL)),
-        (f"Memory dashboard — {DASHBOARD_URL}", lambda: open_url(DASHBOARD_URL)),
-        (f"Prompt kiosk — {KIOSK_URL}", lambda: open_url(KIOSK_URL)),
-        ("Multigate portal — http://127.0.0.1:5177", lambda: open_url("http://127.0.0.1:5177")),
-        ("XR Vessel — http://127.0.0.1:5176", lambda: open_url("http://127.0.0.1:5176")),
-    ])
+    menu(
+        "Open",
+        [
+            (f"Settings panel — {SETTINGS_URL}", lambda: open_url(SETTINGS_URL)),
+            (f"Memory dashboard — {DASHBOARD_URL}", lambda: open_url(DASHBOARD_URL)),
+            (f"Prompt kiosk — {KIOSK_URL}", lambda: open_url(KIOSK_URL)),
+            (
+                "Multigate portal — http://127.0.0.1:5177",
+                lambda: open_url("http://127.0.0.1:5177"),
+            ),
+            (
+                "XR Vessel — http://127.0.0.1:5176",
+                lambda: open_url("http://127.0.0.1:5176"),
+            ),
+        ],
+    )
 
 
 def main_menu() -> None:
     while True:
         print_status()
-        menu("FoveAI Console", [
-            ("Stack control (start/stop/light/restart)", stack_menu),
-            ("XRLF runtime :8402 (load/unload/status)", runtime_menu),
-            ("Mode & engine (local/cloud routing)", mode_menu),
-            ("Memory proxy :8400/:8401", proxy_menu),
-            ("Persona model select / unload", persona_menu),
-            ("Router model select", router_menu),
-            ("Settings (.env, foveation, panel :5177)", settings_menu),
-            ("Voice / TTS / STT", voice_menu),
-            ("SoftLayer modules", softlayer_menu),
-            ("Open panels & frontends", openers_menu),
-            ("Diagnostics (system/coherence/context/subsystems)", diagnostics_menu),
-            ("Tools (health, RAM, VRAM, zombies)", tools_menu),
-        ])
+        menu(
+            "FoveAI Console",
+            [
+                ("Stack control (start/stop/light/restart)", stack_menu),
+                ("XRLF runtime :8402 (load/unload/status)", runtime_menu),
+                ("Mode & engine (local/cloud routing)", mode_menu),
+                ("Memory proxy :8400/:8401", proxy_menu),
+                ("Persona model select / unload", persona_menu),
+                ("Router model select", router_menu),
+                ("Settings (.env, foveation, panel :5177)", settings_menu),
+                ("Voice / TTS / STT", voice_menu),
+                ("SoftLayer modules", softlayer_menu),
+                ("Open panels & frontends", openers_menu),
+                ("Diagnostics (system/coherence/context/subsystems)", diagnostics_menu),
+                ("Tools (health, RAM, VRAM, zombies)", tools_menu),
+            ],
+        )
         break
 
 
@@ -896,8 +1082,11 @@ def cli(args: list) -> int:
                 print(f"  {k:<12} {m['name']} [{m['size_gb']}GB] → {m['xrlf_path']}")
         else:
             q = rest[0]
-            key = q if q in PERSONA_MODELS else next(
-                (k for k, m in PERSONA_MODELS.items() if q in m["id"]), None)
+            key = (
+                q
+                if q in PERSONA_MODELS
+                else next((k for k, m in PERSONA_MODELS.items() if q in m["id"]), None)
+            )
             if not key:
                 print(f"  unknown model '{q}' — try 'model list'")
                 return 1
@@ -969,14 +1158,20 @@ def cli(args: list) -> int:
         for k, v in sorted(read_env().items()):
             if f and f not in k.lower():
                 continue
-            disp = "***" if any(t in k.upper() for t in ("KEY", "TOKEN", "SECRET", "PASS")) else v
+            disp = (
+                "***"
+                if any(t in k.upper() for t in ("KEY", "TOKEN", "SECRET", "PASS"))
+                else v
+            )
             print(f"  {k}={disp}")
     elif cmd == "toggle":
         parts = rest
         if len(parts) != 2 or parts[1].lower() not in ("on", "off", "true", "false"):
             print("  usage: toggle voice|mic on|off")
             return 1
-        name = {"voice": "XRLF_VOICE_ENABLED", "mic": "XRLF_MIC_ENABLED"}.get(parts[0], parts[0])
+        name = {"voice": "XRLF_VOICE_ENABLED", "mic": "XRLF_MIC_ENABLED"}.get(
+            parts[0], parts[0]
+        )
         proxy_set(name, "true" if parts[1].lower() in ("on", "true") else "false")
     elif cmd == "tts":
         if arg not in ("kokoro", "websocket", "edgetts"):
@@ -999,7 +1194,9 @@ def cli(args: list) -> int:
         st, txt = http_post(f"{PROXY_API}/api/cap", {"cap": int(arg or 0)}, timeout=4)
         print(f"  cap → [{st}] {txt[:120]}")
     elif cmd == "preserve":
-        st, txt = http_post(f"{PROXY_API}/api/preserve", {"preserve": int(arg or 4)}, timeout=4)
+        st, txt = http_post(
+            f"{PROXY_API}/api/preserve", {"preserve": int(arg or 4)}, timeout=4
+        )
         print(f"  preserve → [{st}] {txt[:120]}")
     elif cmd == "ws":
         parts = arg.split(None, 1)
@@ -1023,8 +1220,11 @@ def cli(args: list) -> int:
         diag_context()
     elif cmd == "open":
         urls = {
-            "panel": SETTINGS_URL, "dashboard": DASHBOARD_URL, "kiosk": KIOSK_URL,
-            "multigate": "http://127.0.0.1:5177", "xr": "http://127.0.0.1:5176",
+            "panel": SETTINGS_URL,
+            "dashboard": DASHBOARD_URL,
+            "kiosk": KIOSK_URL,
+            "multigate": "http://127.0.0.1:5177",
+            "xr": "http://127.0.0.1:5176",
         }
         open_url(urls.get(arg, arg))
     elif cmd in ("help", "-h", "--help"):

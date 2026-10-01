@@ -1,0 +1,55 @@
+{
+  "xrlf_version": "1.0",
+  "description": "Provider definitions for LLM routing — local vs cloud model endpoints",
+  "providers": {
+    "local": {
+      "type": "openai_compatible",
+      "base_url": "http://127.0.0.1:7272/v1",
+      "api_key": "not-needed",
+      "default_model": "qwen3.5-4b",
+      "models": {
+        "qwen3.5-4b": {
+          "context_window": 4096,
+          "max_tokens": 2048,
+          "description": "Local LM Studio Qwen 3.5 4B"
+        }
+      }
+    },
+    "ollama_cloud": {
+      "type": "openai_compatible",
+      "base_url": "https://api.ollama.com/v1",
+      "api_key_env": "OLLAMA_CLOUD_API_KEY",
+      "default_model": "deepseek-v4-flash:preview",
+      "models": {
+        "deepseek-v4-flash:preview": {
+          "context_window": 128000,
+          "max_tokens": 8192,
+          "description": "DeepSeek V4 Flash Preview"
+        },
+        "deepseek-v4:preview": {
+          "context_window": 128000,
+          "max_tokens": 8192,
+          "description": "DeepSeek V4 Preview"
+        },
+        "glm-5.1:latest": {
+          "context_window": 128000,
+          "max_tokens": 4096,
+          "description": "GLM 5.1"
+        }
+      }
+    },
+    "fovea_local": {
+      "type": "openai_compatible",
+      "base_url": "http://127.0.0.1:7272/v1",
+      "api_key": "not-needed",
+      "default_model": "qwen3.5-4b",
+      "context_window": 4096,
+      "description": "Fovea compression via local LM Studio"
+    }
+  },
+  "default_provider": "ollama_cloud",
+  "fovea_provider": "fovea_local",
+  "cognitive_mode": "local",
+  "upstream_url": "http://127.0.0.1:8400/v1",
+  "version": "1.0.0"
+}

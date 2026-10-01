@@ -19,48 +19,55 @@ import json
 import os
 import struct
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 try:
     import msgpack
+
     _MSGPACK = True
 except ImportError:
     _MSGPACK = False
 
 from formats.xrlf_schema import (
-    MAGIC, FORMAT_VERSION, HEADER_STRUCT, HEADER_SIZE,
-    SECTION_ENTRY_STRUCT, SECTION_ENTRY_SIZE,
-    XRLFFlags, SectionType, SectionFlags, GEMMA4_DEFAULT_FLAGS,
+    FORMAT_VERSION,
     GEMMA4_CAPABILITY_MAP,
+    GEMMA4_DEFAULT_FLAGS,
+    HEADER_SIZE,
+    HEADER_STRUCT,
+    MAGIC,
+    SECTION_ENTRY_SIZE,
+    SECTION_ENTRY_STRUCT,
+    SectionFlags,
+    SectionType,
+    XRLFFlags,
 )
-
 
 # ── Default Gemma-4 TTS hook config ──────────────────────────────────────────
 
 DEFAULT_MM_HOOKS = {
     "version": 1,
     "native_multimodal": {
-        "image_in":  True,
-        "video_in":  True,
-        "audio_in":  True,   # Gemma-4 handles STT natively
-        "text_in":   True,
-        "text_out":  True,
+        "image_in": True,
+        "video_in": True,
+        "audio_in": True,  # Gemma-4 handles STT natively
+        "text_in": True,
+        "text_out": True,
     },
     "external_hooks": {
         "tts": {
             "enabled": True,
             "engine": "auto",
             "provider": "http",
-            "endpoint": "http://127.0.0.1:8004/tts",
+            "endpoint": "http://127.0.0.1:8406/tts",
             "voice": "default",
             "sample_rate": 22050,
             "format": "wav",
             "fallback": ["http", "kokoro", "piper", "espeak", "stub"],
         },
         "image_gen": {
-            "enabled":  False,
+            "enabled": False,
             "endpoint": "http://127.0.0.1:7860",  # A1111/ComfyUI
         },
         "audio_gen": {
@@ -77,22 +84,23 @@ DEFAULT_MEMORY_SCHEMA = {
     "tfidf_top_k": 5,
     "persistent": True,
     "ring_config": {
-        "ring_0": {"label": "identity",    "max_tokens": 128,  "ttl_turns": None},
-        "ring_1": {"label": "task",        "max_tokens": 256,  "ttl_turns": None},
-        "ring_2": {"label": "recent",      "max_tokens": 512,  "ttl_turns": 8},
-        "ring_3": {"label": "working",     "max_tokens": 512,  "ttl_turns": 32},
-        "ring_4": {"label": "background",  "max_tokens": 384,  "ttl_turns": 128},
-        "ring_5": {"label": "archive",     "max_tokens": 256,  "ttl_turns": None},
+        "ring_0": {"label": "identity", "max_tokens": 128, "ttl_turns": None},
+        "ring_1": {"label": "task", "max_tokens": 256, "ttl_turns": None},
+        "ring_2": {"label": "recent", "max_tokens": 512, "ttl_turns": 8},
+        "ring_3": {"label": "working", "max_tokens": 512, "ttl_turns": 32},
+        "ring_4": {"label": "background", "max_tokens": 384, "ttl_turns": 128},
+        "ring_5": {"label": "archive", "max_tokens": 256, "ttl_turns": None},
     },
 }
 
 
 # ── Section payload builder ───────────────────────────────────────────────────
 
+
 @dataclass
 class _SectionBlob:
     section_type: SectionType
-    payload: bytes        # raw bytes to write
+    payload: bytes  # raw bytes to write
     flags: int = int(SectionFlags.NONE)
 
 
@@ -111,12 +119,12 @@ class XRLFPacker:
         self.base_model_name = base_model_name
         self.xrl_source_model = xrl_source_model
         self.flags = flags
-        self._sections: List[_SectionBlob] = []
-        self._gguf_path: Optional[str] = None   # streamed separately
-        self._mmproj_path: Optional[str] = None # streamed separately
-        self._draft_gguf_path: Optional[str] = None # streamed separately
-        self._whisper_gguf_path: Optional[str] = None # streamed separately
-        self._kokoro_model_path: Optional[str] = None # streamed separately
+        self._sections: list[_SectionBlob] = []
+        self._gguf_path: str | None = None  # streamed separately
+        self._mmproj_path: str | None = None  # streamed separately
+        self._draft_gguf_path: str | None = None  # streamed separately
+        self._whisper_gguf_path: str | None = None  # streamed separately
+        self._kokoro_model_path: str | None = None  # streamed separately
 
     # ── Section adders ────────────────────────────────────────────────────────
 
@@ -125,7 +133,9 @@ class XRLFPacker:
         if not Path(gguf_path).exists():
             raise FileNotFoundError(f"GGUF not found: {gguf_path}")
         self._gguf_path = gguf_path
-        print(f"  CORE_GGUF registered: {gguf_path}  ({Path(gguf_path).stat().st_size / 1e9:.2f} GB)")
+        print(
+            f"  CORE_GGUF registered: {gguf_path}  ({Path(gguf_path).stat().st_size / 1e9:.2f} GB)"
+        )
         return self
 
     def add_mmproj(self, mmproj_path: str) -> "XRLFPacker":
@@ -133,7 +143,9 @@ class XRLFPacker:
         if not Path(mmproj_path).exists():
             raise FileNotFoundError(f"MMPROJ not found: {mmproj_path}")
         self._mmproj_path = mmproj_path
-        print(f"  CORE_MMPROJ registered: {mmproj_path}  ({Path(mmproj_path).stat().st_size / 1e6:.2f} MB)")
+        print(
+            f"  CORE_MMPROJ registered: {mmproj_path}  ({Path(mmproj_path).stat().st_size / 1e6:.2f} MB)"
+        )
         return self
 
     def add_draft_gguf(self, draft_path: str) -> "XRLFPacker":
@@ -141,7 +153,9 @@ class XRLFPacker:
         if not Path(draft_path).exists():
             raise FileNotFoundError(f"Draft GGUF not found: {draft_path}")
         self._draft_gguf_path = draft_path
-        print(f"  CORE_DRAFT_GGUF registered: {draft_path}  ({Path(draft_path).stat().st_size / 1e6:.2f} MB)")
+        print(
+            f"  CORE_DRAFT_GGUF registered: {draft_path}  ({Path(draft_path).stat().st_size / 1e6:.2f} MB)"
+        )
         self.flags |= int(XRLFFlags.HAS_DRAFT_GGUF)
         return self
 
@@ -150,7 +164,9 @@ class XRLFPacker:
         if not Path(whisper_path).exists():
             raise FileNotFoundError(f"Whisper GGUF not found: {whisper_path}")
         self._whisper_gguf_path = whisper_path
-        print(f"  CORE_WHISPER_GGUF registered: {whisper_path}  ({Path(whisper_path).stat().st_size / 1e6:.2f} MB)")
+        print(
+            f"  CORE_WHISPER_GGUF registered: {whisper_path}  ({Path(whisper_path).stat().st_size / 1e6:.2f} MB)"
+        )
         self.flags |= int(XRLFFlags.HAS_WHISPER_GGUF)
         return self
 
@@ -159,11 +175,13 @@ class XRLFPacker:
         if not Path(kokoro_path).exists():
             raise FileNotFoundError(f"Kokoro model not found: {kokoro_path}")
         self._kokoro_model_path = kokoro_path
-        print(f"  CORE_KOKORO_MODEL registered: {kokoro_path}  ({Path(kokoro_path).stat().st_size / 1e6:.2f} MB)")
+        print(
+            f"  CORE_KOKORO_MODEL registered: {kokoro_path}  ({Path(kokoro_path).stat().st_size / 1e6:.2f} MB)"
+        )
         self.flags |= int(XRLFFlags.HAS_KOKORO_MODEL)
         return self
 
-    def _encode(self, obj: Any) -> Tuple[bytes, int]:
+    def _encode(self, obj: Any) -> tuple[bytes, int]:
         """Encode a Python object to bytes; use msgpack if available."""
         if _MSGPACK:
             data = msgpack.packb(obj, use_bin_type=True)
@@ -196,29 +214,29 @@ class XRLFPacker:
                     return json.load(f)
             return {}
 
-        principles  = load("principles_gguf.json")
-        graph       = load("semantic_graph_gguf.json")
-        clusters    = load("semantic_clusters_gguf.json")
-        expansions  = load("semantic_expansion_gguf.json")
-        threads     = load("threads_gguf.json")
+        principles = load("principles_gguf.json")
+        graph = load("semantic_graph_gguf.json")
+        clusters = load("semantic_clusters_gguf.json")
+        expansions = load("semantic_expansion_gguf.json")
+        threads = load("threads_gguf.json")
 
         # Build task profiles from thread analysis
         profiles = _build_task_profiles(threads)
 
         self._add_json_section(SectionType.XRL_PRINCIPLES, principles)
-        self._add_json_section(SectionType.XRL_GRAPH,      graph)
-        self._add_json_section(SectionType.XRL_CLUSTERS,   clusters)
-        self._add_json_section(SectionType.XRL_PROFILES,   profiles)
-        self._add_json_section(SectionType.XRL_EXPANSION,  expansions)
+        self._add_json_section(SectionType.XRL_GRAPH, graph)
+        self._add_json_section(SectionType.XRL_CLUSTERS, clusters)
+        self._add_json_section(SectionType.XRL_PROFILES, profiles)
+        self._add_json_section(SectionType.XRL_EXPANSION, expansions)
 
         return self
 
-    def add_multimodal_hooks(self, hooks: Optional[Dict] = None) -> "XRLFPacker":
+    def add_multimodal_hooks(self, hooks: dict | None = None) -> "XRLFPacker":
         """Add multimodal hook config. Defaults to Gemma-4 native + TTS."""
         self._add_json_section(SectionType.XRL_MM_HOOKS, hooks or DEFAULT_MM_HOOKS)
         return self
 
-    def add_memory_db(self, db_path: Optional[str] = None) -> "XRLFPacker":
+    def add_memory_db(self, db_path: str | None = None) -> "XRLFPacker":
         """
         Embed foveated memory SQLite DB + empty TF-IDF index.
         If db_path is None or file doesn't exist, embeds a stub (empty seed).
@@ -233,16 +251,20 @@ class XRLFPacker:
             sqlite_bytes = _minimal_sqlite_stub()
             print("  Embedding memory DB: (empty seed — no existing DB found)")
 
-        tfidf_bytes = b""   # empty index; will be built at runtime
+        tfidf_bytes = b""  # empty index; will be built at runtime
 
         # Layout: [4B sqlite_len][sqlite][tfidf]
         payload = struct.pack("<I", len(sqlite_bytes)) + sqlite_bytes + tfidf_bytes
-        self._sections.append(_SectionBlob(section_type, payload, int(SectionFlags.NONE)))
+        self._sections.append(
+            _SectionBlob(section_type, payload, int(SectionFlags.NONE))
+        )
         print(f"  {section_type.name:22s} {len(payload) / 1024:.1f} KB")
         return self
 
-    def add_memory_schema(self, schema: Optional[Dict] = None) -> "XRLFPacker":
-        self._add_json_section(SectionType.XRL_MEMORY_SCHEMA, schema or DEFAULT_MEMORY_SCHEMA)
+    def add_memory_schema(self, schema: dict | None = None) -> "XRLFPacker":
+        self._add_json_section(
+            SectionType.XRL_MEMORY_SCHEMA, schema or DEFAULT_MEMORY_SCHEMA
+        )
         return self
 
     def add_runtime_meta(self) -> "XRLFPacker":
@@ -270,13 +292,13 @@ class XRLFPacker:
 
         # ── 1. Determine layout ───────────────────────────────────────────────
         base_name_bytes = self.base_model_name.encode("utf-8")
-        xrl_name_bytes  = self.xrl_source_model.encode("utf-8")
+        xrl_name_bytes = self.xrl_source_model.encode("utf-8")
 
         # Section count: all JSON sections + (1 GGUF if registered) + (1 MMPROJ if registered) + (1 DRAFT if registered) + Whisper/Kokoro
         section_count = (
-            len(self._sections) 
-            + (1 if self._gguf_path else 0) 
-            + (1 if self._mmproj_path else 0) 
+            len(self._sections)
+            + (1 if self._gguf_path else 0)
+            + (1 if self._mmproj_path else 0)
             + (1 if self._draft_gguf_path else 0)
             + (1 if self._whisper_gguf_path else 0)
             + (1 if self._kokoro_model_path else 0)
@@ -291,38 +313,63 @@ class XRLFPacker:
         )
 
         # ── 2. Build section table entries (offsets) ──────────────────────────
-        entries: List[Tuple[SectionType, int, int, int]] = []  # type,offset,len,flags
+        entries: list[tuple[SectionType, int, int, int]] = []  # type,offset,len,flags
         cursor = payload_start
 
         # GGUF goes first (largest section, fast to mmap later)
         gguf_size = 0
         if self._gguf_path:
             gguf_size = Path(self._gguf_path).stat().st_size
-            entries.append((SectionType.CORE_GGUF, cursor, gguf_size, int(SectionFlags.NONE)))
+            entries.append(
+                (SectionType.CORE_GGUF, cursor, gguf_size, int(SectionFlags.NONE))
+            )
             cursor += gguf_size
 
         mmproj_size = 0
         if self._mmproj_path:
             mmproj_size = Path(self._mmproj_path).stat().st_size
-            entries.append((SectionType.CORE_MMPROJ, cursor, mmproj_size, int(SectionFlags.NONE)))
+            entries.append(
+                (SectionType.CORE_MMPROJ, cursor, mmproj_size, int(SectionFlags.NONE))
+            )
             cursor += mmproj_size
 
         draft_size = 0
         if self._draft_gguf_path:
             draft_size = Path(self._draft_gguf_path).stat().st_size
-            entries.append((SectionType.CORE_DRAFT_GGUF, cursor, draft_size, int(SectionFlags.NONE)))
+            entries.append(
+                (
+                    SectionType.CORE_DRAFT_GGUF,
+                    cursor,
+                    draft_size,
+                    int(SectionFlags.NONE),
+                )
+            )
             cursor += draft_size
-            
+
         whisper_size = 0
         if self._whisper_gguf_path:
             whisper_size = Path(self._whisper_gguf_path).stat().st_size
-            entries.append((SectionType.CORE_WHISPER_GGUF, cursor, whisper_size, int(SectionFlags.NONE)))
+            entries.append(
+                (
+                    SectionType.CORE_WHISPER_GGUF,
+                    cursor,
+                    whisper_size,
+                    int(SectionFlags.NONE),
+                )
+            )
             cursor += whisper_size
 
         kokoro_size = 0
         if self._kokoro_model_path:
             kokoro_size = Path(self._kokoro_model_path).stat().st_size
-            entries.append((SectionType.CORE_KOKORO_MODEL, cursor, kokoro_size, int(SectionFlags.NONE)))
+            entries.append(
+                (
+                    SectionType.CORE_KOKORO_MODEL,
+                    cursor,
+                    kokoro_size,
+                    int(SectionFlags.NONE),
+                )
+            )
             cursor += kokoro_size
 
         for blob in self._sections:
@@ -355,8 +402,7 @@ class XRLFPacker:
             f.write(xrl_name_bytes)
 
             # Section table
-            for stype, offset, length, sflags in entries:
-                f.write(SECTION_ENTRY_STRUCT.pack(int(stype), offset, length, sflags))
+            f.writelines(SECTION_ENTRY_STRUCT.pack(int(stype), offset, length, sflags) for stype, offset, length, sflags in entries)
 
             # GGUF payload (streamed)
             if self._gguf_path:
@@ -370,7 +416,9 @@ class XRLFPacker:
                         f.write(data)
                         written += len(data)
                         pct = 100 * written / gguf_size
-                        print(f"\r  Writing GGUF core... {pct:.1f}%", end="", flush=True)
+                        print(
+                            f"\r  Writing GGUF core... {pct:.1f}%", end="", flush=True
+                        )
                 print(f"\r  Written GGUF core  ({gguf_size / 1e9:.2f} GB)        ")
 
             # MMPROJ payload (streamed)
@@ -400,7 +448,9 @@ class XRLFPacker:
                         f.write(data)
                         written += len(data)
                         pct = 100 * written / draft_size
-                        print(f"\r  Writing DRAFT GGUF... {pct:.1f}%", end="", flush=True)
+                        print(
+                            f"\r  Writing DRAFT GGUF... {pct:.1f}%", end="", flush=True
+                        )
                 print(f"\r  Written DRAFT GGUF  ({draft_size / 1e6:.2f} MB)        ")
 
             # WHISPER GGUF payload (streamed)
@@ -415,8 +465,14 @@ class XRLFPacker:
                         f.write(data)
                         written += len(data)
                         pct = 100 * written / whisper_size
-                        print(f"\r  Writing WHISPER GGUF... {pct:.1f}%", end="", flush=True)
-                print(f"\r  Written WHISPER GGUF  ({whisper_size / 1e6:.2f} MB)        ")
+                        print(
+                            f"\r  Writing WHISPER GGUF... {pct:.1f}%",
+                            end="",
+                            flush=True,
+                        )
+                print(
+                    f"\r  Written WHISPER GGUF  ({whisper_size / 1e6:.2f} MB)        "
+                )
 
             # KOKORO MODEL payload (streamed)
             if self._kokoro_model_path:
@@ -430,7 +486,11 @@ class XRLFPacker:
                         f.write(data)
                         written += len(data)
                         pct = 100 * written / kokoro_size
-                        print(f"\r  Writing KOKORO MODEL... {pct:.1f}%", end="", flush=True)
+                        print(
+                            f"\r  Writing KOKORO MODEL... {pct:.1f}%",
+                            end="",
+                            flush=True,
+                        )
                 print(f"\r  Written KOKORO MODEL  ({kokoro_size / 1e6:.2f} MB)        ")
 
             # JSON/msgpack sections
@@ -445,7 +505,8 @@ class XRLFPacker:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _build_task_profiles(threads: Any) -> Dict:
+
+def _build_task_profiles(threads: Any) -> dict:
     """Derive basic task profiles from thread prompts."""
     return {
         "version": 1,
@@ -469,7 +530,15 @@ def _build_task_profiles(threads: Any) -> Dict:
                     "Explain your reasoning step by step."
                 ),
                 "temperature": 0.2,
-                "triggers": ["code", "write", "function", "class", "implement", "debug", "fix"],
+                "triggers": [
+                    "code",
+                    "write",
+                    "function",
+                    "class",
+                    "implement",
+                    "debug",
+                    "fix",
+                ],
             },
             "vision": {
                 "name": "Vision Analysis",
@@ -479,7 +548,15 @@ def _build_task_profiles(threads: Any) -> Dict:
                     "Describe what you see in detail: objects, colors, layout, text, relationships."
                 ),
                 "temperature": 0.4,
-                "triggers": ["image", "photo", "picture", "video", "see", "look", "describe"],
+                "triggers": [
+                    "image",
+                    "photo",
+                    "picture",
+                    "video",
+                    "see",
+                    "look",
+                    "describe",
+                ],
             },
             "audio": {
                 "name": "Audio Reasoning",
@@ -510,7 +587,9 @@ def _build_task_profiles(threads: Any) -> Dict:
 
 def _minimal_sqlite_stub() -> bytes:
     """Create a minimal valid empty SQLite3 database using Python's sqlite3 module."""
-    import sqlite3, tempfile, os
+    import sqlite3
+    import tempfile
+
     tmp = tempfile.mktemp(suffix=".db")
     try:
         conn = sqlite3.connect(tmp)
@@ -528,5 +607,5 @@ def _print_section_table(entries):
     print(f"  {'Type':22s} {'Offset':>14s} {'Size':>12s}")
     print("  " + "-" * 52)
     for stype, offset, length, _ in entries:
-        name = stype.name if hasattr(stype, 'name') else str(stype)
+        name = stype.name if hasattr(stype, "name") else str(stype)
         print(f"  {name:22s} {offset:>14,}  {length / 1e6:>10.2f} MB")

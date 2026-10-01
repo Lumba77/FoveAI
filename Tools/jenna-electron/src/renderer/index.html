@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LUMAX Vibe Coder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* ── Design Tokens ─────────────────────────────────────────────────────────── */
+    :root {
+      --bg-base: #0f0f17;
+      --bg-panel: #14141f;
+      --bg-surface: #1a1a28;
+      --bg-glass: rgba(255,255,255,0.04);
+      --bg-glass-hover: rgba(255,255,255,0.08);
+      --border: rgba(255,255,255,0.08);
+      --border-bright: rgba(255,255,255,0.2);
+      --accent: #7c3aed;
+      --accent-2: #a855f7;
+      --accent-glow: rgba(124,58,237,0.3);
+      --neon: #00ffcc;
+      --neon-dim: rgba(0,255,204,0.4);
+      --text-primary: #e8e8f0;
+      --text-muted: #8888a0;
+      --font-ui: 'Inter', 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-mono: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+      --radius: 8px;
+      --titlebar-height: 36px;
+      --sidebar-width: 240px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* ── Scrollbars ────────────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+
+    /* ── Custom Titlebar ───────────────────────────────────────────────────────── */
+    #titlebar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: var(--titlebar-height);
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      -webkit-app-region: drag;
+      z-index: 1000;
+      padding: 0 12px;
+      gap: 12px;
+    }
+    .titlebar-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      -webkit-app-region: no-drag;
+    }
+    .titlebar-logo-icon {
+      width: 18px; height: 18px;
+      background: linear-gradient(135deg, var(--accent), var(--neon));
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px;
+    }
+    .titlebar-logo-text {
+      font-size: 12px; font-weight: 600;
+      background: linear-gradient(90deg, var(--accent-2), var(--neon));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      letter-spacing: 0.5px;
+    }
+    .titlebar-spacer { flex: 1; }
+    .titlebar-status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      -webkit-app-region: no-drag;
+    }
+    .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--neon);
+      box-shadow: 0 0 6px var(--neon);
+      animation: pulse 2s infinite;
+    }
+    .status-dot.offline { background: #f87171; box-shadow: 0 0 6px #f87171; animation: none; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    #status-model {
+      font-size: 10px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      max-width: 140px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .titlebar-controls {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      -webkit-app-region: no-drag;
+    }
+    .titlebar-btn {
+      width: 28px; height: 22px;
+      border: none; outline: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px;
+      transition: all 0.15s;
+    }
+    .titlebar-btn:hover { background: var(--bg-glass-hover); color: var(--text-primary); }
+    .titlebar-btn.close:hover { background: rgba(248,113,113,0.2); color: #f87171; }
+
+    /* ── App Layout ────────────────────────────────────────────────────────────── */
+    #app {
+      position: fixed;
+      top: var(--titlebar-height);
+      left: 0; right: 0; bottom: 0;
+      display: flex;
+    }
+
+    /* ── Sidebar ───────────────────────────────────────────────────────────────── */
+    #sidebar {
+      width: var(--sidebar-width);
+      min-width: 180px;
+      max-width: 320px;
+      background: var(--bg-panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .sidebar-section-header {
+      padding: 10px 12px 6px;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .sidebar-btn-icon {
+      width: 20px; height: 20px;
+      border: none; outline: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 12px;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .sidebar-btn-icon:hover { background: var(--bg-glass-hover); color: var(--text-primary); }
+
+    #workspace-root-display {
+      padding: 6px 12px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--neon);
+      opacity: 0.7;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #session-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 0;
+    }
+    .session-item {
+      padding: 6px 12px;
+      cursor: pointer;
+      border-radius: 6px;
+      margin: 1px 4px;
+      display: flex; align-items: center; gap: 8px;
+      transition: all 0.15s;
+      font-size: 12px;
+    }
+    .session-item:hover { background: var(--bg-glass-hover); }
+    .session-item.active { background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.3); }
+    .session-item-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--neon-dim); flex-shrink: 0; }
+    .session-item.active .session-item-dot { background: var(--neon); }
+    .session-item-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .session-item-count { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
+
+    .sidebar-footer {
+      padding: 8px;
+      border-top: 1px solid var(--border);
+      display: flex; gap: 4px;
+    }
+    .sidebar-footer-btn {
+      flex: 1;
+      padding: 5px 8px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+      font-family: var(--font-ui);
+    }
+    .sidebar-footer-btn:hover { border-color: var(--neon-dim); color: var(--neon); background: rgba(0,255,204,0.04); }
+    .sidebar-footer-btn.primary { border-color: rgba(124,58,237,0.4); color: var(--accent-2); background: rgba(124,58,237,0.08); }
+    .sidebar-footer-btn.primary:hover { background: rgba(124,58,237,0.15); border-color: var(--accent-2); }
+
+    /* ── Main Area ─────────────────────────────────────────────────────────────── */
+    #main-area {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ── Editor Pane ───────────────────────────────────────────────────────────── */
+    #editor-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 300px;
+      border-right: 1px solid var(--border);
+      background: var(--bg-base);
+      overflow: hidden;
+    }
+    #editor-tabs {
+      display: flex;
+      align-items: center;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      height: 34px;
+      overflow-x: auto;
+      flex-shrink: 0;
+      gap: 0;
+    }
+    #editor-tabs::-webkit-scrollbar { height: 2px; }
+    .editor-tab {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 12px;
+      height: 100%;
+      font-size: 12px;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-right: 1px solid var(--border);
+      white-space: nowrap;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+    .editor-tab:hover { background: var(--bg-glass); color: var(--text-primary); }
+    .editor-tab.active { background: var(--bg-base); color: var(--text-primary); border-bottom: 2px solid var(--accent-2); }
+    .editor-tab-close {
+      width: 14px; height: 14px;
+      border-radius: 3px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px;
+      opacity: 0;
+      transition: all 0.15s;
+    }
+    .editor-tab:hover .editor-tab-close { opacity: 1; }
+    .editor-tab-close:hover { background: rgba(248,113,113,0.2); color: #f87171; }
+
+    #editor-empty {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: var(--text-muted);
+      font-size: 12px;
+      padding: 20px;
+      text-align: center;
+    }
+    #editor-empty .empty-icon { font-size: 32px; opacity: 0.4; }
+    #editor-empty .empty-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .action-btn {
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: var(--font-ui);
+    }
+    .action-btn:hover { border-color: var(--accent-2); color: var(--accent-2); background: rgba(124,58,237,0.08); }
+
+    #monaco-container {
+      flex: 1;
+      overflow: hidden;
+      display: none;
+    }
+    #monaco-container.visible { display: block; }
+
+    /* ── Chat Pane ─────────────────────────────────────────────────────────────── */
+    #chat-pane {
+      width: 380px;
+      min-width: 280px;
+      max-width: 600px;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-panel);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    #chat-iframe {
+      flex: 1;
+      border: none;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+    }
+
+    /* ── Resize Handle ─────────────────────────────────────────────────────────── */
+    .resize-handle {
+      width: 4px;
+      cursor: col-resize;
+      background: transparent;
+      flex-shrink: 0;
+      transition: background 0.15s;
+      z-index: 10;
+    }
+    .resize-handle:hover, .resize-handle.dragging { background: var(--accent); }
+
+    /* ── Loading Screen ────────────────────────────────────────────────────────── */
+    #loading-screen {
+      position: fixed;
+      inset: 0;
+      background: var(--bg-base);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 20px;
+      z-index: 9999;
+      transition: opacity 0.4s;
+    }
+    #loading-screen.hidden { opacity: 0; pointer-events: none; }
+    .loading-logo {
+      font-size: 40px;
+      background: linear-gradient(135deg, var(--accent), var(--neon));
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      font-weight: 700;
+      font-family: var(--font-ui);
+      letter-spacing: 2px;
+    }
+    .loading-bar {
+      width: 200px; height: 2px;
+      background: var(--border);
+      border-radius: 1px;
+      overflow: hidden;
+    }
+    .loading-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--neon));
+      border-radius: 1px;
+      animation: loading 1.5s ease-in-out infinite;
+    }
+    @keyframes loading {
+      0% { width: 0%; transform: translateX(0); }
+      50% { width: 70%; }
+      100% { width: 100%; transform: translateX(100%); }
+    }
+    .loading-text { font-size: 11px; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+  <!-- Loading screen -->
+  <div id="loading-screen">
+    <div class="loading-logo">LUMAX</div>
+    <div class="loading-bar"><div class="loading-bar-fill"></div></div>
+    <div class="loading-text">Initializing Vibe Coder...</div>
+  </div>
+
+  <!-- Custom titlebar -->
+  <div id="titlebar">
+    <div class="titlebar-logo">
+      <div class="titlebar-logo-icon">⚡</div>
+      <span class="titlebar-logo-text">LUMAX Vibe Coder</span>
+    </div>
+    <div class="titlebar-spacer"></div>
+    <div class="titlebar-status">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-model">Connecting...</span>
+    </div>
+    <div class="titlebar-controls">
+      <button class="titlebar-btn" id="btn-minimize" title="Minimize">&#x2014;</button>
+      <button class="titlebar-btn" id="btn-maximize" title="Maximize">&#x25a1;</button>
+      <button class="titlebar-btn close" id="btn-close" title="Close">&#x2715;</button>
+    </div>
+  </div>
+
+  <!-- Main app -->
+  <div id="app">
+    <!-- Session sidebar -->
+    <div id="sidebar">
+      <div class="sidebar-section-header">
+        Sessions
+        <button class="sidebar-btn-icon" id="btn-new-session" title="New Session">+</button>
+      </div>
+      <div id="workspace-root-display" title="Click to open folder">📁 No workspace</div>
+      <div id="session-list"><!-- sessions injected by renderer.ts --></div>
+      <div class="sidebar-footer">
+        <button class="sidebar-footer-btn primary" id="btn-open-folder">Open Folder</button>
+        <button class="sidebar-footer-btn" id="btn-scan-repo">Scan Repo</button>
+      </div>
+    </div>
+
+    <!-- Editor + resize + chat -->
+    <div id="main-area">
+      <!-- Monaco Editor pane -->
+      <div id="editor-pane">
+        <div id="editor-tabs" style="display:none;"></div>
+        <div id="editor-empty">
+          <div class="empty-icon">🧬</div>
+          <div>Open a file to start editing</div>
+          <div class="empty-actions">
+            <button class="action-btn" id="btn-open-file">Open File</button>
+            <button class="action-btn" id="btn-open-folder-editor">Open Folder</button>
+          </div>
+        </div>
+        <div id="monaco-container"></div>
+      </div>
+
+      <!-- Resize handle -->
+      <div class="resize-handle" id="resize-handle-chat"></div>
+
+      <!-- Jenna Chat pane (isolated iframe) -->
+      <div id="chat-pane">
+        <iframe
+          id="chat-iframe"
+          src="chat.html"
+          allow="microphone"
+          sandbox="allow-scripts allow-same-origin allow-forms"
+          title="Jenna AI Chat"
+        ></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- Monaco Editor CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.47.0/min/vs/loader.min.js"></script>
+  <!-- Renderer bundle -->
+  <script src="../../dist/renderer/renderer.js"></script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LUMAX — Download</title>
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --card: #141414;
+      --text: #e5e5e5;
+      --muted: #888;
+      --accent: #6b8cff;
+      --accent-2: #8e5af0;
+      --ok: #22c55e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .wrap { max-width: 900px; margin: 0 auto; padding: 48px 24px; }
+    header { text-align: center; margin-bottom: 48px; }
+    h1 { font-size: 2.2rem; margin: 0 0 8px; }
+    .tagline { color: var(--muted); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+    .card {
+      background: var(--card);
+      border: 1px solid #222;
+      border-radius: 14px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .card h2 { margin: 0; font-size: 1.2rem; }
+    .card p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+    .meta { font-size: 0.8rem; color: var(--muted); }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: auto;
+      padding: 12px 18px;
+      border-radius: 10px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      color: #fff;
+      text-decoration: none;
+      font-weight: 600;
+      transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.9; }
+    .soon { background: #222; color: var(--muted); cursor: not-allowed; }
+    .soon:hover { opacity: 1; }
+    .note {
+      margin-top: 48px;
+      padding: 16px;
+      border-radius: 10px;
+      background: #141414;
+      border: 1px solid #222;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); display: inline-block; margin-right: 6px; }
+    code { background: #1a1a1a; padding: 2px 6px; border-radius: 4px; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>LUMAX</h1>
+      <div class="tagline">One AI OS. Every device you own.</div>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Windows</h2>
+        <p>Full desktop stack — Jenna IDE, Foveated Memory proxy, local LM Studio bridge, and taskbar.</p>
+        <div class="meta"><span class="status-dot"></span>Self-installing .exe</div>
+        <a class="btn" href="https://drive.google.com/drive/folders/REPLACE_WINDOWS_FOLDER" target="_blank">Download for Windows</a>
+      </div>
+
+      <div class="card">
+        <h2>Android / Quest</h2>
+        <p>Avatar-driven spatial AI for Meta Quest and Android. Side-load the APK after enabling unknown sources.</p>
+        <div class="meta"><span class="status-dot"></span>SMW13.apk</div>
+        <a class="btn" href="https://drive.google.com/drive/folders/REPLACE_ANDROID_FOLDER" target="_blank">Download APK</a>
+      </div>
+
+      <div class="card">
+        <h2>macOS</h2>
+        <p>Coming next. Runs the same Python services behind a native macOS taskbar.</p>
+        <div class="meta">.dmg in progress</div>
+        <a class="btn soon" href="#" onclick="return false;">Soon</a>
+      </div>
+
+      <div class="card">
+        <h2>Web</h2>
+        <p>Use the browser version. No install required; connects to the local LUMAX backend.</p>
+        <div class="meta"><span class="status-dot"></span>Hosted</div>
+        <a class="btn" href="/app" target="_blank">Open Web App</a>
+      </div>
+    </div>
+
+    <div class="note">
+      <strong>How it works:</strong> Install the Windows package first. It starts the local proxy on <code>127.0.0.1:8400</code>. The Quest, phone, and web clients then connect to that endpoint over your local Wi-Fi. For Quest, load the APK and enter your PC's IP.
+    </div>
+  </div>
+</body>
+</html>

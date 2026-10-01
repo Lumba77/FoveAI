@@ -3,33 +3,28 @@ Forge Nursery API — FastAPI service on port 8105
 Provides REST endpoints for variant management, fine-tuning, and quantization.
 Integrated with XR_Vessel WebUI under OPERATIONS menu.
 """
-import os
-import json
-import time
+
 import logging
+import os
 import threading
-from pathlib import Path
-from typing import Optional
 
 import uvicorn
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from .model_registry import get_registry, VariantDefinition
-from .dataset_curator import scan_local_datasets, load_dataset_for_training
+from .dataset_curator import load_dataset_for_training, scan_local_datasets
 from .fine_tuner import (
-    get_fine_tuner,
-    TrainingConfig,
-    TrainingJob,
-    STATUS_QUEUED,
-    STATUS_TRAINING,
     STATUS_COMPLETED,
     STATUS_FAILED,
-    STATUS_CANCELLED,
+    STATUS_QUEUED,
+    STATUS_TRAINING,
+    TrainingConfig,
+    TrainingJob,
+    get_fine_tuner,
 )
-from .quantizer import get_quantizer, QuantizeJob, QUANT_TYPES
+from .model_registry import VariantDefinition, get_registry
+from .quantizer import get_quantizer
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("forge-nursery-api")
@@ -51,6 +46,7 @@ app.add_middleware(
 
 # ─── Pydantic Models ───────────────────────────────────────
 
+
 class VariantCreateRequest(BaseModel):
     variant_id: str = Field(..., description="Unique variant identifier")
     name: str = Field(..., description="Display name")
@@ -63,24 +59,30 @@ class VariantCreateRequest(BaseModel):
     learning_rate: float = Field(2e-4, description="Learning rate")
     quant_type: str = Field("moq-3.0", description="Quantization type after training")
 
+
 class TrainingStartRequest(BaseModel):
     variant_id: str = Field(..., description="Variant to train")
     max_samples: int = Field(5000, description="Max samples per dataset")
+
 
 class QuantizeRequest(BaseModel):
     variant_id: str = Field(..., description="Variant to quantize")
     input_path: str = Field(..., description="Path to merged FP16 model")
     quant_type: str = Field("moq-3.0", description="Target quantization type")
 
+
 class DatasetPreviewRequest(BaseModel):
     dataset_id: str = Field(..., description="Dataset ID to preview")
     max_samples: int = Field(5, description="Number of samples to return")
 
+
 # ─── Health & Info ─────────────────────────────────────────
+
 
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "forge-nursery", "port": 8105}
+
 
 @app.get("/api/status")
 async def get_status():
@@ -95,20 +97,29 @@ async def get_status():
 
     return {
         "variants": len(variants),
-        "active_training_jobs": sum(1 for j in training_jobs if j["status"] in (STATUS_QUEUED, STATUS_TRAINING)),
-        "completed_training_jobs": sum(1 for j in training_jobs if j["status"] == STATUS_COMPLETED),
-        "failed_training_jobs": sum(1 for j in training_jobs if j["status"] == STATUS_FAILED),
+        "active_training_jobs": sum(
+            1 for j in training_jobs if j["status"] in (STATUS_QUEUED, STATUS_TRAINING)
+        ),
+        "completed_training_jobs": sum(
+            1 for j in training_jobs if j["status"] == STATUS_COMPLETED
+        ),
+        "failed_training_jobs": sum(
+            1 for j in training_jobs if j["status"] == STATUS_FAILED
+        ),
         "quant_jobs": len(quant_jobs),
         "llama_cpp_available": quantizer._llama_cpp_dir is not None,
     }
 
+
 # ─── Variant Management ────────────────────────────────────
+
 
 @app.get("/api/variants")
 async def list_variants():
     """List all registered variants."""
     registry = get_registry()
     return registry.list_variants()
+
 
 @app.get("/api/variants/{variant_id}")
 async def get_variant(variant_id: str):
@@ -119,13 +130,16 @@ async def get_variant(variant_id: str):
         raise HTTPException(status_code=404, detail=f"Variant not found: {variant_id}")
     return variant.to_dict()
 
+
 @app.post("/api/variants")
 async def create_variant(req: VariantCreateRequest):
     """Create a new variant definition."""
     registry = get_registry()
 
     if registry.get_variant(req.variant_id):
-        raise HTTPException(status_code=409, detail=f"Variant already exists: {req.variant_id}")
+        raise HTTPException(
+            status_code=409, detail=f"Variant already exists: {req.variant_id}"
+        )
 
     variant = VariantDefinition(
         id=req.variant_id,
@@ -146,6 +160,7 @@ async def create_variant(req: VariantCreateRequest):
     logger.info(f"Created variant: {req.variant_id}")
     return variant.to_dict()
 
+
 @app.delete("/api/variants/{variant_id}")
 async def delete_variant(variant_id: str):
     """Delete a variant definition."""
@@ -155,7 +170,9 @@ async def delete_variant(variant_id: str):
     registry.remove_variant(variant_id)
     return {"deleted": variant_id}
 
+
 # ─── Dataset Operations ────────────────────────────────────
+
 
 @app.get("/api/datasets")
 async def list_datasets():
@@ -172,6 +189,7 @@ async def list_datasets():
         for ds in datasets
     ]
 
+
 @app.post("/api/datasets/preview")
 async def preview_dataset(req: DatasetPreviewRequest):
     """Preview samples from a dataset."""
@@ -179,7 +197,9 @@ async def preview_dataset(req: DatasetPreviewRequest):
     ds_map = {ds.name: ds for ds in datasets}
 
     if req.dataset_id not in ds_map:
-        raise HTTPException(status_code=404, detail=f"Dataset not found: {req.dataset_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Dataset not found: {req.dataset_id}"
+        )
 
     ds_info = ds_map[req.dataset_id]
     samples = load_dataset_for_training(ds_info, max_samples=req.max_samples)
@@ -187,16 +207,19 @@ async def preview_dataset(req: DatasetPreviewRequest):
     return {
         "dataset_id": req.dataset_id,
         "total_available": ds_info.sample_count,
-        "samples": samples[:req.max_samples],
+        "samples": samples[: req.max_samples],
     }
 
+
 # ─── Training Jobs ─────────────────────────────────────────
+
 
 @app.get("/api/training/jobs")
 async def list_training_jobs():
     """List all training jobs."""
     fine_tuner = get_fine_tuner()
     return fine_tuner.list_jobs()
+
 
 @app.get("/api/training/jobs/{job_id}")
 async def get_training_job(job_id: str):
@@ -207,6 +230,7 @@ async def get_training_job(job_id: str):
         raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
     return job.to_dict()
 
+
 @app.post("/api/training/start")
 async def start_training(req: TrainingStartRequest):
     """Start a fine-tuning job for a variant."""
@@ -215,7 +239,9 @@ async def start_training(req: TrainingStartRequest):
 
     variant = registry.get_variant(req.variant_id)
     if not variant:
-        raise HTTPException(status_code=404, detail=f"Variant not found: {req.variant_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Variant not found: {req.variant_id}"
+        )
 
     # Build training config from variant definition
     tc = variant.training_config or {}
@@ -237,15 +263,20 @@ async def start_training(req: TrainingStartRequest):
     logger.info(f"Started training job: {job.job_id} for variant {req.variant_id}")
     return job.to_dict()
 
+
 @app.post("/api/training/jobs/{job_id}/cancel")
 async def cancel_training(job_id: str):
     """Cancel a running training job."""
     fine_tuner = get_fine_tuner()
     if fine_tuner.cancel_job(job_id):
         return {"cancelled": job_id}
-    raise HTTPException(status_code=404, detail=f"Job not found or not cancellable: {job_id}")
+    raise HTTPException(
+        status_code=404, detail=f"Job not found or not cancellable: {job_id}"
+    )
+
 
 # ─── Quantization ──────────────────────────────────────────
+
 
 @app.get("/api/quantize/types")
 async def list_quant_types():
@@ -253,17 +284,20 @@ async def list_quant_types():
     quantizer = get_quantizer()
     return quantizer.list_quant_types()
 
+
 @app.get("/api/quantize/jobs")
 async def list_quantize_jobs():
     """List all quantization jobs."""
     quantizer = get_quantizer()
     return quantizer.list_jobs()
 
+
 @app.get("/api/quantize/models/{variant_id}")
 async def list_quantized_models(variant_id: str):
     """List quantized GGUF files for a variant."""
     quantizer = get_quantizer()
     return quantizer.get_quantized_models(variant_id)
+
 
 @app.post("/api/quantize/start")
 async def start_quantize(req: QuantizeRequest):
@@ -289,13 +323,16 @@ async def start_quantize(req: QuantizeRequest):
     logger.info(f"Started quantization job: {job.job_id}")
     return job.to_dict()
 
+
 # ─── Full Pipeline ─────────────────────────────────────────
+
 
 class ForgeRequest(BaseModel):
     variant_id: str = Field(..., description="Variant to forge")
     max_samples: int = Field(5000, description="Max training samples")
     quant_type: str = Field("moq-3.0", description="Target quantization type")
     auto_quantize: bool = Field(True, description="Auto-quantize after training")
+
 
 @app.post("/api/forge")
 async def forge_variant(req: ForgeRequest):
@@ -309,7 +346,9 @@ async def forge_variant(req: ForgeRequest):
 
     variant = registry.get_variant(req.variant_id)
     if not variant:
-        raise HTTPException(status_code=404, detail=f"Variant not found: {req.variant_id}")
+        raise HTTPException(
+            status_code=404, detail=f"Variant not found: {req.variant_id}"
+        )
 
     tc = variant.training_config or {}
     config = TrainingConfig(
@@ -338,7 +377,7 @@ async def forge_variant(req: ForgeRequest):
                 )
                 quantizer.run_quantize(qjob)
             else:
-                logger.warning(f"Cannot auto-quantize: no output path or no llama.cpp")
+                logger.warning("Cannot auto-quantize: no output path or no llama.cpp")
 
     fine_tuner.start_job(job.job_id, progress_callback=on_training_complete)
 
@@ -351,7 +390,9 @@ async def forge_variant(req: ForgeRequest):
         "quant_type": req.quant_type if req.auto_quantize else None,
     }
 
+
 # ─── Main ──────────────────────────────────────────────────
+
 
 def main():
     """Start the Forge Nursery API server."""
@@ -363,6 +404,7 @@ def main():
         reload=False,
         log_level="info",
     )
+
 
 if __name__ == "__main__":
     main()

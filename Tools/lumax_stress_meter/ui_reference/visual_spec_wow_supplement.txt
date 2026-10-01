@@ -1,0 +1,89 @@
+Lumax stress meter — what a pedagogic layer diagram usually MISSES (the “wow” budget)
+===================================================================================
+
+Gemini-style exploded views name materials (metal, glass, shadow). They rarely specify the
+things that make the result feel premium on a real desktop. Use this as a checklist when
+authoring PNG/SVG or when wiring the live app.
+
+**Inspiration vs literal** — Any mock or AI render (e.g. parallelogram taskbar strip + isometric
+layers) is **direction only**: mood, segment count, and colour read. **Implementation order and
+file split** follow `layer_stack_authoritative.txt`, which can differ from a diagram’s labels or
+layer count.
+
+
+1) COUNT AND MEANING (design vs code)
+-------------------------------------
+• Target UI: **seven** parallelogram “lights” with a **seven-hole** clip mask; channels CPU, GPU,
+  RAM, VRAM, DISK, SWAP, NET — see ux_behavior_spec.txt and layer_stack_authoritative.txt.
+• **Horizontal layout**: **center** the lamp row; cells **100%** height of the lit band and **14%**
+  of row width each (**98%** + **2%** micro gutters) — scales with window / taskbar / DPI (see
+  “Seven-cell layout” in layer_stack_authoritative.txt).
+• “Inactive” should read as dim structure + no chroma energy, not just “grey.”
+
+
+2) HOW THE GRADIENT ACTUALLY WORKS (not obvious from layers alone)
+------------------------------------------------------------------
+• **Channel hue** across the seven lamps is **discrete** (each cell maps its own stress level to
+  the palette). You are **not** required to use one horizontal rainbow across the whole strip.
+• **Within each cell**, a **diagonal intensity gradient** (e.g. upper-left brighter → lower-right
+  softer) reads as **lit glass** and depth; it is **not** a second unrelated hue ramp — same base
+  tint, modulated brightness. Optional: animate gradient strength or highlight drift slowly.
+• Mask + fill level still follow layer_stack_authoritative.txt (⑤ under ③).
+
+
+3) TEMPORAL “JUICE” (static diagrams never show this)
+-----------------------------------------------------
+• Very slow shimmer / noise on the glass specular (sub-pixel or 1–2 px drift over seconds).
+• **① Mist** and **⑤ colored cells** can both contribute: mist = veil on top; **per-cell diagonal
+  gradient** can **pulse or drift** (intensity, stop positions, or a soft highlight sliding along
+  the diagonal) for a **glass tank** feel without strobing.
+• Glow intensity tied subtly to load (not only on/off).
+• Optional: tiny ease on value changes so the bar doesn’t strobe when metrics jitter.
+• You already have sustained-CPU border pulse in code — the asset stack should reserve room for
+  that (glow colour shift), not fight it.
+
+
+4) LIGHT MODE VS DARK MODE (same PNGs rarely work)
+--------------------------------------------------
+• Bloom that looks good on charcoal reads as “muddy” on white; specular and shadow strengths need
+  theme variants OR one neutral master with separate bloom gain.
+• The Gemini mock shows light vs dark — good — but you still need numeric targets: max glow alpha,
+  shadow blur radius in px at 1x, etc.
+
+
+5) WHAT TKINTER CAN AND CANNOT DO TODAY
+---------------------------------------
+• Real Gaussian blur, refraction, and HDR bloom are not native on the Canvas. “Wow” either:
+  (a) ships as pre-rendered layered PNGs (multiply / screen in code), or
+  (b) moves to a richer renderer later (e.g. GPU / different shell).
+• Naming exports by layer (frame_mask, gradient_fill, glow_add, glass_screen, shadow_mult) makes
+  integration possible; a single flattened beauty shot does not.
+
+
+6) THE “EXPENSIVE” SURFACE DETAILS
+----------------------------------
+• Metal: micro-contrast noise + edge bevel, not flat grey.
+• Glass: diagonal specular streaks are fine; add a second softer highlight for depth.
+• Shadow: contact shadow (tight) + ambient lift (wide, very transparent) reads more “desktop
+  widget” than one soft blob.
+
+
+7) EXPORT DISCIPLINE (for your AI → PNG/SVG pipeline)
+-----------------------------------------------------
+• Document exact pixel size and safe padding (see lumax_flow_meter_220x34*.svg in this folder).
+• **Logical / layout size** can stay **220 × 34** (1×) for proportions; **author raster and dense
+  chrome at 2×** — e.g. **440 × 68** — so **double-sized taskbars**, **200% display scaling**, and
+  **HiDPI** do not force upscaling a single 34px-tall bitmap (soft edges / blur). Vector SVG can
+  stay 1× in `userSpaceOnUse` and export PNG @2× when needed.
+• Premultiplied alpha for glow layers; straight alpha for sharp masks.
+• Deliver **@1× and @2×** (or master @2× + downscale for 1×) when shipping bitmaps; mist/chrome
+  benefit most from the extra resolution.
+
+
+8) ACCESSIBILITY
+----------------
+• High load must not rely on red alone — border pulse / thickness can reinforce (already partly
+  in app logic).
+
+
+End — use this together with the Gemini layer diagram, not instead of it.

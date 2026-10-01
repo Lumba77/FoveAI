@@ -5,19 +5,25 @@ FoveAI refactors away from brittle, high-latency multi-model HTTP swarms into a 
 
 | Component | Role / Model | Port / Protocol | Note |
 |---|---|---|---|
-| **Main Cognitive LLM** | `xrl_encoded/gemma-4-e2b-multimodal-v1.0.xrlf` | 8402 (HTTP) / 8403 (WS) | The single active cognitive core loaded in `run_xrlf.py` with MoQ core & cognitive steering. |
+| **Main Cognitive LLM** | `xrl_encoded/gemma-4-e2b-multimodal-v1.0.xrlf` | 8402 (HTTP) / 8403 (WS) | The single active cognitive core (Gemma-4-E2B) loaded by the XRLF runtime. `/health` exposes `loaded`/`load_state`. Native `/v1/audio/speech` (Kokoro) and `/v1/audio/transcriptions` (Whisper). |
 | **Smart Proxy (Omni-Router)** | `lumax-plumax-omni-router-v2.xrlf` | 8400 (Internal Middleware) | Intercepts massive context dumps (>12K chars) and extracts critical code and intent. |
 | **Failover Omni-Router (No. 2)** | `no2-lumax-plumax-omni-router.xrlf` | Failover Channel | Load-balancer / secondary router engaged if Router 1 encounters congestion. |
 | **Memory Helper Model** | `lumax-summarizer-draft.gguf` | Embedded | Background helper weaving active-recall memory ring blocks and compacting checkpoints. |
-| **Foveated Memory Proxy** | `foveated-memory/server.js` | 8400 (ws/http) | Memory ring manager, context proxy, and dynamic HUD injector. |
-| **Sovereign Core (Soul)** | `compagent.py` | 8000 | Cognition loop, motor intent extraction, and avatar coordination. |
-| **Stardust Gnists** | Vector Resonance | 8109 | 33M parameter vector matrix for instant semantic memory matching. |
-| **Motor Cortex** | `motor_daemon.py` | 8110 | Native avatar agency (walk, gesture, emotion rendering). |
-| **Mouth Kokoro** | TTS Service | 8004 | Neural 24kHz speech synthesis. |
-| **Ears STT** | Speech-to-Text | 8001 | Real-time voice transcription. |
-| **WebXR Vessel UI** | Spatial Frontend | 5176 | Native spatial UI via Vite/TypeScript. |
-| **LM Studio (Optional)** | BYO-GGUF Gateway | 7272 (HTTP Fallback) | Optional legacy fallback for third-party GGUFs; bypassed by native XRLF runtime. |
-| **Legacy Systems** | 🔴 PURGED | — | Docker, WSL2, Godot, Kuzu, Cognee, TokenSlayer Proxy (:8106/:8103), SigMap, Legacy Ports (:8200, :8300) — all purged/retired. |
+| **Foveated Memory Proxy** | `foveated-memory/server.js` | 8400 (ws/http) | Memory ring manager, context proxy, dynamic HUD injector. Voice routes: `/api/tts` (native :8402 → Kokoro :8406), `/api/soul/stt`, `/api/tts/voices`, `/api/voice/status`. |
+| **Dashboard / Settings** | `foveated-memory/public/` | 8401 | Settings UI; `/api/subsystems` health check uses the current 840x port map. |
+| **WS IPC** | `Backend/app/IPC/websocket_server.py` | 8403 (WebSocket only) | Client-to-runtime conduit. TCP/WS only — no HTTP health route. |
+| **Mouth Kokoro** | `foveai_mouth_kokoro_server.py` | **8406** | Neural 24kHz TTS (`/tts`, `/say`, `/voices`, `/health`). `foveai-tts.service`. Fallback after native :8402. |
+| **Chat Relay** | `Backend/chat_relay_server.py` | **8407** | Cross-client chat relay. `foveai-chat-relay.service`. |
+| **Creative Service** | — | 8408 | Assigned; optional. |
+| **Ears STT** | `Backend/stt_whisper_server.py` | **8409** (WebSocket only) | Whisper streaming STT. `foveai-stt.service`. HTTP `/health` invalid — probe TCP. |
+| **Motor / Autonomous** | `motor_daemon.py` | **8410** | Native avatar agency. `foveai-motor.service`. |
+| **Subconscious** | `Backend/Cognition/subconscious_daemon.py` | **8411** | Telemetry eval + dispatch. `foveai-subconscious.service`. `/health` added 2026-09-19. |
+| **Multigate WebUI** | `Frontend/multigate` (Vite) | **5177** | Browser UI; same-origin `/api/*` proxied to :8400. `foveai-multigate.service`. Requires Node ≥20 (Node 24 in `~/.local`). |
+| **WebXR Vessel UI** | Spatial Frontend | 5176 | Optional/deprecated — normally offline. |
+| **Sovereign Core (Soul)** | `compagent.py` | 8402 (`SOUL_PORT`) | Cognition loop, motor intent extraction, avatar coordination. |
+| **LM Studio (Optional)** | BYO-GGUF Gateway | 1234 | Optional legacy fallback; normally offline. Browser access proxied via `/api/lmstudio`. |
+| **xrdp** | Remote desktop | 3389 | Remote access; VNC currently localhost-only. |
+| **Legacy Systems** | 🔴 PURGED | — | Docker, WSL2, Godot, Kuzu, Cognee, TokenSlayer Proxy (:8106/:8103), SigMap, voice ports :8001/:8004, soul :8000, motor :8110, stardust :8109 — all purged/retired. |
 
 ---
 
@@ -48,6 +54,14 @@ FoveAI refactors away from brittle, high-latency multi-model HTTP swarms into a 
 
 ## 4b. Recently Fixed (2026-09-03)
 - **Quest→PC HTTP 400 resolved**: The Foveated Memory Proxy (`:8400`) was routing to `http://127.0.0.1:1234` (dead legacy LM Studio port) instead of the local llama-server at `http://127.0.0.1:8402`. Root cause was stale `upstream_url` in 4 model profiles in `memory_data/model-profiles.json` and 3 vars in `foveated-memory/.env`. All corrected to `:8402`. Proxy restarted, end-to-end chat completion verified with Quest payload (`model: "foveated-proxy"`, `Authorization: Bearer lumax_spatial_client`).
+
+## 4c. Post-Migration Healing (2026-09-19)
+- **Hard-drive crash recovery**: Server migrated to new hardware. `.venv` lacked the voice stack → installed pinned `torch(cpu)`, `kokoro==0.9.4`, `faster-whisper==1.2.1`, `soundfile`, `misaki`, `py-espeak-ng`. `.env` Fedora CA path → Debian `ca-certificates.crt`. Kokoro + Whisper models cached into `/home/lumba/Models/hub` for `HF_HUB_OFFLINE=1`.
+- **Voice reassigned to 840x**: TTS `8004→8406` (`foveai-tts.service`, Kokoro `/tts` `/say` `/voices` `/health`), STT `8001→8409` (`foveai-stt.service`, WebSocket-only). Native `:8402` audio endpoints are primary. Proxy `voice/status` TCP-probes `:8409`. Old 800x references excised from active code — do not revive.
+- **Missing services restored**: `foveai-motor` (:8410), `foveai-subconscious` (:8411, `/health` added), `foveai-chat-relay` (:8407), `foveai-multigate` (:5177, Vite dev, Node 24 at `~/.local`). All existing implementations — no duplicate stacks.
+- **IP-agnostic**: `server_config.py` resolves the live LAN IP dynamically when `FOVEAI_SERVER_IP` is blank; `refresh_network_config()` rewrites `foveai_network_config.json` at Sleipnir startup. Stale `192.168.8.100` overrides removed. Multigate browser calls use same-origin `/api/*` paths so remote visitors don't hit their own localhost.
+- **Jenna-vscode**: TTS bridged through extension host → proxy → Kokoro; voice dropdown fed by `/api/tts/voices`. Deployed to Devin + Antigravity (v0.5.6).
+- **Verified**: `/api/tts` → WAV, `/api/soul/stt` → 200, XRLF `loaded:true`/`ready`, all 8 services active. `test_network_config.py` 7/7, `test_network_frontend.cjs` 4/4.
 
 ## 5. Additional info ()
 

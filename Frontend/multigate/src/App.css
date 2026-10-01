@@ -134,13 +134,13 @@
 }
 
 .sidebar-brand {
-  padding: 0 16px 12px;
+  padding: 0 16px 8px;
   border-bottom: 1px solid var(--border-glass);
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .sidebar-brand h2 {
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   margin: 0;
   background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
   -webkit-background-clip: text;
@@ -152,21 +152,21 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   padding: 0 12px 0 10px;
   overflow-y: auto;
   min-height: 0;
 }
 
 .nav-item {
-  padding: 8px 12px;
+  padding: 6px 12px;
   border-radius: 6px;
   margin-bottom: 2px;
   color: var(--text-muted);
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   font-weight: 500;
   transition: all 0.2s;
   background: transparent;
@@ -191,10 +191,10 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
   color: var(--text-muted);
-  padding: 7px 10px;
+  padding: 5px 10px;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   font-family: 'Orbitron', sans-serif;
   letter-spacing: 0.8px;
   display: flex;
@@ -202,7 +202,7 @@
   justify-content: space-between;
   transition: all 0.2s ease;
   text-align: left;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .category-header:hover {
@@ -220,22 +220,22 @@
 .category-items {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   padding-left: 8px;
-  margin-top: 2px;
-  margin-bottom: 4px;
+  margin-top: 1px;
+  margin-bottom: 2px;
   border-left: 2px solid rgba(0, 240, 255, 0.15);
   margin-left: 6px;
 }
 
 .sub-nav-item {
-  padding: 7px 10px;
+  padding: 5px 10px;
   border-radius: 5px;
   color: var(--text-muted);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 500;
   transition: all 0.2s ease;
   background: transparent;
@@ -258,8 +258,8 @@
 }
 
 .user-profile {
-  margin: 6px 10px 0;
-  padding: 10px;
+  margin: 4px 10px 0;
+  padding: 6px 10px;
   border-radius: 8px;
   background: var(--bg-glass);
   display: flex;
@@ -275,8 +275,8 @@
 }
 
 .avatar {
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
   display: flex;
@@ -624,6 +624,25 @@
   box-shadow: 0 4px 16px rgba(0, 229, 255, 0.05);
 }
 
+/* Thought channel — model's <thought:>/<think> content and reasoning_content,
+   rendered as a dim inline panel where the model emitted it */
+.thought-block {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.8em;
+  font-style: italic;
+  color: var(--text-muted, rgba(255,255,255,0.45));
+  background: rgba(157, 78, 221, 0.08);
+  border-left: 2px solid rgba(157, 78, 221, 0.5);
+  border-radius: 0 6px 6px 0;
+  padding: 6px 10px;
+  margin: 6px 0;
+  white-space: pre-wrap;
+}
+.thought-block::before {
+  content: '💭 ';
+  font-style: normal;
+}
+
 .send-btn {
   background: linear-gradient(135deg, var(--accent-cyan), var(--accent-magenta));
 }
@@ -632,6 +651,7 @@
    the bare trackball lives here and works as the clicker */
 .send-socket {
   flex-shrink: 0;
+  position: relative;
   width: 62px;
   height: 62px;
   margin: -14px -4px -14px 8px;
@@ -648,6 +668,51 @@
 }
 .send-socket .tb-ball { transition: filter .3s; }
 .send-socket.idle .tb-ball { filter: saturate(.5) brightness(.75); }
+
+/* backend down — the send ball becomes the emergency igniter:
+   hot red breathing glow + STARTUP caption, press = ignite */
+.send-socket.down {
+  animation: sendDownPulse 1.8s ease-in-out infinite;
+}
+.send-socket.down .tb-ball {
+  filter: saturate(1.6) brightness(1.15) drop-shadow(0 0 14px rgba(255,64,64,.95));
+}
+@keyframes sendDownPulse {
+  0%, 100% { box-shadow:
+    inset 0 2px 6px rgba(0,0,0,.85),
+    inset 0 -1px 2px rgba(255,110,110,.25),
+    0 0 0 1px rgba(255,64,64,.55),
+    0 0 0 5px rgba(12,10,16,.95),
+    0 0 14px rgba(255,60,60,.35); }
+  50%      { box-shadow:
+    inset 0 2px 6px rgba(0,0,0,.85),
+    inset 0 -1px 2px rgba(255,110,110,.35),
+    0 0 0 1px rgba(255,64,64,.9),
+    0 0 0 5px rgba(12,10,16,.95),
+    0 0 26px rgba(255,60,60,.75); }
+}
+.send-boot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 7px;
+  font-weight: bold;
+  letter-spacing: 0.6px;
+  color: #ffd9d9;
+  text-shadow: 0 0 6px rgba(255,64,64,1), 0 1px 2px rgba(0,0,0,.9);
+  z-index: 3;
+}
+.send-socket.rec .tb-ball {
+  filter: saturate(1.4) brightness(1.15) drop-shadow(0 0 10px rgba(255,64,64,.9));
+  animation: sendRecPulse 1s infinite;
+}
+@keyframes sendRecPulse {
+  0%, 100% { filter: saturate(1.4) brightness(1.15) drop-shadow(0 0 10px rgba(255,64,64,.9)); }
+  50%      { filter: saturate(1.4) brightness(1.35) drop-shadow(0 0 18px rgba(255,64,64,1)); }
+}
 
 .nav-item:hover {
   background: rgba(255,255,255,0.04);
@@ -679,32 +744,251 @@
   margin-left: 310px;
 }
 
-/* ── sidebar trackball — the celestial control instrument ── */
-.sidebar-trackball {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 10px 6px 6px;
-  margin: 6px 10px 0;
-  border-top: 1px solid var(--border-glass);
+/* ── sidebar trackball removed — the ball lives on in the composer
+   as the send/PTT button (bare mode, no dial ring) ── */
+
+/* ── Mobile adaptation ──────────────────────────────────────────────────────
+   The sidebar is already absolutely positioned, so on narrow screens it
+   becomes a slide-in drawer: hidden off-canvas until the ☰ toggle opens it.
+   .menu-toggle only exists inside this breakpoint. */
+.menu-toggle {
+  display: none;
 }
-.sidebar-trackball-readout {
-  margin-top: 6px;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 10px;
+
+.sidebar-backdrop {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .app-container {
+    /* dvh tracks the mobile browser's collapsing toolbar correctly */
+    height: 100dvh;
+  }
+
+  .sidebar {
+    transform: translateX(-120%);
+    transition: transform 0.25s ease;
+    z-index: 60;
+    margin: 8px;
+    height: calc(100dvh - 16px);
+    width: min(280px, 82vw);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 55;
+  }
+
+  .main-content {
+    margin-left: 0;
+  }
+
+  .menu-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .chat-header {
+    padding: 10px 12px !important;
+  }
+  .chat-header h3 {
+    font-size: 0.95rem;
+  }
+  .topbar-actions {
+    gap: 6px !important;
+    flex-wrap: wrap;
+  }
+  .icon-btn {
+    width: 34px;
+    height: 34px;
+    font-size: 0.95rem;
+  }
+
+  .chat-messages {
+    padding: 16px 12px;
+    gap: 16px;
+  }
+  .message {
+    max-width: 94%;
+    gap: 10px;
+  }
+  .message-avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 0.85rem;
+  }
+
+  .input-area {
+    padding: 10px 10px 14px 10px !important;
+  }
+  .chat-input {
+    font-size: 16px; /* ≥16px prevents iOS auto-zoom on focus */
+  }
+
+  .auth-card {
+    padding: 24px;
+    margin: 0 12px;
+  }
+}
+
+/* ==========================================================================
+   MOBILE ADAPTATION & RESPONSIVE GRID (Unbloated approach)
+   ========================================================================== */
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+  }
+  
+  .sidebar {
+    position: fixed;
+    z-index: 1000;
+    width: 280px;
+    height: 100vh;
+    left: 0;
+    top: 0;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .sidebar.open {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0,0,0,0.8);
+  }
+  
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+    z-index: 999;
+  }
+
+  /* Optimize touch targets for mobile */
+  .nav-item, .sub-nav-item, .category-header {
+    min-height: 44px;
+    padding: 12px 16px;
+    font-size: 1.05rem;
+  }
+  
+  /* Hide heavy UI elements that overflow */
+  .topbar-actions .server-metrics {
+    display: none !important;
+  }
+  
+  /* Make Avatar canvas dynamic for mobile */
+  .avatar-overlay-container {
+    width: 100vw !important;
+    height: 40vh !important;
+    position: relative !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Bottom Navigation Mobile Overrides */
+  .bottom-nav {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 65px;
+    background: rgba(0, 5, 10, 0.95);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(0, 240, 255, 0.2);
+    z-index: 1000;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .bottom-nav .nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    flex: 1;
+    color: rgba(255,255,255,0.6);
+    padding: 8px 0;
+    gap: 4px;
+    font-size: 0.75rem;
+  }
+
+  .bottom-nav .nav-item.active {
+    color: var(--accent-cyan);
+  }
+
+  .bottom-nav .nav-item .icon {
+    font-size: 1.25rem;
+  }
+
+  /* Hide the primary quick start buttons inside the sidebar when bottom nav is active */
+  .sidebar .nav-menu > div:first-child {
+    display: none;
+  }
+}
+
+/* Hide Bottom Nav on Desktop */
+.bottom-nav {
+  display: none;
+}
+
+
+/* Native <option> dropdowns inherit the OS light popup on Linux while the
+   text keeps our light theme color — pin both so lists stay readable. */
+select option,
+select optgroup {
+  background: #0a0f19;
+  color: #e0faff;
+}
+
+/* Session boundary divider — marks where one chat session ends and the
+   next begins; the title is clickable for inline rename */
+.session-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px auto;
+  max-width: 640px;
+  width: 100%;
+}
+.session-divider-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(94, 234, 212, 0.4), transparent);
+}
+.session-divider-title {
+  font-size: 0.68rem;
   letter-spacing: 1.5px;
   color: var(--text-muted);
-  text-align: center;
+  font-family: 'Share Tech Mono', monospace;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  white-space: nowrap;
 }
-.sidebar-trackball-readout b {
-  color: #e8b64c;
-  font-weight: normal;
-  text-shadow: 0 0 8px rgba(232, 182, 76, 0.4);
+.session-divider-title:hover {
+  color: var(--accent-cyan);
+  background: rgba(94, 234, 212, 0.08);
 }
-.sidebar-trackball-dirs {
-  display: block;
-  margin-top: 2px;
-  font-size: 9px;
-  color: #8a94b8;
-  letter-spacing: 1px;
+.session-divider-input {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--accent-cyan);
+  border-radius: 4px;
+  color: var(--text-main);
+  font-size: 0.72rem;
+  font-family: 'Share Tech Mono', monospace;
+  padding: 3px 8px;
+  outline: none;
+  min-width: 180px;
 }

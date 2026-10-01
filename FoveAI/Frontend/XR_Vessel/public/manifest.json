@@ -1,0 +1,25 @@
+{
+  "name": "LUMAX Sovereign",
+  "short_name": "LUMAX",
+  "description": "LUMAX Sovereign Humanoid WebXR Companion Dashboard",
+  "start_url": "/?utm_source=pwa",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#02050a",
+  "theme_color": "#00f3ff",
+  "categories": ["utilities", "entertainment"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -575,3 +575,34 @@ body {
   background-position: center 20%;
   background-attachment: fixed;
 }
+
+/* ── Account / role split ───────────────────────────────────────────────
+   role-member hides admin-scoped sections; the account card lets a session
+   user log in/out. No token = local/legacy admin (historical behavior). */
+body.role-member .admin-only { display: none !important; }
+body.role-member .garage-nav a.admin-only { display: none; }
+
+#memberBanner {
+  display: none;
+  padding: .6rem 1rem;
+  margin: 0 0 1rem;
+  border: 1px solid rgba(255,170,0,.4);
+  border-radius: 8px;
+  background: rgba(255,170,0,.08);
+  color: var(--warning);
+  font-size: .85rem;
+}
+body.role-member #memberBanner { display: block; }
+body.role-admin #memberBanner { display: none; }
+
+#sec-account { display: none; }
+body.role-none #sec-account, body.role-member #sec-account { display: block; }
+#sec-account input {
+  padding: .45rem .7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(0,0,0,.35);
+  color: var(--text);
+  font-family: inherit;
+}
+#accountChip { cursor: default; }

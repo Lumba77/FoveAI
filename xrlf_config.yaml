@@ -11,7 +11,7 @@ memory_db_source: ''
 model: xrl_encoded/gemma-4-e2b-multimodal-v1.0.xrlf
 models:
   primary: xrl_encoded/gemma-4-e2b-multimodal-v1.0.xrlf
-  secondary: xrl_encoded/qwen3.5-4b-mtp-multimodal-v1.0.xrlf
+  secondary: xrl_encoded/qwopus3.5-9b-coder-mtp-moq.xrlf
 summarizer:
   enabled: true
   model: foveai-summarizer-draft.gguf
@@ -19,7 +19,7 @@ summarizer:
   endpoint: http://127.0.0.1:8402/v1
   max_tokens: 512
   temperature: 0.3
-n_ctx: 4096
+n_ctx: 16384
 session:
   id: default
   persistent_memory: true

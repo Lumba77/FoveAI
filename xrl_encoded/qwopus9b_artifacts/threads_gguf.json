@@ -1,0 +1,58 @@
+[
+  {
+    "prompt": "Explain semantic compression.",
+    "thread": {
+      "text": "Explain semantic compression.\nA. It compresses data by removing redundant data.\nB. It compresses data by removing unnecessary data.\nC. It compresses data by removing data that has no meaning.\nD. It compresses data by removing redundant data that has no meaning.\nE. It compresses data by removing data that is not needed.\n\n<think>\nHere's a thinking process that leads to the correct answer:\n\n1.  **Analyze the Request:**\n    *   **Topic:** Semantic Compression.\n    *   **Task:** Explain semantic compression and select the best definition among the provided options (A, B",
+      "note": "logits not available; text-only thread"
+    }
+  },
+  {
+    "prompt": "Write a Python function that adds two numbers.",
+    "thread": {
+      "text": "Write a Python function that adds two numbers. Then, write a second function that accepts two strings, adds them together, and returns the result. Finally, write a third function that accepts two numbers and an operation (addition or subtraction), and returns the result of the operation.\n\nHere are the three functions you requested:\n\n```python\n# Function to add two numbers\ndef add_numbers(a, b):\n    return a + b\n\n# Function to add two strings\ndef add_strings(a, b):\n    return str(a) + str(b)\n\n# Function to perform addition or subtraction based on the operation\ndef operate_numbers(a, b, operation):\n",
+      "note": "logits not available; text-only thread"
+    }
+  },
+  {
+    "prompt": "Describe pruning vs quantization.",
+    "thread": {
+      "text": "Describe pruning vs quantization.\n\nHere is a detailed description of **Pruning** and **Quantization**, two of the most popular techniques used to optimize machine learning models (specifically Deep Learning models) for deployment.\n\n### The Core Difference\n*   **Pruning** removes unnecessary parts of the model (reducing size by removing weights).\n*   **Quantization** reduces the precision of the numbers used in the model (reducing size by reducing bits).\n\nWhile both aim to make models faster, smaller, and more memory-efficient, they work on fundamentally different principles.\n\n---\n\n### 1. Model Pruning\nPruning is",
+      "note": "logits not available; text-only thread"
+    }
+  },
+  {
+    "prompt": "Summarize the concept of attention in transformers.",
+    "thread": {
+      "text": "Summarize the concept of attention in transformers.\n\nHere is a summary of the concept of attention in Transformers, structured from its fundamental mechanism to its evolution.\n\n### 1. Core Definition\n**Attention** is a mechanism that allows a model to focus on specific parts of the input sequence when processing a particular token. Unlike older Recurrent Neural Networks (RNNs) which process data sequentially and lose context over long distances, attention allows the model to **directly access** information from any part of the sequence in parallel.\n\nIn the Transformer architecture, attention replaces the recurrent and convolutional layers entirely.\n\n### 2. The Key Insight: \"Soft Attention\"\nBefore",
+      "note": "logits not available; text-only thread"
+    }
+  },
+  {
+    "prompt": "Implement a retry loop with exponential backoff in Python.",
+    "thread": {
+      "text": "Implement a retry loop with exponential backoff in Python. The loop should retry a function call up to 3 times, starting with a 1-second delay, and doubling the delay after each failed attempt.\n",
+      "note": "logits not available; text-only thread"
+    }
+  },
+  {
+    "prompt": "Debug: a FastAPI endpoint returns 500 only under load. What do you check first?",
+    "thread": {
+      "text": "Debug: a FastAPI endpoint returns 500 only under load. What do you check first?\n\nStep 1: Reproduce with logging\n\nRun the endpoint with controlled load (e.g. `concurrent.futures` or `locust`).\n\nAdd logging around the suspected failure point:\n\n```python\n@app.post(\"/search\")\nasync def search(request: Request):\n    logger.info(\"Search started\")\n    try:\n        # heavy logic\n        ...\n        logger.info(\"Search completed\")\n        return {\"ok\": True}\n    except Exception as e:\n        logger.error(f\"Search failed: {e}\", exc_info=True)\n        raise HTTPException(status_code=500,",
+      "note": "logits not available; text-only thread"
+    }
+  },
+  {
+    "prompt": "Refactor a nested for-loop into a comprehension and explain the trade-off.",
+    "thread": {
+      "text": "Refactor a nested for-loop into a comprehension and explain the trade-off.\n\nHere's a function that generates a list of strings based on two lists:\n\n```python\ndef generate_strings(words, prefixes):\n    result = []\n    for prefix in prefixes:\n        for word in words:\n            result.append(f\"{prefix}{word}\")\n    return result\n```\n\nRefactor this into a list comprehension.\n\nHere is the refactored solution and an explanation of the trade-offs involved.\n\n### Refactored Solution\n\nTo convert the nested loops into a list comprehension, you simply move the inner loop's variable (`word`) to the right side of the expression, and the outer loop",
+      "note": "logits not available; text-only thread"
+    }
+  },
+  {
+    "prompt": "Explain the difference between a process and a thread to a friend.",
+    "thread": {
+      "text": "Explain the difference between a process and a thread to a friend. Use a simple analogy involving a restaurant to help illustrate the concept.\n\nHere is how I would explain it to a friend:\n\n\"Okay, so imagine you walk into a busy restaurant.\n\n**The Process** is the **whole restaurant** itself.\nIt includes the kitchen, the dining area, the cash register, and the list of all the rules. It also has a specific amount of money in the bank (memory) that belongs only to that restaurant. If the restaurant goes bankrupt, everything stops.\n\n**The Thread** is the **waiter** (or a specific team of waiters).\nInside that one restaurant",
+      "note": "logits not available; text-only thread"
+    }
+  }
+]

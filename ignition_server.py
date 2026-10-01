@@ -12,9 +12,7 @@ The multigate frontend's IgnitionButton calls POST /ignition to boot the stack.
 
 import http.server
 import json
-import os
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -24,6 +22,7 @@ LOG_FILE = FOVEAI_DIR / "ignition_backend.log"
 
 PORT = 8409  # Dedicated ignition port (avoids conflict with foveated-memory on 8400)
 HOST = "127.0.0.1"
+
 
 class IgnitionHandler(http.server.BaseHTTPRequestHandler):
     def do_OPTIONS(self):
@@ -35,6 +34,7 @@ class IgnitionHandler(http.server.BaseHTTPRequestHandler):
         if self.path == "/ignition/status":
             # Check if backend is up by probing port 8400
             import socket
+
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(2)
             try:
@@ -56,13 +56,17 @@ class IgnitionHandler(http.server.BaseHTTPRequestHandler):
 
     def _start_backend(self):
         if not LAUNCHER.exists():
-            self._json_response({"ok": False, "error": f"Launcher not found: {LAUNCHER}"}, 500)
+            self._json_response(
+                {"ok": False, "error": f"Launcher not found: {LAUNCHER}"}, 500
+            )
             return
 
         try:
             # Start the backend in the background
             log_fp = open(LOG_FILE, "a")
-            log_fp.write(f"\n{'='*60}\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] Ignition triggered\n")
+            log_fp.write(
+                f"\n{'=' * 60}\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] Ignition triggered\n"
+            )
             log_fp.flush()
 
             proc = subprocess.Popen(
@@ -76,11 +80,13 @@ class IgnitionHandler(http.server.BaseHTTPRequestHandler):
             log_fp.write(f"Started sleipnir_launcher.sh --light (PID: {proc.pid})\n")
             log_fp.close()
 
-            self._json_response({
-                "ok": True,
-                "pid": proc.pid,
-                "message": "Backend ignition started. Check /ignition/status in ~10s."
-            })
+            self._json_response(
+                {
+                    "ok": True,
+                    "pid": proc.pid,
+                    "message": "Backend ignition started. Check /ignition/status in ~10s.",
+                }
+            )
         except Exception as e:
             self._json_response({"ok": False, "error": str(e)}, 500)
 
@@ -103,8 +109,8 @@ class IgnitionHandler(http.server.BaseHTTPRequestHandler):
 
 def main():
     print(f"[Ignition] Server starting on http://{HOST}:{PORT}")
-    print(f"[Ignition] POST /ignition → starts sleipnir_launcher.sh --light")
-    print(f"[Ignition] GET  /ignition/status → checks if backend is up")
+    print("[Ignition] POST /ignition → starts sleipnir_launcher.sh --light")
+    print("[Ignition] GET  /ignition/status → checks if backend is up")
     server = http.server.HTTPServer((HOST, PORT), IgnitionHandler)
     try:
         server.serve_forever()

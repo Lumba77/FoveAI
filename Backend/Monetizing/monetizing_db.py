@@ -15,12 +15,13 @@ Usage:
 All methods are async (aiosqlite). WAL mode enables safe concurrent writes.
 """
 
-import aiosqlite
 import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
+
+import aiosqlite
 
 logger = logging.getLogger("monetizing_db")
 
@@ -182,10 +183,12 @@ class MonetizingDB:
 
     def __init__(self, db_path: str):
         self.db_path = str(Path(db_path).resolve())
-        self._db: Optional[aiosqlite.Connection] = None
+        self._db: aiosqlite.Connection | None = None
 
     @classmethod
-    async def create(cls, db_path: str = "Data/monetizing/monetizing.db") -> "MonetizingDB":
+    async def create(
+        cls, db_path: str = "Data/monetizing/monetizing.db"
+    ) -> "MonetizingDB":
         """Create and initialize the database."""
         instance = cls(db_path)
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -208,7 +211,7 @@ class MonetizingDB:
     # TRADES
     # ----------------------------------------------------------------
 
-    async def insert_trade(self, trade: Dict[str, Any]) -> str:
+    async def insert_trade(self, trade: dict[str, Any]) -> str:
         """Insert a single trade. Returns trade_id."""
         await self._db.execute(
             """INSERT OR REPLACE INTO trades
@@ -217,11 +220,18 @@ class MonetizingDB:
                 mentor_reviewed, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                trade["trade_id"], trade["agent_id"], trade["pair"],
-                trade["side"], trade.get("order_type", "market"),
-                trade["amount"], trade["price"], trade["usdt_value"],
-                trade.get("profit_usdt", 0), trade.get("profit_pct", 0),
-                trade.get("reason", ""), int(trade.get("paper", True)),
+                trade["trade_id"],
+                trade["agent_id"],
+                trade["pair"],
+                trade["side"],
+                trade.get("order_type", "market"),
+                trade["amount"],
+                trade["price"],
+                trade["usdt_value"],
+                trade.get("profit_usdt", 0),
+                trade.get("profit_pct", 0),
+                trade.get("reason", ""),
+                int(trade.get("paper", True)),
                 int(trade.get("mentor_reviewed", False)),
                 trade.get("timestamp", datetime.now().isoformat()),
             ),
@@ -231,13 +241,13 @@ class MonetizingDB:
 
     async def get_trades(
         self,
-        agent_id: Optional[str] = None,
-        pair: Optional[str] = None,
-        side: Optional[str] = None,
-        since: Optional[str] = None,
+        agent_id: str | None = None,
+        pair: str | None = None,
+        side: str | None = None,
+        since: str | None = None,
         limit: int = 100,
-        paper_only: Optional[bool] = None,
-    ) -> List[Dict]:
+        paper_only: bool | None = None,
+    ) -> list[dict]:
         """Query trades with flexible filters."""
         clauses = []
         params = []
@@ -265,7 +275,7 @@ class MonetizingDB:
         columns = [desc[0] for desc in rows.description] if rows else []
         return [dict(zip(columns, row)) for row in rows]
 
-    async def get_trade_stats(self, agent_id: Optional[str] = None) -> Dict:
+    async def get_trade_stats(self, agent_id: str | None = None) -> dict:
         """Aggregate trade statistics."""
         where = "WHERE agent_id = ?" if agent_id else ""
         params = [agent_id] if agent_id else []
@@ -284,11 +294,13 @@ class MonetizingDB:
             cols = [desc[0] for desc in row.description]
             result = dict(zip(cols, row[0]))
             total = result.get("total_trades", 0)
-            result["win_rate"] = (result.get("wins", 0) / total * 100) if total > 0 else 0
+            result["win_rate"] = (
+                (result.get("wins", 0) / total * 100) if total > 0 else 0
+            )
             return result
         return {}
 
-    async def mark_mentor_reviewed(self, trade_ids: List[str]):
+    async def mark_mentor_reviewed(self, trade_ids: list[str]):
         """Mark trades as reviewed by the LLM mentor."""
         if not trade_ids:
             return
@@ -303,7 +315,7 @@ class MonetizingDB:
     # AGENTS
     # ----------------------------------------------------------------
 
-    async def upsert_agent(self, agent: Dict[str, Any]):
+    async def upsert_agent(self, agent: dict[str, Any]):
         """Insert or update an agent's state."""
         income_types = agent.get("income_types", ["crypto_trading"])
         if isinstance(income_types, list):
@@ -316,18 +328,24 @@ class MonetizingDB:
                 last_search, current_task, income_types, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                agent["agent_id"], agent.get("name", ""), agent.get("type", "coinex_trading"),
-                agent.get("status", "idle"), int(agent.get("is_live", False)),
+                agent["agent_id"],
+                agent.get("name", ""),
+                agent.get("type", "coinex_trading"),
+                agent.get("status", "idle"),
+                int(agent.get("is_live", False)),
                 agent.get("target_market", "CETUSDT"),
-                agent.get("total_earnings", 0), agent.get("total_tasks_completed", 0),
-                agent.get("searches_performed", 0), agent.get("last_search"),
-                agent.get("current_task"), income_types,
+                agent.get("total_earnings", 0),
+                agent.get("total_tasks_completed", 0),
+                agent.get("searches_performed", 0),
+                agent.get("last_search"),
+                agent.get("current_task"),
+                income_types,
                 datetime.now().isoformat(),
             ),
         )
         await self._db.commit()
 
-    async def get_agent(self, agent_id: str) -> Optional[Dict]:
+    async def get_agent(self, agent_id: str) -> dict | None:
         """Get a single agent's state."""
         rows = await self._db.execute_fetchall(
             "SELECT * FROM agents WHERE agent_id = ?", (agent_id,)
@@ -337,7 +355,7 @@ class MonetizingDB:
             return dict(zip(cols, rows[0]))
         return None
 
-    async def get_all_agents(self) -> List[Dict]:
+    async def get_all_agents(self) -> list[dict]:
         """Get all agents."""
         rows = await self._db.execute_fetchall("SELECT * FROM agents")
         if rows:
@@ -354,7 +372,7 @@ class MonetizingDB:
     # PORTFOLIOS
     # ----------------------------------------------------------------
 
-    async def upsert_portfolio(self, portfolio: Dict[str, Any]):
+    async def upsert_portfolio(self, portfolio: dict[str, Any]):
         """Insert or update a portfolio."""
         holdings = portfolio.get("holdings", {})
         if isinstance(holdings, dict):
@@ -366,15 +384,19 @@ class MonetizingDB:
                 total_pnl, win_count, loss_count, updated_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                portfolio["agent_id"], portfolio.get("usdt_balance", 0),
-                holdings, portfolio.get("starting_usdt", 20.0),
-                portfolio.get("total_pnl", 0), portfolio.get("win_count", 0),
-                portfolio.get("loss_count", 0), datetime.now().isoformat(),
+                portfolio["agent_id"],
+                portfolio.get("usdt_balance", 0),
+                holdings,
+                portfolio.get("starting_usdt", 20.0),
+                portfolio.get("total_pnl", 0),
+                portfolio.get("win_count", 0),
+                portfolio.get("loss_count", 0),
+                datetime.now().isoformat(),
             ),
         )
         await self._db.commit()
 
-    async def get_portfolio(self, agent_id: str) -> Optional[Dict]:
+    async def get_portfolio(self, agent_id: str) -> dict | None:
         """Get a single portfolio."""
         rows = await self._db.execute_fetchall(
             "SELECT * FROM portfolios WHERE agent_id = ?", (agent_id,)
@@ -386,7 +408,7 @@ class MonetizingDB:
             return d
         return None
 
-    async def get_all_portfolios(self) -> List[Dict]:
+    async def get_all_portfolios(self) -> list[dict]:
         rows = await self._db.execute_fetchall("SELECT * FROM portfolios")
         if rows:
             cols = [desc[0] for desc in rows.description]
@@ -402,7 +424,7 @@ class MonetizingDB:
     # TREASURY
     # ----------------------------------------------------------------
 
-    async def get_treasury(self) -> Dict:
+    async def get_treasury(self) -> dict:
         """Get treasury state (creates defaults if missing)."""
         rows = await self._db.execute_fetchall("SELECT * FROM treasury WHERE id = 1")
         if rows:
@@ -418,11 +440,17 @@ class MonetizingDB:
         )
         await self._db.commit()
         return {
-            "id": 1, "accumulated_grinding": 0, "accumulated_reserve": 0,
-            "accumulated_dispense": 0, "total_yield_accumulated": 0, "updated_at": now,
+            "id": 1,
+            "accumulated_grinding": 0,
+            "accumulated_reserve": 0,
+            "accumulated_dispense": 0,
+            "total_yield_accumulated": 0,
+            "updated_at": now,
         }
 
-    async def update_treasury(self, grinding: float, reserve: float, dispense: float, total_yield: float):
+    async def update_treasury(
+        self, grinding: float, reserve: float, dispense: float, total_yield: float
+    ):
         """Update treasury balances."""
         now = datetime.now().isoformat()
         await self._db.execute(
@@ -434,8 +462,10 @@ class MonetizingDB:
         )
         await self._db.commit()
 
-    async def get_treasury_settings(self) -> Dict:
-        rows = await self._db.execute_fetchall("SELECT * FROM treasury_settings WHERE id = 1")
+    async def get_treasury_settings(self) -> dict:
+        rows = await self._db.execute_fetchall(
+            "SELECT * FROM treasury_settings WHERE id = 1"
+        )
         if rows:
             cols = [desc[0] for desc in rows.description]
             return dict(zip(cols, rows[0]))
@@ -451,13 +481,18 @@ class MonetizingDB:
         )
         await self._db.commit()
         return {
-            "id": 1, "grinding_swarm_pct": 0.40, "safeguard_reserve_pct": 0.30,
-            "dispense_payout_pct": 0.30, "min_reinvest_amount_usd": 2.0,
-            "min_dispense_amount_usd": 10.0, "payout_address": "",
-            "payout_network": "SOL", "updated_at": now,
+            "id": 1,
+            "grinding_swarm_pct": 0.40,
+            "safeguard_reserve_pct": 0.30,
+            "dispense_payout_pct": 0.30,
+            "min_reinvest_amount_usd": 2.0,
+            "min_dispense_amount_usd": 10.0,
+            "payout_address": "",
+            "payout_network": "SOL",
+            "updated_at": now,
         }
 
-    async def update_treasury_settings(self, settings: Dict):
+    async def update_treasury_settings(self, settings: dict):
         now = datetime.now().isoformat()
         await self._db.execute(
             """INSERT OR REPLACE INTO treasury_settings
@@ -482,7 +517,7 @@ class MonetizingDB:
     # WALLET
     # ----------------------------------------------------------------
 
-    async def get_wallet(self) -> Dict:
+    async def get_wallet(self) -> dict:
         rows = await self._db.execute_fetchall("SELECT * FROM wallet WHERE id = 1")
         if rows:
             cols = [desc[0] for desc in rows.description]
@@ -493,9 +528,17 @@ class MonetizingDB:
             (now,),
         )
         await self._db.commit()
-        return {"id": 1, "total_earnings": 0, "solana_address": "", "actual_sol_balance": 0, "updated_at": now}
+        return {
+            "id": 1,
+            "total_earnings": 0,
+            "solana_address": "",
+            "actual_sol_balance": 0,
+            "updated_at": now,
+        }
 
-    async def update_wallet(self, total_earnings: float, solana_address: str = "", sol_balance: float = 0):
+    async def update_wallet(
+        self, total_earnings: float, solana_address: str = "", sol_balance: float = 0
+    ):
         now = datetime.now().isoformat()
         await self._db.execute(
             """INSERT OR REPLACE INTO wallet (id, total_earnings, solana_address, actual_sol_balance, updated_at)
@@ -508,21 +551,25 @@ class MonetizingDB:
     # OHLCV CACHE
     # ----------------------------------------------------------------
 
-    async def cache_ohlcv(self, symbol: str, period: str, candles: List[Dict]):
+    async def cache_ohlcv(self, symbol: str, period: str, candles: list[dict]):
         """Bulk-insert kline candles. Existing candles are replaced by primary key."""
         now = datetime.now().isoformat()
         rows = []
         for c in candles:
             open_time = c.get("created_at", c.get("time", c.get("open_time", now)))
-            rows.append((
-                symbol, period, open_time,
-                float(c.get("open", c.get("open_price", 0))),
-                float(c.get("high", 0)),
-                float(c.get("low", 0)),
-                float(c.get("close", 0)),
-                float(c.get("volume", 0)),
-                now,
-            ))
+            rows.append(
+                (
+                    symbol,
+                    period,
+                    open_time,
+                    float(c.get("open", c.get("open_price", 0))),
+                    float(c.get("high", 0)),
+                    float(c.get("low", 0)),
+                    float(c.get("close", 0)),
+                    float(c.get("volume", 0)),
+                    now,
+                )
+            )
         await self._db.executemany(
             """INSERT OR REPLACE INTO ohlcv_cache
                (symbol, period, open_time, open, high, low, close, volume, created_at)
@@ -531,7 +578,9 @@ class MonetizingDB:
         )
         await self._db.commit()
 
-    async def get_ohlcv(self, symbol: str, period: str, since: Optional[str] = None, limit: int = 500) -> List[Dict]:
+    async def get_ohlcv(
+        self, symbol: str, period: str, since: str | None = None, limit: int = 500
+    ) -> list[dict]:
         """Get cached candles for a symbol/period."""
         if since:
             rows = await self._db.execute_fetchall(
@@ -556,7 +605,7 @@ class MonetizingDB:
     # TRAINING SESSIONS
     # ----------------------------------------------------------------
 
-    async def save_training_session(self, summary: Dict):
+    async def save_training_session(self, summary: dict):
         """Save a training session summary."""
         per_pair = summary.get("per_pair", {})
         agent_stats = summary.get("agents", {})
@@ -569,21 +618,28 @@ class MonetizingDB:
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 summary.get("session_id", datetime.now().strftime("%Y%m%d_%H%M%S")),
-                summary.get("started_at", ""), summary.get("finished_at", datetime.now().isoformat()),
+                summary.get("started_at", ""),
+                summary.get("finished_at", datetime.now().isoformat()),
                 summary.get("strategy", "Golden Cross EMA-50/200"),
-                summary.get("total_trades", 0), summary.get("winning_trades", 0),
-                summary.get("losing_trades", 0), summary.get("overall_win_rate", 0),
-                summary.get("total_pnl", 0), summary.get("best_agent", ""),
+                summary.get("total_trades", 0),
+                summary.get("winning_trades", 0),
+                summary.get("losing_trades", 0),
+                summary.get("overall_win_rate", 0),
+                summary.get("total_pnl", 0),
+                summary.get("best_agent", ""),
                 summary.get("worst_agent", ""),
-                summary.get("largest_win", 0), summary.get("largest_loss", 0),
-                json.dumps(per_pair), json.dumps(agent_stats),
+                summary.get("largest_win", 0),
+                summary.get("largest_loss", 0),
+                json.dumps(per_pair),
+                json.dumps(agent_stats),
             ),
         )
         await self._db.commit()
 
-    async def get_training_sessions(self, limit: int = 20) -> List[Dict]:
+    async def get_training_sessions(self, limit: int = 20) -> list[dict]:
         rows = await self._db.execute_fetchall(
-            "SELECT * FROM training_sessions ORDER BY finished_at DESC LIMIT ?", (limit,)
+            "SELECT * FROM training_sessions ORDER BY finished_at DESC LIMIT ?",
+            (limit,),
         )
         if rows:
             cols = [desc[0] for desc in rows.description]
@@ -600,16 +656,29 @@ class MonetizingDB:
     # AUDIT LOG
     # ----------------------------------------------------------------
 
-    async def log_audit(self, event_type: str, action: str, agent_id: str = "", details: Dict = None):
+    async def log_audit(
+        self, event_type: str, action: str, agent_id: str = "", details: dict = None
+    ):
         """Append an audit event."""
         await self._db.execute(
             """INSERT INTO audit_log (event_type, agent_id, action, details, created_at)
                VALUES (?, ?, ?, ?, ?)""",
-            (event_type, agent_id, action, json.dumps(details or {}), datetime.now().isoformat()),
+            (
+                event_type,
+                agent_id,
+                action,
+                json.dumps(details or {}),
+                datetime.now().isoformat(),
+            ),
         )
         await self._db.commit()
 
-    async def get_audit_log(self, event_type: Optional[str] = None, since: Optional[str] = None, limit: int = 100) -> List[Dict]:
+    async def get_audit_log(
+        self,
+        event_type: str | None = None,
+        since: str | None = None,
+        limit: int = 100,
+    ) -> list[dict]:
         clauses = []
         params = []
         if event_type:
@@ -643,12 +712,18 @@ class MonetizingDB:
         await self._db.execute("VACUUM")
         logger.info("[DB] VACUUM complete")
 
-    async def get_table_counts(self) -> Dict[str, int]:
+    async def get_table_counts(self) -> dict[str, int]:
         """Quick row counts for all tables — useful for health checks."""
         tables = [
-            "trades", "agents", "portfolios", "treasury",
-            "treasury_settings", "ohlcv_cache", "training_sessions",
-            "wallet", "audit_log",
+            "trades",
+            "agents",
+            "portfolios",
+            "treasury",
+            "treasury_settings",
+            "ohlcv_cache",
+            "training_sessions",
+            "wallet",
+            "audit_log",
         ]
         counts = {}
         for t in tables:

@@ -4,7 +4,7 @@ import json
 import logging
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 try:
     import cognee_client
@@ -28,7 +28,7 @@ def _env_bool(name: str, default: bool = False) -> bool:
     return raw in ("1", "true", "yes", "on")
 
 
-def _parse_json_list(raw: Any) -> List[Dict[str, Any]]:
+def _parse_json_list(raw: Any) -> list[dict[str, Any]]:
     if not raw:
         return []
     if isinstance(raw, bytes):
@@ -41,7 +41,7 @@ def _parse_json_list(raw: Any) -> List[Dict[str, Any]]:
         return []
     if not isinstance(obj, list):
         return []
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for item in obj:
         if isinstance(item, dict):
             out.append(item)
@@ -55,7 +55,9 @@ def _clamp_chars(text: str, max_chars: int) -> str:
     return t
 
 
-def get_recent_notes(redis_memory: Any, session_id: str, limit: int = 8) -> List[Dict[str, Any]]:
+def get_recent_notes(
+    redis_memory: Any, session_id: str, limit: int = 8
+) -> list[dict[str, Any]]:
     """Load compact note entries from Redis/local fallback through RedisMemory.get()."""
     if redis_memory is None:
         return []
@@ -69,17 +71,17 @@ def get_recent_notes(redis_memory: Any, session_id: str, limit: int = 8) -> List
     return rows[-lim:]
 
 
-def format_notes_layer(notes: List[Dict[str, Any]], max_chars: int = 4000) -> str:
+def format_notes_layer(notes: list[dict[str, Any]], max_chars: int = 4000) -> str:
     if not notes:
         return ""
-    lines: List[str] = []
+    lines: list[str] = []
     for idx, n in enumerate(notes, start=1):
         txt = _clamp_chars(str(n.get("text", "") or ""), 500)
         if not txt:
             continue
         source = _clamp_chars(str(n.get("source", "note") or "note"), 24)
         tags_raw = n.get("tags")
-        tags: List[str] = []
+        tags: list[str] = []
         if isinstance(tags_raw, list):
             for t in tags_raw[:8]:
                 tt = str(t).strip()
@@ -98,13 +100,13 @@ async def append_note(
     session_id: str,
     text: str,
     source: str = "user",
-    tags: Optional[List[str]] = None,
+    tags: list[str] | None = None,
 ) -> bool:
     """Persist note in key-value store and optionally embed into long_term memory."""
     note = _clamp_chars(text, 1200)
     if not note:
         return False
-    clean_tags: List[str] = []
+    clean_tags: list[str] = []
     if isinstance(tags, list):
         for t in tags[:12]:
             tt = str(t).strip()
@@ -125,7 +127,9 @@ async def append_note(
             existing.append(entry)
             if len(existing) > max_items:
                 existing = existing[-max_items:]
-            redis_memory.set(_notes_key(session_id), json.dumps(existing, ensure_ascii=False))
+            redis_memory.set(
+                _notes_key(session_id), json.dumps(existing, ensure_ascii=False)
+            )
         except Exception as ex:
             logger.warning("append_note store failed: %s", ex)
 
@@ -136,7 +140,11 @@ async def append_note(
             await vector_memory.add_memory(
                 session_id,
                 marker,
-                metadata={"kind": "note", "source": entry["source"], "tags": clean_tags},
+                metadata={
+                    "kind": "note",
+                    "source": entry["source"],
+                    "tags": clean_tags,
+                },
                 collection="long_term",
             )
         except Exception as ex:
@@ -150,7 +158,7 @@ async def resolve_cognee_layer(
     request_query: str,
     fallback_query: str,
     deep_think: bool,
-    force_use: Optional[bool],
+    force_use: bool | None,
 ) -> str:
     """
     Resolve Cognee layer text.
@@ -180,4 +188,3 @@ async def resolve_cognee_layer(
         return ""
     out = await cognee_client.cognee_search_memory_layer(q, deep_think=deep_think)
     return (out or "").strip()
-

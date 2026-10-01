@@ -1,0 +1,14 @@
+[Unit]
+Description=FoveAI Full Stack Fleet Launcher
+After=foveai-backend.service network.target
+
+[Service]
+Type=forking
+WorkingDirectory=/home/lumba/FoveAI
+ExecStart=/home/lumba/FoveAI/sleipnir_launcher.sh start
+ExecStop=/home/lumba/FoveAI/sleipnir_launcher.sh stop
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

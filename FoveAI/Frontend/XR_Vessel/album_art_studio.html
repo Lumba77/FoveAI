@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lumax Album Art Studio</title>
+    <style>
+        :root {
+            --neon-blue: #00f3ff;
+            --neon-pink: #ff007f;
+            --neon-green: #39ff14;
+            --bg-dark: #02050a;
+            --glass-bg: rgba(10, 15, 25, 0.9);
+            --border: rgba(0, 243, 255, 0.2);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #e0e0e0;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            background-image:
+                radial-gradient(circle at 50% 50%, rgba(0, 243, 255, 0.05) 0%, transparent 70%),
+                linear-gradient(rgba(5, 10, 20, 1), rgba(2, 5, 10, 1));
+        }
+
+        .studio-container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1, h2, h3 {
+            font-family: 'Orbitron', sans-serif;
+            color: var(--neon-blue);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px var(--neon-blue);
+        }
+
+        .section {
+            background: var(--glass-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            backdrop-filter: blur(10px);
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: linear-gradient(to bottom, var(--neon-blue), var(--neon-pink));
+            border-radius: 2px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        label {
+            font-size: 0.85rem;
+            color: rgba(224, 224, 224, 0.8);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input[type="text"],
+        textarea,
+        select {
+            background: rgba(10, 15, 25, 0.8);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: #fff;
+            font-family: inherit;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+        }
+
+        input[type="text"]:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.2);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .song-entry {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .song-entry-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .song-number {
+            color: var(--neon-pink);
+            font-weight: bold;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, rgba(0, 243, 255, 0.2), rgba(255, 0, 127, 0.2));
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 24px;
+            color: #fff;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            background: linear-gradient(135deg, rgba(0, 243, 255, 0.4), rgba(255, 0, 127, 0.4));
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--neon-blue), var(--neon-pink));
+            color: #000;
+            font-weight: bold;
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 0 30px rgba(0, 243, 255, 0.5);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--neon-blue);
+            color: var(--neon-blue);
+        }
+
+        .btn-danger {
+            background: rgba(255, 0, 0, 0.2);
+            border: 1px solid rgba(255, 0, 0, 0.5);
+            color: #ff6b6b;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+
+        /* Reference Selection */
+        .reference-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .reference-card {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .reference-card:hover {
+            border-color: var(--neon-blue);
+            background: rgba(0, 243, 255, 0.1);
+        }
+
+        .reference-card.selected {
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
+        }
+
+        .reference-card-color {
+            width: 100%;
+            height: 80px;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        }
+
+        .reference-card-name {
+            font-size: 0.8rem;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .reference-card-desc {
+            font-size: 0.7rem;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .color-preview {
+            display: flex;
+            gap: 4px;
+            margin-top: 8px;
+        }
+
+        .color-swatch {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        /* Generation Preview */
+        .preview-area {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 24px;
+            margin-top: 24px;
+        }
+
+        .album-preview {
+            aspect-ratio: 1;
+            background: rgba(0, 0, 0, 0.4);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .album-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .album-preview-placeholder {
+            color: rgba(255, 255, 255, 0.3);
+            text-align: center;
+        }
+
+        .song-art-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        .song-art-preview {
+            aspect-ratio: 1;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .song-art-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Loading State */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(0, 243, 255, 0.2);
+            border-top-color: var(--neon-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Status Messages */
+        .status-message {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+
+        .status-message.error {
+            background: rgba(255, 0, 0, 0.2);
+            border: 1px solid rgba(255, 0, 0, 0.5);
+            color: #ff6b6b;
+        }
+
+        .status-message.success {
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid rgba(0, 255, 0, 0.3);
+            color: #6bff6b;
+        }
+
+        .status-message.info {
+            background: rgba(0, 243, 255, 0.1);
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            color: var(--neon-blue);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: transparent;
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            cursor: pointer;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+        }
+
+        .tab:hover {
+            color: #fff;
+        }
+
+        .tab.active {
+            color: var(--neon-blue);
+            border-bottom-color: var(--neon-blue);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .preview-area {
+                grid-template-columns: 1fr;
+            }
+            .song-art-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="studio-container">
+        <h1>🎨 Album Art Studio</h1>
+        <p style="color: rgba(255,255,255,0.6); margin-bottom: 30px;">
+            Generate professional album and song artwork for your music
+        </p>
+
+        <!-- Main Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-tab="project">1. Project Info</button>
+            <button class="tab" data-tab="style">2. Style</button>
+            <button class="tab" data-tab="generate">3. Generate</button>
+            <button class="tab" data-tab="gallery">4. Gallery</button>
+        </div>
+
+        <!-- Tab 1: Project Info -->
+        <div class="tab-content active" id="tab-project">
+            <div class="section">
+                <h2 class="section-title">Basic Information</h2>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="bandName">Band / Artist Name</label>
+                        <input type="text" id="bandName" placeholder="Enter your band name">
+                    </div>
+                    <div class="form-group">
+                        <label for="albumTitle">Album Title</label>
+                        <input type="text" id="albumTitle" placeholder="Enter album title">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">Song Details</h2>
+                <p style="color: rgba(255,255,255,0.6); margin-bottom: 16px;">
+                    Add up to 4 songs with brief descriptions (max 100 characters each)
+                </p>
+                <div id="songsContainer">
+                    <!-- Song entries will be added here -->
+                </div>
+                <button class="btn btn-secondary" onclick="addSongEntry()" id="addSongBtn">+ Add Song</button>
+            </div>
+        </div>
+
+        <!-- Tab 2: Style -->
+        <div class="tab-content" id="tab-style">
+            <div class="section">
+                <h2 class="section-title">Reference Album Art</h2>
+                <p style="color: rgba(255,255,255,0.6); margin-bottom: 12px;">
+                    Choose a famous album cover for inspiration
+                </p>
+                <div class="reference-grid" id="referenceAlbumsGrid">
+                    <!-- Reference albums loaded dynamically -->
+                </div>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">Art Style</h2>
+                <div class="reference-grid" id="artStylesGrid">
+                    <!-- Art styles loaded dynamically -->
+                </div>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">Color Profile</h2>
+                <div class="reference-grid" id="colorProfilesGrid">
+                    <!-- Color profiles loaded dynamically -->
+                </div>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">Custom Colors (Optional)</h2>
+                <div class="form-group">
+                    <label for="customColors">Enter 3 hex colors (comma separated)</label>
+                    <input type="text" id="customColors" placeholder="#ff007f, #00f3ff, #7b68ee">
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Generate -->
+        <div class="tab-content" id="tab-generate">
+            <div class="section">
+                <h2 class="section-title">Generation Settings</h2>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="imageWidth">Width</label>
+                        <select id="imageWidth">
+                            <option value="512">512px</option>
+                            <option value="768">768px</option>
+                            <option value="1024" selected>1024px</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="imageHeight">Height</label>
+                        <select id="imageHeight">
+                            <option value="512">512px</option>
+                            <option value="768">768px</option>
+                            <option value="1024" selected>1024px</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="steps">Steps</label>
+                        <select id="steps">
+                            <option value="4">4 (Fast)</option>
+                            <option value="8">8</option>
+                            <option value="16">16 (Quality)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="guidance">Guidance Scale</label>
+                        <input type="text" id="guidance" value="7.5">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">Generate Album Art</h2>
+                <div id="albumGenStatus"></div>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="generateAlbumArt()" id="genAlbumBtn">
+                        🎨 Generate Album Art
+                    </button>
+                    <button class="btn btn-secondary" onclick="regenerateAlbumArt()" id="regenAlbumBtn" disabled>
+                        🔄 Next Variation
+                    </button>
+                    <button class="btn btn-primary" onclick="chooseAlbumArt()" id="chooseAlbumBtn" disabled>
+                        ✓ Choose This
+                    </button>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">Generate Song Art</h2>
+                <p style="color: rgba(255,255,255,0.6); margin-bottom: 16px;">
+                    Generate artwork for each song (requires album art to be chosen first)
+                </p>
+                <div id="songGenContainer"></div>
+            </div>
+        </div>
+
+        <!-- Tab 4: Gallery -->
+        <div class="tab-content" id="tab-gallery">
+            <div class="section">
+                <h2 class="section-title">Final Gallery</h2>
+                <div class="btn-group" style="margin-bottom: 20px;">
+                    <button class="btn btn-primary" onclick="upscaleAll()" id="upscaleBtn">
+                        ⬆️ Upscale 4x & Download
+                    </button>
+                    <button class="btn btn-secondary" onclick="downloadZip()" id="downloadBtn">
+                        📦 Download ZIP
+                    </button>
+                    <button class="btn btn-danger" onclick="clearSession()">
+                        🗑️ Clear Session
+                    </button>
+                </div>
+                <div class="preview-area">
+                    <div class="album-preview" id="finalAlbumPreview">
+                        <div class="album-preview-placeholder">
+                            <p>No album art selected</p>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 style="margin-bottom: 12px;">Song Art</h3>
+                        <div class="song-art-grid" id="finalSongArtGrid">
+                            <!-- Song art previews -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let currentSessionId = null;
+        let selectedReferenceAlbum = null;
+        let selectedArtStyle = null;
+        let selectedColorProfile = null;
+        let albumArtGenerated = false;
+        let chosenAlbumOption = null;
+        const STORAGE_KEY = 'lumax_album_art_draft';
+
+        // Auto-save draft to localStorage
+        function saveDraft() {
+            const draft = {
+                bandName: document.getElementById('bandName')?.value || '',
+                albumTitle: document.getElementById('albumTitle')?.value || '',
+                songs: getSongsData(),
+                referenceAlbum: selectedReferenceAlbum,
+                artStyle: selectedArtStyle,
+                colorProfile: selectedColorProfile,
+                customColors: document.getElementById('customColors')?.value || '',
+                width: document.getElementById('imageWidth')?.value || '1024',
+                height: document.getElementById('imageHeight')?.value || '1024',
+                steps: document.getElementById('steps')?.value || '4',
+                guidance: document.getElementById('guidance')?.value || '7.5',
+                savedAt: new Date().toISOString()
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+        }
+
+        // Load draft from localStorage
+        function loadDraft() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (!saved) return false;
+            
+            try {
+                const draft = JSON.parse(saved);
+                
+                // Check if draft is older than 24 hours
+                const savedTime = new Date(draft.savedAt);
+                const hoursOld = (Date.now() - savedTime) / (1000 * 60 * 60);
+                if (hoursOld > 24) {
+                    localStorage.removeItem(STORAGE_KEY);
+                    return false;
+                }
+                
+                if (draft.bandName) document.getElementById('bandName').value = draft.bandName;
+                if (draft.albumTitle) document.getElementById('albumTitle').value = draft.albumTitle;
+                if (draft.customColors) document.getElementById('customColors').value = draft.customColors;
+                if (draft.width) document.getElementById('imageWidth').value = draft.width;
+                if (draft.height) document.getElementById('imageHeight').value = draft.height;
+                if (draft.steps) document.getElementById('steps').value = draft.steps;
+                if (draft.guidance) document.getElementById('guidance').value = draft.guidance;
+                
+                // Restore song entries
+                const container = document.getElementById('songsContainer');
+                container.innerHTML = '';
+                if (draft.songs && draft.songs.length > 0) {
+                    draft.songs.forEach((song, i) => {
+                        const entry = document.createElement('div');
+                        entry.className = 'song-entry';
+                        entry.innerHTML = `
+                            <div class="song-entry-header">
+                                <span class="song-number">Song ${i + 1}</span>
+                                ${i > 0 ? '<button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.7rem;" onclick="this.parentElement.parentElement.remove(); renumberSongs()">Remove</button>' : ''}
+                            </div>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Song Title</label>
+                                    <input type="text" class="song-title" value="${song.title || ''}" placeholder="Enter song title">
+                                </div>
+                                <div class="form-group">
+                                    <label>Description / Lyric Summary (max 100 chars)</label>
+                                    <textarea class="song-desc" maxlength="100" placeholder="Brief description or lyric theme">${song.description || ''}</textarea>
+                                </div>
+                            </div>
+                        `;
+                        container.appendChild(entry);
+                    });
+                }
+                
+                // Show restore notification
+                const hoursAgo = Math.round(hoursOld * 10) / 10;
+                const msg = document.createElement('div');
+                msg.className = 'status-message info';
+                msg.style.marginBottom = '20px';
+                msg.innerHTML = `📝 Draft restored from ${hoursAgo}h ago. Your previous input has been recovered.`;
+                document.querySelector('#tab-project .section').insertBefore(msg, document.querySelector('#tab-project .section').firstChild);
+                
+                return true;
+            } catch (e) {
+                console.error('Failed to load draft:', e);
+                return false;
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadReferenceData();
+            initTabs();
+            
+            // Try to restore draft first
+            const restored = loadDraft();
+            if (!restored) {
+                addSongEntry(); // Add first song entry by default
+            }
+            
+            // Auto-save on input changes
+            document.querySelectorAll('input, textarea, select').forEach(el => {
+                el.addEventListener('change', saveDraft);
+                el.addEventListener('input', saveDraft);
+            });
+        });
+
+        // Tab Navigation
+        function initTabs() {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
+                });
+            });
+        }
+
+        // Load Reference Data
+        async function loadReferenceData() {
+            try {
+                const [albums, styles, colors] = await Promise.all([
+                    fetch('/api/album-art/reference/albums').then(r => r.json()),
+                    fetch('/api/album-art/reference/styles').then(r => r.json()),
+                    fetch('/api/album-art/reference/colors').then(r => r.json())
+                ]);
+
+                renderReferenceAlbums(albums.albums || []);
+                renderArtStyles(styles.styles || []);
+                renderColorProfiles(colors.profiles || []);
+            } catch (e) {
+                console.error('Failed to load reference data:', e);
+            }
+        }
+
+        // Render Reference Albums
+        function renderReferenceAlbums(albums) {
+            const grid = document.getElementById('referenceAlbumsGrid');
+            grid.innerHTML = albums.map(album => `
+                <div class="reference-card" onclick="selectReferenceAlbum('${album.id}')">
+                    <div class="reference-card-color" style="background: ${album.thumbnail_color || '#333'}"></div>
+                    <div class="reference-card-name">${album.name}</div>
+                    <div class="reference-card-desc">${album.artist}</div>
+                </div>
+            `).join('');
+        }
+
+        function selectReferenceAlbum(id) {
+            selectedReferenceAlbum = id;
+            document.querySelectorAll('#referenceAlbumsGrid .reference-card').forEach((card, i) => {
+                card.classList.toggle('selected', card.querySelector('.reference-card-name').textContent.includes(
+                    albums?.albums?.[i]?.name || ''
+                ) && id === albums?.albums?.[i]?.id);
+            });
+            event.currentTarget.classList.add('selected');
+        }
+
+        // Render Art Styles
+        function renderArtStyles(styles) {
+            const grid = document.getElementById('artStylesGrid');
+            grid.innerHTML = styles.map(style => `
+                <div class="reference-card" onclick="selectArtStyle('${style.id}')">
+                    <div class="reference-card-name">${style.name}</div>
+                    <div class="reference-card-desc">${style.description}</div>
+                </div>
+            `).join('');
+        }
+
+        function selectArtStyle(id) {
+            selectedArtStyle = id;
+            document.querySelectorAll('#artStylesGrid .reference-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+        }
+
+        // Render Color Profiles
+        function renderColorProfiles(profiles) {
+            const grid = document.getElementById('colorProfilesGrid');
+            grid.innerHTML = profiles.map(profile => `
+                <div class="reference-card" onclick="selectColorProfile('${profile.id}')">
+                    <div class="reference-card-name">${profile.name}</div>
+                    <div class="color-preview">
+                        ${profile.colors.map(c => `<div class="color-swatch" style="background:${c}"></div>`).join('')}
+                    </div>
+                    <div class="reference-card-desc">${profile.description}</div>
+                </div>
+            `).join('');
+        }
+
+        function selectColorProfile(id) {
+            selectedColorProfile = id;
+            document.querySelectorAll('#colorProfilesGrid .reference-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+        }
+
+        // Song Entries
+        function addSongEntry() {
+            const container = document.getElementById('songsContainer');
+            const index = container.children.length + 1;
+            if (index > 4) {
+                alert('Maximum 4 songs allowed');
+                return;
+            }
+            
+            const entry = document.createElement('div');
+            entry.className = 'song-entry';
+            entry.innerHTML = `
+                <div class="song-entry-header">
+                    <span class="song-number">Song ${index}</span>
+                    ${index > 1 ? '<button class="btn btn-danger" style="padding: 4px 8px; font-size: 0.7rem;" onclick="this.parentElement.parentElement.remove(); renumberSongs()">Remove</button>' : ''}
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Song Title</label>
+                        <input type="text" class="song-title" placeholder="Enter song title">
+                    </div>
+                    <div class="form-group">
+                        <label>Description / Lyric Summary (max 100 chars)</label>
+                        <textarea class="song-desc" maxlength="100" placeholder="Brief description or lyric theme"></textarea>
+                    </div>
+                </div>
+            `;
+            container.appendChild(entry);
+            updateSongGenContainer();
+        }
+
+        function renumberSongs() {
+            document.querySelectorAll('.song-entry').forEach((entry, i) => {
+                entry.querySelector('.song-number').textContent = `Song ${i + 1}`;
+            });
+            updateSongGenContainer();
+        }
+
+        function getSongsData() {
+            const songs = [];
+            document.querySelectorAll('.song-entry').forEach(entry => {
+                const title = entry.querySelector('.song-title').value.trim();
+                const desc = entry.querySelector('.song-desc').value.trim();
+                if (title) {
+                    songs.push({ title, description: desc });
+                }
+            });
+            return songs;
+        }
+
+        // Create Session
+        async function createSession() {
+            const sessionData = {
+                band_name: document.getElementById('bandName').value.trim(),
+                album_title: document.getElementById('albumTitle').value.trim(),
+                songs: getSongsData(),
+                reference_album_id: selectedReferenceAlbum,
+                art_style_id: selectedArtStyle,
+                color_profile_id: selectedColorProfile,
+                custom_colors: document.getElementById('customColors').value.split(',').map(c => c.trim()).filter(c => c),
+                width: parseInt(document.getElementById('imageWidth').value),
+                height: parseInt(document.getElementById('imageHeight').value),
+                steps: parseInt(document.getElementById('steps').value),
+                guidance_scale: parseFloat(document.getElementById('guidance').value),
+            };
+
+            try {
+                const resp = await fetch('/api/album-art/session/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(sessionData)
+                });
+                const data = await resp.json();
+                currentSessionId = data.session_id;
+                return data.session_id;
+            } catch (e) {
+                console.error('Failed to create session:', e);
+                showStatus('albumGenStatus', 'Failed to create session', 'error');
+                return null;
+            }
+        }
+
+        // Generate Album Art
+        async function generateAlbumArt() {
+            const btn = document.getElementById('genAlbumBtn');
+            btn.disabled = true;
+            btn.textContent = 'Generating...';
+
+            if (!currentSessionId) {
+                await createSession();
+            }
+
+            try {
+                const resp = await fetch('/api/album-art/generate/album', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: currentSessionId })
+                });
+                const data = await resp.json();
+
+                if (data.image) {
+                    showAlbumPreview(data.image);
+                    albumArtGenerated = true;
+                    document.getElementById('regenAlbumBtn').disabled = false;
+                    document.getElementById('chooseAlbumBtn').disabled = false;
+                    showStatus('albumGenStatus', 'Album art generated! Click "Next Variation" for more options or "Choose This" to select.', 'success');
+                }
+            } catch (e) {
+                showStatus('albumGenStatus', 'Generation failed: ' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🎨 Generate Album Art';
+            }
+        }
+
+        function showAlbumPreview(imageData) {
+            const preview = document.getElementById('finalAlbumPreview');
+            const src = imageData.startsWith('data:') ? imageData : `data:image/png;base64,${imageData}`;
+            preview.innerHTML = `<img src="${src}" alt="Album Art">`;
+            preview.dataset.imageData = imageData;
+        }
+
+        async function regenerateAlbumArt() {
+            await generateAlbumArt();
+        }
+
+        async function chooseAlbumArt() {
+            if (!currentSessionId) return;
+
+            try {
+                const resp = await fetch('/api/album-art/choose', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: currentSessionId,
+                        art_type: 'album'
+                    })
+                });
+
+                chosenAlbumOption = true;
+                updateSongGenContainer();
+                showStatus('albumGenStatus', 'Album art chosen! Now generate song artwork below.', 'success');
+                
+                // Switch to gallery tab after a moment
+                setTimeout(() => {
+                    document.querySelector('.tab[data-tab="gallery"]').click();
+                }, 1500);
+            } catch (e) {
+                console.error('Failed to choose album art:', e);
+            }
+        }
+
+        // Song Art Generation
+        function updateSongGenContainer() {
+            const container = document.getElementById('songGenContainer');
+            const songs = getSongsData();
+            
+            if (songs.length === 0) {
+                container.innerHTML = '<p style="color: rgba(255,255,255,0.5);">No songs added yet.</p>';
+                return;
+            }
+
+            container.innerHTML = songs.map((song, i) => `
+                <div class="song-entry" style="margin-bottom: 16px;">
+                    <div class="song-entry-header">
+                        <span class="song-number">${song.title || `Song ${i + 1}`}</span>
+                        <button class="btn btn-secondary" onclick="generateSongArt(${i})" ${!chosenAlbumOption ? 'disabled' : ''}>
+                            ${chosenAlbumOption ? '🎨 Generate' : '⏳ Choose Album Art First'}
+                        </button>
+                    </div>
+                    <div id="songArtPreview_${i}" class="song-art-preview" style="margin-top: 12px; height: 150px;">
+                        <div class="album-preview-placeholder">No art generated</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function generateSongArt(index) {
+            if (!currentSessionId) return;
+
+            const btn = event.currentTarget;
+            btn.disabled = true;
+            btn.textContent = 'Generating...';
+
+            try {
+                const resp = await fetch('/api/album-art/generate/song', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: currentSessionId,
+                        song_index: index
+                    })
+                });
+                const data = await resp.json();
+
+                if (data.image) {
+                    const preview = document.getElementById(`songArtPreview_${index}`);
+                    const src = data.image.startsWith('data:') ? data.image : `data:image/png;base64,${data.image}`;
+                    preview.innerHTML = `<img src="${src}" alt="Song Art">`;
+                    
+                    // Update gallery
+                    updateGallery();
+                }
+            } catch (e) {
+                console.error('Failed to generate song art:', e);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔄 Regenerate';
+            }
+        }
+
+        // Update Gallery
+        function updateGallery() {
+            const grid = document.getElementById('finalSongArtGrid');
+            const previews = document.querySelectorAll('[id^="songArtPreview_"]');
+            
+            grid.innerHTML = Array.from(previews).map((preview, i) => {
+                const img = preview.querySelector('img');
+                if (img) {
+                    return `<div class="song-art-preview">${img.outerHTML}</div>`;
+                }
+                return `<div class="song-art-preview"><div class="album-preview-placeholder">No art</div></div>`;
+            }).join('');
+        }
+
+        // Upscale & Download
+        async function upscaleAll() {
+            if (!currentSessionId) {
+                alert('No session to upscale');
+                return;
+            }
+
+            const btn = document.getElementById('upscaleBtn');
+            btn.disabled = true;
+            btn.textContent = 'Upscaling...';
+
+            try {
+                // Download with upscale
+                window.location.href = `/api/album-art/download/${currentSessionId}?upscale=true`;
+            } catch (e) {
+                console.error('Failed to upscale:', e);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '⬆️ Upscale 4x & Download';
+            }
+        }
+
+        function downloadZip() {
+            if (!currentSessionId) {
+                alert('No session to download');
+                return;
+            }
+            window.location.href = `/api/album-art/download/${currentSessionId}`;
+        }
+
+        function clearSession() {
+            if (currentSessionId) {
+                fetch(`/api/album-art/session/${currentSessionId}`, { method: 'DELETE' });
+            }
+            currentSessionId = null;
+            albumArtGenerated = false;
+            chosenAlbumOption = null;
+            location.reload();
+        }
+
+        // Status Display
+        function showStatus(containerId, message, type) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = `<div class="status-message ${type}">${message}</div>`;
+        }
+
+        // Store albums globally for selection highlighting
+        let albums = null;
+    </script>
+</body>
+</html>

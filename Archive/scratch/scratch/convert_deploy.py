@@ -1,9 +1,14 @@
 """Extract TS modules from deploy, base64-encode them, generate new deploy."""
-import os, base64, re
 
-DEPLOY_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'deploy')
+import base64
+import os
+import re
 
-with open(DEPLOY_PATH, 'r', encoding='utf-8') as f:
+DEPLOY_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "deploy"
+)
+
+with open(DEPLOY_PATH, "r", encoding="utf-8") as f:
     content = f.read()
 
 # Extract the modules dict content - find each r'''...''' block
@@ -14,7 +19,7 @@ matches = re.findall(pattern, content, re.DOTALL)
 
 for name, ts_content in matches:
     # Strip leading newline
-    ts_content = ts_content.lstrip('\n')
+    ts_content = ts_content.lstrip("\n")
     modules[name] = ts_content
     print(f"Extracted {name}: {len(ts_content)} chars")
 
@@ -29,16 +34,16 @@ modules_b64 = {
 '''
 
 for name, ts_content in modules.items():
-    b64 = base64.b64encode(ts_content.encode('utf-8')).decode('ascii')
+    b64 = base64.b64encode(ts_content.encode("utf-8")).decode("ascii")
     # Split into 120-char lines for readability
     lines = [f'    "{name}": (']
     for i in range(0, len(b64), 120):
-        chunk = b64[i:i+120]
+        chunk = b64[i : i + 120]
         lines.append(f'        "{chunk}"')
-    lines[-1] = lines[-1] + '),'
-    new_deploy += '\n'.join(lines) + '\n'
+    lines[-1] = lines[-1] + "),"
+    new_deploy += "\n".join(lines) + "\n"
 
-new_deploy += '''}
+new_deploy += """}
 
 os.makedirs(BASE, exist_ok=True)
 
@@ -54,11 +59,11 @@ for fn, b64_content in modules_b64.items():
         print(f'  FAIL {fn}: {e}')
 
 print(f'\\nAll {len(modules_b64)} modules deployed.')
-'''
+"""
 
 # Write new deploy
 new_path = DEPLOY_PATH
-with open(new_path, 'w', encoding='utf-8') as f:
+with open(new_path, "w", encoding="utf-8") as f:
     f.write(new_deploy)
 
 print(f"\nWrote new deploy: {new_path}")

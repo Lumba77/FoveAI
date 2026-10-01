@@ -204,14 +204,14 @@ def serialize(ast, depth):
     """Serialize AST to token string at given depth."""
     tokens = []
     for node in ast:
-        if node.annotation == 'keep':
+        if node.annotation == "keep":
             tokens.append(serialize_node(node))
-        elif node.annotation == 'detail' and depth <= 2:
+        elif node.annotation == "detail" and depth <= 2:
             tokens.append(serialize_node(node))
-        elif node.annotation == 'flesh' and depth <= 1:
+        elif node.annotation == "flesh" and depth <= 1:
             tokens.append(serialize_node(node))
         # @test is always excluded unless depth == 0
-    return ''.join(tokens)
+    return "".join(tokens)
 ```
 
 ### 3.5 Token Budget Enforcement

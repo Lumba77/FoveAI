@@ -8,12 +8,11 @@ Chain position: TokenSlayer Proxy (8106) → Ollama Cloud Proxy (8107) → Ollam
 import json
 import logging
 import os
-import sys
 from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("OllamaCloudProxy")
@@ -27,18 +26,19 @@ _env_path = FORGE_DIR.parent.parent / ".env"
 if _env_path.is_file():
     try:
         import dotenv
+
         dotenv.load_dotenv(str(_env_path), override=True)
     except ImportError:
         pass
 
 OLLAMA_CLOUD_BASE = (
-    os.environ.get("FoveAI_CLOUD_BASE_URL", "")
-    or "https://ollama.com"
-).strip().rstrip("/")
+    (os.environ.get("FoveAI_CLOUD_BASE_URL", "") or "https://ollama.com")
+    .strip()
+    .rstrip("/")
+)
 
 API_KEY = (
-    os.environ.get("FoveAI_PROXY_API_KEY", "")
-    or os.environ.get("OLLAMA_API_KEY", "")
+    os.environ.get("FoveAI_PROXY_API_KEY", "") or os.environ.get("OLLAMA_API_KEY", "")
 ).strip()
 
 PROXY_PORT = int(os.environ.get("OLLAMA_CLOUD_PROXY_PORT", "8107"))
@@ -46,6 +46,7 @@ PROXY_PORT = int(os.environ.get("OLLAMA_CLOUD_PROXY_PORT", "8107"))
 # ── App ─────────────────────────────────────────────────────────────
 
 app = FastAPI(title="Ollama Cloud Proxy", version="1.0.0")
+
 
 @app.get("/health")
 async def health():
@@ -57,7 +58,10 @@ async def health():
         "api_key_configured": bool(API_KEY),
     }
 
-@app.api_route("/v1/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
+
+@app.api_route(
+    "/v1/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+)
 async def proxy_v1(path: str, request: Request):
     """Forward any /v1/* request to Ollama Cloud with API key injected."""
     method = request.method
@@ -106,7 +110,7 @@ async def _proxy_non_streaming(url: str, headers: dict, body: dict | None, metho
         except httpx.RequestError as e:
             logger.error(f"Upstream request failed: {e}")
             return JSONResponse(
-                content={"error": f"Upstream request failed: {str(e)}"},
+                content={"error": f"Upstream request failed: {e!s}"},
                 status_code=502,
             )
 
@@ -121,25 +125,36 @@ async def _proxy_non_streaming(url: str, headers: dict, body: dict | None, metho
         content=resp.iter_bytes(),
         status_code=resp.status_code,
         media_type=content_type or "text/plain",
-        headers={k: v for k, v in resp.headers.items()
-                 if k.lower() not in ("content-encoding", "transfer-encoding", "content-length")},
+        headers={
+            k: v
+            for k, v in resp.headers.items()
+            if k.lower()
+            not in ("content-encoding", "transfer-encoding", "content-length")
+        },
     )
 
 
 async def _proxy_streaming(url: str, headers: dict, body: dict, method: str):
     """Forward a streaming (SSE) request."""
+
     async def generate():
         async with httpx.AsyncClient(timeout=300.0) as client:
             try:
-                async with client.stream(method, url, json=body, headers=headers) as resp:
+                async with client.stream(
+                    method, url, json=body, headers=headers
+                ) as resp:
                     if resp.status_code != 200:
                         error_body = await resp.aread()
                         error_detail = error_body.decode("utf-8", errors="replace")
-                        logger.error(f"Upstream streaming returned {resp.status_code}: {error_detail[:300]}")
-                        error_sse = json.dumps({
-                            "error": f"Upstream returned {resp.status_code}",
-                            "detail": error_detail,
-                        })
+                        logger.error(
+                            f"Upstream streaming returned {resp.status_code}: {error_detail[:300]}"
+                        )
+                        error_sse = json.dumps(
+                            {
+                                "error": f"Upstream returned {resp.status_code}",
+                                "detail": error_detail,
+                            }
+                        )
                         yield f"data: {error_sse}\n\n".encode()
                         return
 
@@ -147,7 +162,7 @@ async def _proxy_streaming(url: str, headers: dict, body: dict, method: str):
                         yield chunk
             except httpx.RequestError as e:
                 logger.error(f"Streaming upstream request failed: {e}")
-                error_sse = json.dumps({"error": f"Streaming request failed: {str(e)}"})
+                error_sse = json.dumps({"error": f"Streaming request failed: {e!s}"})
                 yield f"data: {error_sse}\n\n".encode()
 
     return StreamingResponse(
@@ -163,6 +178,7 @@ async def _proxy_streaming(url: str, headers: dict, body: dict, method: str):
 
 if __name__ == "__main__":
     import uvicorn
+
     logger.info(f"Ollama Cloud Proxy starting on port {PROXY_PORT}")
     logger.info(f"Target: {OLLAMA_CLOUD_BASE}")
     logger.info(f"API key configured: {bool(API_KEY)}")

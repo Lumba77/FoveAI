@@ -1,0 +1,34 @@
+\$env:ChocolateyInstall\helpers\chocolateyProfile.psm1\ : The term '\$env:ChocolateyInstall\helpers\chocolateyProfile.p
+sm1\' is not recognized as the name of a cmdlet, function, script file, or operable program. Check the spelling of the 
+name, or if a path was included, verify that the path is correct and try again.
+At C:\Users\lumba\OneDrive\Dokument\WindowsPowerShell\Microsoft.PowerShell_profile.ps1:16 char:22
++ ... eyProfile = \"$env:ChocolateyInstall\helpers\chocolateyProfile.psm1\" ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (\$env:Chocolate...eyProfile.psm1\:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+ 
+Test-Path : Cannot bind argument to parameter 'Path' because it is null.
+At C:\Users\lumba\OneDrive\Dokument\WindowsPowerShell\Microsoft.PowerShell_profile.ps1:17 char:14
++ if (Test-Path($ChocolateyProfile)) {
++              ~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidData: (:) [Test-Path], ParameterBindingValidationException
+    + FullyQualifiedErrorId : ParameterArgumentValidationErrorNullNotAllowed,Microsoft.PowerShell.Commands.TestPathCom 
+   mand
+ 
+
+--- AVUC PROBE: STARTING INTEGRITY CHECK ---
+[PASS] Sync Verified: backend/Lumax_Display.tscn
+[PASS] Sync Verified: backend/WebUI.gd
+[PASS] Sync Verified: backend/TactileInput_v2.gd
+[PASS] Sync Verified: Nexus/SkeletonKey.gd
+[PASS] Sync Verified: scripts/avatar_controller.gd
+[PASS] Viewport Size: 500px (Slim)
+
+--- AVUC PROBE: LOG AUDIT ---
+  LOG: 03-26 02:53:05.847  3503 19757 I MediaProvider: Observed non-standard /storage/emulated/0/Projects/Lumax-Vulkan/Godot/.nomedia
+  LOG: 03-26 02:53:05.900  3503 19757 I MediaProvider: Observed non-standard /storage/emulated/0/Projects/Lumax-Vulkan/Godot/.nomedia
+  LOG: 03-26 02:53:05.954  3503  4512 I MediaProvider: Observed non-standard /storage/emulated/0/Projects/Lumax-Vulkan/Godot/.nomedia
+  LOG: 03-26 02:53:06.016  3503  4512 I MediaProvider: Observed non-standard /storage/emulated/0/Projects/Lumax-Vulkan/Godot/.nomedia
+  LOG: 03-26 02:53:06.070  3503  3852 I MediaProvider: Observed non-standard /storage/emulated/0/Projects/Lumax-Vulkan/Godot/.nomedia
+
+--- AVUC PROBE: COMPLETE ---

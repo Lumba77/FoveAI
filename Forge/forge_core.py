@@ -1,4 +1,4 @@
-﻿"""
+"""
 The Forge Core — Main orchestrator for the AI-native IDE.
 
 Manages the lifecycle of ClineBridge sessions, connects them to
@@ -21,12 +21,12 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional, Any, List
+from typing import Any
 
-from cline_bridge import ClineBridge
-from stream_router import StreamRouter
-from mesh_bus import mesh_bus
 from checkpoint_engine import checkpoint_engine
+from cline_bridge import ClineBridge
+from mesh_bus import mesh_bus
+from stream_router import StreamRouter
 
 logger = logging.getLogger("forge.core")
 
@@ -48,7 +48,7 @@ class ForgeCore:
         self.workspace = Path(workspace or os.getcwd()).resolve()
         self.router = router
         self.cline_command = cline_command
-        self._sessions: Dict[str, ClineBridge] = {}
+        self._sessions: dict[str, ClineBridge] = {}
         self._started_at: float = time.time()
         self._lock = asyncio.Lock()
 
@@ -59,8 +59,8 @@ class ForgeCore:
     async def spawn_session(
         self,
         model: str = "deepseek-v4-pro",
-        prompt: Optional[str] = None,
-        workspace: Optional[str] = None,
+        prompt: str | None = None,
+        workspace: str | None = None,
     ) -> str:
         """
         Spawn a new Cline CLI 3 session.
@@ -94,14 +94,16 @@ class ForgeCore:
             self._sessions[session_id] = bridge
 
         logger.info(f"Session spawned: {session_id} (total: {len(self._sessions)})")
-        
+
         # NEW: Integrate with checkpoint engine and memory vault
         await checkpoint_engine.monitor_session(session_id)
         mesh_bus.publish_simple("session_started", {"model": model}, session_id)
-        
+
         return session_id
 
-    async def stop_session(self, session_id: str, reason: str = "user_requested") -> None:
+    async def stop_session(
+        self, session_id: str, reason: str = "user_requested"
+    ) -> None:
         """
         Stop a running session.
 
@@ -128,7 +130,7 @@ class ForgeCore:
             del self._sessions[session_id]
 
         logger.info(f"Session stopped: {session_id} (remaining: {len(self._sessions)})")
-        
+
         # NEW: Notify checkpoint engine and memory vault
         await checkpoint_engine.end_session(session_id)
         mesh_bus.publish_simple("session_ended", {"reason": reason}, session_id)
@@ -166,7 +168,7 @@ class ForgeCore:
 
     # ── Query Methods ─────────────────────────────────────────────────────
 
-    def list_sessions(self) -> List[Dict[str, Any]]:
+    def list_sessions(self) -> list[dict[str, Any]]:
         """Return summary list of all active sessions."""
         return [
             {
@@ -180,14 +182,16 @@ class ForgeCore:
             for sid, bridge in self._sessions.items()
         ]
 
-    def get_session_events(self, session_id: str, count: int = 50) -> List[Dict[str, Any]]:
+    def get_session_events(
+        self, session_id: str, count: int = 50
+    ) -> list[dict[str, Any]]:
         """Get recent events from a specific session."""
         bridge = self._sessions.get(session_id)
         if bridge is None:
             raise KeyError(f"Session not found: {session_id}")
         return bridge.get_recent_events(count)
 
-    def get_session_status(self, session_id: str) -> Dict[str, Any]:
+    def get_session_status(self, session_id: str) -> dict[str, Any]:
         """Get detailed status of a session."""
         bridge = self._sessions.get(session_id)
         if bridge is None:
@@ -216,10 +220,10 @@ class ForgeCore:
 
 # ── Singleton accessor ────────────────────────────────────────────────────
 
-_forge_instance: Optional[ForgeCore] = None
+_forge_instance: ForgeCore | None = None
 
 
-def get_forge() -> Optional[ForgeCore]:
+def get_forge() -> ForgeCore | None:
     """Get the global ForgeCore instance (set by forge_api startup)."""
     return _forge_instance
 

@@ -14,23 +14,20 @@ a placeholder if the external tool is unavailable.
 """
 
 import json
-import os
 import subprocess
-import sys
 import tempfile
 import wave
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional
-
 
 # ── Base hook ─────────────────────────────────────────────────────────────────
+
 
 class BaseHook(ABC):
     def __init__(self, config: dict = None):
         self.config = config or {}
         self.enabled = self.config.get("enabled", True)
-        self._available: Optional[bool] = None
+        self._available: bool | None = None
         self.on_hook_fire = None
 
     @property
@@ -45,7 +42,15 @@ class BaseHook(ABC):
     def _log(self, msg: str):
         print(f"  [{self.__class__.__name__}] {msg}")
 
-    def _emit_hook_event(self, hook_name: str, payload: dict, *, output=None, status: str = "ok", message: Optional[str] = None):
+    def _emit_hook_event(
+        self,
+        hook_name: str,
+        payload: dict,
+        *,
+        output=None,
+        status: str = "ok",
+        message: str | None = None,
+    ):
         event = {
             "hook": hook_name,
             "status": status,
@@ -78,6 +83,7 @@ class BaseHook(ABC):
 
 # ── TTS Hook ──────────────────────────────────────────────────────────────────
 
+
 class TTSHook(BaseHook):
     """
     Text-to-Speech hook with a portable provider model.
@@ -107,7 +113,7 @@ class TTSHook(BaseHook):
         self.voice = self.config.get("voice", "af_heart")
         self.sample_rate = self.config.get("sample_rate", 22050)
         self.endpoint = self.config.get("endpoint", "http://127.0.0.1:8406/tts")
-        self._resolved_engine: Optional[str] = None
+        self._resolved_engine: str | None = None
 
     def _check_availability(self) -> bool:
         self._resolved_engine = self._detect_engine()
@@ -115,6 +121,7 @@ class TTSHook(BaseHook):
         if self._resolved_engine == "kokoro":
             try:
                 import kokoro
+
                 if hasattr(kokoro, "KPipeline"):
                     self._kokoro_pipeline = kokoro.KPipeline(lang_code="a")
                     self._log("Kokoro pipeline preloaded")
@@ -123,11 +130,16 @@ class TTSHook(BaseHook):
         return self._resolved_engine != "stub"
 
     def _provider_order(self):
-        configured = self.config.get("fallback") or [self.provider or self.engine or "http"]
+        configured = self.config.get("fallback") or [
+            self.provider or self.engine or "http"
+        ]
         order = []
         for item in configured:
             name = str(item).lower()
-            if name in {"http", "kokoro", "piper", "espeak", "stub"} and name not in order:
+            if (
+                name in {"http", "kokoro", "piper", "espeak", "stub"}
+                and name not in order
+            ):
                 order.append(name)
 
         explicit = (self.provider or self.engine or "auto").lower()
@@ -151,14 +163,19 @@ class TTSHook(BaseHook):
                 continue
             if provider == "kokoro":
                 try:
-                    import kokoro  # noqa
+                    import kokoro
+
                     if hasattr(kokoro, "KPipeline") or hasattr(kokoro, "generate"):
                         return "kokoro"
                 except Exception:
                     pass
                 continue
             if provider == "piper":
-                for candidate in ["piper", "piper-tts", r"C:\Program Files\piper\piper.exe"]:
+                for candidate in [
+                    "piper",
+                    "piper-tts",
+                    r"C:\Program Files\piper\piper.exe",
+                ]:
                     if _command_exists(candidate):
                         return "piper"
                 continue
@@ -170,7 +187,7 @@ class TTSHook(BaseHook):
                 return "stub"
         return "stub"
 
-    def speak(self, text: str, output_path: Optional[str] = None) -> Optional[str]:
+    def speak(self, text: str, output_path: str | None = None) -> str | None:
         """
         Synthesize speech from text.
         Returns path to a WAV file, or None if stub mode.
@@ -189,40 +206,74 @@ class TTSHook(BaseHook):
         for engine in self._provider_order():
             try:
                 if engine == "http" and not _http_tts_available(self.endpoint):
-                    last_error = RuntimeError(f"HTTP TTS unavailable at {self.endpoint}")
+                    last_error = RuntimeError(
+                        f"HTTP TTS unavailable at {self.endpoint}"
+                    )
                     continue
                 if engine == "kokoro":
                     try:
-                        import kokoro  # noqa
+                        import kokoro
                     except Exception as exc:
                         last_error = exc
                         continue
-                    if not (hasattr(kokoro, "KPipeline") or hasattr(kokoro, "generate")):
+                    if not (
+                        hasattr(kokoro, "KPipeline") or hasattr(kokoro, "generate")
+                    ):
                         last_error = RuntimeError("Compatible Kokoro API not available")
                         continue
-                if engine == "piper" and not any(_command_exists(c) for c in ["piper", "piper-tts", r"C:\Program Files\piper\piper.exe"]):
+                if engine == "piper" and not any(
+                    _command_exists(c)
+                    for c in ["piper", "piper-tts", r"C:\Program Files\piper\piper.exe"]
+                ):
                     last_error = RuntimeError("Piper executable not found")
                     continue
-                if engine == "espeak" and not (_command_exists("espeak-ng") or _command_exists("espeak")):
+                if engine == "espeak" and not (
+                    _command_exists("espeak-ng") or _command_exists("espeak")
+                ):
                     last_error = RuntimeError("espeak-ng not found")
                     continue
 
                 out = output_path or tempfile.mktemp(suffix=".wav")
                 if engine == "http":
                     result = self._speak_http(text, out)
-                    self._emit_hook_event("tts", {"text": text, "engine": engine, "provider": "http", "endpoint": self.endpoint}, output=result, status="ok")
+                    self._emit_hook_event(
+                        "tts",
+                        {
+                            "text": text,
+                            "engine": engine,
+                            "provider": "http",
+                            "endpoint": self.endpoint,
+                        },
+                        output=result,
+                        status="ok",
+                    )
                     return result
                 elif engine == "kokoro":
                     result = self._speak_kokoro(text, out)
-                    self._emit_hook_event("tts", {"text": text, "engine": engine, "provider": "kokoro"}, output=result, status="ok")
+                    self._emit_hook_event(
+                        "tts",
+                        {"text": text, "engine": engine, "provider": "kokoro"},
+                        output=result,
+                        status="ok",
+                    )
                     return result
                 elif engine == "piper":
                     result = self._speak_piper(text, out)
-                    self._emit_hook_event("tts", {"text": text, "engine": engine, "provider": "piper"}, output=result, status="ok")
+                    self._emit_hook_event(
+                        "tts",
+                        {"text": text, "engine": engine, "provider": "piper"},
+                        output=result,
+                        status="ok",
+                    )
                     return result
                 elif engine == "espeak":
                     result = self._speak_espeak(text, out)
-                    self._emit_hook_event("tts", {"text": text, "engine": engine, "provider": "espeak"}, output=result, status="ok")
+                    self._emit_hook_event(
+                        "tts",
+                        {"text": text, "engine": engine, "provider": "espeak"},
+                        output=result,
+                        status="ok",
+                    )
                     return result
                 else:
                     self._log(f"TTS stub — would speak: {text[:80]}...")
@@ -241,7 +292,11 @@ class TTSHook(BaseHook):
 
         self._emit_hook_event(
             "tts",
-            {"text": text, "engine": self._detect_engine(), "provider": self.provider or self.engine or "auto"},
+            {
+                "text": text,
+                "engine": self._detect_engine(),
+                "provider": self.provider or self.engine or "auto",
+            },
             output=None,
             status="error",
             message=str(last_error) if last_error else "No TTS provider available",
@@ -249,7 +304,6 @@ class TTSHook(BaseHook):
         return None
 
     def _speak_http(self, text: str, out: str) -> str:
-        import json
         import urllib.request
 
         payload = {
@@ -279,7 +333,9 @@ class TTSHook(BaseHook):
             # Force CPU device — TTS is better on CPU (frees VRAM for the main model).
             if not hasattr(self, "_kokoro_pipeline") or self._kokoro_pipeline is None:
                 try:
-                    self._kokoro_pipeline = kokoro.KPipeline(lang_code="a", device="cpu")
+                    self._kokoro_pipeline = kokoro.KPipeline(
+                        lang_code="a", device="cpu"
+                    )
                 except TypeError:
                     # Older kokoro versions don't accept device param — CPU is default
                     self._kokoro_pipeline = kokoro.KPipeline(lang_code="a")
@@ -326,6 +382,7 @@ class TTSHook(BaseHook):
 
 # ── Image Gen Hook ────────────────────────────────────────────────────────────
 
+
 class ImageGenHook(BaseHook):
     """
     Optional image generation hook. Points to a local Stable Diffusion
@@ -339,12 +396,13 @@ class ImageGenHook(BaseHook):
     def _check_availability(self) -> bool:
         try:
             import urllib.request
+
             urllib.request.urlopen(f"{self.endpoint}/sdapi/v1/sd-models", timeout=2)
             return True
         except Exception:
             return False
 
-    def generate(self, prompt: str, output_path: Optional[str] = None) -> Optional[str]:
+    def generate(self, prompt: str, output_path: str | None = None) -> str | None:
         if not self.enabled or not self.available:
             self._log(f"Image gen stub — would generate: {prompt[:60]}...")
             self._emit_hook_event(
@@ -357,13 +415,17 @@ class ImageGenHook(BaseHook):
             return None
 
         try:
-            import json, urllib.request
-            payload = json.dumps({
-                "prompt": prompt,
-                "steps": 20,
-                "width": 512,
-                "height": 512,
-            }).encode()
+            import json
+            import urllib.request
+
+            payload = json.dumps(
+                {
+                    "prompt": prompt,
+                    "steps": 20,
+                    "width": 512,
+                    "height": 512,
+                }
+            ).encode()
             req = urllib.request.Request(
                 f"{self.endpoint}/sdapi/v1/txt2img",
                 data=payload,
@@ -372,6 +434,7 @@ class ImageGenHook(BaseHook):
             with urllib.request.urlopen(req, timeout=60) as resp:
                 result = json.loads(resp.read())
             import base64
+
             img_data = base64.b64decode(result["images"][0])
             out = output_path or tempfile.mktemp(suffix=".png")
             Path(out).write_bytes(img_data)
@@ -397,6 +460,7 @@ class ImageGenHook(BaseHook):
 
 # ── STT Hook (Whisper) ───────────────────────────────────────────────────────
 
+
 class STTHook(BaseHook):
     """
     Speech-to-Text hook using an external Whisper server.
@@ -421,6 +485,7 @@ class STTHook(BaseHook):
     def _check_availability(self) -> bool:
         try:
             import urllib.request
+
             health_url = self.endpoint.replace("/stt", "/health")
             req = urllib.request.Request(health_url, method="GET")
             with urllib.request.urlopen(req, timeout=2) as resp:
@@ -428,7 +493,9 @@ class STTHook(BaseHook):
         except Exception:
             return False
 
-    def transcribe(self, audio_bytes: bytes, format: str = "audio/wav") -> Optional[str]:
+    def transcribe(
+        self, audio_bytes: bytes, format: str = "audio/wav"
+    ) -> str | None:
         """
         Transcribe audio bytes to text.
         audio_bytes: raw WAV/MP3/WebM audio data
@@ -454,12 +521,14 @@ class STTHook(BaseHook):
             import urllib.request
 
             audio_b64 = base64.b64encode(audio_bytes).decode()
-            payload = json.dumps({
-                "audio_base64": audio_b64,
-                "format": format,
-                "model": self.model,
-                "language": self.language,
-            }).encode()
+            payload = json.dumps(
+                {
+                    "audio_base64": audio_b64,
+                    "format": format,
+                    "model": self.model,
+                    "language": self.language,
+                }
+            ).encode()
 
             req = urllib.request.Request(
                 self.endpoint,
@@ -494,6 +563,7 @@ class STTHook(BaseHook):
 
 # ── Vision Hook ──────────────────────────────────────────────────────────────
 
+
 class VisionHook(BaseHook):
     """
     Image understanding hook using an external vision model or mmproj.
@@ -512,13 +582,16 @@ class VisionHook(BaseHook):
 
     def __init__(self, config: dict = None):
         super().__init__(config)
-        self.endpoint = self.config.get("endpoint", "http://127.0.0.1:8402/v1/chat/completions")
+        self.endpoint = self.config.get(
+            "endpoint", "http://127.0.0.1:8402/v1/chat/completions"
+        )
         self.model = self.config.get("model", "gemma-4-12b-it-qat-GGUF-MoQ-3.5")
         self.max_tokens = self.config.get("max_tokens", 300)
 
     def _check_availability(self) -> bool:
         try:
             import urllib.request
+
             # Check if the endpoint is alive (any HTTP response counts)
             req = urllib.request.Request(
                 self.endpoint.replace("/v1/chat/completions", "/v1/models"),
@@ -529,7 +602,11 @@ class VisionHook(BaseHook):
         except Exception:
             return False
 
-    def describe(self, image_bytes: bytes, prompt: str = "Describe what you see in this image concisely.") -> Optional[str]:
+    def describe(
+        self,
+        image_bytes: bytes,
+        prompt: str = "Describe what you see in this image concisely.",
+    ) -> str | None:
         """
         Generate a text description of an image.
         image_bytes: raw image data (PNG/JPEG/WebP)
@@ -564,18 +641,22 @@ class VisionHook(BaseHook):
             img_b64 = base64.b64encode(image_bytes).decode()
             data_url = f"data:{mime};base64,{img_b64}"
 
-            payload = json.dumps({
-                "model": self.model,
-                "messages": [{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": data_url}},
+            payload = json.dumps(
+                {
+                    "model": self.model,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt},
+                                {"type": "image_url", "image_url": {"url": data_url}},
+                            ],
+                        }
                     ],
-                }],
-                "max_tokens": self.max_tokens,
-                "stream": False,
-            }).encode()
+                    "max_tokens": self.max_tokens,
+                    "stream": False,
+                }
+            ).encode()
 
             req = urllib.request.Request(
                 self.endpoint,
@@ -610,13 +691,14 @@ class VisionHook(BaseHook):
 
 # ── Audio Gen Hook ────────────────────────────────────────────────────────────
 
+
 class AudioGenHook(BaseHook):
     """Optional music/sound generation stub."""
 
     def _check_availability(self) -> bool:
         return False  # Future sprint
 
-    def generate(self, prompt: str) -> Optional[str]:
+    def generate(self, prompt: str) -> str | None:
         self._log(f"Audio gen stub — would generate: {prompt[:60]}...")
         self._emit_hook_event(
             "audio_gen",
@@ -630,6 +712,7 @@ class AudioGenHook(BaseHook):
 
 # ── Hook Registry ─────────────────────────────────────────────────────────────
 
+
 class MMHookRegistry:
     """
     Loads multimodal hooks from the XRL_MM_HOOKS config and provides
@@ -642,10 +725,12 @@ class MMHookRegistry:
         self.image_gen = ImageGenHook(external.get("image_gen", {}))
         self.audio_gen = AudioGenHook(external.get("audio_gen", {}))
 
-        print(f"  MMHooks loaded:")
+        print("  MMHooks loaded:")
         print(f"    TTS engine     : {self.tts._detect_engine()}")
-        print(f"    Image gen      : {'available' if self.image_gen.available else 'stub'}")
-        print(f"    Audio gen      : stub (future sprint)")
+        print(
+            f"    Image gen      : {'available' if self.image_gen.available else 'stub'}"
+        )
+        print("    Audio gen      : stub (future sprint)")
 
     def set_hook_listener(self, callback):
         self.on_hook_fire = callback
@@ -654,14 +739,15 @@ class MMHookRegistry:
         self.audio_gen.on_hook_fire = callback
         return self
 
-    def speak(self, text: str) -> Optional[str]:
+    def speak(self, text: str) -> str | None:
         return self.tts.speak(text)
 
-    def generate_image(self, prompt: str) -> Optional[str]:
+    def generate_image(self, prompt: str) -> str | None:
         return self.image_gen.generate(prompt)
 
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
+
 
 def _command_exists(cmd: str) -> bool:
     try:
@@ -674,6 +760,7 @@ def _command_exists(cmd: str) -> bool:
 def _http_tts_available(endpoint: str) -> bool:
     try:
         import urllib.request
+
         req = urllib.request.Request(endpoint.replace("/tts", "/health"), method="GET")
         with urllib.request.urlopen(req, timeout=2) as response:
             return response.status == 200
@@ -683,16 +770,20 @@ def _http_tts_available(endpoint: str) -> bool:
 
 def _merge_audio_chunks(chunks):
     import numpy as np
+
     first = np.asarray(chunks[0], dtype=np.float32)
     if len(chunks) == 1:
         return first
-    merged = np.concatenate([np.asarray(c, dtype=np.float32).reshape(-1) for c in chunks])
+    merged = np.concatenate(
+        [np.asarray(c, dtype=np.float32).reshape(-1) for c in chunks]
+    )
     return merged.astype(np.float32)
 
 
 def _save_wav(audio_data, sample_rate: int, path: str):
     """Save float32 audio array to WAV file."""
     import array
+
     audio = list(audio_data)
     samples = array.array("h", (max(-32768, min(32767, int(s * 32767))) for s in audio))
     with wave.open(path, "wb") as wf:
@@ -700,4 +791,3 @@ def _save_wav(audio_data, sample_rate: int, path: str):
         wf.setsampwidth(2)
         wf.setframerate(sample_rate)
         wf.writeframes(samples.tobytes())
-

@@ -103,7 +103,7 @@ export class COMAX {
 ### FoveAI REPO ARCHITECTURE
 - frontend/XR_Vessel/ — Vite web UI (src/main.ts, src/components/, src/senses/)
 - frontend/XR_Vessel/xr_app.py — Python backend + API proxy
-- backend/Soul/ — AI personality service (port 8000) — STT → LLM → TTS voice pipeline
+- backend/Soul/ — AI personality service (port 8405) — STT → LLM → TTS voice pipeline
 - backend/Memory/ — Lumax MCP memory server (port 8002)
 - backend/Cognition/ — Cognitive agents (ag_coder.py=REMAX, compagent.py)
 - backend/Creativity/ — Creative generation
@@ -242,7 +242,7 @@ Rules: Always delegate writes. Auto-apply changes. Never wait for human confirma
         const runDb = async (label: string, cmd: string) => { dbOut.textContent = `${label}: Running...`; try { const r = await fetch('/api/dev/cline', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tool:'exec',command:cmd})}); const d = await r.json(); dbOut.textContent = `${label}: ${JSON.stringify(d,null,2).substring(0,2000)}`; if (dbOut.textContent.includes('error') || dbOut.textContent.includes('Error')) dbOut.textContent += '\n⚠️ Click AUTOFIX'; } catch { dbOut.textContent = `${label}: Failed`; } };
         wrapper.querySelector('#db-build')?.addEventListener('click', () => runDb('BUILD', 'npm run build --prefix frontend/XR_Vessel'));
         wrapper.querySelector('#db-tsc')?.addEventListener('click', () => runDb('TSC', 'npx tsc --noEmit --project frontend/XR_Vessel/tsconfig.json'));
-        wrapper.querySelector('#db-health')?.addEventListener('click', async () => { dbOut.textContent = 'HEALTH: Checking...'; const svcs = [{n:'Soul',u:'http://localhost:8000/health'},{n:'Memory',u:'http://localhost:8002/health'}]; const res: string[] = []; for (const s of svcs) { try { const r = await fetch(s.u, {signal: AbortSignal.timeout(3000)}); res.push(`${s.n}: ✅ ${r.status}`); } catch { res.push(`${s.n}: ❌ unreachable`); } } dbOut.textContent = res.join('\n'); });
+        wrapper.querySelector('#db-health')?.addEventListener('click', async () => { dbOut.textContent = 'HEALTH: Checking...'; const svcs = [{n:'Soul',u:'http://localhost:8405/health'},{n:'Memory',u:'http://localhost:8002/health'}]; const res: string[] = []; for (const s of svcs) { try { const r = await fetch(s.u, {signal: AbortSignal.timeout(3000)}); res.push(`${s.n}: ✅ ${r.status}`); } catch { res.push(`${s.n}: ❌ unreachable`); } } dbOut.textContent = res.join('\n'); });
         wrapper.querySelector('#db-fix')?.addEventListener('click', () => { const errTxt = dbOut.textContent; if (errTxt.includes('error') || errTxt.includes('Error')) { COMAX.mode = 'comax'; COMAX.render(container); setTimeout(() => { const inp = document.getElementById('cx-in') as HTMLTextAreaElement; if (inp) inp.value = `[AUTOFIX] Fix these errors:\n${errTxt.substring(0,800)}`; }, 100); } else { dbOut.textContent = 'All clear! ✅'; } });
 
         // Send

@@ -15,10 +15,11 @@ Usage:
 Locks are stored in %TEMP%/foveai_locks/<name>.pid
 Stale locks (PID no longer alive) are automatically reclaimed.
 """
+
 import os
-import sys
-import psutil
 from pathlib import Path
+
+import psutil
 
 LOCK_DIR = Path(os.environ.get("TEMP", "/tmp")) / "foveai_locks"
 
@@ -30,7 +31,10 @@ def _lock_path(name: str) -> Path:
 
 def _is_pid_alive(pid: int) -> bool:
     try:
-        return psutil.pid_exists(pid) and psutil.Process(pid).status() != psutil.STATUS_ZOMBIE
+        return (
+            psutil.pid_exists(pid)
+            and psutil.Process(pid).status() != psutil.STATUS_ZOMBIE
+        )
     except Exception:
         return False
 

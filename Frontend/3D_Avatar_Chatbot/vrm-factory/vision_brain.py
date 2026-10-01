@@ -1,7 +1,9 @@
-import cv2
-import mediapipe as mp
 import json
 import sys
+
+import cv2
+import mediapipe as mp
+
 
 def analyze_image(image_path):
     """
@@ -30,7 +32,7 @@ def analyze_image(image_path):
                     "x": lm.x,
                     "y": lm.y,
                     "z": lm.z,
-                    "visibility": lm.visibility
+                    "visibility": lm.visibility,
                 }
 
             # Calculate body bounds for rigging
@@ -50,9 +52,13 @@ def analyze_image(image_path):
 
             # Additional mouth landmarks for better viseme support
             data["mouth"]["left_corner"] = {"x": landmarks[61].x, "y": landmarks[61].y}
-            data["mouth"]["right_corner"] = {"x": landmarks[291].x, "y": landmarks[291].y}
+            data["mouth"]["right_corner"] = {
+                "x": landmarks[291].x,
+                "y": landmarks[291].y,
+            }
 
     return data
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:

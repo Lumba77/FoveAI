@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """Deduplicate FoveAI memory_index.json — remove duplicate conversation entries."""
+
 import json
 import os
 from datetime import datetime
 from pathlib import Path
 
-MEMORY_PATH = Path(os.getenv("FoveAI_REPO_ROOT", Path(__file__).resolve().parent.parent)) / ".logs" / "memory_index.json"
+MEMORY_PATH = (
+    Path(os.getenv("FoveAI_REPO_ROOT", Path(__file__).resolve().parent.parent))
+    / ".logs"
+    / "memory_index.json"
+)
 
 with open(MEMORY_PATH, "r", encoding="utf-8") as f:
     data = json.load(f)
@@ -37,7 +42,11 @@ with open(MEMORY_PATH, "w", encoding="utf-8") as f:
 print("Saved!")
 
 # Also dedup docs_index.json
-DOCS_PATH = Path(os.getenv("FoveAI_REPO_ROOT", Path(__file__).resolve().parent.parent)) / ".logs" / "docs_index.json"
+DOCS_PATH = (
+    Path(os.getenv("FoveAI_REPO_ROOT", Path(__file__).resolve().parent.parent))
+    / ".logs"
+    / "docs_index.json"
+)
 if DOCS_PATH.exists():
     with open(DOCS_PATH, "r", encoding="utf-8") as f:
         docs_data = json.load(f)
@@ -55,6 +64,8 @@ if DOCS_PATH.exists():
     docs_data["updated"] = datetime.now().isoformat()
     with open(DOCS_PATH, "w", encoding="utf-8") as f:
         json.dump(docs_data, f, indent=2, ensure_ascii=False)
-    print(f"Docs: {before_docs} -> {len(unique_docs)} (removed {before_docs - len(unique_docs)} duplicates)")
+    print(
+        f"Docs: {before_docs} -> {len(unique_docs)} (removed {before_docs - len(unique_docs)} duplicates)"
+    )
 else:
     print("No docs_index.json found")

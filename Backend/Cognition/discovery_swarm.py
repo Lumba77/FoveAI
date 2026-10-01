@@ -8,11 +8,20 @@ and proposes new entries. Results are persisted to .logs/discovery_reports/
 and surfaced as notifications in the Web UI banner.
 """
 
-import os, sys
+import os
+
 _venv = os.getenv("FoveAI_VENV_PATH", ".foveai")
-_venv_python = os.path.join(os.path.dirname(__file__), ".." if "/" in __file__ else "..", _venv, "Scripts", "python.exe")
+_venv_python = os.path.join(
+    os.path.dirname(__file__),
+    ".." if "/" in __file__ else "..",
+    _venv,
+    "Scripts",
+    "python.exe",
+)
 if not os.path.exists(_venv_python):
-    _venv_python = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", _venv, "Scripts", "python.exe")
+    _venv_python = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", _venv, "Scripts", "python.exe"
+    )
 
 import asyncio
 import hashlib
@@ -29,58 +38,138 @@ from typing import Any
 logger = logging.getLogger("DiscoverySwarm")
 
 # ── Configuration ──────────────────────────────────────────────────────────────
-REPO_ROOT = Path(os.getenv("FoveAI_REPO_ROOT", Path(__file__).resolve().parent.parent.parent))
-INVENTORY_PATH = Path(os.getenv("FoveAI_FEATURE_INVENTORY_PATH", REPO_ROOT / "FEATURE_INVENTORY.md"))
+REPO_ROOT = Path(
+    os.getenv("FoveAI_REPO_ROOT", Path(__file__).resolve().parent.parent.parent)
+)
+INVENTORY_PATH = Path(
+    os.getenv("FoveAI_FEATURE_INVENTORY_PATH", REPO_ROOT / "FEATURE_INVENTORY.md")
+)
 REPORTS_DIR = REPO_ROOT / ".logs" / "discovery_reports"
 SCAN_DIRS = ["Frontend", "backend", "Service", "Scripts", "Tools", "Forge"]
 
 SKIP_PATTERNS = {
-    r"\.venv", r"__pycache__", r"\.git", r"node_modules", r"\.cache",
-    r"\.logs", r"\.tmp", r"dist", r"build", r"\.egg-info",
-    r"Oculus_Logs", r"\.zip$", r"\.wav$", r"\.png$", r"\.jpg$",
-    r"\.vrm$", r"\.onnx$", r"\.gguf$", r"\.pt$", r"\.pth$", r"\.ckpt$",
-    r"\.safetensors$", r"\.vhdx$",
+    r"\.venv",
+    r"__pycache__",
+    r"\.git",
+    r"node_modules",
+    r"\.cache",
+    r"\.logs",
+    r"\.tmp",
+    r"dist",
+    r"build",
+    r"\.egg-info",
+    r"Oculus_Logs",
+    r"\.zip$",
+    r"\.wav$",
+    r"\.png$",
+    r"\.jpg$",
+    r"\.vrm$",
+    r"\.onnx$",
+    r"\.gguf$",
+    r"\.pt$",
+    r"\.pth$",
+    r"\.ckpt$",
+    r"\.safetensors$",
+    r"\.vhdx$",
 }
 
 # ── Meaningful Feature Filters ────────────────────────────────────────────────────
 # Only features matching these criteria are worth indexing
 
 SKIP_NAME_PATTERNS = [
-    "__", "test_", "mock_", "temp_", "@", "node_modules",
-    "BaseModel", "Request", "Response", "Config", "Query", "Item",
-    "get_", "set_", "is_", "handle_", "Body", "Path", "Depends",
-    "HealthResponse", "StatusResponse", "VersionResponse",
+    "__",
+    "test_",
+    "mock_",
+    "temp_",
+    "@",
+    "node_modules",
+    "BaseModel",
+    "Request",
+    "Response",
+    "Config",
+    "Query",
+    "Item",
+    "get_",
+    "set_",
+    "is_",
+    "handle_",
+    "Body",
+    "Path",
+    "Depends",
+    "HealthResponse",
+    "StatusResponse",
+    "VersionResponse",
 ]
 
 VALUE_MARKERS = [
-    "/api/", "/chat", "/voice", "/stt", "/tts", "/soul", "/memory",
-    "/auth", "/swarm", "/dream", "/code", "/dev", "/mouth", "/kokoro",
-    "/monetize", "/consent", "/creativity", "/forge", "/checkpoint",
-    "Bridge", "Manager", "Engine", "Service", "Agent", "Swarm",
-    "synthesize", "voices", "thought_stream", "backup", "restore",
-    "search", "import", "export", "spawn", "prompt", "session",
-    "health", "vitals", "status", "config", "treasury", "monetize"
+    "/api/",
+    "/chat",
+    "/voice",
+    "/stt",
+    "/tts",
+    "/soul",
+    "/memory",
+    "/auth",
+    "/swarm",
+    "/dream",
+    "/code",
+    "/dev",
+    "/mouth",
+    "/kokoro",
+    "/monetize",
+    "/consent",
+    "/creativity",
+    "/forge",
+    "/checkpoint",
+    "Bridge",
+    "Manager",
+    "Engine",
+    "Service",
+    "Agent",
+    "Swarm",
+    "synthesize",
+    "voices",
+    "thought_stream",
+    "backup",
+    "restore",
+    "search",
+    "import",
+    "export",
+    "spawn",
+    "prompt",
+    "session",
+    "health",
+    "vitals",
+    "status",
+    "config",
+    "treasury",
+    "monetize",
 ]
 
-def _is_meaningful_feature(name: str, source: str, description: str, ftype: str) -> bool:
+
+def _is_meaningful_feature(
+    name: str, source: str, description: str, ftype: str
+) -> bool:
     """Filter: Is this feature worth discovering?"""
     # Skip low-value patterns
     if any(p in name for p in SKIP_NAME_PATTERNS):
         return False
-    
+
     # Must have at least one value marker
     combined = f"{name} {source} {description}".lower()
     if not any(m.lower() in combined for m in VALUE_MARKERS):
         return False
-    
+
     return True
 
 
 # ── Data structures ────────────────────────────────────────────────────────────
 
+
 @dataclass
 class DiscoveredFeature:
     """A feature found in the codebase that may or may not be indexed."""
+
     source_file: str
     feature_type: str  # 'endpoint', 'class', 'function', 'script', 'service', 'compose', 'todo', 'doc'
     name: str
@@ -89,9 +178,11 @@ class DiscoveredFeature:
     evidence: str = ""  # Code snippet or line reference
     indexed: bool = False  # Whether it appears in FEATURE_INVENTORY.md
 
+
 @dataclass
 class DroneReport:
     """Report generated by a single discovery drone."""
+
     drone_id: str
     role: str
     scan_start: float
@@ -100,9 +191,11 @@ class DroneReport:
     files_scanned: int = 0
     notes: str = ""
 
+
 @dataclass
 class DirectorProposal:
     """Final Director analysis with proposed inventory updates."""
+
     mission_id: str
     timestamp: str
     summary: str
@@ -110,6 +203,7 @@ class DirectorProposal:
     gaps: list[str]  # Categories with suspiciously few entries
     confidence: float  # 0.0-1.0
     raw_drone_reports: list[dict[str, Any]]
+
 
 # ── Global state (for visualizer) ─────────────────────────────────────────────
 
@@ -119,14 +213,35 @@ DISCOVERY_STATE: dict[str, Any] = {
     "start_time": 0.0,
     "duration_min": 30,
     "drones": {
-        "director": {"role": "Director", "status": "idle", "location": "base", "message": ""},
-        "mapper": {"role": "Mapper", "status": "idle", "location": "base", "message": ""},
-        "archivist": {"role": "Archivist", "status": "idle", "location": "base", "message": ""},
-        "auditor": {"role": "Auditor", "status": "idle", "location": "base", "message": ""},
+        "director": {
+            "role": "Director",
+            "status": "idle",
+            "location": "base",
+            "message": "",
+        },
+        "mapper": {
+            "role": "Mapper",
+            "status": "idle",
+            "location": "base",
+            "message": "",
+        },
+        "archivist": {
+            "role": "Archivist",
+            "status": "idle",
+            "location": "base",
+            "message": "",
+        },
+        "auditor": {
+            "role": "Auditor",
+            "status": "idle",
+            "location": "base",
+            "message": "",
+        },
     },
     "progress_pct": 0,
     "results": {},
 }
+
 
 def get_discovery_state() -> dict[str, Any]:
     return DISCOVERY_STATE
@@ -142,15 +257,18 @@ def _update_drone(drone_id: str, status: str, location: str, message: str):
 
 # ── Inventory loader ──────────────────────────────────────────────────────────
 
+
 def _load_inventory_flat() -> list[dict[str, Any]]:
     """Load FEATURE_INVENTORY.md into flat rows for comparison."""
     try:
         # Import parser from XR vessel (Authoritative in OMEGA_085)
         import sys
+
         xr_vessel = REPO_ROOT / "Frontend" / "XR_Vessel"
         if str(xr_vessel) not in sys.path:
             sys.path.insert(0, str(xr_vessel))
         from feature_inventory_parser import parse_feature_inventory_markdown
+
         text = INVENTORY_PATH.read_text(encoding="utf-8")
         parsed = parse_feature_inventory_markdown(text)
         return parsed.get("flat_rows", [])
@@ -179,7 +297,10 @@ def _inventory_search_blob(inventory_rows: list[dict[str, Any]]) -> set[str]:
 
 # ── Drone: Mapper ──────────────────────────────────────────────────────────────
 
-async def _mapper_drone(scan_dirs: list[str], inventory_tokens: set[str]) -> DroneReport:
+
+async def _mapper_drone(
+    scan_dirs: list[str], inventory_tokens: set[str]
+) -> DroneReport:
     """Scan source files for classes, functions, endpoints, services."""
     _update_drone("mapper", "scanning", "repo_root", "Mapping codebase structure...")
     start = time.time()
@@ -215,31 +336,48 @@ async def _mapper_drone(scan_dirs: list[str], inventory_tokens: set[str]) -> Dro
             # Markdown docs
             elif fp.suffix == ".md" and fp.name != "FEATURE_INVENTORY.md":
                 # Check if this markdown file is referenced in inventory
-                if rel not in inventory_tokens and fp.stem.lower() not in inventory_tokens:
-                    features.append(DiscoveredFeature(
-                        source_file=rel,
-                        feature_type="doc",
-                        name=fp.stem,
-                        description=f"Documentation file not referenced in inventory",
-                        evidence=f"Found at {rel}",
-                    ))
+                if (
+                    rel not in inventory_tokens
+                    and fp.stem.lower() not in inventory_tokens
+                ):
+                    features.append(
+                        DiscoveredFeature(
+                            source_file=rel,
+                            feature_type="doc",
+                            name=fp.stem,
+                            description="Documentation file not referenced in inventory",
+                            evidence=f"Found at {rel}",
+                        )
+                    )
             # Godot scripts
             elif fp.suffix == ".gd":
-                if rel not in inventory_tokens and fp.stem.lower() not in inventory_tokens:
-                    features.append(DiscoveredFeature(
-                        source_file=rel,
-                        feature_type="script",
-                        name=fp.stem,
-                        description=f"Godot script not indexed",
-                        evidence=f"Found at {rel}",
-                    ))
+                if (
+                    rel not in inventory_tokens
+                    and fp.stem.lower() not in inventory_tokens
+                ):
+                    features.append(
+                        DiscoveredFeature(
+                            source_file=rel,
+                            feature_type="script",
+                            name=fp.stem,
+                            description="Godot script not indexed",
+                            evidence=f"Found at {rel}",
+                        )
+                    )
 
             # Brief yield every 50 files to not block event loop
             if files_scanned % 50 == 0:
-                _update_drone("mapper", "scanning", rel_dir, f"Scanned {files_scanned} files...")
+                _update_drone(
+                    "mapper", "scanning", rel_dir, f"Scanned {files_scanned} files..."
+                )
                 await asyncio.sleep(0)
 
-    _update_drone("mapper", "returning", "base", f"Mapped {files_scanned} files, found {len(features)} candidates.")
+    _update_drone(
+        "mapper",
+        "returning",
+        "base",
+        f"Mapped {files_scanned} files, found {len(features)} candidates.",
+    )
     end = time.time()
     return DroneReport(
         drone_id="mapper",
@@ -251,7 +389,9 @@ async def _mapper_drone(scan_dirs: list[str], inventory_tokens: set[str]) -> Dro
     )
 
 
-def _scan_python_file(fp: Path, rel: str, inventory_tokens: set[str]) -> list[DiscoveredFeature]:
+def _scan_python_file(
+    fp: Path, rel: str, inventory_tokens: set[str]
+) -> list[DiscoveredFeature]:
     """Extract features from a Python file."""
     features: list[DiscoveredFeature] = []
     try:
@@ -262,7 +402,9 @@ def _scan_python_file(fp: Path, rel: str, inventory_tokens: set[str]) -> list[Di
 
     # FastAPI endpoints
     for i, line in enumerate(lines):
-        m = re.search(r"@app\.(get|post|put|delete|patch)\s*\(\s*[\"']([^\"']+)[\"']", line)
+        m = re.search(
+            r"@app\.(get|post|put|delete|patch)\s*\(\s*[\"']([^\"']+)[\"']", line
+        )
         if m:
             method, path = m.group(1).upper(), m.group(2)
             # Find the function name on the next non-empty non-comment line
@@ -273,17 +415,25 @@ def _scan_python_file(fp: Path, rel: str, inventory_tokens: set[str]) -> list[Di
                     func_name = fm.group(1) or fm.group(2)
                     break
             key = f"{method} {path}"
-            indexed = key.lower() in inventory_tokens or func_name.lower() in inventory_tokens or rel in inventory_tokens
-            
+            indexed = (
+                key.lower() in inventory_tokens
+                or func_name.lower() in inventory_tokens
+                or rel in inventory_tokens
+            )
+
             # Filter: only meaningful features
-            if not indexed and _is_meaningful_feature(key, rel, f"FastAPI endpoint `{func_name}`", "endpoint"):
-                features.append(DiscoveredFeature(
-                    source_file=rel,
-                    feature_type="endpoint",
-                    name=f"{method} {path}",
-                    description=f"FastAPI endpoint `{func_name}`",
-                    evidence=f"Line {i+1}: {line.strip()[:120]}",
-                ))
+            if not indexed and _is_meaningful_feature(
+                key, rel, f"FastAPI endpoint `{func_name}`", "endpoint"
+            ):
+                features.append(
+                    DiscoveredFeature(
+                        source_file=rel,
+                        feature_type="endpoint",
+                        name=f"{method} {path}",
+                        description=f"FastAPI endpoint `{func_name}`",
+                        evidence=f"Line {i + 1}: {line.strip()[:120]}",
+                    )
+                )
 
     # Class definitions
     for i, line in enumerate(lines):
@@ -293,37 +443,45 @@ def _scan_python_file(fp: Path, rel: str, inventory_tokens: set[str]) -> list[Di
             if cls_name.startswith("_"):
                 continue
             indexed = cls_name.lower() in inventory_tokens or rel in inventory_tokens
-            
+
             # Filter: only meaningful classes
             desc = f"Python class `{cls_name}`"
             if not indexed and _is_meaningful_feature(cls_name, rel, desc, "class"):
-                features.append(DiscoveredFeature(
-                    source_file=rel,
-                    feature_type="class",
-                    name=cls_name,
-                    description=f"Python class `{cls_name}`",
-                    evidence=f"Line {i+1}: {line.strip()[:120]}",
-                ))
+                features.append(
+                    DiscoveredFeature(
+                        source_file=rel,
+                        feature_type="class",
+                        name=cls_name,
+                        description=f"Python class `{cls_name}`",
+                        evidence=f"Line {i + 1}: {line.strip()[:120]}",
+                    )
+                )
 
     # TODO / FIXME / HACK comments as potential features
     for i, line in enumerate(lines):
-        m = re.search(r"(TODO|FIXME|HACK|XXX|NOTE:)\s*[:-]?\s*(.+)", line, re.IGNORECASE)
+        m = re.search(
+            r"(TODO|FIXME|HACK|XXX|NOTE:)\s*[:-]?\s*(.+)", line, re.IGNORECASE
+        )
         if m:
             tag, desc = m.group(1).upper(), m.group(2).strip()
             if len(desc) > 10 and "unindexed" not in desc.lower():
-                features.append(DiscoveredFeature(
-                    source_file=rel,
-                    feature_type="todo",
-                    name=f"{tag} in {Path(rel).name}",
-                    description=desc[:200],
-                    tier_guess="D",
-                    evidence=f"Line {i+1}: {line.strip()[:200]}",
-                ))
+                features.append(
+                    DiscoveredFeature(
+                        source_file=rel,
+                        feature_type="todo",
+                        name=f"{tag} in {Path(rel).name}",
+                        description=desc[:200],
+                        tier_guess="D",
+                        evidence=f"Line {i + 1}: {line.strip()[:200]}",
+                    )
+                )
 
     return features
 
 
-def _scan_powershell_file(fp: Path, rel: str, inventory_tokens: set[str]) -> list[DiscoveredFeature]:
+def _scan_powershell_file(
+    fp: Path, rel: str, inventory_tokens: set[str]
+) -> list[DiscoveredFeature]:
     """Extract features from a PowerShell file."""
     features: list[DiscoveredFeature] = []
     try:
@@ -339,32 +497,38 @@ def _scan_powershell_file(fp: Path, rel: str, inventory_tokens: set[str]) -> lis
             func_name = m.group(1)
             indexed = func_name.lower() in inventory_tokens or rel in inventory_tokens
             if not indexed:
-                features.append(DiscoveredFeature(
-                    source_file=rel,
-                    feature_type="function",
-                    name=func_name,
-                    description=f"PowerShell function `{func_name}`",
-                    evidence=f"Line {i+1}: {line.strip()[:120]}",
-                ))
+                features.append(
+                    DiscoveredFeature(
+                        source_file=rel,
+                        feature_type="function",
+                        name=func_name,
+                        description=f"PowerShell function `{func_name}`",
+                        evidence=f"Line {i + 1}: {line.strip()[:120]}",
+                    )
+                )
 
         # TODO / FIXME
         m = re.search(r"#\s*(TODO|FIXME|HACK|XXX)\s*[:-]?\s*(.+)", line, re.IGNORECASE)
         if m:
             tag, desc = m.group(1).upper(), m.group(2).strip()
             if len(desc) > 10:
-                features.append(DiscoveredFeature(
-                    source_file=rel,
-                    feature_type="todo",
-                    name=f"{tag} in {Path(rel).name}",
-                    description=desc[:200],
-                    tier_guess="D",
-                    evidence=f"Line {i+1}: {line.strip()[:200]}",
-                ))
+                features.append(
+                    DiscoveredFeature(
+                        source_file=rel,
+                        feature_type="todo",
+                        name=f"{tag} in {Path(rel).name}",
+                        description=desc[:200],
+                        tier_guess="D",
+                        evidence=f"Line {i + 1}: {line.strip()[:200]}",
+                    )
+                )
 
     return features
 
 
-def _scan_yaml_file(fp: Path, rel: str, inventory_tokens: set[str]) -> list[DiscoveredFeature]:
+def _scan_yaml_file(
+    fp: Path, rel: str, inventory_tokens: set[str]
+) -> list[DiscoveredFeature]:
     """Extract Docker Compose services or other YAML-defined features."""
     features: list[DiscoveredFeature] = []
     try:
@@ -378,22 +542,30 @@ def _scan_yaml_file(fp: Path, rel: str, inventory_tokens: set[str]) -> list[Disc
         if svc in ("services", "volumes", "networks", "configs", "secrets"):
             continue
         if svc.lower() not in inventory_tokens and rel not in inventory_tokens:
-            features.append(DiscoveredFeature(
-                source_file=rel,
-                feature_type="service",
-                name=svc,
-                description=f"Docker service `{svc}`",
-                evidence=f"Found in {rel}",
-            ))
+            features.append(
+                DiscoveredFeature(
+                    source_file=rel,
+                    feature_type="service",
+                    name=svc,
+                    description=f"Docker service `{svc}`",
+                    evidence=f"Found in {rel}",
+                )
+            )
 
     return features
 
 
 # ── Drone: Archivist ─────────────────────────────────────────────────────────
 
+
 async def _archivist_drone(inventory_rows: list[dict[str, Any]]) -> DroneReport:
     """Analyze inventory structure — find gaps, duplicates, orphan sections."""
-    _update_drone("archivist", "analyzing", "inventory", "Cross-referencing inventory structure...")
+    _update_drone(
+        "archivist",
+        "analyzing",
+        "inventory",
+        "Cross-referencing inventory structure...",
+    )
     start = time.time()
 
     features: list[DiscoveredFeature] = []
@@ -406,20 +578,34 @@ async def _archivist_drone(inventory_rows: list[dict[str, Any]]) -> DroneReport:
         category_counts[cat] = category_counts.get(cat, 0) + 1
 
     expected_cats = {
-        "docker", "web", "backend", "godot", "mobile", "tests",
-        "ops", "parity", "service", "memory", "install", "roadmap",
-        "meta", "architecture", "troubleshooters",
+        "docker",
+        "web",
+        "backend",
+        "godot",
+        "mobile",
+        "tests",
+        "ops",
+        "parity",
+        "service",
+        "memory",
+        "install",
+        "roadmap",
+        "meta",
+        "architecture",
+        "troubleshooters",
     }
     for cat in expected_cats:
         if category_counts.get(cat, 0) == 0:
-            features.append(DiscoveredFeature(
-                source_file="FEATURE_INVENTORY.md",
-                feature_type="gap",
-                name=f"Empty category: {cat}",
-                description=f"No entries found for '{cat}' — may need audit",
-                tier_guess="B",
-                evidence=f"Category '{cat}' has 0 rows",
-            ))
+            features.append(
+                DiscoveredFeature(
+                    source_file="FEATURE_INVENTORY.md",
+                    feature_type="gap",
+                    name=f"Empty category: {cat}",
+                    description=f"No entries found for '{cat}' — may need audit",
+                    tier_guess="B",
+                    evidence=f"Category '{cat}' has 0 rows",
+                )
+            )
 
     # Check for files referenced but missing from disk
     for row in inventory_rows:
@@ -427,18 +613,27 @@ async def _archivist_drone(inventory_rows: list[dict[str, Any]]) -> DroneReport:
         for m in re.finditer(r"[\w/\\.]+\.(py|ps1|json|md|gd|yml|yaml|sh)", label):
             path_str = m.group(0).replace("\\", "/")
             if not (REPO_ROOT / path_str).is_file():
-                features.append(DiscoveredFeature(
-                    source_file="FEATURE_INVENTORY.md",
-                    feature_type="orphan",
-                    name=f"Missing: {path_str}",
-                    description=f"Inventory references `{path_str}` but file not found",
-                    tier_guess="B",
-                    evidence=f"Row: {label[:100]}",
-                ))
+                features.append(
+                    DiscoveredFeature(
+                        source_file="FEATURE_INVENTORY.md",
+                        feature_type="orphan",
+                        name=f"Missing: {path_str}",
+                        description=f"Inventory references `{path_str}` but file not found",
+                        tier_guess="B",
+                        evidence=f"Row: {label[:100]}",
+                    )
+                )
 
-    notes.append(f"Inventory has {len(inventory_rows)} indexed features across {len(category_counts)} categories.")
+    notes.append(
+        f"Inventory has {len(inventory_rows)} indexed features across {len(category_counts)} categories."
+    )
 
-    _update_drone("archivist", "returning", "base", f"Analyzed {len(inventory_rows)} inventory rows.")
+    _update_drone(
+        "archivist",
+        "returning",
+        "base",
+        f"Analyzed {len(inventory_rows)} inventory rows.",
+    )
     end = time.time()
     return DroneReport(
         drone_id="archivist",
@@ -453,9 +648,14 @@ async def _archivist_drone(inventory_rows: list[dict[str, Any]]) -> DroneReport:
 
 # ── Drone: Auditor ────────────────────────────────────────────────────────────
 
-async def _auditor_drone(scan_dirs: list[str], inventory_tokens: set[str]) -> DroneReport:
+
+async def _auditor_drone(
+    scan_dirs: list[str], inventory_tokens: set[str]
+) -> DroneReport:
     """Audit for security patterns, configuration files, and hidden capabilities."""
-    _update_drone("auditor", "scanning", "config", "Auditing configs and credentials...")
+    _update_drone(
+        "auditor", "scanning", "config", "Auditing configs and credentials..."
+    )
     start = time.time()
     features: list[DiscoveredFeature] = []
 
@@ -465,13 +665,15 @@ async def _auditor_drone(scan_dirs: list[str], inventory_tokens: set[str]) -> Dr
         if "__pycache__" in rel or ".venv" in rel:
             continue
         if rel not in inventory_tokens and env_file.name not in inventory_tokens:
-            features.append(DiscoveredFeature(
-                source_file=rel,
-                feature_type="config",
-                name=env_file.name,
-                description=f"Environment config not referenced in inventory",
-                evidence=f"Found at {rel}",
-            ))
+            features.append(
+                DiscoveredFeature(
+                    source_file=rel,
+                    feature_type="config",
+                    name=env_file.name,
+                    description="Environment config not referenced in inventory",
+                    evidence=f"Found at {rel}",
+                )
+            )
 
     # Check for requirements files
     for req_file in REPO_ROOT.rglob("requirements*.txt"):
@@ -479,15 +681,19 @@ async def _auditor_drone(scan_dirs: list[str], inventory_tokens: set[str]) -> Dr
         if ".venv" in rel:
             continue
         if rel not in inventory_tokens:
-            features.append(DiscoveredFeature(
-                source_file=rel,
-                feature_type="config",
-                name=req_file.name,
-                description=f"Dependency file not indexed",
-                evidence=f"Found at {rel}",
-            ))
+            features.append(
+                DiscoveredFeature(
+                    source_file=rel,
+                    feature_type="config",
+                    name=req_file.name,
+                    description="Dependency file not indexed",
+                    evidence=f"Found at {rel}",
+                )
+            )
 
-    _update_drone("auditor", "returning", "base", f"Audited configs, found {len(features)} items.")
+    _update_drone(
+        "auditor", "returning", "base", f"Audited configs, found {len(features)} items."
+    )
     end = time.time()
     return DroneReport(
         drone_id="auditor",
@@ -501,6 +707,7 @@ async def _auditor_drone(scan_dirs: list[str], inventory_tokens: set[str]) -> Dr
 
 
 # ── Director ──────────────────────────────────────────────────────────────────
+
 
 async def _director_synthesize(
     mapper_report: DroneReport,
@@ -519,9 +726,7 @@ async def _director_synthesize(
 
     # Aggregate all features
     all_features = (
-        mapper_report.features
-        + archivist_report.features
-        + auditor_report.features
+        mapper_report.features + archivist_report.features + auditor_report.features
     )
 
     # Deduplicate by name+file
@@ -547,20 +752,19 @@ async def _director_synthesize(
         # Upgrade tier for endpoints/classes
         if f.feature_type in ("endpoint", "class") and tier == "C":
             tier = "B"
-        new_features.append({
-            "source_file": f.source_file,
-            "feature_type": f.feature_type,
-            "name": f.name,
-            "description": f.description,
-            "proposed_category": cat,
-            "proposed_tier": tier,
-            "evidence": f.evidence,
-        })
+        new_features.append(
+            {
+                "source_file": f.source_file,
+                "feature_type": f.feature_type,
+                "name": f.name,
+                "description": f.description,
+                "proposed_category": cat,
+                "proposed_tier": tier,
+                "evidence": f.evidence,
+            }
+        )
 
-    gaps = [
-        f.name for f in unique_features
-        if f.feature_type == "gap"
-    ]
+    gaps = [f.name for f in unique_features if f.feature_type == "gap"]
 
     # Build summary
     summary = (
@@ -609,7 +813,9 @@ async def _director_synthesize(
         raw_drone_reports=raw_reports,
     )
 
-    _update_drone("director", "idle", "base", f"Mission complete. {len(new_features)} proposals.")
+    _update_drone(
+        "director", "idle", "base", f"Mission complete. {len(new_features)} proposals."
+    )
     return proposal
 
 
@@ -620,7 +826,11 @@ def _guess_category(source_file: str, feature_type: str) -> str:
         return "docker"
     if path.startswith("frontend/web_vessel") or path.startswith("frontend/web"):
         return "web"
-    if path.startswith("frontend/xr") or path.startswith("frontend/vr") or "godot" in path:
+    if (
+        path.startswith("frontend/xr")
+        or path.startswith("frontend/vr")
+        or "godot" in path
+    ):
         return "godot"
     if path.startswith("frontend/mobile"):
         return "mobile"
@@ -648,6 +858,7 @@ def _guess_category(source_file: str, feature_type: str) -> str:
 
 
 # ── Persistence ─────────────────────────────────────────────────────────────────
+
 
 def _save_report(proposal: DirectorProposal) -> Path:
     """Persist a Director proposal to .logs/discovery_reports/."""
@@ -708,12 +919,13 @@ def get_latest_discovery_notification() -> dict[str, Any] | None:
 
 try:
     from director_manager import (
+        DIRECTOR_AUTO_APPLY,
+        DIRECTOR_CLOUD_ENABLED,
         DirectorManager,
         IndexWorker,
         run_director_analysis,
-        DIRECTOR_CLOUD_ENABLED,
-        DIRECTOR_AUTO_APPLY,
     )
+
     DIRECTOR_MANAGER_AVAILABLE = True
 except Exception as _dm_err:
     DIRECTOR_MANAGER_AVAILABLE = False
@@ -726,6 +938,7 @@ except Exception as _dm_err:
 
 
 # ── Main entry point ───────────────────────────────────────────────────────────
+
 
 async def execute_discovery_mission(
     duration_minutes: int = 30,
@@ -754,10 +967,17 @@ async def execute_discovery_mission(
     _update_drone("director", "planning", "base", "Loading FEATURE_INVENTORY.md...")
     inventory_rows = _load_inventory_flat()
     inventory_tokens = _inventory_search_blob(inventory_rows)
-    _update_drone("director", "planning", "base", f"Inventory loaded: {len(inventory_rows)} features.")
+    _update_drone(
+        "director",
+        "planning",
+        "base",
+        f"Inventory loaded: {len(inventory_rows)} features.",
+    )
 
     # PHASE 2: Dispatch drones
-    _update_drone("director", "directing", "base", "Dispatching Mapper, Archivist, Auditor...")
+    _update_drone(
+        "director", "directing", "base", "Dispatching Mapper, Archivist, Auditor..."
+    )
 
     mapper_task = asyncio.create_task(_mapper_drone(SCAN_DIRS, inventory_tokens))
     archivist_task = asyncio.create_task(_archivist_drone(inventory_rows))
@@ -779,14 +999,34 @@ async def execute_discovery_mission(
             break
 
     # Collect results (handle cancellations gracefully)
-    mapper_report = mapper_task.result() if not mapper_task.cancelled() else DroneReport(
-        drone_id="mapper", role="Mapper", scan_start=0, scan_end=0, notes="TIMEOUT"
+    mapper_report = (
+        mapper_task.result()
+        if not mapper_task.cancelled()
+        else DroneReport(
+            drone_id="mapper", role="Mapper", scan_start=0, scan_end=0, notes="TIMEOUT"
+        )
     )
-    archivist_report = archivist_task.result() if not archivist_task.cancelled() else DroneReport(
-        drone_id="archivist", role="Archivist", scan_start=0, scan_end=0, notes="TIMEOUT"
+    archivist_report = (
+        archivist_task.result()
+        if not archivist_task.cancelled()
+        else DroneReport(
+            drone_id="archivist",
+            role="Archivist",
+            scan_start=0,
+            scan_end=0,
+            notes="TIMEOUT",
+        )
     )
-    auditor_report = auditor_task.result() if not auditor_task.cancelled() else DroneReport(
-        drone_id="auditor", role="Auditor", scan_start=0, scan_end=0, notes="TIMEOUT"
+    auditor_report = (
+        auditor_task.result()
+        if not auditor_task.cancelled()
+        else DroneReport(
+            drone_id="auditor",
+            role="Auditor",
+            scan_start=0,
+            scan_end=0,
+            notes="TIMEOUT",
+        )
     )
 
     DISCOVERY_STATE["progress_pct"] = 98
@@ -794,9 +1034,7 @@ async def execute_discovery_mission(
 
     # Aggregate all unindexed features for Director
     all_features = (
-        mapper_report.features
-        + archivist_report.features
-        + auditor_report.features
+        mapper_report.features + archivist_report.features + auditor_report.features
     )
     unindexed_features = [
         {
@@ -814,8 +1052,12 @@ async def execute_discovery_mission(
     # PHASE 3: Director analysis (cloud-based with deepseek-v4-pro:1m)
     director_result = None
     if use_director and DIRECTOR_MANAGER_AVAILABLE:
-        _update_drone("director", "consulting", "cloud", "Contacting Director Manager...")
-        logger.info("📡 Sending discovery report to Director Manager (deepseek-v4-pro:1m)...")
+        _update_drone(
+            "director", "consulting", "cloud", "Contacting Director Manager..."
+        )
+        logger.info(
+            "📡 Sending discovery report to Director Manager (deepseek-v4-pro:1m)..."
+        )
 
         try:
             director_result = await run_director_analysis(
@@ -852,14 +1094,25 @@ async def execute_discovery_mission(
     # PHASE 4: Local synthesis fallback (if Director unavailable or disabled)
     if not director_result:
         local_model = os.getenv("FoveAI_SENTRY_SOLVER_MODEL", "qwen3.5-0.5b").strip()
-        local_host = os.getenv(
-            "FoveAI_FALLBACK_BASE_URL",
-            os.getenv("FoveAI_BACKUP_BASE_URL", os.getenv("OLLAMA_HOST", "http://localhost:11434"))
-        ).strip().rstrip("/")
+        local_host = (
+            os.getenv(
+                "FoveAI_FALLBACK_BASE_URL",
+                os.getenv(
+                    "FoveAI_BACKUP_BASE_URL",
+                    os.getenv("OLLAMA_HOST", "http://localhost:11434"),
+                ),
+            )
+            .strip()
+            .rstrip("/")
+        )
 
         proposal = await _director_synthesize(
-            mapper_report, archivist_report, auditor_report,
-            inventory_rows, local_model, local_host,
+            mapper_report,
+            archivist_report,
+            auditor_report,
+            inventory_rows,
+            local_model,
+            local_host,
         )
         report_path = _save_report(proposal)
 
@@ -889,8 +1142,12 @@ async def execute_discovery_mission(
             "report_file": "",
             "director_used": True,
             "director_model": director_result.get("model_used", "unknown"),
-            "auto_applied": bool(director_result.get("apply_result", {}).get("success")),
-            "entries_added": director_result.get("apply_result", {}).get("entries_added", 0),
+            "auto_applied": bool(
+                director_result.get("apply_result", {}).get("success")
+            ),
+            "entries_added": director_result.get("apply_result", {}).get(
+                "entries_added", 0
+            ),
         }
 
         # Save Director result to reports
@@ -918,6 +1175,8 @@ def _save_director_report(director_result: dict[str, Any]) -> str:
     filename = f"{ts}_{mission_id}_director.json"
     path = REPORTS_DIR / filename
 
-    path.write_text(json.dumps(director_result, indent=2, ensure_ascii=False), encoding="utf-8")
+    path.write_text(
+        json.dumps(director_result, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
     logger.info(f"Director report saved: {path}")
     return str(path.relative_to(REPO_ROOT))

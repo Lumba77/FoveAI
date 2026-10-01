@@ -3,45 +3,42 @@
 #  Imports + Theme + Core Layout + Virtual Canvas Scaffolding
 # ───────────────────────────────────────────────────────────────
 
-from pathlib import Path
-from typing import Optional, List, Tuple
-
 import json
+from pathlib import Path
+
 import requests
-
 from pygments import highlight
-from pygments.lexers import guess_lexer_for_filename, PythonLexer
 from pygments.formatters import TerminalFormatter
-
+from pygments.lexers import PythonLexer, guess_lexer_for_filename
+from textual import events
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical
+from textual.reactive import reactive
 from textual.widgets import (
-    Static,
     Button,
-    TextLog,
     Input,
-    Tree,
     Label,
     Modal,
+    Static,
+    TextLog,
+    Tree,
 )
-from textual.reactive import reactive
-from textual import events
-
 
 # ───────────────────────────────────────────────────────────────
 #  GLOBAL THEME COLORS (Lumax Neon)
 # ───────────────────────────────────────────────────────────────
 
-FoveAI_CYAN = "#00eaff"      # User bubble + glow
-FoveAI_PURPLE = "#a020f0"    # AI bubble + glow
-FoveAI_BG = "#0a0a0f"        # Global background
+FoveAI_CYAN = "#00eaff"  # User bubble + glow
+FoveAI_PURPLE = "#a020f0"  # AI bubble + glow
+FoveAI_BG = "#0a0a0f"  # Global background
 FoveAI_PANEL_BG = "#0b0b12"  # Dark glass panel background
-FoveAI_GLOW = "#00ffff55"    # Neon pulse
+FoveAI_GLOW = "#00ffff55"  # Neon pulse
 
 
 # ───────────────────────────────────────────────────────────────
 #  RESPONSIVE LAYOUT MODES
 # ───────────────────────────────────────────────────────────────
+
 
 def compute_layout_mode(width: int, height: int) -> str:
     """
@@ -61,11 +58,13 @@ def compute_layout_mode(width: int, height: int) -> str:
 #  VIRTUAL CANVAS SUPPORT
 # ───────────────────────────────────────────────────────────────
 
+
 class VirtualCanvas:
     """
     A virtual rendering surface larger than the terminal.
     Editor and chat can be taller than the terminal.
     """
+
     def __init__(self):
         self.virtual_height = 200  # can be expanded dynamically
         self.virtual_width = 200
@@ -80,8 +79,8 @@ class VirtualCanvas:
 #  CORE LAYOUT CONTAINERS
 # ───────────────────────────────────────────────────────────────
 
-class LumaxTerminalIDE(App):
 
+class LumaxTerminalIDE(App):
     CSS = f"""
     Screen {{
         background: {FoveAI_BG};
@@ -193,9 +192,7 @@ class LumaxTerminalIDE(App):
                     Static(id="chat-pane"),
                     id="left-pane",
                 ),
-
                 Static(id="divider-vertical"),
-
                 # RIGHT SIDE
                 Vertical(
                     Static(id="logs-pane"),
@@ -213,7 +210,6 @@ class LumaxTerminalIDE(App):
                     ),
                     id="right-pane",
                 ),
-
                 id="main-layout",
             )
         )
@@ -235,9 +231,11 @@ class LumaxTerminalIDE(App):
 #  CHUNK 2 — CodeEditor + ChatPane Widgets
 # ───────────────────────────────────────────────────────────────
 
+
 class CodeEditor(TextLog):
     """Syntax-highlighted code editor."""
-    file_path: Optional[Path] = None
+
+    file_path: Path | None = None
     buffer: str = ""
     lexer = PythonLexer()
 
@@ -284,16 +282,17 @@ class CodeEditor(TextLog):
 
 class ChatPane(TextLog):
     """Hybrid chat pane: user/AI messages + highlighted code blocks."""
+
     def on_mount(self) -> None:
         self.border_title = "Chat"
         self.write("Chat ready.\n")
 
     def add_user_message(self, text: str):
-        self.write(f"\n[You]\n", style=FoveAI_CYAN)
+        self.write("\n[You]\n", style=FoveAI_CYAN)
         self.write(text + "\n", style="white")
 
     def add_ai_message(self, text: str):
-        self.write(f"\n[AI]\n", style=FoveAI_PURPLE)
+        self.write("\n[AI]\n", style=FoveAI_PURPLE)
         self.write(text + "\n", style="white")
 
     def add_ai_code_block(self, code: str):
@@ -321,6 +320,7 @@ class PaneController:
     Controls dynamic expansion/collapse of editor and chat panes.
     Handles animations and ratio transitions.
     """
+
     def __init__(self, app: "LumaxTerminalIDE"):
         self.app = app
 
@@ -356,11 +356,13 @@ class PaneController:
 #  DRAGGABLE DIVIDERS
 # ───────────────────────────────────────────────────────────────
 
+
 class DividerController:
     """
     Handles dragging of vertical and horizontal dividers.
     Allows resizing of left/right panes and editor/chat panes.
     """
+
     def __init__(self, app: "LumaxTerminalIDE"):
         self.app = app
         self.dragging_vertical = False
@@ -418,6 +420,7 @@ class DividerController:
 #  INTEGRATION INTO MAIN APP
 # ───────────────────────────────────────────────────────────────
 
+
 def _install_controllers(self: "LumaxTerminalIDE"):
     """Attach controllers to the app instance."""
     self.panes = PaneController(self)
@@ -430,6 +433,7 @@ LumaxTerminalIDE._install_controllers = _install_controllers
 # ───────────────────────────────────────────────────────────────
 #  MOUSE EVENT HANDLING FOR DRAGGING
 # ───────────────────────────────────────────────────────────────
+
 
 def _mouse_handlers(self: "LumaxTerminalIDE"):
 
@@ -461,6 +465,7 @@ LumaxTerminalIDE._mouse_handlers = _mouse_handlers
 #  CLICK HANDLERS FOR EXPANSION
 # ───────────────────────────────────────────────────────────────
 
+
 def _click_handlers(self: "LumaxTerminalIDE"):
 
     def on_click(event: events.Click):
@@ -483,10 +488,12 @@ LumaxTerminalIDE._click_handlers = _click_handlers
 #  BACKEND CONFIGURATION
 # ───────────────────────────────────────────────────────────────
 
+
 class BackendConfig:
     """
     Stores all backend settings for LM Studio, Ollama, Cloud, and XRL.
     """
+
     def __init__(self):
         self.backend = "lmstudio"  # lmstudio | ollama | cloud
         self.model = "default"
@@ -526,10 +533,12 @@ class BackendConfig:
 #  BACKEND CLIENT
 # ───────────────────────────────────────────────────────────────
 
+
 class BackendClient:
     """
     Unified interface for LM Studio, Ollama, Cloud, and XRL compression.
     """
+
     def __init__(self, config: BackendConfig):
         self.config = config
 
@@ -542,11 +551,7 @@ class BackendClient:
             return text
 
         try:
-            resp = requests.post(
-                self.config.xrl_url,
-                json={"text": text},
-                timeout=10
-            )
+            resp = requests.post(self.config.xrl_url, json={"text": text}, timeout=10)
             data = resp.json()
             return data.get("compressed", text)
         except Exception as e:
@@ -648,8 +653,10 @@ class BackendClient:
 #  FILE TREE
 # ───────────────────────────────────────────────────────────────
 
+
 class FileTree(Tree):
     """Displays directory structure and allows file selection."""
+
     def on_mount(self) -> None:
         self.root.expand()
         self.load_directory(Path("."))
@@ -667,8 +674,10 @@ class FileTree(Tree):
 #  DIFF VIEWER
 # ───────────────────────────────────────────────────────────────
 
+
 class DiffViewer(TextLog):
     """Simple line-based diff viewer."""
+
     def on_mount(self) -> None:
         self.border_title = "Diff"
 
@@ -693,8 +702,10 @@ class DiffViewer(TextLog):
 #  LOGS PANE
 # ───────────────────────────────────────────────────────────────
 
+
 class LogsPane(TextLog):
     """General logging output."""
+
     def on_mount(self) -> None:
         self.border_title = "Logs"
         self.write("Lumax IDE Logs Initialized.\n")
@@ -704,8 +715,10 @@ class LogsPane(TextLog):
 #  SETTINGS MODAL
 # ───────────────────────────────────────────────────────────────
 
+
 class SettingsModal(Modal):
     """Settings for backend configuration."""
+
     def __init__(self, config: BackendConfig):
         super().__init__()
         self.config = config
@@ -745,8 +758,10 @@ class SettingsModal(Modal):
 #  MODEL SELECTOR MODAL
 # ───────────────────────────────────────────────────────────────
 
+
 class ModelSelectorModal(Modal):
     """Lists available models for LM Studio or Ollama."""
+
     def __init__(self, config: BackendConfig):
         super().__init__()
         self.config = config
@@ -766,8 +781,10 @@ class ModelSelectorModal(Modal):
 #  COMMAND PALETTE
 # ───────────────────────────────────────────────────────────────
 
+
 class CommandPalette(Modal):
     """Quick command launcher."""
+
     def compose(self) -> ComposeResult:
         yield Label("Command Palette (type a command):")
         yield Input(id="command-input")

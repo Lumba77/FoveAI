@@ -34,23 +34,23 @@ from pixie import create_agent_evaluator
 extraction_accuracy = create_agent_evaluator(
     name="ExtractionAccuracy",
     criteria="The extracted data accurately reflects the source content. All fields "
-             "contain correct values from the source — no hallucinated, fabricated, or "
-             "placeholder values. Compare the final_answer against the fetched_content "
-             "and parsed_content to verify every claimed fact.",
+    "contain correct values from the source — no hallucinated, fabricated, or "
+    "placeholder values. Compare the final_answer against the fetched_content "
+    "and parsed_content to verify every claimed fact.",
 )
 
 noise_handling = create_agent_evaluator(
     name="NoiseHandling",
     criteria="The app correctly ignored navigation chrome, boilerplate, ads, and other "
-             "non-content elements from the source. The extracted data contains only "
-             "information relevant to the user's prompt, not noise from the page structure.",
+    "non-content elements from the source. The extracted data contains only "
+    "information relevant to the user's prompt, not noise from the page structure.",
 )
 
 schema_compliance = create_agent_evaluator(
     name="SchemaCompliance",
     criteria="The output contains all fields requested in the prompt with appropriate "
-             "types and non-trivial values. Missing fields, null values for required data, "
-             "or fields with generic placeholder text indicate failure.",
+    "types and non-trivial values. Missing fields, null values for required data, "
+    "or fields with generic placeholder text indicate failure.",
 )
 ```
 
@@ -76,6 +76,7 @@ Custom evaluators can be **sync or async functions**. Assign them to module-leve
 ```python
 from pixie import Evaluation, Evaluable
 
+
 def my_evaluator(evaluable: Evaluable, *, trace=None) -> Evaluation:
     score = 1.0 if "expected pattern" in str(evaluable.eval_output) else 0.0
     return Evaluation(score=score, reasoning="...")
@@ -96,11 +97,18 @@ def _get_output(evaluable: Evaluable, name: str) -> Any:
             return item.value
     return None
 
+
 def call_ended_check(evaluable: Evaluable, *, trace=None) -> Evaluation:
-    expected = evaluable.eval_metadata.get("expected_call_ended") if evaluable.eval_metadata else None
+    expected = (
+        evaluable.eval_metadata.get("expected_call_ended")
+        if evaluable.eval_metadata
+        else None
+    )
     actual = _get_output(evaluable, "call_ended")
     if expected is None:
-        return Evaluation(score=1.0, reasoning="No expected_call_ended in eval_metadata")
+        return Evaluation(
+            score=1.0, reasoning="No expected_call_ended in eval_metadata"
+        )
     match = bool(actual) == bool(expected)
     return Evaluation(
         score=1.0 if match else 0.0,

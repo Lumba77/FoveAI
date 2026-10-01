@@ -1,10 +1,16 @@
-﻿import pathlib
 import os
+import pathlib
 
-base = pathlib.Path(os.getenv("FoveAI_REPO_ROOT", pathlib.Path(__file__).resolve().parent.parent)) / "Forge" / "ui"
+base = (
+    pathlib.Path(
+        os.getenv("FoveAI_REPO_ROOT", pathlib.Path(__file__).resolve().parent.parent)
+    )
+    / "Forge"
+    / "ui"
+)
 
 # ── vite.config.ts ──
-vite = r'''import { defineConfig } from "vite";
+vite = r"""import { defineConfig } from "vite";
 
 export default defineConfig({
   root: ".",
@@ -29,6 +35,6 @@ export default defineConfig({
     sourcemap: true,
   },
 });
-'''
-(base / 'vite.config.ts').write_text(vite)
-print('OK: vite.config.ts')
+"""
+(base / "vite.config.ts").write_text(vite)
+print("OK: vite.config.ts")

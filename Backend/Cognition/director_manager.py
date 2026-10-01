@@ -1,4 +1,4 @@
-﻿"""Director Manager — Cloud-based Feature Indexing Authority.
+"""Director Manager — Cloud-based Feature Indexing Authority.
 
 Uses Ollama Cloud with deepseek-v4-pro (1M token context) to analyze discovery reports
 and generate complete indexing instructions for FEATURE_INVENTORY.md.
@@ -16,26 +16,38 @@ import json
 import logging
 import os
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
 logger = logging.getLogger("DirectorManager")
 
 # ── Configuration ──────────────────────────────────────────────────────────────
-REPO_ROOT = Path(os.getenv("FoveAI_REPO_ROOT", Path(__file__).resolve().parent.parent.parent))
-INVENTORY_PATH = Path(os.getenv("FoveAI_FEATURE_INVENTORY_PATH", REPO_ROOT / "FEATURE_INVENTORY.md"))
+REPO_ROOT = Path(
+    os.getenv("FoveAI_REPO_ROOT", Path(__file__).resolve().parent.parent.parent)
+)
+INVENTORY_PATH = Path(
+    os.getenv("FoveAI_FEATURE_INVENTORY_PATH", REPO_ROOT / "FEATURE_INVENTORY.md")
+)
 
 # Director cloud configuration
-DIRECTOR_CLOUD_ENABLED = os.getenv("FOVEAI_DIRECTOR_CLOUD_ENABLED", "true").strip().lower() in ("1", "true", "yes", "on")
-DIRECTOR_BASE_URL = os.getenv("FOVEAI_DIRECTOR_BASE_URL", "https://ollama.com/v1").rstrip("/")
+DIRECTOR_CLOUD_ENABLED = os.getenv(
+    "FOVEAI_DIRECTOR_CLOUD_ENABLED", "true"
+).strip().lower() in ("1", "true", "yes", "on")
+DIRECTOR_BASE_URL = os.getenv(
+    "FOVEAI_DIRECTOR_BASE_URL", "https://ollama.com/v1"
+).rstrip("/")
 DIRECTOR_MODEL = os.getenv("FoveAI_MODEL_DIRECTOR_ID", "deepseek-v4-pro:1m").strip()
 DIRECTOR_API_KEY = os.getenv("FOVEAI_DIRECTOR_API_KEY", "").strip()
-DIRECTOR_AUTO_APPLY = os.getenv("FOVEAI_DIRECTOR_AUTO_APPLY", "true").strip().lower() in ("1", "true", "yes", "on")
-DIRECTOR_MAX_INDEX_PER_MISSION = int(os.getenv("FOVEAI_DIRECTOR_MAX_INDEX_PER_MISSION", "50"))
+DIRECTOR_AUTO_APPLY = os.getenv(
+    "FOVEAI_DIRECTOR_AUTO_APPLY", "true"
+).strip().lower() in ("1", "true", "yes", "on")
+DIRECTOR_MAX_INDEX_PER_MISSION = int(
+    os.getenv("FOVEAI_DIRECTOR_MAX_INDEX_PER_MISSION", "50")
+)
 
 # ── Data Structures ────────────────────────────────────────────────────────────
 
@@ -43,6 +55,7 @@ DIRECTOR_MAX_INDEX_PER_MISSION = int(os.getenv("FOVEAI_DIRECTOR_MAX_INDEX_PER_MI
 @dataclass
 class DirectorIndexDecision:
     """A single feature indexing decision from the Director."""
+
     source_file: str
     feature_type: str
     name: str
@@ -56,6 +69,7 @@ class DirectorIndexDecision:
 @dataclass
 class DirectorAnalysis:
     """Complete Director analysis response."""
+
     mission_id: str
     timestamp: str
     total_features_analyzed: int
@@ -208,6 +222,7 @@ Limit your response to indexing the top {max_index} most valuable features if th
 
 # ── Director Manager Class ─────────────────────────────────────────────────────
 
+
 class DirectorManager:
     # [NEXUS OVERHAUL] Cloud API Settings for Director
     # The Director requires Cloud AI to write plots, generate dreams, etc.
@@ -225,7 +240,9 @@ class DirectorManager:
         self.model = model
         self.api_key = api_key
         self.auto_apply = auto_apply
-        self.max_index_per_mission = max_index_per_mission if max_index_per_mission > 0 else None
+        self.max_index_per_mission = (
+            max_index_per_mission if max_index_per_mission > 0 else None
+        )
         self._headers = {"Content-Type": "application/json"}
         if self.api_key:
             self._headers["Authorization"] = f"Bearer {self.api_key}"
@@ -237,8 +254,8 @@ class DirectorManager:
         files_scanned: int,
         unindexed_features: list[dict[str, Any]],
         current_inventory_rows: list[dict[str, Any]],
-        session_summary: Optional[str] = None,
-    ) -> Optional[DirectorAnalysis]:
+        session_summary: str | None = None,
+    ) -> DirectorAnalysis | None:
         """Send discovery report to cloud Director and get indexing decisions."""
 
         if not DIRECTOR_CLOUD_ENABLED:
@@ -260,7 +277,7 @@ class DirectorManager:
         # Build features JSON (limit if needed for token budget)
         features_to_send = unindexed_features[:500]  # Safety limit
         if self.max_index_per_mission:
-            features_to_send = features_to_send[:self.max_index_per_mission * 2]
+            features_to_send = features_to_send[: self.max_index_per_mission * 2]
 
         # Format session summary section if provided
         session_summary_section = ""
@@ -273,7 +290,9 @@ class DirectorManager:
             discovery_summary=discovery_summary,
             session_summary_section=session_summary_section,
             current_inventory_count=len(current_inventory_rows),
-            current_inventory_categories="\n".join(f"  - {k}: {v}" for k, v in sorted(category_counts.items())),
+            current_inventory_categories="\n".join(
+                f"  - {k}: {v}" for k, v in sorted(category_counts.items())
+            ),
             total_unindexed=len(unindexed_features),
             endpoint_count=type_counts.get("endpoint", 0),
             class_count=type_counts.get("class", 0),
@@ -283,7 +302,9 @@ class DirectorManager:
             config_count=type_counts.get("config", 0),
             todo_count=type_counts.get("todo", 0),
             doc_count=type_counts.get("doc", 0),
-            features_json=json.dumps(features_to_send, indent=2, ensure_ascii=False)[:800000],  # Leave room for response
+            features_json=json.dumps(features_to_send, indent=2, ensure_ascii=False)[
+                :800000
+            ],  # Leave room for response
             max_index=self.max_index_per_mission or 100,
         )
 
@@ -296,12 +317,12 @@ class DirectorManager:
                         "model": self.model,
                         "messages": [
                             {"role": "system", "content": DIRECTOR_SYSTEM_PROMPT},
-                            {"role": "user", "content": user_prompt}
+                            {"role": "user", "content": user_prompt},
                         ],
                         "temperature": 0.3,
                         "max_tokens": 16384,
                         "stream": False,
-                    }
+                    },
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -310,14 +331,18 @@ class DirectorManager:
                 # Parse JSON response
                 parsed = self._parse_director_response(raw_content, mission_id)
                 if parsed:
-                    logger.info(f"Director analysis complete: {parsed.features_to_index} to index, {parsed.features_skipped} skipped")
+                    logger.info(
+                        f"Director analysis complete: {parsed.features_to_index} to index, {parsed.features_skipped} skipped"
+                    )
                     return parsed
                 else:
                     logger.error("Failed to parse Director response")
                     return None
 
         except httpx.HTTPStatusError as e:
-            logger.error(f"Director API HTTP error: {e.status_code} - {e.response.text[:500]}")
+            logger.error(
+                f"Director API HTTP error: {e.status_code} - {e.response.text[:500]}"
+            )
             return self._local_fallback_analysis(mission_id, unindexed_features)
         except Exception as e:
             logger.error(f"Director API error: {e}")
@@ -327,7 +352,7 @@ class DirectorManager:
         self,
         raw_content: str,
         mission_id: str,
-    ) -> Optional[DirectorAnalysis]:
+    ) -> DirectorAnalysis | None:
         """Parse Director's JSON response into DirectorAnalysis."""
         try:
             # Try direct JSON parse
@@ -345,20 +370,25 @@ class DirectorManager:
 
         decisions = []
         for d in data.get("decisions", []):
-            decisions.append(DirectorIndexDecision(
-                source_file=d.get("source_file", ""),
-                feature_type=d.get("feature_type", ""),
-                name=d.get("name", ""),
-                description=d.get("description", ""),
-                category=d.get("category", "other"),
-                tier=d.get("tier", "C"),
-                reasoning=d.get("reasoning", ""),
-                action=d.get("action", "skip"),
-            ))
+            decisions.append(
+                DirectorIndexDecision(
+                    source_file=d.get("source_file", ""),
+                    feature_type=d.get("feature_type", ""),
+                    name=d.get("name", ""),
+                    description=d.get("description", ""),
+                    category=d.get("category", "other"),
+                    tier=d.get("tier", "C"),
+                    reasoning=d.get("reasoning", ""),
+                    action=d.get("action", "skip"),
+                )
+            )
 
         return DirectorAnalysis(
             mission_id=mission_id,
-            timestamp=data.get("timestamp", datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z")),
+            timestamp=data.get(
+                "timestamp",
+                datetime.now(datetime.UTC).isoformat().replace("+00:00", "Z"),
+            ),
             total_features_analyzed=data.get("total_features_analyzed", len(decisions)),
             features_to_index=sum(1 for d in decisions if d.action == "add"),
             features_skipped=sum(1 for d in decisions if d.action == "skip"),
@@ -377,17 +407,23 @@ class DirectorManager:
         """Local fallback when cloud Director is unavailable."""
         decisions = []
         for f in unindexed_features:
-            action = "add" if f.get("feature_type") in ("endpoint", "class", "service") else "skip"
-            decisions.append(DirectorIndexDecision(
-                source_file=f.get("source_file", ""),
-                feature_type=f.get("feature_type", ""),
-                name=f.get("name", ""),
-                description=f.get("description", ""),
-                category=f.get("proposed_category", "other"),
-                tier=f.get("proposed_tier", "C"),
-                reasoning="Local fallback decision",
-                action=action,
-            ))
+            action = (
+                "add"
+                if f.get("feature_type") in ("endpoint", "class", "service")
+                else "skip"
+            )
+            decisions.append(
+                DirectorIndexDecision(
+                    source_file=f.get("source_file", ""),
+                    feature_type=f.get("feature_type", ""),
+                    name=f.get("name", ""),
+                    description=f.get("description", ""),
+                    category=f.get("proposed_category", "other"),
+                    tier=f.get("proposed_tier", "C"),
+                    reasoning="Local fallback decision",
+                    action=action,
+                )
+            )
 
         return DirectorAnalysis(
             mission_id=mission_id,
@@ -404,6 +440,7 @@ class DirectorManager:
 
 
 # ── Index Worker ───────────────────────────────────────────────────────────────
+
 
 class IndexWorker:
     """Applies Director's indexing decisions to FEATURE_INVENTORY.md."""
@@ -451,19 +488,25 @@ class IndexWorker:
         result = self._update_inventory(decisions_to_apply)
         return result
 
-    def _generate_preview(self, decisions: list[DirectorIndexDecision]) -> list[dict[str, str]]:
+    def _generate_preview(
+        self, decisions: list[DirectorIndexDecision]
+    ) -> list[dict[str, str]]:
         """Generate preview of changes."""
         preview = []
         for d in decisions:
-            preview.append({
-                "category": d.category,
-                "name": d.name,
-                "tier": d.tier,
-                "source_file": d.source_file,
-            })
+            preview.append(
+                {
+                    "category": d.category,
+                    "name": d.name,
+                    "tier": d.tier,
+                    "source_file": d.source_file,
+                }
+            )
         return preview
 
-    def _update_inventory(self, decisions: list[DirectorIndexDecision]) -> dict[str, Any]:
+    def _update_inventory(
+        self, decisions: list[DirectorIndexDecision]
+    ) -> dict[str, Any]:
         """Update FEATURE_INVENTORY.md with new entries."""
         try:
             content = self.inventory_path.read_text(encoding="utf-8")
@@ -482,7 +525,9 @@ class IndexWorker:
         new_content = content
 
         for category, cat_decisions in by_category.items():
-            section_title = self._category_section_map.get(category, f"{category.title()}")
+            section_title = self._category_section_map.get(
+                category, f"{category.title()}"
+            )
             new_content = self._add_entries_to_section(
                 new_content, section_title, category, cat_decisions
             )
@@ -513,7 +558,9 @@ class IndexWorker:
 
         if not match:
             # Create new section at end
-            new_section = self._create_section_markdown(category, section_title, decisions)
+            new_section = self._create_section_markdown(
+                category, section_title, decisions
+            )
             return content + "\n---\n\n" + new_section + "\n"
 
         # Find table end in section
@@ -540,7 +587,12 @@ class IndexWorker:
         else:
             # Add table structure
             new_rows = self._generate_table_rows(decisions)
-            return content[:section_start] + section_content + new_rows + content[section_end:]
+            return (
+                content[:section_start]
+                + section_content
+                + new_rows
+                + content[section_end:]
+            )
 
     def _create_section_markdown(
         self,
@@ -550,7 +602,9 @@ class IndexWorker:
     ) -> str:
         """Create a new section with table for the category."""
         # Find max section number
-        max_num_match = re.search(r"##\s*(\d+)\.", self.inventory_path.read_text(encoding="utf-8"))
+        max_num_match = re.search(
+            r"##\s*(\d+)\.", self.inventory_path.read_text(encoding="utf-8")
+        )
         next_num = int(max_num_match.group(1)) + 1 if max_num_match else 1
 
         lines = [
@@ -568,12 +622,17 @@ class IndexWorker:
         """Generate markdown table rows for decisions."""
         rows = []
         for d in decisions:
-            notes = d.description[:150] if d.description else f"Auto-indexed from {d.source_file}"
+            notes = (
+                d.description[:150]
+                if d.description
+                else f"Auto-indexed from {d.source_file}"
+            )
             rows.append(f"| {d.name} | **{d.tier}** | {notes} |")
         return "\n" + "\n".join(rows) + "\n"
 
 
 # ── Convenience Functions ──────────────────────────────────────────────────────
+
 
 def get_director_manager() -> DirectorManager:
     """Get configured DirectorManager instance."""
@@ -591,8 +650,8 @@ async def run_director_analysis(
     files_scanned: int,
     unindexed_features: list[dict[str, Any]],
     current_inventory_rows: list[dict[str, Any]],
-    auto_apply: Optional[bool] = None,
-    session_summary: Optional[str] = None,
+    auto_apply: bool | None = None,
+    session_summary: str | None = None,
 ) -> dict[str, Any]:
     """Run Director analysis and optionally auto-apply decisions."""
 
@@ -631,12 +690,14 @@ async def run_director_analysis(
 
     return result
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     import time
+
     print("[DIRECTOR] Starting Ollama-powered Director Manager Daemon...")
     print("[DIRECTOR] Autonomy Loop interval: 2 minutes.")
     dm = DirectorManager()
-    
+
     while True:
         try:
             print("[DIRECTOR] Generating spontaneous impulse...")
@@ -646,5 +707,5 @@ if __name__ == '__main__':
             # dm.inject_into_soul(impulse)
         except Exception as e:
             print(f"[DIRECTOR] Error in loop: {e}")
-            
-        time.sleep(120) # 2 minutes
+
+        time.sleep(120)  # 2 minutes

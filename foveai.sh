@@ -20,6 +20,9 @@
 #   foveai.sh --status     # Check what's running
 #   foveai.sh --restart    # Stop then start
 #   foveai.sh --apk        # Start only the APK server
+#   foveai.sh --nest       # 13-pane control dashboard (big console centre,
+#                          #   12 metric panes; moves with Ctrl-b n)
+#   foveai.sh console      # The numbered-menu console on its own
 #   foveai.sh --help       # Show this help
 #
 # Install globally:
@@ -28,6 +31,12 @@
 # Then just run: foveai
 
 set -euo pipefail
+
+# Prefer the bundled Node 24 — vite 8/rolldown needs node:util's styleText
+# (Node ≥20.12); the system node is 18.x and the frontends crash on boot.
+if [ -x "$HOME/.local/node24/bin/node" ]; then
+    export PATH="$HOME/.local/node24/bin:$PATH"
+fi
 
 # ─── Paths ──────────────────────────────────────────────────────────
 SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
@@ -311,6 +320,8 @@ EOF
 # ─── Main ───────────────────────────────────────────────────────────
 
 case "${1:-start}" in
+    nest|--nest) exec "$FOVEAI_DIR/foveai_nest.sh" ;;
+    console)     exec "$VENV_PYTHON" "$FOVEAI_DIR/FoveAI_Console.py" ;;
     start|--start)        cmd_start ;;
     --light)     cmd_start --light ;;
     --no-front)  cmd_start --no-front ;;

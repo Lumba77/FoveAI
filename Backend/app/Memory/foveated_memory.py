@@ -6,6 +6,7 @@ Implements concentric rings of context:
 - Far-Peripheral Ring: Low-resolution semantic embeddings & deep historical graph.
 """
 
+
 class FoveatedMemoryManager:
     def __init__(self):
         self.foveal_ring = []
@@ -17,4 +18,3 @@ class FoveatedMemoryManager:
 
     def prune_and_decay(self):
         """Compress older foveal items into mid-peripheral summaries."""
-        pass

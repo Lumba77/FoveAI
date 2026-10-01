@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Direct CLI Bridge</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <style>
+    :root {
+      --background-color: #050505;
+      --text-color: #00ff00;
+      --input-background: #111;
+      --user-message-color: #1a1a1a;
+      --assistant-message-color: #0a0a0a;
+      --accent-color: #ffff00;
+      --border-radius: 4px;
+    }
+    * { box-sizing: border-box; }
+    body, html {
+      font-family: 'Courier New', monospace;
+      margin: 0; padding: 0; height: 100%;
+      background-color: var(--background-color); color: var(--text-color);
+      overflow: hidden;
+    }
+    #app { display: flex; flex-direction: column; height: 100%; border: 2px solid #333; }
+    #header {
+      padding: 0.5rem 1rem; background: #111;
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid #333;
+    }
+    #chat-container {
+      flex-grow: 1; overflow-y: auto; padding: 1rem;
+      display: flex; flex-direction: column; gap: 0.5rem;
+    }
+    .message {
+      max-width: 90%; padding: 0.5rem; border: 1px solid #333;
+      position: relative;
+    }
+    .user-message { align-self: flex-end; color: #fff; border-color: #555; }
+    .assistant-message { align-self: flex-start; color: var(--text-color); border-color: var(--text-color); }
+    .system-message { align-self: center; color: #888; font-size: 0.8rem; border: none; }
+    
+    #visualizer {
+      height: 40px; width: 100%; background: #000;
+      display: flex; align-items: center; justify-content: center; gap: 2px;
+      border-top: 1px solid #333;
+    }
+    .bar { width: 4px; background: var(--text-color); height: 2px; transition: height 0.1s; }
+
+    #input-container {
+      padding: 1rem; display: flex; gap: 0.5rem; background: #111;
+    }
+    #user-input {
+      flex-grow: 1; background: #000; border: 1px solid #333;
+      color: #00ff00; padding: 0.5rem; outline: none;
+    }
+    .icon-btn {
+      background: #222; border: 1px solid #444; color: #fff;
+      cursor: pointer; padding: 0.5rem 1rem;
+    }
+    .icon-btn.active { background: #ff0000; color: #000; }
+    #dev-toggle { background: #333; color: var(--accent-color); font-weight: bold; }
+    #dev-toggle.active { background: var(--accent-color); color: #000; }
+    #host-ip { background: #000; border: 1px solid #444; color: var(--accent-color); font-family: monospace; width: 120px; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header id="header">
+      <span>BRIDGE_V1.5_AUDIO</span>
+      <input type="text" id="host-ip" />
+      <select id="mic-select" style="background:#000; color:var(--accent-color); border:1px solid #444; padding:0.2rem; max-width: 150px;"></select>
+      <button id="dev-toggle" class="icon-btn">DEV_MODE: OFF</button>
+    </header>
+    <div id="chat-container"></div>
+    <div id="visualizer"></div>
+    <div id="input-container">
+      <button id="mic-button" class="icon-btn"><i class="fas fa-microphone"></i></button>
+      <input type="text" id="user-input" placeholder="READY FOR INPUT..." />
+      <button id="send-button" class="icon-btn"><i class="fas fa-terminal"></i></button>
+    </div>
+  </div>
+
+  <script>
+    const chatContainer = document.getElementById('chat-container');
+    const userInput = document.getElementById('user-input');
+    const micButton = document.getElementById('mic-button');
+    const sendButton = document.getElementById('send-button');
+    const devToggle = document.getElementById('dev-toggle');
+    const visualizer = document.getElementById('visualizer');
+    const hostIpInput = document.getElementById('host-ip');
+    const micSelect = document.getElementById('mic-select');
+
+    let mediaRecorder;
+    let audioChunks = [];
+    let isRecording = false;
+    let isDevMode = false;
+    let lastProcessedOutput = "";
+    let audioContext;
+    let analyser;
+    let dataArray;
+    let animationId;
+
+    for (let i = 0; i < 32; i++) {
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      visualizer.appendChild(bar);
+    }
+    const bars = document.querySelectorAll('.bar');
+
+    // Auto-detect IP from browser location
+    hostIpInput.value = window.location.hostname && window.location.hostname !== "localhost" ? window.location.hostname : "192.168.8.110";
+
+    async function populateMics() {
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioInputs = devices.filter(d => d.kind === 'audioinput');
+        micSelect.innerHTML = '';
+        audioInputs.forEach((device, index) => {
+          const option = document.createElement('option');
+          option.value = device.deviceId;
+          option.text = device.label || `Microphone ${index + 1}`;
+          micSelect.appendChild(option);
+        });
+      } catch (err) {
+        console.error("Error enumerating devices:", err);
+      }
+    }
+    populateMics();
+
+    function getBodyURL() { return `http://${hostIpInput.value}:8001`; }
+    function getMindURL() { return `http://${hostIpInput.value}:8402/chat`; }
+
+    devToggle.onclick = () => {
+      isDevMode = !isDevMode;
+      devToggle.innerText = `DEV_MODE: ${isDevMode ? "ON" : "OFF"}`;
+      devToggle.classList.toggle('active');
+      addMessage(`Switched to ${isDevMode ? "DIRECT CLI" : "JEN_PERSONA"} mode. Target: ${hostIpInput.value}`, "system");
+    };
+
+    function addMessage(text, role) {
+      const div = document.createElement('div');
+      div.className = `message ${role}-message`;
+      div.innerHTML = `[${role.toUpperCase()}]: ${marked.parse(text)}`;
+      chatContainer.appendChild(div);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function updateVisualizer() {
+      if (!isRecording) return;
+      analyser.getByteFrequencyData(dataArray);
+      for (let i = 0; i < 32; i++) {
+        const value = dataArray[i * 4];
+        const percent = (value / 255) * 40;
+        bars[i].style.height = `${Math.max(2, percent)}px`;
+      }
+      animationId = requestAnimationFrame(updateVisualizer);
+    }
+
+    async function playPCM(base64Audio, sampleRate) {
+      if (!audioContext) audioContext = new AudioContext();
+      const binaryString = atob(base64Audio);
+      const len = binaryString.length;
+      const bytes = new Int16Array(len / 2);
+      for (let i = 0; i < len; i += 2) {
+        bytes[i/2] = (binaryString.charCodeAt(i+1) << 8) | binaryString.charCodeAt(i);
+      }
+      const audioBuffer = audioContext.createBuffer(1, bytes.length, sampleRate);
+      const channelData = audioBuffer.getChannelData(0);
+      for (let i = 0; i < bytes.length; i++) {
+        channelData[i] = bytes[i] / 32768.0;
+      }
+      const source = audioContext.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(audioContext.destination);
+      source.start();
+    }
+
+    async function processInput(text = "", audioB64 = "") {
+      const mind = getMindURL();
+      const body = getBodyURL();
+
+      if (!isDevMode) {
+        try {
+          addMessage("Contacting Jen...", "system");
+          const resp = await fetch(mind, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({input: text, audio_base64: audioB64, channel: "voice", vessel: "DESKTOP"})
+          });
+          const data = await resp.json();
+          if (data.transcription) addMessage(data.transcription, "user");
+          addMessage(data.response, "assistant");
+        } catch (e) { addMessage(`Jen Error: ${e.message}`, "system"); }
+      } else {
+        let finalInput = text;
+        if (audioB64) {
+          try {
+            addMessage("Transcribing voice...", "system");
+            const sttResp = await fetch(`${body}/stt`, {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({audio_base64: audioB64})
+            });
+            const sttData = await sttResp.json();
+            finalInput = sttData.text;
+            addMessage(`Transcribed: "${finalInput}"`, "system");
+          } catch (e) { addMessage(`STT Error: ${e.message}`, "system"); return; }
+        }
+        
+        if (finalInput) {
+          addMessage(`Relaying to Agent: "${finalInput}"`, "system");
+          try {
+            const resp = await fetch(`${body}/dev/input`, {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({text: finalInput})
+            });
+            const result = await resp.json();
+            addMessage(`Relay Success: ${result.status}`, "system");
+          } catch (e) { addMessage(`Relay Error: ${e.message}`, "system"); }
+        }
+      }
+    }
+
+    setInterval(async () => {
+      // Check output in BOTH modes to allow the CLI agent to talk back
+      try {
+        const resp = await fetch(`${getBodyURL()}/dev/output`);
+        const data = await resp.json();
+        if (data.text && data.text !== lastProcessedOutput) {
+          addMessage(data.text, "assistant");
+          lastProcessedOutput = data.text;
+          
+          // Request TTS and play it locally in the browser
+          try {
+            const ttsResp = await fetch(`${getBodyURL()}/tts`, {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({text: data.text})
+            });
+            const ttsData = await ttsResp.json();
+            if (ttsData.audio) {
+              await playPCM(ttsData.audio, ttsData.sample_rate || 22050);
+            }
+          } catch(err) {
+            console.error("TTS Playback Error:", err);
+          }
+        }
+      } catch(e) {
+        // Silently fail if polling fails to keep console clean
+      }
+    }, 1000);
+
+    micButton.onclick = async () => {
+      if (!isRecording) {
+        try {
+          const deviceId = micSelect.value;
+          const constraints = {
+            audio: deviceId ? { deviceId: { exact: deviceId } } : true
+          };
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          if (!audioContext) audioContext = new AudioContext();
+          analyser = audioContext.createAnalyser();
+          const source = audioContext.createMediaStreamSource(stream);
+          source.connect(analyser);
+          analyser.fftSize = 256;
+          dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+          const mimeType = ['audio/webm', 'audio/ogg', 'audio/wav'].find(type => MediaRecorder.isTypeSupported(type)) || "";
+          mediaRecorder = new MediaRecorder(stream, { mimeType });
+          audioChunks = [];
+          
+          mediaRecorder.ondataavailable = e => { if (e.data.size > 0) audioChunks.push(e.data); };
+          
+          mediaRecorder.onstop = async () => {
+            console.log("Recording stopped. Processing chunks:", audioChunks.length);
+            addMessage(`Processing ${audioChunks.length} audio chunks...`, "system");
+            const blob = new Blob(audioChunks, { type: mimeType });
+            const reader = new FileReader();
+            reader.readAsDataURL(blob);
+            reader.onloadend = () => { processInput("", reader.result.split(',')[1]); };
+            stream.getTracks().forEach(track => track.stop());
+          };
+
+          mediaRecorder.start();
+          isRecording = true; 
+          micButton.classList.add('active');
+          micButton.style.boxShadow = "0 0 20px #ff0000";
+          updateVisualizer();
+          addMessage("Listening... (Click again to send)", "system");
+
+          // Auto-stop after 10 seconds as failsafe
+          setTimeout(() => { if (isRecording) micButton.onclick(); }, 10000);
+
+        } catch (err) { addMessage(`Microphone Error: ${err.message}`, "system"); }
+      } else {
+        console.log("Stopping recording manually...");
+        isRecording = false; 
+        micButton.classList.remove('active');
+        micButton.style.boxShadow = "none";
+        if (mediaRecorder && mediaRecorder.state !== "inactive") {
+          mediaRecorder.stop();
+        }
+        cancelAnimationFrame(animationId);
+        bars.forEach(b => b.style.height = "2px");
+      }
+    };
+
+    sendButton.onclick = () => {
+      const val = userInput.value.trim();
+      if (val) { processInput(val); userInput.value = ""; }
+    };
+    userInput.onkeydown = e => { if (e.key === 'Enter') sendButton.onclick(); };
+  </script>
+</body>
+</html>

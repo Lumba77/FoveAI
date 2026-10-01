@@ -102,7 +102,9 @@ In dataset JSON, evaluator names are resolved as follows:
 
 ```python
 class Evaluable(TestCase):
-    eval_output: list[NamedData]      # wrap(purpose="output") + wrap(purpose="state") values
+    eval_output: list[
+        NamedData
+    ]  # wrap(purpose="output") + wrap(purpose="state") values
     # Inherited from TestCase:
     # eval_input: list[NamedData]     # from eval_input in dataset entry
     # expectation: JsonValue | _Unset # from expectation in dataset entry
@@ -157,6 +159,7 @@ def _get_output(evaluable: Evaluable, name: str) -> Any:
 ```python
 from pixie import Evaluation, Evaluable
 
+
 def _get_output(evaluable: Evaluable, name: str) -> Any:
     """Look up a wrap value by name from eval_output."""
     for item in evaluable.eval_output:
@@ -164,8 +167,13 @@ def _get_output(evaluable: Evaluable, name: str) -> Any:
             return item.value
     return None
 
+
 def tool_call_check(evaluable: Evaluable, *, trace=None) -> Evaluation:
-    expected = evaluable.eval_metadata.get("expected_tool") if evaluable.eval_metadata else None
+    expected = (
+        evaluable.eval_metadata.get("expected_tool")
+        if evaluable.eval_metadata
+        else None
+    )
     actual = _get_output(evaluable, "function_called")
     if expected is None:
         return Evaluation(score=1.0, reasoning="No expected_tool specified")

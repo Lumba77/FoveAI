@@ -23,11 +23,17 @@ import { registerSendProblems } from './commands/sendProblems';
 import { AudioManager } from './audioManager';
 import { ExecutionBuffer } from './executionBuffer';
 
-/** Derive a stable workspace ID from the first workspace folder name */
-function resolveWorkspaceId(context: vscode.ExtensionContext): string {
+const SESSION_KEY = 'jenna.sessionToken';
+
+/** Derive the Bearer identity: explicit override > signed-in fvs_ session >
+ *  folder-name legacy bearer (keeps pre-account installs working). */
+async function resolveWorkspaceId(context: vscode.ExtensionContext): Promise<string> {
   const config = vscode.workspace.getConfiguration('jenna');
   const override = config.get<string>('workspaceId', '').trim();
   if (override) return override;
+
+  const session = await context.secrets.get(SESSION_KEY);
+  if (session) return session;
 
   const folders = vscode.workspace.workspaceFolders;
   if (folders && folders.length > 0) {
@@ -44,13 +50,13 @@ function resolveWorkspaceId(context: vscode.ExtensionContext): string {
   return id;
 }
 
-export function activate(context: vscode.ExtensionContext): void {
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
   console.log('[jenna] activating…');
 
   // ── Configuration ──────────────────────────────────────────────────────
   const config     = vscode.workspace.getConfiguration('jenna');
   const baseUrl    = config.get<string>('foveatedMemoryUrl', 'http://127.0.0.1:8400');
-  const workspaceId = resolveWorkspaceId(context);
+  const workspaceId = await resolveWorkspaceId(context);
 
   console.log(`[jenna] workspace id: ${workspaceId} | proxy: ${baseUrl}`);
 
@@ -99,6 +105,69 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   // ── Commands ────────────────────────────────────────────────────────────
+
+  // Sign in with a FoveAI account — the fvs_ session token becomes the Bearer,
+  // so chat and memory land in the user's personal u_<name> workspace.
+  context.subscriptions.push(
+    vscode.commands.registerCommand('jenna.signIn', async () => {
+      const username = await vscode.window.showInputBox({
+        prompt: 'FoveAI username',
+        placeHolder: 'beta tester account name',
+        ignoreFocusOut: true,
+      });
+      if (!username) return;
+      const password = await vscode.window.showInputBox({
+        prompt: 'FoveAI password',
+        password: true,
+        ignoreFocusOut: true,
+      });
+      if (!password) return;
+
+      try {
+        const res = await fetch(`${baseUrl}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: username.trim(), password }),
+          signal: AbortSignal.timeout(10000),
+        });
+        const data: any = await res.json().catch(() => null);
+        if (!res.ok || !data?.token) {
+          vscode.window.showErrorMessage(`Jenna sign-in failed: ${data?.error || res.status}`);
+          return;
+        }
+        await context.secrets.store(SESSION_KEY, data.token);
+        const who = data.user?.displayName || data.user?.username || username;
+        const action = await vscode.window.showInformationMessage(
+          `FoveAI: signed in as ${who} (${data.user?.role || 'member'}) — reload to use your personal workspace.`,
+          'Reload Window'
+        );
+        if (action === 'Reload Window') vscode.commands.executeCommand('workbench.action.reloadWindow');
+      } catch (e: any) {
+        vscode.window.showErrorMessage(`Jenna sign-in failed: ${e?.message || 'cannot reach ' + baseUrl}`);
+      }
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand('jenna.signOut', async () => {
+      const token = await context.secrets.get(SESSION_KEY);
+      if (!token) {
+        vscode.window.showInformationMessage('FoveAI: not signed in — using legacy workspace bearer.');
+        return;
+      }
+      try {
+        await fetch(`${baseUrl}/api/auth/logout`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          signal: AbortSignal.timeout(5000),
+        });
+      } catch { /* local sign-out still proceeds */ }
+      await context.secrets.delete(SESSION_KEY);
+      const action = await vscode.window.showInformationMessage(
+        'FoveAI: signed out — reload to return to the shared workspace.', 'Reload Window');
+      if (action === 'Reload Window') vscode.commands.executeCommand('workbench.action.reloadWindow');
+    })
+  );
 
   // Switch Persona command
   context.subscriptions.push(

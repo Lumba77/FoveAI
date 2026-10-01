@@ -1,0 +1,10 @@
+INFO:     Started server process [881461]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8002 (Press CTRL+C to quit)
+LUMAX Memory Service starting on 0.0.0.0:8002
+Layers: Redis=localhost:6379, Chroma=/home/lumba/LUMAX-lite/Mind/Memory/chroma_db, Kuzu=/home/lumba/LUMAX-lite/Mind/Memory/kuzu_db
+Kuzu schema init: Parser exception: Invalid input <, MANY_MANY,>: expected rule kU_CreateRelTable (line: 1, offset: 74)
+"CREATE REL TABLE IF NOT EXISTS RELATED_TO(FROM Memory TO Memory, MANY_MANY, strength FLOAT)"
+                                                                           ^
+INFO:     127.0.0.1:58548 - "GET /health HTTP/1.1" 200 OK

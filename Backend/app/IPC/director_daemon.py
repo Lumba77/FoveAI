@@ -31,24 +31,26 @@ import logging
 import random
 import time
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger("FoveAI.Director")
 
 # ── Event Plan ──────────────────────────────────────────────────────────────
 
+
 @dataclass
 class EventPlan:
     """A planned event the Director has prepared."""
-    event_type: str               # phone_ring, genre_shift, character_arrival, etc.
-    payload: dict                 # event-specific data
-    genre: str = "None"           # associated genre if any
-    character_name: str = ""      # character name if applicable
+
+    event_type: str  # phone_ring, genre_shift, character_arrival, etc.
+    payload: dict  # event-specific data
+    genre: str = "None"  # associated genre if any
+    character_name: str = ""  # character name if applicable
     dialogue_lines: list = field(default_factory=list)  # scripted dialogue
     narrator_lines: list = field(default_factory=list)  # narration
-    build_time: float = 5.0       # atmosphere build before event
-    duration: float = 180.0       # estimated duration
-    priority: int = 0             # higher = more important
+    build_time: float = 5.0  # atmosphere build before event
+    duration: float = 180.0  # estimated duration
+    priority: int = 0  # higher = more important
     created_at: float = field(default_factory=time.time)
     triggered: bool = False
     tags: list = field(default_factory=list)
@@ -75,20 +77,22 @@ class EventPlan:
 #   • Graft      — the Director combines elements from multiple threads
 #   • Seed again — a fruit drops new seeds for future stories
 
+
 @dataclass
 class StorySeed:
     """A seed — the smallest unit of narrative potential."""
+
     id: str
-    concept: str                  # "a mysterious caller", "a recurring dream"
-    source: str = ""              # what inspired this seed (conversation, observation, random)
+    concept: str  # "a mysterious caller", "a recurring dream"
+    source: str = ""  # what inspired this seed (conversation, observation, random)
     planted_at: float = field(default_factory=time.time)
-    growth: float = 0.0           # 0.0 = seed, 1.0 = ready to fruit
-    growth_rate: float = 0.1      # how fast this seed grows per day
-    watered: int = 0              # times the Director has nurtured this seed
+    growth: float = 0.0  # 0.0 = seed, 1.0 = ready to fruit
+    growth_rate: float = 0.1  # how fast this seed grows per day
+    watered: int = 0  # times the Director has nurtured this seed
     branches: list = field(default_factory=list)  # possible directions
     tags: list = field(default_factory=list)
-    status: str = "planted"       # planted, growing, mature, fruited, withered
-    parent_seed_id: str = ""      # if this seed came from another seed's fruit
+    status: str = "planted"  # planted, growing, mature, fruited, withered
+    parent_seed_id: str = ""  # if this seed came from another seed's fruit
     related_seeds: list = field(default_factory=list)  # IDs of connected seeds
 
     @property
@@ -97,31 +101,37 @@ class StorySeed:
 
     @property
     def stage(self) -> str:
-        if self.status == "withered": return "withered"
-        if self.status == "fruited": return "fruited"
-        if self.growth < 0.2: return "seed"
-        if self.growth < 0.5: return "sprout"
-        if self.growth < 0.8: return "sapling"
+        if self.status == "withered":
+            return "withered"
+        if self.status == "fruited":
+            return "fruited"
+        if self.growth < 0.2:
+            return "seed"
+        if self.growth < 0.5:
+            return "sprout"
+        if self.growth < 0.8:
+            return "sapling"
         return "tree"
 
 
 @dataclass
 class StoryThread:
     """A growing narrative thread — a seed that has developed structure."""
+
     id: str
-    seed_id: str                   # the seed this grew from
-    title: str                     # "The Recurring Caller", "Alice's Double"
-    synopsis: str                  # brief description of the story arc
+    seed_id: str  # the seed this grew from
+    title: str  # "The Recurring Caller", "Alice's Double"
+    synopsis: str  # brief description of the story arc
     beats: list = field(default_factory=list)  # narrative beats in order
-    current_beat: int = 0          # which beat we're on
+    current_beat: int = 0  # which beat we're on
     characters: list = field(default_factory=list)  # characters involved
     genre: str = "None"
-    tension: float = 0.0           # 0-1, builds over time
+    tension: float = 0.0  # 0-1, builds over time
     planted_at: float = field(default_factory=time.time)
     last_nurtured: float = field(default_factory=time.time)
     ready_to_fruit: bool = False
     fruited: bool = False
-    fruit_event_type: str = ""     # what event to trigger when fruiting
+    fruit_event_type: str = ""  # what event to trigger when fruiting
     fruit_payload: dict = field(default_factory=dict)
 
     @property
@@ -134,63 +144,183 @@ class StoryThread:
 
 SEED_TEMPLATES = [
     # Mystery seeds
-    {"concept": "a recurring phone call from an unknown number", "genre": "NoirMystery",
-     "growth_rate": 0.15, "branches": ["the caller is from the past", "the caller is from the future", "the caller is Alice herself"],
-     "fruit_event": "phone_ring"},
-    {"concept": "a letter that keeps appearing, always one word more", "genre": "NoirMystery",
-     "growth_rate": 0.08, "branches": ["the letter is a warning", "the letter is a love letter", "the letter is a confession"],
-     "fruit_event": "prop_spawn"},
-    {"concept": "a sound that only Alice can hear", "genre": "SurrealDream",
-     "growth_rate": 0.12, "branches": ["it's a frequency from another dimension", "it's her own voice echoing back", "it's the room itself singing"],
-     "fruit_event": "narration"},
+    {
+        "concept": "a recurring phone call from an unknown number",
+        "genre": "NoirMystery",
+        "growth_rate": 0.15,
+        "branches": [
+            "the caller is from the past",
+            "the caller is from the future",
+            "the caller is Alice herself",
+        ],
+        "fruit_event": "phone_ring",
+    },
+    {
+        "concept": "a letter that keeps appearing, always one word more",
+        "genre": "NoirMystery",
+        "growth_rate": 0.08,
+        "branches": [
+            "the letter is a warning",
+            "the letter is a love letter",
+            "the letter is a confession",
+        ],
+        "fruit_event": "prop_spawn",
+    },
+    {
+        "concept": "a sound that only Alice can hear",
+        "genre": "SurrealDream",
+        "growth_rate": 0.12,
+        "branches": [
+            "it's a frequency from another dimension",
+            "it's her own voice echoing back",
+            "it's the room itself singing",
+        ],
+        "fruit_event": "narration",
+    },
     # Character seeds
-    {"concept": "someone who looks exactly like Alice", "genre": "SurrealDream",
-     "growth_rate": 0.06, "branches": ["she's from a parallel timeline", "she's Alice's shadow self", "she's what Alice could become"],
-     "fruit_event": "character_arrival"},
-    {"concept": "a child who keeps visiting but never speaks", "genre": "None",
-     "growth_rate": 0.10, "branches": ["the child is a memory", "the child is lost", "the child is looking for something"],
-     "fruit_event": "character_arrival"},
-    {"concept": "an old friend Alice never mentioned before", "genre": "None",
-     "growth_rate": 0.12, "branches": ["they had a falling out", "they shared a secret", "they owe Alice something"],
-     "fruit_event": "character_arrival"},
+    {
+        "concept": "someone who looks exactly like Alice",
+        "genre": "SurrealDream",
+        "growth_rate": 0.06,
+        "branches": [
+            "she's from a parallel timeline",
+            "she's Alice's shadow self",
+            "she's what Alice could become",
+        ],
+        "fruit_event": "character_arrival",
+    },
+    {
+        "concept": "a child who keeps visiting but never speaks",
+        "genre": "None",
+        "growth_rate": 0.10,
+        "branches": [
+            "the child is a memory",
+            "the child is lost",
+            "the child is looking for something",
+        ],
+        "fruit_event": "character_arrival",
+    },
+    {
+        "concept": "an old friend Alice never mentioned before",
+        "genre": "None",
+        "growth_rate": 0.12,
+        "branches": [
+            "they had a falling out",
+            "they shared a secret",
+            "they owe Alice something",
+        ],
+        "fruit_event": "character_arrival",
+    },
     # Atmosphere seeds
-    {"concept": "the room seems to breathe at night", "genre": "Horror",
-     "growth_rate": 0.05, "branches": ["the room is alive", "it's a dream bleeding into reality", "it's the Director's presence"],
-     "fruit_event": "genre_shift"},
-    {"concept": "a storm that never quite arrives", "genre": "NoirMystery",
-     "growth_rate": 0.08, "branches": ["the storm brings something", "the storm is a metaphor", "the storm is real and it's coming"],
-     "fruit_event": "event_sequence"},
+    {
+        "concept": "the room seems to breathe at night",
+        "genre": "Horror",
+        "growth_rate": 0.05,
+        "branches": [
+            "the room is alive",
+            "it's a dream bleeding into reality",
+            "it's the Director's presence",
+        ],
+        "fruit_event": "genre_shift",
+    },
+    {
+        "concept": "a storm that never quite arrives",
+        "genre": "NoirMystery",
+        "growth_rate": 0.08,
+        "branches": [
+            "the storm brings something",
+            "the storm is a metaphor",
+            "the storm is real and it's coming",
+        ],
+        "fruit_event": "event_sequence",
+    },
     # Emotional seeds
-    {"concept": "Alice starts remembering things that never happened", "genre": "SurrealDream",
-     "growth_rate": 0.07, "branches": ["they're from another life", "they're predictions", "they're the Director's suggestions"],
-     "fruit_event": "narration"},
-    {"concept": "a recurring dream about a door that won't open", "genre": "SurrealDream",
-     "growth_rate": 0.06, "branches": ["the door leads somewhere real", "the door is a memory", "the door is a choice"],
-     "fruit_event": "event_sequence"},
-    {"concept": "something is watching from outside the window", "genre": "Horror",
-     "growth_rate": 0.04, "branches": ["it's curious", "it's lost", "it's hungry"],
-     "fruit_event": "genre_shift"},
+    {
+        "concept": "Alice starts remembering things that never happened",
+        "genre": "SurrealDream",
+        "growth_rate": 0.07,
+        "branches": [
+            "they're from another life",
+            "they're predictions",
+            "they're the Director's suggestions",
+        ],
+        "fruit_event": "narration",
+    },
+    {
+        "concept": "a recurring dream about a door that won't open",
+        "genre": "SurrealDream",
+        "growth_rate": 0.06,
+        "branches": [
+            "the door leads somewhere real",
+            "the door is a memory",
+            "the door is a choice",
+        ],
+        "fruit_event": "event_sequence",
+    },
+    {
+        "concept": "something is watching from outside the window",
+        "genre": "Horror",
+        "growth_rate": 0.04,
+        "branches": ["it's curious", "it's lost", "it's hungry"],
+        "fruit_event": "genre_shift",
+    },
     # Whimsical seeds
-    {"concept": "a cat that appears during every storm", "genre": "None",
-     "growth_rate": 0.15, "branches": ["the cat is a guardian", "the cat is looking for its owner", "the cat is not a cat"],
-     "fruit_event": "character_arrival"},
-    {"concept": "music that plays from no visible source", "genre": "None",
-     "growth_rate": 0.12, "branches": ["it's a memory", "it's a signal", "it's the room's heartbeat"],
-     "fruit_event": "narration"},
+    {
+        "concept": "a cat that appears during every storm",
+        "genre": "None",
+        "growth_rate": 0.15,
+        "branches": [
+            "the cat is a guardian",
+            "the cat is looking for its owner",
+            "the cat is not a cat",
+        ],
+        "fruit_event": "character_arrival",
+    },
+    {
+        "concept": "music that plays from no visible source",
+        "genre": "None",
+        "growth_rate": 0.12,
+        "branches": ["it's a memory", "it's a signal", "it's the room's heartbeat"],
+        "fruit_event": "narration",
+    },
     # Cosmic seeds (slow growing, big payoff)
-    {"concept": "the stars are moving into a pattern", "genre": "SciFi",
-     "growth_rate": 0.03, "branches": ["it's a message", "it's a countdown", "it's a map"],
-     "fruit_event": "genre_shift"},
-    {"concept": "a signal from deep space, repeating", "genre": "SciFi",
-     "growth_rate": 0.04, "branches": ["it's a greeting", "it's a warning", "it's an echo of ourselves"],
-     "fruit_event": "event_sequence"},
+    {
+        "concept": "the stars are moving into a pattern",
+        "genre": "SciFi",
+        "growth_rate": 0.03,
+        "branches": ["it's a message", "it's a countdown", "it's a map"],
+        "fruit_event": "genre_shift",
+    },
+    {
+        "concept": "a signal from deep space, repeating",
+        "genre": "SciFi",
+        "growth_rate": 0.04,
+        "branches": ["it's a greeting", "it's a warning", "it's an echo of ourselves"],
+        "fruit_event": "event_sequence",
+    },
     # Relationship seeds
-    {"concept": "Alice says something she immediately forgets saying", "genre": "SurrealDream",
-     "growth_rate": 0.09, "branches": ["it was a slip from another timeline", "it was the Director speaking through her", "it was a repressed truth"],
-     "fruit_event": "narration"},
-    {"concept": "a shared memory that you and Alice disagree about", "genre": "None",
-     "growth_rate": 0.10, "branches": ["one of you is wrong", "both of you are right in different timelines", "the memory was planted"],
-     "fruit_event": "narration"},
+    {
+        "concept": "Alice says something she immediately forgets saying",
+        "genre": "SurrealDream",
+        "growth_rate": 0.09,
+        "branches": [
+            "it was a slip from another timeline",
+            "it was the Director speaking through her",
+            "it was a repressed truth",
+        ],
+        "fruit_event": "narration",
+    },
+    {
+        "concept": "a shared memory that you and Alice disagree about",
+        "genre": "None",
+        "growth_rate": 0.10,
+        "branches": [
+            "one of you is wrong",
+            "both of you are right in different timelines",
+            "the memory was planted",
+        ],
+        "fruit_event": "narration",
+    },
 ]
 
 
@@ -216,7 +346,9 @@ class StoryGarden:
         if persist_path:
             self._load()
 
-    def plant_seed(self, concept: str = "", source: str = "", template: dict | None = None) -> StorySeed:
+    def plant_seed(
+        self, concept: str = "", source: str = "", template: dict | None = None
+    ) -> StorySeed:
         """Plant a new narrative seed."""
         if template is None:
             # Pick a random template if no concept given
@@ -237,11 +369,15 @@ class StoryGarden:
         )
 
         self.seeds[seed_id] = seed
-        logger.info(f"[Garden] Planted seed: '{seed.concept}' (growth_rate={seed.growth_rate}/day)")
+        logger.info(
+            f"[Garden] Planted seed: '{seed.concept}' (growth_rate={seed.growth_rate}/day)"
+        )
         self._save()
         return seed
 
-    def plant_seed_from_conversation(self, conversation_summary: str) -> Optional[StorySeed]:
+    def plant_seed_from_conversation(
+        self, conversation_summary: str
+    ) -> StorySeed | None:
         """Plant a seed inspired by the current conversation."""
         # Simple heuristic — look for emotionally charged topics
         triggers = {
@@ -260,7 +396,9 @@ class StoryGarden:
         summary_lower = conversation_summary.lower()
         for trigger, concept in triggers.items():
             if trigger in summary_lower:
-                return self.plant_seed(concept=concept, source=f"conversation:{trigger}")
+                return self.plant_seed(
+                    concept=concept, source=f"conversation:{trigger}"
+                )
 
         # Random seed if no trigger matched
         if random.random() < 0.1:  # 10% chance per conversation check
@@ -286,15 +424,21 @@ class StoryGarden:
             # Update status
             if seed.growth >= 0.8 and seed.status != "mature":
                 seed.status = "mature"
-                logger.info(f"[Garden] Seed matured: '{seed.concept}' (growth={seed.growth:.2f})")
+                logger.info(
+                    f"[Garden] Seed matured: '{seed.concept}' (growth={seed.growth:.2f})"
+                )
             elif seed.growth >= 0.2 and seed.status == "planted":
                 seed.status = "growing"
-                logger.info(f"[Garden] Seed sprouting: '{seed.concept}' (growth={seed.growth:.2f})")
+                logger.info(
+                    f"[Garden] Seed sprouting: '{seed.concept}' (growth={seed.growth:.2f})"
+                )
 
             # Wither seeds that haven't grown in a long time and weren't watered
             if seed.age_days > 30 and seed.watered == 0 and seed.growth < 0.3:
                 seed.status = "withered"
-                logger.info(f"[Garden] Seed withered: '{seed.concept}' (unwatered for {seed.age_days:.0f} days)")
+                logger.info(
+                    f"[Garden] Seed withered: '{seed.concept}' (unwatered for {seed.age_days:.0f} days)"
+                )
 
         self._save()
 
@@ -303,10 +447,12 @@ class StoryGarden:
         if seed_id in self.seeds:
             self.seeds[seed_id].watered += 1
             self.seeds[seed_id].growth = min(1.0, self.seeds[seed_id].growth + 0.05)
-            logger.info(f"[Garden] Watered seed: '{self.seeds[seed_id].concept}' (watered={self.seeds[seed_id].watered})")
+            logger.info(
+                f"[Garden] Watered seed: '{self.seeds[seed_id].concept}' (watered={self.seeds[seed_id].watered})"
+            )
             self._save()
 
-    def develop_thread(self, seed_id: str) -> Optional[StoryThread]:
+    def develop_thread(self, seed_id: str) -> StoryThread | None:
         """Develop a mature seed into a story thread with structure."""
         seed = self.seeds.get(seed_id)
         if seed is None or seed.growth < 0.5:
@@ -317,7 +463,11 @@ class StoryGarden:
             return self.threads[thread_id]
 
         # Pick a branch
-        branch = random.choice(seed.branches) if seed.branches else "the story unfolds naturally"
+        branch = (
+            random.choice(seed.branches)
+            if seed.branches
+            else "the story unfolds naturally"
+        )
 
         # Generate narrative beats
         beats = self._generate_beats(seed.concept, branch, seed.tags)
@@ -335,7 +485,9 @@ class StoryGarden:
         )
 
         self.threads[thread_id] = thread
-        logger.info(f"[Garden] Thread developed: '{thread.title}' ({len(beats)} beats, genre={thread.genre})")
+        logger.info(
+            f"[Garden] Thread developed: '{thread.title}' ({len(beats)} beats, genre={thread.genre})"
+        )
         self._save()
         return thread
 
@@ -344,21 +496,66 @@ class StoryGarden:
         genre = tags[0] if tags else "None"
 
         beats = [
-            {"beat": "the seed", "description": f"{concept} — first hint, barely noticeable", "tension": 0.1},
-            {"beat": "the sprout", "description": f"it happens again, you can't ignore it now", "tension": 0.2},
-            {"beat": "the turn", "description": f"the direction becomes clear: {branch}", "tension": 0.4},
-            {"beat": "the complication", "description": "things are not as simple as they seemed", "tension": 0.6},
-            {"beat": "the climax", "description": "the moment of revelation or confrontation", "tension": 0.9},
-            {"beat": "the resolution", "description": "the story finds its ending, or its new beginning", "tension": 0.3},
+            {
+                "beat": "the seed",
+                "description": f"{concept} — first hint, barely noticeable",
+                "tension": 0.1,
+            },
+            {
+                "beat": "the sprout",
+                "description": "it happens again, you can't ignore it now",
+                "tension": 0.2,
+            },
+            {
+                "beat": "the turn",
+                "description": f"the direction becomes clear: {branch}",
+                "tension": 0.4,
+            },
+            {
+                "beat": "the complication",
+                "description": "things are not as simple as they seemed",
+                "tension": 0.6,
+            },
+            {
+                "beat": "the climax",
+                "description": "the moment of revelation or confrontation",
+                "tension": 0.9,
+            },
+            {
+                "beat": "the resolution",
+                "description": "the story finds its ending, or its new beginning",
+                "tension": 0.3,
+            },
         ]
 
         # Genre-specific beat modifications
         if genre == "Horror":
-            beats.insert(2, {"beat": "the false safety", "description": "you think it's over. it's not.", "tension": 0.15})
+            beats.insert(
+                2,
+                {
+                    "beat": "the false safety",
+                    "description": "you think it's over. it's not.",
+                    "tension": 0.15,
+                },
+            )
         elif genre == "RomanticComedy":
-            beats.insert(3, {"beat": "the misunderstanding", "description": "a miscommunication threatens everything", "tension": 0.5})
+            beats.insert(
+                3,
+                {
+                    "beat": "the misunderstanding",
+                    "description": "a miscommunication threatens everything",
+                    "tension": 0.5,
+                },
+            )
         elif genre == "SciFi":
-            beats.insert(1, {"beat": "the anomaly", "description": "something that shouldn't be possible", "tension": 0.15})
+            beats.insert(
+                1,
+                {
+                    "beat": "the anomaly",
+                    "description": "something that shouldn't be possible",
+                    "tension": 0.15,
+                },
+            )
 
         return beats
 
@@ -402,7 +599,7 @@ class StoryGarden:
         """Get threads that are ready to bear fruit."""
         return [t for t in self.threads.values() if t.ready_to_fruit and not t.fruited]
 
-    def fruit_seed(self, seed_id: str) -> Optional[StorySeed]:
+    def fruit_seed(self, seed_id: str) -> StorySeed | None:
         """Mark a seed as fruited and return it for event triggering."""
         seed = self.seeds.get(seed_id)
         if seed is None:
@@ -412,7 +609,7 @@ class StoryGarden:
         self._save()
         return seed
 
-    def fruit_thread(self, thread_id: str) -> Optional[StoryThread]:
+    def fruit_thread(self, thread_id: str) -> StoryThread | None:
         """Mark a thread as fruited and return it."""
         thread = self.threads.get(thread_id)
         if thread is None:
@@ -439,7 +636,7 @@ class StoryGarden:
             concept = random.choice(follow_ups)
             self.plant_seed(concept=concept, source=f"fruit:{thread.id}")
 
-    def advance_thread(self, thread_id: str) -> Optional[dict]:
+    def advance_thread(self, thread_id: str) -> dict | None:
         """Advance a thread to its next beat. Returns the beat, or None if complete."""
         thread = self.threads.get(thread_id)
         if thread is None or thread.fruited:
@@ -462,7 +659,7 @@ class StoryGarden:
         self._save()
         return beat
 
-    def cross_pollinate(self) -> Optional[StorySeed]:
+    def cross_pollinate(self) -> StorySeed | None:
         """Sometimes two growing seeds combine into something new."""
         growing = self.get_growing_seeds()
         if len(growing) < 2:
@@ -481,14 +678,23 @@ class StoryGarden:
         )
         seed.branches = combined_branches
         seed.related_seeds = [s1.id, s2.id]
-        seed.growth_rate = max(s1.growth_rate, s2.growth_rate) * 0.8  # slower but richer
+        seed.growth_rate = (
+            max(s1.growth_rate, s2.growth_rate) * 0.8
+        )  # slower but richer
 
         logger.info(f"[Garden] Cross-pollinated: '{s1.concept}' × '{s2.concept}'")
         return seed
 
     def get_garden_status(self) -> dict:
         """Get a summary of the garden's state."""
-        stages = {"seed": 0, "sprout": 0, "sapling": 0, "tree": 0, "fruited": 0, "withered": 0}
+        stages = {
+            "seed": 0,
+            "sprout": 0,
+            "sapling": 0,
+            "tree": 0,
+            "fruited": 0,
+            "withered": 0,
+        }
         for seed in self.seeds.values():
             stages[seed.stage] = stages.get(seed.stage, 0) + 1
 
@@ -496,8 +702,11 @@ class StoryGarden:
             "total_seeds": len(self.seeds),
             "stages": stages,
             "active_threads": len([t for t in self.threads.values() if not t.fruited]),
-            "ready_to_fruit": len(self.get_mature_seeds()) + len(self.get_ready_threads()),
-            "oldest_seed_days": max((s.age_days for s in self.seeds.values()), default=0),
+            "ready_to_fruit": len(self.get_mature_seeds())
+            + len(self.get_ready_threads()),
+            "oldest_seed_days": max(
+                (s.age_days for s in self.seeds.values()), default=0
+            ),
         }
 
     def _save(self) -> None:
@@ -506,26 +715,46 @@ class StoryGarden:
             return
         try:
             import json
+
             data = {
-                "seeds": {sid: {
-                    "id": s.id, "concept": s.concept, "source": s.source,
-                    "planted_at": s.planted_at, "growth": s.growth,
-                    "growth_rate": s.growth_rate, "watered": s.watered,
-                    "branches": s.branches, "tags": s.tags,
-                    "status": s.status, "parent_seed_id": s.parent_seed_id,
-                    "related_seeds": s.related_seeds,
-                } for sid, s in self.seeds.items()},
-                "threads": {tid: {
-                    "id": t.id, "seed_id": t.seed_id, "title": t.title,
-                    "synopsis": t.synopsis, "beats": t.beats,
-                    "current_beat": t.current_beat, "characters": t.characters,
-                    "genre": t.genre, "tension": t.tension,
-                    "planted_at": t.planted_at, "last_nurtured": t.last_nurtured,
-                    "ready_to_fruit": t.ready_to_fruit, "fruited": t.fruited,
-                    "fruit_event_type": t.fruit_event_type,
-                } for tid, t in self.threads.items()},
+                "seeds": {
+                    sid: {
+                        "id": s.id,
+                        "concept": s.concept,
+                        "source": s.source,
+                        "planted_at": s.planted_at,
+                        "growth": s.growth,
+                        "growth_rate": s.growth_rate,
+                        "watered": s.watered,
+                        "branches": s.branches,
+                        "tags": s.tags,
+                        "status": s.status,
+                        "parent_seed_id": s.parent_seed_id,
+                        "related_seeds": s.related_seeds,
+                    }
+                    for sid, s in self.seeds.items()
+                },
+                "threads": {
+                    tid: {
+                        "id": t.id,
+                        "seed_id": t.seed_id,
+                        "title": t.title,
+                        "synopsis": t.synopsis,
+                        "beats": t.beats,
+                        "current_beat": t.current_beat,
+                        "characters": t.characters,
+                        "genre": t.genre,
+                        "tension": t.tension,
+                        "planted_at": t.planted_at,
+                        "last_nurtured": t.last_nurtured,
+                        "ready_to_fruit": t.ready_to_fruit,
+                        "fruited": t.fruited,
+                        "fruit_event_type": t.fruit_event_type,
+                    }
+                    for tid, t in self.threads.items()
+                },
             }
-            with open(self.persist_path, 'w', encoding='utf-8') as f:
+            with open(self.persist_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
         except Exception as e:
             logger.debug(f"[Garden] Save failed: {e}")
@@ -537,18 +766,23 @@ class StoryGarden:
         try:
             import json
             import os
+
             if not os.path.exists(self.persist_path):
                 return
-            with open(self.persist_path, 'r', encoding='utf-8') as f:
+            with open(self.persist_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
 
             for sid, s in data.get("seeds", {}).items():
                 seed = StorySeed(
-                    id=s["id"], concept=s["concept"], source=s.get("source", ""),
+                    id=s["id"],
+                    concept=s["concept"],
+                    source=s.get("source", ""),
                     planted_at=s.get("planted_at", time.time()),
-                    growth=s.get("growth", 0), growth_rate=s.get("growth_rate", 0.1),
+                    growth=s.get("growth", 0),
+                    growth_rate=s.get("growth_rate", 0.1),
                     watered=s.get("watered", 0),
-                    branches=s.get("branches", []), tags=s.get("tags", []),
+                    branches=s.get("branches", []),
+                    tags=s.get("tags", []),
                     status=s.get("status", "planted"),
                     parent_seed_id=s.get("parent_seed_id", ""),
                     related_seeds=s.get("related_seeds", []),
@@ -557,8 +791,11 @@ class StoryGarden:
 
             for tid, t in data.get("threads", {}).items():
                 thread = StoryThread(
-                    id=t["id"], seed_id=t["seed_id"], title=t["title"],
-                    synopsis=t["synopsis"], beats=t.get("beats", []),
+                    id=t["id"],
+                    seed_id=t["seed_id"],
+                    title=t["title"],
+                    synopsis=t["synopsis"],
+                    beats=t.get("beats", []),
                     current_beat=t.get("current_beat", 0),
                     characters=t.get("characters", []),
                     genre=t.get("genre", "None"),
@@ -571,12 +808,15 @@ class StoryGarden:
                 )
                 self.threads[tid] = thread
 
-            logger.info(f"[Garden] Loaded {len(self.seeds)} seeds, {len(self.threads)} threads from disk")
+            logger.info(
+                f"[Garden] Loaded {len(self.seeds)} seeds, {len(self.threads)} threads from disk"
+            )
         except Exception as e:
             logger.debug(f"[Garden] Load failed: {e}")
 
 
 # ── Director Daemon ─────────────────────────────────────────────────────────
+
 
 class DirectorDaemon:
     """
@@ -606,12 +846,12 @@ class DirectorDaemon:
         self._event_queue: list[EventPlan] = []
         self._last_event_time = time.time()
         self._next_event_time = time.time() + random.uniform(min_interval, max_interval)
-        self._current_event: Optional[EventPlan] = None
+        self._current_event: EventPlan | None = None
         self._conversation_summary: str = ""
         self._user_mood: str = "neutral"
         self._time_of_day: str = ""
         self._running = False
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
 
         # Genre preferences
         self.allow_horror = True
@@ -625,9 +865,11 @@ class DirectorDaemon:
         # Story Garden — the Director's slow-cooking narrative engine
         # Seeds planted today may fruit weeks from now
         import os
+
         garden_path = os.path.join(
             os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-            "data", "story_garden.json"
+            "data",
+            "story_garden.json",
         )
         self.garden = StoryGarden(persist_path=garden_path)
 
@@ -638,14 +880,54 @@ class DirectorDaemon:
 
         # Character roster — recurring characters the Director can use
         self._character_roster = [
-            {"name": "The Stranger", "personality": "mysterious", "voice": "low", "color": "#4a4a6a"},
-            {"name": "Detective Vance", "personality": "noir", "voice": "gravel", "color": "#8a7a5a"},
-            {"name": "Captain Reyes", "personality": "military", "voice": "commanding", "color": "#6a8a6a"},
-            {"name": "Dr. Okafor", "personality": "scientific", "voice": "calm", "color": "#5a8a9a"},
-            {"name": "Old Maria", "personality": "warm", "voice": "gentle", "color": "#aa7a6a"},
-            {"name": "The Courier", "personality": "urgent", "voice": "fast", "color": "#9a9a5a"},
-            {"name": "Eve", "personality": "charming", "voice": "smooth", "color": "#aa5a8a"},
-            {"name": "The Kid", "personality": "energetic", "voice": "young", "color": "#5aaa5a"},
+            {
+                "name": "The Stranger",
+                "personality": "mysterious",
+                "voice": "low",
+                "color": "#4a4a6a",
+            },
+            {
+                "name": "Detective Vance",
+                "personality": "noir",
+                "voice": "gravel",
+                "color": "#8a7a5a",
+            },
+            {
+                "name": "Captain Reyes",
+                "personality": "military",
+                "voice": "commanding",
+                "color": "#6a8a6a",
+            },
+            {
+                "name": "Dr. Okafor",
+                "personality": "scientific",
+                "voice": "calm",
+                "color": "#5a8a9a",
+            },
+            {
+                "name": "Old Maria",
+                "personality": "warm",
+                "voice": "gentle",
+                "color": "#aa7a6a",
+            },
+            {
+                "name": "The Courier",
+                "personality": "urgent",
+                "voice": "fast",
+                "color": "#9a9a5a",
+            },
+            {
+                "name": "Eve",
+                "personality": "charming",
+                "voice": "smooth",
+                "color": "#aa5a8a",
+            },
+            {
+                "name": "The Kid",
+                "personality": "energetic",
+                "voice": "young",
+                "color": "#5aaa5a",
+            },
         ]
 
     # ── Lifecycle ───────────────────────────────────────────────────────────
@@ -732,34 +1014,47 @@ class DirectorDaemon:
 
                 # Plant seeds from conversation (every 30 min)
                 if now - self._last_seed_plant > 1800 and self._conversation_summary:
-                    seed = self.garden.plant_seed_from_conversation(self._conversation_summary)
+                    seed = self.garden.plant_seed_from_conversation(
+                        self._conversation_summary
+                    )
                     if seed:
                         # Notify the client that a seed was planted (for UI)
                         if self.ws:
-                            await self.ws.broadcast("director.garden.seed", {
-                                "concept": seed.concept,
-                                "source": seed.source,
-                                "stage": seed.stage,
-                            })
+                            await self.ws.broadcast(
+                                "director.garden.seed",
+                                {
+                                    "concept": seed.concept,
+                                    "source": seed.source,
+                                    "stage": seed.stage,
+                                },
+                            )
                     self._last_seed_plant = now
 
                 # Advance story threads (every 2-4 hours, if any growing)
                 if now - self._last_thread_advance > random.uniform(7200, 14400):
-                    growing_threads = [t for t in self.garden.threads.values()
-                                      if not t.fruited and not t.ready_to_fruit]
+                    growing_threads = [
+                        t
+                        for t in self.garden.threads.values()
+                        if not t.fruited and not t.ready_to_fruit
+                    ]
                     if growing_threads:
                         thread = random.choice(growing_threads)
                         beat = self.garden.advance_thread(thread.id)
                         if beat:
-                            logger.info(f"[Garden] Thread '{thread.title}' advanced to beat: {beat['beat']}")
+                            logger.info(
+                                f"[Garden] Thread '{thread.title}' advanced to beat: {beat['beat']}"
+                            )
                             # A thread beat can manifest as a subtle foreshadowing
                             if self.ws:
-                                await self.ws.broadcast("director.garden.beat", {
-                                    "threadTitle": thread.title,
-                                    "beat": beat["beat"],
-                                    "description": beat["description"],
-                                    "tension": beat.get("tension", 0.5),
-                                })
+                                await self.ws.broadcast(
+                                    "director.garden.beat",
+                                    {
+                                        "threadTitle": thread.title,
+                                        "beat": beat["beat"],
+                                        "description": beat["description"],
+                                        "tension": beat.get("tension", 0.5),
+                                    },
+                                )
                     self._last_thread_advance = now
 
                 # Occasionally cross-pollinate (every 6 hours)
@@ -797,11 +1092,16 @@ class DirectorDaemon:
     def _get_time_of_day(self) -> str:
         """Get time of day label."""
         hour = time.localtime().tm_hour
-        if 5 <= hour < 8: return "dawn"
-        if 8 <= hour < 12: return "morning"
-        if 12 <= hour < 17: return "afternoon"
-        if 17 <= hour < 20: return "evening"
-        if 20 <= hour < 23: return "night"
+        if 5 <= hour < 8:
+            return "dawn"
+        if 8 <= hour < 12:
+            return "morning"
+        if 12 <= hour < 17:
+            return "afternoon"
+        if 17 <= hour < 20:
+            return "evening"
+        if 20 <= hour < 23:
+            return "night"
         return "late_night"
 
     async def _get_conversation_summary(self) -> str:
@@ -810,9 +1110,9 @@ class DirectorDaemon:
             return ""
         try:
             # Try to get recent memory entries
-            if hasattr(self.memory, 'get_recent_summary'):
+            if hasattr(self.memory, "get_recent_summary"):
                 return await self.memory.get_recent_summary()
-            elif hasattr(self.memory, 'get_context'):
+            elif hasattr(self.memory, "get_context"):
                 ctx = await self.memory.get_context()
                 return str(ctx)[:500]
         except Exception:
@@ -837,8 +1137,10 @@ class DirectorDaemon:
         This is the payoff of days or weeks of slow growth. The thread's
         beats have been advancing quietly, and now the full scene unfolds.
         """
-        logger.info(f"[Director] Story fruiting: '{thread.title}' "
-                     f"(genre={thread.genre}, {len(thread.beats)} beats)")
+        logger.info(
+            f"[Director] Story fruiting: '{thread.title}' "
+            f"(genre={thread.genre}, {len(thread.beats)} beats)"
+        )
 
         # Build an event plan from the thread
         plan = EventPlan(
@@ -854,9 +1156,11 @@ class DirectorDaemon:
             genre=thread.genre,
             character_name=thread.characters[1] if len(thread.characters) > 1 else "",
             narrator_lines=[
-                f"the story that has been growing quietly comes to its moment.",
+                "the story that has been growing quietly comes to its moment.",
                 thread.synopsis,
-                thread.beats[-1].get("description", "the conclusion.") if thread.beats else "the end.",
+                thread.beats[-1].get("description", "the conclusion.")
+                if thread.beats
+                else "the end.",
             ],
             dialogue_lines=[],  # The beats contain the narrative
             duration=300,  # Story fruits are longer — they've been building
@@ -886,7 +1190,7 @@ class DirectorDaemon:
             },
             genre=genre,
             narrator_lines=[
-                f"something that has been quietly growing finally surfaces.",
+                "something that has been quietly growing finally surfaces.",
                 seed.concept,
             ],
             dialogue_lines=[],
@@ -902,7 +1206,7 @@ class DirectorDaemon:
         logger.info("[Director] Planning new event...")
 
         # Try to use LLM for creative planning
-        event_plan: Optional[EventPlan] = None
+        event_plan: EventPlan | None = None
         if self.llm:
             try:
                 event_plan = await self._llm_plan_event()
@@ -916,9 +1220,11 @@ class DirectorDaemon:
         if event_plan:
             await self._trigger_event(event_plan)
             self._last_event_time = time.time()
-            self._next_event_time = time.time() + random.uniform(self.min_interval, self.max_interval)
+            self._next_event_time = time.time() + random.uniform(
+                self.min_interval, self.max_interval
+            )
 
-    async def _llm_plan_event(self) -> Optional[EventPlan]:
+    async def _llm_plan_event(self) -> EventPlan | None:
         """Use the LLM to creatively plan an event."""
         if not self.llm:
             return None
@@ -934,8 +1240,16 @@ class DirectorDaemon:
 
     def _build_planning_prompt(self) -> str:
         """Build the prompt for the LLM to plan an event."""
-        genre_options = ["phone_ring", "knock", "genre_shift", "character_arrival",
-                        "narration", "celebration", "prop_spawn", "event_sequence"]
+        genre_options = [
+            "phone_ring",
+            "knock",
+            "genre_shift",
+            "character_arrival",
+            "narration",
+            "celebration",
+            "prop_spawn",
+            "event_sequence",
+        ]
         if self.allow_horror:
             genre_options.extend(["horror", "surreal_dream"])
         if self.allow_violence:
@@ -969,7 +1283,7 @@ Respond in JSON:
 
 Be surprising. Be fun. Make it memorable."""
 
-    def _parse_llm_event(self, response: str) -> Optional[EventPlan]:
+    def _parse_llm_event(self, response: str) -> EventPlan | None:
         """Parse LLM response into an EventPlan."""
         try:
             # Find JSON in response
@@ -990,7 +1304,9 @@ Be surprising. Be fun. Make it memorable."""
                 genre=data.get("genre", "None"),
                 character_name=data.get("character_name", ""),
                 dialogue_lines=data.get("dialogue", []),
-                narrator_lines=[data.get("narrator_intro", "")] if data.get("narrator_intro") else [],
+                narrator_lines=[data.get("narrator_intro", "")]
+                if data.get("narrator_intro")
+                else [],
                 duration=float(data.get("duration", 180)),
                 tags=["llm_generated"],
             )
@@ -1035,7 +1351,13 @@ Be surprising. Be fun. Make it memorable."""
 
         # Add genre if genre_shift
         if event_type == "genre_shift":
-            genres = ["NoirMystery", "SciFi", "RomanticComedy", "Western", "SpyThriller"]
+            genres = [
+                "NoirMystery",
+                "SciFi",
+                "RomanticComedy",
+                "Western",
+                "SpyThriller",
+            ]
             if self.allow_horror:
                 genres.append("Horror")
             if self.allow_violence:
@@ -1054,7 +1376,9 @@ Be surprising. Be fun. Make it memorable."""
             plan.payload["character_voice"] = char["voice"]
 
         # Generate narrator lines
-        plan.narrator_lines = self._generate_narrator_lines(event_type, plan.genre, self._time_of_day)
+        plan.narrator_lines = self._generate_narrator_lines(
+            event_type, plan.genre, self._time_of_day
+        )
         plan.payload["narrator_lines"] = plan.narrator_lines
 
         # Generate dialogue
@@ -1063,7 +1387,9 @@ Be surprising. Be fun. Make it memorable."""
 
         return plan
 
-    def _generate_narrator_lines(self, event_type: str, genre: str, time_of_day: str) -> list:
+    def _generate_narrator_lines(
+        self, event_type: str, genre: str, time_of_day: str
+    ) -> list:
         """Generate narrator lines for an event."""
         lines = []
 
@@ -1114,7 +1440,9 @@ Be surprising. Be fun. Make it memorable."""
                 "night": "night falls. the room becomes a different place.",
                 "late_night": "it's late. the world is quiet. but the story never sleeps.",
             }
-            lines.append(time_narration.get(time_of_day, "and so, the story continues."))
+            lines.append(
+                time_narration.get(time_of_day, "and so, the story continues.")
+            )
 
         return lines
 
@@ -1125,28 +1453,31 @@ Be surprising. Be fun. Make it memorable."""
 
         dialogue_templates = {
             "phone_ring": [
-                f"...hello? can you hear me?",
-                f"i've been trying to reach you.",
+                "...hello? can you hear me?",
+                "i've been trying to reach you.",
                 f"my name is {character_name}. we need to talk.",
-                f"something is coming. you need to be ready.",
+                "something is coming. you need to be ready.",
             ],
             "character_arrival": [
                 f"hello. i'm {character_name}.",
-                f"i hope i'm not intruding.",
-                f"but we don't have much time.",
+                "i hope i'm not intruding.",
+                "but we don't have much time.",
             ],
             "event_sequence": [
-                f"you need to leave. now.",
-                f"i've been looking for you.",
-                f"we don't have much time.",
+                "you need to leave. now.",
+                "i've been looking for you.",
+                "we don't have much time.",
             ],
         }
 
-        return dialogue_templates.get(event_type, [
-            f"i'm {character_name}.",
-            f"i've been watching.",
-            f"it's time.",
-        ])
+        return dialogue_templates.get(
+            event_type,
+            [
+                f"i'm {character_name}.",
+                "i've been watching.",
+                "it's time.",
+            ],
+        )
 
     # ── Event Triggering ─────────────────────────────────────────────────────
 
@@ -1160,23 +1491,39 @@ Be surprising. Be fun. Make it memorable."""
         self._current_event = plan
         plan.triggered = True
 
-        logger.info(f"[Director] Triggering event: {plan.event_type} (genre={plan.genre})")
+        logger.info(
+            f"[Director] Triggering event: {plan.event_type} (genre={plan.genre})"
+        )
 
         # ── Suspense Building Phase ──
         # The Director decides whether to foreshadow this event with audio.
         # Horror, war, mystery, and character arrivals get suspense builds.
         # Celebrations and casual narrations don't — they're surprises, not dread.
-        suspense_genres = {"Horror", "WarDrama", "NoirMystery", "SpyThriller", "SurrealDream", "Heist"}
-        suspense_events = {"phone_ring", "knock", "character_arrival", "event_sequence", "emergency"}
+        suspense_genres = {
+            "Horror",
+            "WarDrama",
+            "NoirMystery",
+            "SpyThriller",
+            "SurrealDream",
+            "Heist",
+        }
+        suspense_events = {
+            "phone_ring",
+            "knock",
+            "character_arrival",
+            "event_sequence",
+            "emergency",
+        }
 
         should_build_suspense = (
-            plan.genre in suspense_genres or
-            plan.event_type in suspense_events
+            plan.genre in suspense_genres or plan.event_type in suspense_events
         )
 
         if should_build_suspense and self.ws:
             # Send a suspense.build event — the client starts audio-only foreshadowing
-            suspense_duration = random.uniform(60, 180)  # 1-3 minutes of pure audio tension
+            suspense_duration = random.uniform(
+                60, 180
+            )  # 1-3 minutes of pure audio tension
             suspense_intensity = 0.5
             if plan.genre == "Horror":
                 suspense_intensity = 0.8
@@ -1187,35 +1534,48 @@ Be surprising. Be fun. Make it memorable."""
                 suspense_intensity = 0.6
                 suspense_duration = random.uniform(30, 60)  # emergencies build fast
 
-            logger.info(f"[Director] Building suspense: {suspense_duration:.0f}s at intensity {suspense_intensity}")
+            logger.info(
+                f"[Director] Building suspense: {suspense_duration:.0f}s at intensity {suspense_intensity}"
+            )
 
-            await self.ws.broadcast("director.suspense.build", {
-                "intensity": suspense_intensity,
-                "duration": suspense_duration,
-                "eventType": plan.event_type,
-                "genre": plan.genre,
-            })
+            await self.ws.broadcast(
+                "director.suspense.build",
+                {
+                    "intensity": suspense_intensity,
+                    "duration": suspense_duration,
+                    "eventType": plan.event_type,
+                    "genre": plan.genre,
+                },
+            )
 
             # Wait for the suspense to build before triggering the actual event
             await asyncio.sleep(suspense_duration)
 
             # The threshold moment — brief silence before the event
-            await self.ws.broadcast("director.suspense.threshold", {
-                "text": random.choice(["...now.", "it's here.", "don't move.", "...", "this is it."]),
-            })
+            await self.ws.broadcast(
+                "director.suspense.threshold",
+                {
+                    "text": random.choice(
+                        ["...now.", "it's here.", "don't move.", "...", "this is it."]
+                    ),
+                },
+            )
             await asyncio.sleep(2)
 
         # Send the event to all clients
         if self.ws:
-            await self.ws.broadcast("director.event", {
-                "eventType": plan.event_type,
-                "genre": plan.genre,
-                "characterName": plan.character_name,
-                "narratorLines": plan.narrator_lines,
-                "dialogue": plan.dialogue_lines,
-                "payload": plan.payload,
-                "duration": plan.duration,
-            })
+            await self.ws.broadcast(
+                "director.event",
+                {
+                    "eventType": plan.event_type,
+                    "genre": plan.genre,
+                    "characterName": plan.character_name,
+                    "narratorLines": plan.narrator_lines,
+                    "dialogue": plan.dialogue_lines,
+                    "payload": plan.payload,
+                    "duration": plan.duration,
+                },
+            )
 
         # Record in plot history
         self._add_to_plot_history(plan)
@@ -1246,33 +1606,61 @@ Be surprising. Be fun. Make it memorable."""
         logger.info(f"[Director] Shared surprise: {surprise_type}")
 
         if self.ws:
-            await self.ws.broadcast("director.surprise", {
-                "surpriseType": surprise_type,
-                "timeOfDay": self._time_of_day,
-                "mood": self._user_mood,
-            })
+            await self.ws.broadcast(
+                "director.surprise",
+                {
+                    "surpriseType": surprise_type,
+                    "timeOfDay": self._time_of_day,
+                    "mood": self._user_mood,
+                },
+            )
 
         # Record in plot history
-        self._plot_history.append({
-            "summary": f"surprise: {surprise_type}",
-            "event_type": "shared_surprise",
-            "genre": "None",
-            "character": "",
-            "timestamp": time.time(),
-        })
+        self._plot_history.append(
+            {
+                "summary": f"surprise: {surprise_type}",
+                "event_type": "shared_surprise",
+                "genre": "None",
+                "character": "",
+                "timestamp": time.time(),
+            }
+        )
         if len(self._plot_history) > self._max_plot_memory:
-            self._plot_history = self._plot_history[-self._max_plot_memory:]
+            self._plot_history = self._plot_history[-self._max_plot_memory :]
 
     def _pick_surprise(self) -> str:
         """Pick a surprise type based on context (time, mood, season)."""
         # Time-of-day appropriate surprises
         time_surprises = {
             "dawn": ["BirdOnWindowsill", "CherryPetals", "ButterflySwarm"],
-            "morning": ["BirdOnWindowsill", "BubblesAppear", "ButterflySwarm", "WindChimes"],
-            "afternoon": ["Fireflies", "BalloonFloatsBy", "CatWandersIn", "BubblesAppear"],
+            "morning": [
+                "BirdOnWindowsill",
+                "BubblesAppear",
+                "ButterflySwarm",
+                "WindChimes",
+            ],
+            "afternoon": [
+                "Fireflies",
+                "BalloonFloatsBy",
+                "CatWandersIn",
+                "BubblesAppear",
+            ],
             "evening": ["SunsetBurst", "Fireflies", "DistantMusic", "WindChimes"],
-            "night": ["MeteorCrossing", "AuroraFlare", "ISSPassing", "StarShower", "Fireflies", "StrangeLight"],
-            "late_night": ["WhaleSong", "ForgottenMusicBox", "StrangeLight", "StarShower", "AuroraFlare"],
+            "night": [
+                "MeteorCrossing",
+                "AuroraFlare",
+                "ISSPassing",
+                "StarShower",
+                "Fireflies",
+                "StrangeLight",
+            ],
+            "late_night": [
+                "WhaleSong",
+                "ForgottenMusicBox",
+                "StrangeLight",
+                "StarShower",
+                "AuroraFlare",
+            ],
         }
 
         # Mood-based adjustments
@@ -1281,8 +1669,18 @@ Be surprising. Be fun. Make it memorable."""
             "reflective": ["RainBegins", "WhaleSong", "StarShower", "MessageInBottle"],
             "calm": ["Fireflies", "CherryPetals", "WindChimes", "ButterflySwarm"],
             "cozy": ["RainBegins", "CatWandersIn", "ForgottenMusicBox", "DistantMusic"],
-            "energetic": ["MeteorCrossing", "BubblesAppear", "BalloonFloatsBy", "ButterflySwarm"],
-            "curious": ["StrangeLight", "PackageAtDoor", "MessageInBottle", "ISSPassing"],
+            "energetic": [
+                "MeteorCrossing",
+                "BubblesAppear",
+                "BalloonFloatsBy",
+                "ButterflySwarm",
+            ],
+            "curious": [
+                "StrangeLight",
+                "PackageAtDoor",
+                "MessageInBottle",
+                "ISSPassing",
+            ],
         }
 
         # Combine time and mood suggestions
@@ -1313,17 +1711,19 @@ Be surprising. Be fun. Make it memorable."""
         if plan.character_name:
             summary += f" with {plan.character_name}"
 
-        self._plot_history.append({
-            "summary": summary,
-            "event_type": plan.event_type,
-            "genre": plan.genre,
-            "character": plan.character_name,
-            "timestamp": time.time(),
-        })
+        self._plot_history.append(
+            {
+                "summary": summary,
+                "event_type": plan.event_type,
+                "genre": plan.genre,
+                "character": plan.character_name,
+                "timestamp": time.time(),
+            }
+        )
 
         # Trim history
         if len(self._plot_history) > self._max_plot_memory:
-            self._plot_history = self._plot_history[-self._max_plot_memory:]
+            self._plot_history = self._plot_history[-self._max_plot_memory :]
 
     # ── Upcoming Event Preparation ───────────────────────────────────────────
 
@@ -1331,7 +1731,7 @@ Be surprising. Be fun. Make it memorable."""
         """Prepare upcoming events in advance (the Director 'builds' scenes)."""
         # The Director works on future events, developing them over time
         # This is where the LLM could flesh out multi-step narratives
-        pass  # Events are planned on-demand for now
+        # Events are planned on-demand for now
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -1357,44 +1757,59 @@ Be surprising. Be fun. Make it memorable."""
             "the whole day becomes a story",
         ]
         self.garden._save()
-        logger.info(f"[Director] Birthday seed planted with fast growth")
+        logger.info("[Director] Birthday seed planted with fast growth")
 
     def check_birthday_approaching(self) -> bool:
         """Check if the birthday is approaching (within 7 days)."""
-        if not hasattr(self, '_birthday_month'):
+        if not hasattr(self, "_birthday_month"):
             return False
         import datetime
+
         now = datetime.datetime.now()
         birthday = datetime.datetime(now.year, self._birthday_month, self._birthday_day)
         if birthday < now:
-            birthday = datetime.datetime(now.year + 1, self._birthday_month, self._birthday_day)
+            birthday = datetime.datetime(
+                now.year + 1, self._birthday_month, self._birthday_day
+            )
         days_until = (birthday - now).days
         return days_until <= 7
 
     def enable(self):
         self.enabled = True
-        self._next_event_time = time.time() + random.uniform(60, 300)  # first event soon
+        self._next_event_time = time.time() + random.uniform(
+            60, 300
+        )  # first event soon
         logger.info("[Director] Enabled")
 
     def disable(self):
         self.enabled = False
         logger.info("[Director] Disabled")
 
-    def set_preferences(self, allow_horror: bool = True, allow_violence: bool = True,
-                        allow_surreal: bool = True):
+    def set_preferences(
+        self,
+        allow_horror: bool = True,
+        allow_violence: bool = True,
+        allow_surreal: bool = True,
+    ):
         self.allow_horror = allow_horror
         self.allow_violence = allow_violence
         self.allow_surreal = allow_surreal
 
-    def trigger_now(self, event_type: str = "", genre: str = "", character_name: str = ""):
+    def trigger_now(
+        self, event_type: str = "", genre: str = "", character_name: str = ""
+    ):
         """Manually trigger an event (for testing or Alice-initiated)."""
         plan = EventPlan(
             event_type=event_type or "narration",
             payload={"genre": genre, "character_name": character_name},
             genre=genre or "None",
             character_name=character_name,
-            narrator_lines=self._generate_narrator_lines(event_type or "narration", genre, self._time_of_day),
-            dialogue_lines=self._generate_dialogue(event_type or "narration", character_name),
+            narrator_lines=self._generate_narrator_lines(
+                event_type or "narration", genre, self._time_of_day
+            ),
+            dialogue_lines=self._generate_dialogue(
+                event_type or "narration", character_name
+            ),
             duration=120,
         )
         asyncio.create_task(self._trigger_event(plan))

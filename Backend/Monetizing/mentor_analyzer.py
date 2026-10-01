@@ -3,12 +3,12 @@ LLM Mentor Analyzer - Cloud-based trading review
 Uses Ollama Cloud (qwen3.5:32b-cloud) for periodic strategy analysis
 """
 
-import os
-import httpx
-import logging
 import json
-from typing import Dict, List, Optional
+import logging
+import os
 from datetime import datetime
+
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -18,11 +18,11 @@ OLLAMA_CLOUD_KEY = os.getenv("OLLAMA_API_KEY", "")
 MENTOR_MODEL = "qwen3.5:32b-cloud"  # Balanced 32B model for analysis
 
 
-def format_trades(trade_history: List[Dict]) -> str:
+def format_trades(trade_history: list[dict]) -> str:
     """Format trade history for LLM consumption."""
     if not trade_history:
         return "No trades yet."
-    
+
     lines = []
     for i, trade in enumerate(trade_history[-15:], 1):  # Last 15 trades max
         lines.append(
@@ -36,24 +36,24 @@ def format_trades(trade_history: List[Dict]) -> str:
 
 
 async def analyze_trades(
-    trade_history: List[Dict],
-    current_holdings: Dict[str, float],
-    indicators: Dict[str, float]
-) -> Dict:
+    trade_history: list[dict],
+    current_holdings: dict[str, float],
+    indicators: dict[str, float],
+) -> dict:
     """Send trade history to cloud LLM for analysis."""
-    
+
     holdings_text = (
         f"- CET: {current_holdings.get('cet', 0):.2f}\n"
         f"- USDT: {current_holdings.get('usdt', 0):.2f}"
     )
-    
+
     indicators_text = (
         f"- MA9: {indicators.get('ma9', 0):.6f}\n"
         f"- MA26: {indicators.get('ma26', 0):.6f}\n"
         f"- RSI: {indicators.get('rsi', 0):.1f}\n"
         f"- MACD: {indicators.get('macd', 0):.6f}"
     )
-    
+
     prompt = f"""You are a trading mentor analyzing CET/USDT micro-trading performance.
 
 CURRENT HOLDINGS:
@@ -94,24 +94,30 @@ Respond in valid JSON only:
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.3,  # Low temp for consistent analysis
                     "max_tokens": 600,
-                    "stream": False
-                }
+                    "stream": False,
+                },
             )
-            
+
             if resp.status_code == 200:
                 response_data = resp.json()
-                content = response_data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                
+                content = (
+                    response_data.get("choices", [{}])[0]
+                    .get("message", {})
+                    .get("content", "")
+                )
+
                 # Parse JSON from response
                 try:
                     # Try to extract JSON from the response
                     if "```json" in content:
                         content = content.split("```json")[1].split("```")[0]
                     elif "{" in content:
-                        content = content[content.find("{"):content.rfind("}")+1]
-                    
+                        content = content[content.find("{") : content.rfind("}") + 1]
+
                     result = json.loads(content.strip())
-                    logger.info(f"🧠 MENTOR ANALYSIS COMPLETE: Health={result.get('health_score', 'N/A')}%, Action={result.get('action', 'N/A')}")
+                    logger.info(
+                        f"🧠 MENTOR ANALYSIS COMPLETE: Health={result.get('health_score', 'N/A')}%, Action={result.get('action', 'N/A')}"
+                    )
                     return result
                 except json.JSONDecodeError as e:
                     logger.warning(f"Failed to parse mentor JSON: {e}")
@@ -119,7 +125,7 @@ Respond in valid JSON only:
             else:
                 logger.warning(f"Ollama Cloud returned {resp.status_code}")
                 return get_default_analysis()
-                
+
     except httpx.RequestError as e:
         logger.warning(f"Could not reach Ollama Cloud: {e}")
         return get_default_analysis()
@@ -128,7 +134,7 @@ Respond in valid JSON only:
         return get_default_analysis()
 
 
-def get_default_analysis() -> Dict:
+def get_default_analysis() -> dict:
     """Return safe defaults when LLM is unavailable."""
     return {
         "win_rate": 0.5,
@@ -138,21 +144,23 @@ def get_default_analysis() -> Dict:
         "health_score": 75,
         "confidence_modifier": 0.8,
         "action": "CONTINUE",
-        "reasoning": "Using default analysis - LLM unavailable"
+        "reasoning": "Using default analysis - LLM unavailable",
     }
 
 
-async def quick_confidence_check(indicators: Dict[str, float], recent_pnl: float) -> float:
+async def quick_confidence_check(
+    indicators: dict[str, float], recent_pnl: float
+) -> float:
     """
     Quick confidence check (0.0-1.0) for real-time adjustment.
     Lighter than full analysis - uses smaller prompt.
     """
-    
+
     prompt = f"""Quick trading confidence check.
 
 INDICATORS:
-- RSI: {indicators.get('rsi', 50):.1f} (35=oversold, 65=overbought)
-- MACD: {indicators.get('macd', 0):.6f} (positive=bullish)
+- RSI: {indicators.get("rsi", 50):.1f} (35=oversold, 65=overbought)
+- MACD: {indicators.get("macd", 0):.6f} (positive=bullish)
 - Recent PnL: ${recent_pnl:.4f}
 
 Return ONLY a number 0.0-1.0 representing confidence in next trade success."""
@@ -167,12 +175,17 @@ Return ONLY a number 0.0-1.0 representing confidence in next trade success."""
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 0.2,
                     "max_tokens": 10,
-                    "stream": False
-                }
+                    "stream": False,
+                },
             )
-            
+
             if resp.status_code == 200:
-                content = resp.json().get("choices", [{}])[0].get("message", {}).get("content", "0.8")
+                content = (
+                    resp.json()
+                    .get("choices", [{}])[0]
+                    .get("message", {})
+                    .get("content", "0.8")
+                )
                 # Extract number from response
                 try:
                     confidence = float(content.strip().replace("Confidence: ", ""))
@@ -181,46 +194,46 @@ Return ONLY a number 0.0-1.0 representing confidence in next trade success."""
                     return 0.8
     except Exception:
         pass
-    
+
     return 0.8  # Default confidence
 
 
 class MentorMemory:
     """Stores mentor analysis history for trend tracking."""
-    
+
     def __init__(self, storage_path: str = "Data/monetizing/mentor_memory.json"):
         self.storage_path = storage_path
-        self.analyses: List[Dict] = []
+        self.analyses: list[dict] = []
         self._load()
-    
-    def add_analysis(self, analysis: Dict):
+
+    def add_analysis(self, analysis: dict):
         """Add a new analysis to memory."""
         analysis["timestamp"] = datetime.now().isoformat()
         self.analyses.append(analysis)
         if len(self.analyses) > 100:  # Keep last 100 analyses
             self.analyses = self.analyses[-100:]
         self._save()
-    
+
     def get_trend(self) -> str:
         """Analyze if mentor scores are improving or declining."""
         if len(self.analyses) < 3:
             return "INSUFFICIENT_DATA"
-        
+
         recent = [a.get("health_score", 75) for a in self.analyses[-5:]]
         older = [a.get("health_score", 75) for a in self.analyses[-10:-5]]
-        
+
         if not older:
             return "STABLE"
-        
+
         avg_recent = sum(recent) / len(recent)
         avg_older = sum(older) / len(older)
-        
+
         if avg_recent > avg_older + 5:
             return "IMPROVING"
         elif avg_recent < avg_older - 5:
             return "DECLINING"
         return "STABLE"
-    
+
     def _load(self):
         """Load memory from disk."""
         try:
@@ -232,7 +245,7 @@ class MentorMemory:
         except Exception as e:
             logger.warning(f"Failed to load mentor memory: {e}")
             self.analyses = []
-    
+
     def _save(self):
         """Save memory to disk."""
         try:
@@ -244,6 +257,7 @@ class MentorMemory:
 
 # Singleton instance for easy import
 _mentor_memory = None
+
 
 def get_mentor_memory() -> MentorMemory:
     """Get or create mentor memory singleton."""

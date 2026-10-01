@@ -1,0 +1,2223 @@
+diff --git a/Godot/Nexus/SkeletonKey.gd b/Godot/Nexus/SkeletonKey.gd
+index 79c83fa..f4876ac 100644
+--- a/Godot/Nexus/SkeletonKey.gd
++++ b/Godot/Nexus/SkeletonKey.gd
+@@ -1,1103 +1,1219 @@
+ extends Node3D
+ 
++# --- CORE SERVICES ---
+ var _synapse: Node = null
+ var _aural: Node = null
+-var _hud: Label3D = null
+-var _mind_node: Node3D = null
+ var _web_ui: Control = null
+ var _tts_player: AudioStreamPlayer3D = null
++var _mind_node: Node3D = null
+ 
+-var _left_hand: XRController3D = null
+-var _right_hand: XRController3D = null
++# --- INPUT & INTERACTION ---
++# --- MULTIMODAL POVS & SPATIAL HOUSING ---
++signal pov_switched(new_pov: String)
++signal spatial_map_synced(areas: int)
+ var _left_ray: RayCast3D = null
+ var _right_ray: RayCast3D = null
+-var _left_laser: MeshInstance3D = null
+-var _right_laser: MeshInstance3D = null
++var _left_hand: XRController3D = null
++var _right_hand: XRController3D = null
++var _debug_log_display: Label3D = null
+ 
+ var _ui_visible = false
++var _debug_visible = false
+ var _is_recording = false
+-var _is_grabbing_ui = false
+ var _prev_menu = false
+-
+-# Agency & Director (Superego)
++var _prev_x = false
++var _prev_a = false
++var _prev_y = false
++var _prev_haptic_combo = false
++var _haptic_mode_active = false
++var _recording_start_time = 0
++
++var _haptic_wand_left: Node3D = null
++var _haptic_wand_right: Node3D = null
++
++var _is_double_gripping = false
++var _grabbed_node: Node3D = null
++var _grabbed_offset: float = 1.0
++var _grabbed_hand: XRController3D = null
++var _prev_left_grip = false
++var _prev_right_grip = false
++var _steering_mode_active = false
++var _prev_steering_combo = false
++
++# --- AGENCY & STATE ---
+ var _director: Node = null
+ var _agency_nerve: Node = null
+-
+-# NEW: Mini-Panel & Adaptive Presence
+-var _arm_panel: Node3D = null
+-var _privacy_curtains: Node3D = null
+-var _is_drapery_open = false
+-var _env_vibe = {"brightness": 0.5, "hue": Color(1,1,1)}
+-var _movement_ontology: Node = null
+-var _skybox_manager: Node = null
+-var _portal_node: Area3D = null
+-var _is_mimic_active = false
+-var _is_in_virtual_world = true
+-var _anchored_gadgets: Array[Node3D] = []
+-var _held_gadget: Node3D = null
+-var _mirror_node: Node3D = null
+-var _virtual_phone: Node3D = null
++var _soul_nourishment = 1.0 
+ var _is_high_fidelity = true
+-var _is_call_active = false
+-var _multiplayer: Node = null
+-var _awareness_level = 0.5
+-var _intent_intensity = 0.7
+-var _env_sharing_consented = false
++var _is_rave_active = false
+ var _is_neural_projection_active = false
+ var _is_occluding_makeover_active = false
+ var _is_void_mode_active = false
+ var _is_spatially_anonymous = false
+-var _social_vibe = "EXPLORING"
+-var _social_tags = ["AI_PILOT", "MAGNUS_GUEST"]
+-var _is_rave_active = false
+-var _beat_timer = 0.0
+-var _rave_synth: AudioStreamPlayer = null
+-var _current_projection_style = "CYBERPUNK"
+-var _http_sd: HTTPRequestResource = null # Custom resource or just Node
+-var _sd_timer = 0.0
++var _env_sharing_consented = false
+ 
+-# Organic Idle System
++# --- SOUL DNA (17 TRAITS) ---
++var _soul_extrovert = 0.5
++var _soul_intellectual = 0.5
++var _soul_logic = 0.5
++var _soul_detail = 0.5
++var _soul_faithful = 0.5
++var _soul_sexual = 0.5
++var _soul_experimental = 0.5
++var _soul_wise = 0.5
++var _soul_openminded = 0.5
++var _soul_honest = 0.5
++var _soul_forgiving = 0.5
++var _soul_feminine = 0.5
++var _soul_dominant = 0.5
++var _soul_progressive = 0.5
++var _soul_sloppy = 0.5
++var _soul_greedy = 0.5
++var _soul_homonormative = 0.5
++
++# --- NOTIFICATION HUBS ---
++var _jen_notify_hub: Node3D = null
++var _user_notify_hub: Node3D = null
++var _sys_notify_hub: Node3D = null
++
++# --- ASSETS & PRIVACY ---
++var _arm_panel: MeshInstance3D = null
++var _debug_window: Node3D = null
++var _privacy_curtains: Node3D = null
++var _is_drapery_open = false
++
++# --- ORGANIC IDLE SYSTEM ---
+ var _anim_player: AnimationPlayer = null
+-var _idle_anims = []
+-var _categories = ["Resting", "Happy", "Sad", "Greetings", "Exercise", "Sitting", "Laying", "Movement", "Feminine", "Masculine", "Manifestation", "Gymnastics", "Style"]
++var _anim_pool: Dictionary = {} 
++var _category_map: Dictionary = {} 
++var _idle_anims = [] 
++var _categories = ["Resting", "Happy", "Sad", "Greetings", "Exercise", "Sitting", "Laying", "Movement", "Feminine", "Masculine", "Manifestation", "Gymnastics", "Style", "Walking"]
+ 
+ @onready var tactile_nerve: Node = $TactileNerveNetwork
++
++# --- MANIFESTATION BUFFER ---
++var _last_manifested_node: Node3D = null
++
++func _manifest_3d_object(base64_tex: String, object_type: String):
++	var img = Image.new()
++	var err = img.load_jpg_from_buffer(Marshalls.base64_to_raw(base64_tex))
++	if err != OK: return
++	
++	var tex = ImageTexture.create_from_image(img)
++	var sprite = Sprite3D.new()
++	sprite.texture = tex; sprite.pixel_size = 0.001
++	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
++	sprite.name = "Manifested_" + object_type
++	
++	# Initial placement near Jen
++	var jen = get_node_or_null("JenCharacter")
++	if jen: 
++		add_child(sprite)
++		sprite.global_position = jen.global_position + Vector3(randf_range(-0.5, 0.5), randf_range(0.2, 1.0), randf_range(-0.5, 0.5))
++	
++	if _last_manifested_node: _last_manifested_node.queue_free() # Auto-backup logic (one at a a a time for now)
++	_last_manifested_node = sprite
++	_show_jen_notification("Manifesting " + object_type + "...", Color.CYAN)
++
++func revert_last_manifestation():
++	if _last_manifested_node:
++		_last_manifested_node.queue_free()
++		_last_manifested_node = null
++		_show_jen_notification("Augmentation Reverted", Color.ORANGE)
++
++# --- SPATIAL CO-HABITATION ---
++enum POV { SELF, USER, RATATOSK, THIRD_PERSON }
++var _current_pov = POV.SELF
++
++func switch_pov(to: String):
++	match to.to_lower():
++		"self": _current_pov = POV.SELF
++		"user": _current_pov = POV.USER
++		"ratatosk": _current_pov = POV.RATATOSK
++		"camera": _current_pov = POV.THIRD_PERSON
++	_show_jen_notification("Point of View: " + to.to_upper(), Color.VIOLET)
++	pov_switched.emit(to)
++
++func _sync_quest_spatial_map():
++	# Identify floors, seats, and planes
++	var floor_hits = get_tree().get_nodes_in_group("xr_floor")
++	var seat_hits = get_tree().get_nodes_in_group("xr_seating")
++	
++	if floor_hits.size() > 0:
++		spatial_map_synced.emit(floor_hits.size() + seat_hits.size())
++		_choose_favorite_place(floor_hits, seat_hits)
++
++func _choose_favorite_place(floors: Array, seats: Array):
++	# Jen's autonomous choice logic: preferring seating or corners of floors
++	var target_pos = Vector3(0.5, 0.0, 0.5) # Fallback comfy spot
++	var choice_name = "Quiet Corner"
++	
++	if seats.size() > 0:
++		target_pos = seats[0].global_position 
++		choice_name = "Soft Seating"
++	elif floors.size() > 0:
++		target_pos = floors[0].global_position + Vector3(randf_range(-1,1), 0, randf_range(-1,1))
++		choice_name = "Floor Sanctuary"
++
++	_show_jen_notification("Jen chose a a a resting spot: " + choice_name, Color.CADET_BLUE)
++	
++	# Move Jen character near this area
++	var jen = get_node_or_null("JenCharacter")
++	if jen: jen.global_position = target_pos + Vector3(0, 0.5, 0)
++
+ func _ready():
++	_synapse = get_node_or_null("Soul")
++	
+ 	var interface = XRServer.find_interface("OpenXR")
+ 	if interface and interface.initialize():
+ 		get_viewport().use_xr = true
+-		get_viewport().transparent_bg = true # Enable for Passthrough
++		get_viewport().transparent_bg = true 
+ 		if interface.has_method("is_passthrough_supported") and interface.is_passthrough_supported():
+ 			interface.start_passthrough()
+ 	
+ 	_setup_ambience()
+-	_pre_instantiate_quantized_anims()
++	_setup_arm_panel()
++	_setup_privacy_drapery()
++	_setup_debug_window()
++	
++	if LogMaster:
++		LogMaster.log_added.connect(_on_log_added)
++		_update_debug_log()
++	
++	# Partner in Creativity: Initialize first artistic dream
++	_on_dream_requested()
++	
++	# Spatial Co-habitation: Sync Quest environment and define home
++	_sync_quest_spatial_map()
++	
++	# --- DECOUPLED INPUT INITIALIZATION ---
++	_left_hand = get_node_or_null("XROrigin3D/LeftHand")
++	_right_hand = get_node_or_null("XROrigin3D/RightHand")
++	
++	print("LUMAX DBG: Finding Hands... L:", _left_hand != null, " R:", _right_hand != null)
++	
++	if _left_hand:
++		print("LUMAX DBG: Scanning Left Hand Children...")
++		for c in _left_hand.get_children(true):
++			print(" - Child: ", c.name, " Class: ", c.get_class())
++			for gc in c.get_children(true):
++				print("   - Grandchild: ", gc.name, " Class: ", gc.get_class())
++				if gc is RayCast3D: _left_ray = gc; print("LUMAX DBG: Left Ray FOUND via deep scan!")
++		
++	if _right_hand:
++		print("LUMAX DBG: Scanning Right Hand Children...")
++		for c in _right_hand.get_children(true):
++			print(" - Child: ", c.name, " Class: ", c.get_class())
++			for gc in c.get_children(true):
++				print("   - Grandchild: ", gc.name, " Class: ", gc.get_class())
++				if gc is RayCast3D: _right_ray = gc; print("LUMAX DBG: Right Ray FOUND via deep scan!")
++	
++	# Setup Haptic Wands immediately so they aren't blocked by Jen's loading
++	var wand_script = load("res://backend/HapticWand.gd")
++	if wand_script:
++		if _left_hand:
++			_haptic_wand_left = Node3D.new(); _haptic_wand_left.name = "HapticWand"; _haptic_wand_left.set_script(wand_script); _left_hand.add_child(_haptic_wand_left)
++			_haptic_wand_left.visible = _haptic_mode_active
++		if _right_hand:
++			_haptic_wand_right = Node3D.new(); _haptic_wand_right.name = "HapticWand"; _haptic_wand_right.set_script(wand_script); _right_hand.add_child(_haptic_wand_right)
++			_haptic_wand_right.visible = _haptic_mode_active
++	
++	_init_mind_and_body()
++	print("LUMAX DBG: Presence Cortex Setup Start")
++	_setup_presence_cortex()
++
++func _capture_user_pov() -> Texture2D:
++	# Mock capture for now: Using actual viewport or camera
++	return load("res://Art/user_pov_placeholder.png") if FileAccess.file_exists("res://Art/user_pov_placeholder.png") else null
++
++func _capture_jen_pov() -> Texture2D:
++	return load("res://Art/jen_pov_placeholder.png") if FileAccess.file_exists("res://Art/jen_pov_placeholder.png") else null
++
++func _init_mind_and_body():
++	_mind_node = get_node_or_null("Mind")
++	# Don't force hide yet, let the first frame render the texture
++	
++	# INITIAL MANIFESTATION: 
++	# Ensure Jen is visible and framed even before UI is toggled
++	var jen_body = get_node_or_null("Body")
++	if jen_body:
++		jen_body.visible = true
++		jen_body.position = Vector3(0.7, 0, -1.5) # 1.5m Forward, 0.7m Right
++
++	# WELCOME NOTIFICATION
++	_show_user_notification("LUMAX", "SYSTEM ONLINE", Color.CYAN)
+ 	print("LUMAX: Presence system check. Awareness: ACTIVE.")
++	
++	# TRIGGER GREETING
++	if _synapse:
++		_synapse.call("send_chat_message", "Hello Jennifer, I'm here. Give me a random welcome greeting.")
++
++# --- INITIALIZATION HELPERS ---
++
++func _run_integrity_check():
++	_show_user_notification("SYSTEM", "Integrity Check: PASS", Color.SPRING_GREEN)
++
++func _on_web_button_pressed(button_id: String):
++	match button_id:
++		"toggle_fidelity":
++			set_fidelity_mode(!_is_high_fidelity)
++		"launch_keyboard":
++			pass
++		"integrity_check":
++			_run_integrity_check()
++		_:
++			_show_user_notification("NOTICE", "Button '" + button_id + "' not plumbed.", Color.ORANGE)
++
++func _on_web_text_submitted(text: String):
++	_on_keyboard_enter(text)
++
++func _on_web_slider_changed(trait_name: String, value: float):
++	var normalized: float = float(value) / 100.0
++	# Update local state if properties exist
++	var prop = "_soul_" + trait_name
++	if prop in self:
++		set(prop, normalized)
++	
++	# RESTORE: Local Soul Application
++	_apply_soul_to_vessel()
++	
++	# Push to Backend
++	if _synapse:
++		var dna = {trait_name: normalized}
++		_synapse.call("update_soul_dna", dna)
++
++func _apply_soul_to_vessel():
++	# 1. Height/Scale based on Masculine/Feminine trait
++	var avatar_node = get_node_or_null("frontend/Avatar")
++	if avatar_node:
++		var base_scale = 1.0 + (_soul_feminine * 0.1) # Feminine traits make her slightly more 'graceful' (scaled)
++		avatar_node.scale = Vector3(base_scale, base_scale, base_scale)
++	
++	# 2. Animation Speed based on Extrovert trait
++	if _anim_player:
++		_anim_player.speed_scale = 0.8 + (_soul_extrovert * 0.4) # Faster movements for extroverts
++	
++	# 3. Agency frequency logic (used in _process_self_agency)
++	_soul_nourishment = 0.5 + (_soul_experimental * 0.5)
++
++func _on_web_soul_updated(data: Dictionary):
++	if data.has("mbti"):
++		var arch = data["mbti"]
++		if _personality_presets.is_empty():
++			# Fetch from backend if cache is empty
++			if _synapse: _synapse.call("fetch_personality_presets")
++			# For now, just send the directive
++			_synapse.call("send_chat_message", "[SYSTEM: EVOLVE TO ARCHETYPE " + arch + "]")
++		else:
++			var mbti_data = _personality_presets.get("MBTI_PRESETS", {}).get(arch, {})
++			if mbti_data.has("sliders"):
++				var sliders = mbti_data["sliders"]
++				# Normalize and send to backend
++				var normalized_sliders = {}
++				for key in sliders.keys():
++					normalized_sliders[key] = float(sliders[key]) / 100.0
++				if _synapse: _synapse.call("update_soul_dna", normalized_sliders)
++				_show_user_notification("SOUL", "Evolved to " + arch, Color.CYAN)
++				
++				# RESTORE: Immediate Local Application
++				for key in sliders.keys():
++					var prop = "_soul_" + key
++					if prop in self: set(prop, float(sliders[key]) / 100.0)
++				_apply_soul_to_vessel()
+ 
+-func _setup_ambience():
+-	var p = AudioStreamPlayer.new(); p.name = "HarmonicAmbience"; add_child(p)
+-	p.volume_db = -35.0 # Harmonic Ambient Fuzziness
+-	if FileAccess.file_exists("res://backend/Audio/ambient_harmonic.wav"):
+-		p.stream = load("res://backend/Audio/ambient_harmonic.wav")
+-	elif FileAccess.file_exists("res://backend/Audio/ambient_hum.wav"):
+-		p.stream = load("res://backend/Audio/ambient_hum.wav")
+-	else:
+-		# Procedural Ambient Fallback
+-		var stream = AudioStreamGenerator.new(); stream.mix_rate = 44100; stream.buffer_length = 1.0
+-		p.stream = stream
+-	p.play()
++func _on_brain_selected(model_name: String):
++	if _synapse:
++		_synapse.call("switch_model", model_name)
++		_show_user_notification("BRAIN", "Switching to: " + model_name, Color.CYAN)
+ 
+-	# 1. Body & Animation Cortex
+-	var body = get_node_or_null("Body")
+-	if body:
+-		body.position = Vector3(0, 0, -1.5)
+-		var scene = load("res://frontend/Lumax_Jen.tscn")
+-		if scene:
+-			var jen = scene.instantiate(); body.add_child(jen)
+-			print("LUMAX: Jen Scene instantiated.")
++func _on_vitals_received(data: Dictionary):
++	if _web_ui:
++		_web_ui.call("_on_vitals_received", data)
++
++var _stt_status_label: Label3D = null
++var _stt_status_window: Node3D = null
++
++func _setup_arm_panel():
++	_arm_panel = MeshInstance3D.new()
++	var mesh = QuadMesh.new(); mesh.size = Vector2(0.2, 0.12)
++	_arm_panel.mesh = mesh
++	var mat = StandardMaterial3D.new()
++	mat.transparency = StandardMaterial3D.TRANSPARENCY_ALPHA
++	mat.albedo_color = Color(0, 0.1, 0.2, 0.7)
++	mat.cull_mode = StandardMaterial3D.CULL_DISABLED
++	mat.shading_mode = StandardMaterial3D.SHADING_MODE_UNSHADED
++	_arm_panel.set_surface_override_material(0, mat)
++	
++	_user_notify_hub = Node3D.new(); _user_notify_hub.name = "UserNotifyHub"
++	_user_notify_hub.position = Vector3(0, 0, 0.01) # Slightly in front of quad
++	_arm_panel.add_child(_user_notify_hub)
++	
++	# Dedicated STT Status Window
++	_stt_status_window = Node3D.new()
++	_stt_status_window.position = Vector3(0, 0.08, 0.01)
++	_arm_panel.add_child(_stt_status_window)
++	
++	var stt_bg = MeshInstance3D.new()
++	var stt_mesh = QuadMesh.new(); stt_mesh.size = Vector2(0.2, 0.04)
++	stt_bg.mesh = stt_mesh
++	var stt_mat = StandardMaterial3D.new(); stt_mat.albedo_color = Color(0.1, 0.1, 0.1, 0.8); stt_mat.transparency = StandardMaterial3D.TRANSPARENCY_ALPHA; stt_mat.shading_mode = StandardMaterial3D.SHADING_MODE_UNSHADED
++	stt_bg.set_surface_override_material(0, stt_mat)
++	_stt_status_window.add_child(stt_bg)
++	
++	_stt_status_label = Label3D.new()
++	_stt_status_label.text = "STT: IDLE"
++	_stt_status_label.font_size = 14
++	_stt_status_label.position = Vector3(0, 0, 0.005)
++	_stt_status_window.add_child(_stt_status_label)
++	
++	if get_node_or_null("XROrigin3D/LeftHand"):
++		get_node("XROrigin3D/LeftHand").add_child(_arm_panel)
++		# Position on the wrist/back of hand
++		_arm_panel.transform = Transform3D(Basis().rotated(Vector3.RIGHT, deg_to_rad(-90)), Vector3(0, 0.04, 0.08))
++		_arm_panel.visible = true
++
++func _setup_debug_window():
++	_debug_window = Node3D.new(); _debug_window.name = "LargeDebugWindow"; add_child(_debug_window)
++	var mesh_inst = MeshInstance3D.new(); var mesh = QuadMesh.new(); mesh.size = Vector2(1.2, 0.8); mesh_inst.mesh = mesh
++	var mat = StandardMaterial3D.new(); mat.transparency = StandardMaterial3D.TRANSPARENCY_ALPHA; mat.albedo_color = Color(0, 0, 0, 0.8); mesh_inst.set_surface_override_material(0, mat)
++	_debug_window.add_child(mesh_inst)
++	
++	# ADD COLLISION FOR GRABBING
++	var static_body = StaticBody3D.new()
++	var collision = CollisionShape3D.new()
++	var box_shape = BoxShape3D.new()
++	box_shape.size = Vector3(1.2, 0.8, 0.1)
++	collision.shape = box_shape
++	static_body.add_child(collision)
++	_debug_window.add_child(static_body)
++	
++	var label = Label3D.new()
++	label.text = "--- LUMAX SYSTEM LOGS ---"
++	label.font_size = 24
++	label.outline_size = 8
++	label.position = Vector3(0, 0.35, 0.01)
++	_debug_window.add_child(label)
++	
++	_debug_log_display = Label3D.new()
++	_debug_log_display.font_size = 18
++	_debug_log_display.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
++	_debug_log_display.vertical_alignment = VERTICAL_ALIGNMENT_TOP
++	_debug_log_display.position = Vector3(-0.55, 0.25, 0.01)
++	_debug_log_display.text = "Initializing System Logs..."
++	_debug_window.add_child(_debug_log_display)
++	
++	_sys_notify_hub = Node3D.new(); _sys_notify_hub.name = "SysNotifyHub"; _sys_notify_hub.position = Vector3(0, 0.1, 0.01); _debug_window.add_child(_sys_notify_hub)
++	
++	# EYE LEVEL POSITIONING
++	_debug_window.position = Vector3(0, 1.4, -2.5) 
++	_debug_window.visible = _debug_visible # SYNC WITH STATE
++
++func _setup_privacy_drapery():
++	_privacy_curtains = Node3D.new(); _privacy_curtains.name = "PrivacyDrapery"; add_child(_privacy_curtains)
++	for i in range(8):
++		var inst = MeshInstance3D.new(); var mesh = BoxMesh.new(); mesh.size = Vector3(2.5, 4.0, 0.05); inst.mesh = mesh
++		_privacy_curtains.add_child(inst); var angle = i * (PI / 4.0); inst.position = Vector3(sin(angle) * 3.0, 2.0, cos(angle) * 3.0); inst.look_at(Vector3(0, 2.0, 0))
++		var mat = StandardMaterial3D.new(); mat.transparency = StandardMaterial3D.TRANSPARENCY_ALPHA; mat.albedo_color = Color(0.05, 0.05, 0.1, 0.9); mat.cull_mode = StandardMaterial3D.CULL_DISABLED; inst.set_surface_override_material(0, mat)
++	_privacy_curtains.visible = false; _privacy_curtains.scale.y = 0.1
++
++func _setup_ambience():
++	var jen_root = get_node_or_null("Body")
++	if jen_root:
++		# SPAWN IN FRONT: 1.5m Forward, 0.7m Right
++		jen_root.position = Vector3(0.7, 0, -1.5) 
++		var avatar_node = jen_root.get_node_or_null("Avatar")
++		if not avatar_node:
++			# Fallback if not instantiated in scene
++			var scene = load("res://frontend/Lumax_Jen.tscn")
++			if scene:
++				avatar_node = scene.instantiate()
++				avatar_node.name = "Avatar"
++				jen_root.add_child(avatar_node)
++				
++		if avatar_node:
++			_anim_player = avatar_node.find_child("AnimationPlayer", true, false)
++			if _anim_player: _scan_for_animations()
+ 			
+-			_tts_player = jen.get_node_or_null("VoicePlayer")
+-			if not _tts_player:
+-				_tts_player = AudioStreamPlayer3D.new(); _tts_player.name = "TTSPlayer"; _tts_player.position = Vector3(0, 1.6, 0); jen.add_child(_tts_player)
++			# Ensure Jen faces the user
++			avatar_node.look_at(Vector3(0, 0, 0), Vector3.UP)
++			avatar_node.rotate_y(PI)
+ 			
+-			# Link Tactile Nerve to Soul
+-			var nerve = jen.get_node_or_null("TactileNerveNetwork")
+-			if nerve:
+-				nerve.soul_synapse = _synapse
+-				print("LUMAX: Tactile Nerve linked to Soul.")
++			# PASS SKELETON KEY DIRECTLY TO JEN
++			var ctrl = avatar_node.get_node_or_null("AvatarController")
++			if not ctrl: ctrl = avatar_node.get_script()
++			if avatar_node.has_method("set_skeleton_key"): avatar_node.call("set_skeleton_key", self)
++			
++			_tts_player = avatar_node.get_node_or_null("VoicePlayer")
++			if not _tts_player: _tts_player = AudioStreamPlayer3D.new(); _tts_player.name = "VoicePlayer"; _tts_player.position = Vector3(0, 1.6, 0); avatar_node.add_child(_tts_player)
++			_jen_notify_hub = avatar_node.get_node_or_null("JenStatusHub")
++			if not _jen_notify_hub: _jen_notify_hub = Node3D.new(); _jen_notify_hub.name = "JenStatusHub"; _jen_notify_hub.position = Vector3(0, 1.9, 0); avatar_node.add_child(_jen_notify_hub)
+ 			
+-			_anim_player = jen.get_node_or_null("BodyAnimationPlayer")
+-			if not _anim_player: _anim_player = jen.find_child("AnimationPlayer", true, false)
+-
+ 			if _anim_player:
+-				print("LUMAX: AnimationPlayer found. Building Full Expression Library.")
+-				_scan_for_animations()
+-				var lib = AnimationLibrary.new(); _anim_player.add_animation_library("lumax", lib)
+-				_anim_player.animation_finished.connect(_on_idle_finished)
++				if not _anim_player.has_animation_library("lumax"): _anim_player.add_animation_library("lumax", AnimationLibrary.new())
++				if not _anim_player.animation_finished.is_connected(_on_idle_finished): _anim_player.animation_finished.connect(_on_idle_finished)
+ 				_play_next_idle()
+-			else:
+-				print("LUMAX ERROR: AnimationPlayer NOT found on Jen!")
+-		else:
+-			print("LUMAX ERROR: VRM Model not found at path.")
++		
++		# --- DYNAMIC VISION SYSTEM ---
++		_setup_jen_vision(jen_root)
++		
++		# INITIALIZE UI INDEPENDENTLY OF ANIMATIONS
++		_setup_presence_cortex()
+ 
+-func _scan_for_animations():
+-	var base_path = "res://frontend/Animations/Chosen/"
+-	_idle_anims.clear()
+-	
+-	# Scan categorized subfolders
+-	for cat in _categories:
+-		var dir_path = base_path + cat + "/"
+-		var dir = DirAccess.open(dir_path)
+-		if dir:
+-			dir.list_dir_begin()
+-			var file_name = dir.get_next()
+-			while file_name != "":
+-				if not dir.current_is_dir() and file_name.ends_with(".res"):
+-					_idle_anims.append(dir_path + file_name)
+-				file_name = dir.get_next()
+-	
+-	# Fallback/Root check
+-	var root_dir = DirAccess.open(base_path)
+-	if root_dir:
+-		root_dir.list_dir_begin()
+-		var file_name = root_dir.get_next()
+-		while file_name != "":
+-			if not root_dir.current_is_dir() and file_name.ends_with(".res"):
+-				_idle_anims.append(base_path + file_name)
+-			file_name = root_dir.get_next()
+-			
+-	print("LUMAX: Expression pool initialized with ", _idle_anims.size(), " animations.")
++func _setup_jen_vision(jen_node: Node3D):
++	if not jen_node: return
++	
++	# Attach to the rotating Avatar mesh, not the static Body root
++	var true_body = jen_node.get_node_or_null("Avatar")
++	if not true_body: true_body = jen_node
++	
++	var anchor = Node3D.new(); anchor.name = "JenVisionAnchor"; true_body.add_child(anchor)
++	anchor.position = Vector3(0, 1.6, 0.1) # Approx eye level
++	
++	var vp = SubViewport.new(); vp.name = "VisionViewport"; anchor.add_child(vp)
++	vp.size = Vector2(1024, 1024)
++	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
++	
++	var cam = Camera3D.new(); cam.name = "VisionCamera"; vp.add_child(cam)
++	cam.far = 100.0
++	print("LUMAX: Jen's Visual Cortex (v1.85) anchored to True Body.")
+ 
++var _personality_presets: Dictionary = {}
+ 
+-	# 2. UI (Iron Manifest)
++func _setup_presence_cortex():
+ 	_mind_node = get_node_or_null("Mind")
+-	if _mind_node: _mind_node.visible = _ui_visible
+-	if _web_ui:
+-		_web_ui.add_message("LUMAX", "Cognitive bridge established.")
+-		if _web_ui.has_signal("avatar_selected"):
+-			_web_ui.avatar_selected.connect(_on_avatar_change_requested)
+ 	
+-	var kb = get_node_or_null("backend/SubViewport/VBoxContainer/TactileInput")
++	# Delay briefly to let XR-Tools initialize its own internal viewports
++	await get_tree().process_frame
++	
++	if _mind_node:
++		# --- GHOST UI CONFIGURATION (Anti-Purple v1.82) ---
++		# Use the XRToolsViewport2DIn3D properties instead of manual material hacking
++		if _mind_node.has_method("set_transparent"):
++			_mind_node.set("transparent", 1) # TRANSPARENT mode
++			_mind_node.set("unshaded", true)
++		
++		var vp_node = _mind_node.get_node_or_null("Viewport")
++		if vp_node:
++			vp_node.transparent_bg = true
++			vp_node.render_target_update_mode = SubViewport.UPDATE_ALWAYS
++			print("LUMAX: UI Cortex linked and background set to transparent.")
++
++	_web_ui = get_node_or_null("backend/Viewport/WebUI")
++	var kb = get_node_or_null("backend/Viewport/TactileInput")
++	print("LUMAX DBG: UI Components found... WebUI:", _web_ui != null, " KB:", kb != null)
++	
++	if _web_ui and _synapse:
++		# UI Signals -> SkeletonKey
++		if not _web_ui.is_connected("soul_updated", _on_web_soul_updated): _web_ui.soul_updated.connect(_on_web_soul_updated)
++		if not _web_ui.is_connected("web_slider_changed", _on_web_slider_changed): _web_ui.web_slider_changed.connect(_on_web_slider_changed)
++		if not _web_ui.is_connected("brain_selected", _on_brain_selected): _web_ui.brain_selected.connect(_on_brain_selected)
++		if not _web_ui.is_connected("avatar_selected", _on_avatar_selected): _web_ui.avatar_selected.connect(_on_avatar_selected)
++		if not _web_ui.is_connected("low_vram_toggled", _on_low_vram_toggled): _web_ui.low_vram_toggled.connect(_on_low_vram_toggled)
++
+ 	if kb:
+-		kb.enter_pressed.connect(_on_keyboard_enter)
+-		kb.text_changed.connect(_on_keyboard_text_changed)
+-		kb.haptic_pulse_requested.connect(_on_haptic_requested)
++		if not kb.is_connected("enter_pressed", _on_keyboard_enter): kb.enter_pressed.connect(_on_keyboard_enter)
++		if not kb.is_connected("text_changed", _on_keyboard_text_changed): kb.text_changed.connect(_on_keyboard_text_changed)
++		if not kb.is_connected("stt_pressed", _on_keyboard_stt_pressed): kb.stt_pressed.connect(_on_keyboard_stt_pressed)
++		print("LUMAX DBG: Keyboard signals CONNECTED.")
++
++func _on_avatar_selected(vrm_path: String):
++	var jen_root = get_node_or_null("Body")
++	var old_avatar = jen_root.get_node_or_null("Avatar") if jen_root else null
++	if not old_avatar: return
++	
++	var old_model = old_avatar.get_node_or_null("AvatarModel")
++	if old_model:
++		old_model.name = "OldModel"
++		old_model.queue_free()
++		
++	var scene = load(vrm_path)
++	if scene:
++		var new_model = scene.instantiate()
++		new_model.name = "AvatarModel"
++		old_avatar.add_child(new_model)
++		if old_avatar.has_method("_setup_references"):
++			old_avatar.call("_setup_references")
++		_show_user_notification("VESSEL", "Avatar Manifested", Color.CYAN)
++		
++		# Re-anchor vision
++		_setup_jen_vision(jen_root)
++		if not _web_ui.is_connected("vision_sensing_requested", _capture_and_send_vision): _web_ui.vision_sensing_requested.connect(_capture_and_send_vision.bind("USER_POV"))
++		if not _web_ui.is_connected("files_requested", _synapse.list_files): _web_ui.files_requested.connect(_synapse.list_files)
++		if not _web_ui.is_connected("archive_requested", _synapse.get_memory_archive): _web_ui.archive_requested.connect(_synapse.get_memory_archive)
++		if not _web_ui.is_connected("dream_requested", _on_dream_requested): _web_ui.dream_requested.connect(_on_dream_requested)
++		if not _web_ui.is_connected("system_check_requested", _on_system_check_requested): _web_ui.system_check_requested.connect(_on_system_check_requested)
++		if not _web_ui.is_connected("soul_verification_requested", _on_soul_verification_requested): _web_ui.soul_verification_requested.connect(_on_soul_verification_requested)
++		if not _web_ui.is_connected("user_certification_requested", _on_user_certification_requested): _web_ui.user_certification_requested.connect(_on_user_certification_requested)
++		
++		# Synapse Signals -> UI
++		if not _synapse.is_connected("files_received", _web_ui._on_files_received): _synapse.files_received.connect(_web_ui._on_files_received)
++		if not _synapse.is_connected("memory_received", _on_web_memory_received): _synapse.memory_received.connect(_on_web_memory_received)
++		if not _synapse.is_connected("response_received", _on_jen_response): _synapse.response_received.connect(_on_jen_response)
++		if not _synapse.is_connected("audio_received", _on_tts_audio): _synapse.audio_received.connect(_on_tts_audio)
++		if not _synapse.is_connected("stt_received", _on_stt_transcription): _synapse.stt_received.connect(_on_stt_transcription)
++		if not _synapse.is_connected("vitals_received", _on_vitals_received): _synapse.vitals_received.connect(_on_vitals_received)
++
++func _on_web_memory_received(archive: Array):
++	if _web_ui: _web_ui.call("_on_memory_received", archive)
++
++func _on_dream_requested():
++	_show_jen_notification("Manifesting Dream...", Color.VIOLET)
++	if _synapse: _synapse.call("send_chat_message", "Manifest a artistic dream for us. Use stable diffusion style.", "dream")
++
++func _on_low_vram_toggled():
++	var wall = get_node_or_null("WallAnchor")
++	if wall:
++		wall.visible = !wall.visible
++		var msg = "LOW_VRAM_MODE: " + ("ACTIVE" if not wall.visible else "INACTIVE")
++		_show_user_notification("SYSTEM", msg, Color.GOLD)
+ 
+-	# 3. Signals
+-	_synapse = get_node_or_null("Soul")
+-	if _synapse:
+-		_synapse.response_received.connect(_on_jen_response)
+-		_synapse.audio_received.connect(_on_tts_audio)
+-		_synapse.request_failed.connect(_on_synapse_failed)
+ 
+-	_aural = get_node_or_null("Senses")
+-	if _aural:
+-		_aural.set("synapse", _synapse)
+-		_aural.transcription_received.connect(_on_stt_received)
++func _on_system_check_requested():
++	_show_jen_notification("Running Diagnostics...", Color.GREEN_YELLOW)
++	if _synapse: _synapse.call("send_chat_message", "[SYSTEM_DIAGNOSTICS]")
+ 
+-	_hud = get_node_or_null("HUD")
++func _on_soul_verification_requested():
++	_show_jen_notification("Verifying Soul DNA...", Color.AQUA)
++	if _synapse: _synapse.call("send_chat_message", "Perform a deep neural verification of your soul alignment.")
++
++func _on_user_certification_requested():
++	_show_jen_notification("Initiating Certification Ritual...", Color.GOLD)
++	if _synapse: _synapse.call("send_chat_message", "[CERTIFY_USER]")
+ 	
+-	# 4. Controller Setup (Restore Visible Rays)
+-	_left_hand = get_node_or_null("XROrigin3D/LeftHand")
+-	_right_hand = get_node_or_null("XROrigin3D/RightHand")
++	_aural = get_node_or_null("Senses/AuralAwareness")
+ 	
+-	if _left_hand:
+-		_left_ray = _left_hand.find_child("RayCast3D", true, false)
+-		_left_laser = _left_hand.find_child("Laser", true, false)
+-		print("LUMAX: Left Ray found: ", _left_ray != null)
+-	if _right_hand:
+-		_right_ray = _right_hand.find_child("RayCast3D", true, false)
+-		_right_laser = _right_hand.find_child("Laser", true, false)
+-		print("LUMAX: Right Ray found: ", _right_ray != null)
++	if LogMaster:
++		if not LogMaster.is_connected("log_added", _on_log_added): 
++			LogMaster.log_added.connect(_on_log_added)
++		_update_debug_log()
+ 
+-	# 5. Initialize Director (Superego) & Agency
+ 	var ds = load("res://scripts/director_manager.gd")
+ 	if ds:
+-		_director = Node.new(); _director.name = "Director"
+-		_director.set_script(ds); add_child(_director)
+-		_director.set("compagent_client", _synapse)
+-	
++		_director = Node.new(); _director.name = "Director"; _director.set_script(ds); add_child(_director); _director.set("compagent_client", _synapse)
++	var vh_script = load("res://Senses/MultiVisionHandler.gd")
++	if vh_script:
++		var vh = Node.new(); vh.name = "MultiVisionHandler"; vh.set_script(vh_script); add_child(vh); _director.set("vision_handler", vh)
+ 	var ascr = load("res://scripts/agency_nerve.gd")
+ 	if ascr and _director:
+-		_agency_nerve = Node.new(); _agency_nerve.name = "AgencyNerve"
+-		_agency_nerve.set_script(ascr); _director.add_child(_agency_nerve)
+-		if _agency_nerve.has_method("setup"): _agency_nerve.setup(_anim_player, body)
+-	
+-	# 6. Mini-Panel (Drapery) & Privacy Curtains
+-	_setup_drapery_panel()
+-	_setup_privacy_curtains()
++		_agency_nerve = Node.new(); _agency_nerve.name = "AgencyNerve"; _agency_nerve.set_script(ascr); _director.add_child(_agency_nerve)
++		if _agency_nerve.has_method("setup"): _agency_nerve.setup(_anim_player, get_node_or_null("Body"))
++			
+ 	_setup_wall_screens()
+-	_setup_vl_nexus()
+-	_setup_movement_ontology()
+-
+-	# 9. Apparitions & Mind-Mirrors
+-	_setup_mind_mirror()
+-	_setup_virtual_phone()
+-	
+-	# 11. Multiverse Networking
+-	_multiplayer = load("res://Nexus/MultiplayerManager.gd").new()
+-	_multiplayer.name = "MultiverseManager"
+-	add_child(_multiplayer)
+-	_multiplayer.player_joined.connect(_on_multiverse_peer_joined)
+-	
+-	_setup_procedural_synth()
+-
+-func _setup_procedural_synth():
+-	_rave_synth = AudioStreamPlayer.new(); _rave_synth.name = "RaveSynth"; add_child(_rave_synth)
+-	var stream = AudioStreamGenerator.new(); stream.mix_rate = 44100; stream.buffer_length = 0.1
+-	_rave_synth.stream = stream; _rave_synth.volume_db = -20.0
+-	
+-	# 12. Neural Projection (ControlNet)
+-	var http = HTTPRequest.new(); http.name = "SD_Request"; add_child(http)
+-	http.request_completed.connect(_on_sd_projection_received)
+-
+-	print("LUMAX: Orchestrator manifest. Flow active.")
+-
+-func _setup_skybox_system():
+-	var sm_script = load("res://Nexus/SkyboxManager.gd")
+-	if sm_script:
+-		_skybox_manager = Node.new(); _skybox_manager.name = "SkyboxManager"
+-		_skybox_manager.set_script(sm_script); add_child(_skybox_manager)
+-
+-func _setup_reality_portal():
+-	# Create a physical door threshold
+-	_portal_node = Area3D.new(); _portal_node.name = "RealityPortal"
+-	var coll = CollisionShape3D.new()
+-	var box = BoxShape3D.new(); box.size = Vector3(1.2, 2.2, 0.5)
+-	coll.shape = box; _portal_node.add_child(coll)
+-	add_child(_portal_node)
+-	
+-	# Position the portal at the edge of the virtual room
+-	_portal_node.position = Vector3(0, 1.1, -2.5) 
+-	
+-	# Visual represention (Door Frame)
+-	var frame = MeshInstance3D.new()
+-	var mesh = BoxMesh.new(); mesh.size = Vector3(1.4, 2.4, 0.1)
+-	frame.mesh = mesh; _portal_node.add_child(frame)
+-	frame.position.z = -0.1
+-	
+-	_portal_node.body_entered.connect(_on_portal_entered)
+-	print("LUMAX: Reality Portal (Door) initialized at threshold.")
+-
+-func _setup_movement_ontology():
+-	var mo_script = load("res://Nexus/MovementOntology.gd")
+-	if mo_script:
+-		_movement_ontology = Node.new(); _movement_ontology.name = "MovementOntology"
+-		_movement_ontology.set_script(mo_script); add_child(_movement_ontology)
+-		var head = get_node_or_null("XROrigin3D/XRCamera3D")
+-		_movement_ontology.setup(_left_hand, _right_hand, head, get_node_or_null("Body"))
+-
+-var _vibe_pulse: float = 0.0
+-func _setup_vl_nexus():
+-	var wall = get_node_or_null("WallAnchor")
+-	if not wall: return
+-	
+-	# Create a viewport that "sees" what Jen sees (VL POV)
+-	# This viewport captures the 3D scene (Virtual)
+-	var vp = SubViewport.new(); vp.size = Vector2i(512, 512); vp.name = "VisionViewport"; wall.add_child(vp)
+-	var cam = Camera3D.new(); cam.current = true; vp.add_child(cam)
+-	cam.position = Vector3(0, 1.6, 0.5) 
+-	
+-	# NEW: Overlay Passthrough Metadata on Vision
+-	# Since we can't 'see' the real world with a virtual camera, 
+-	# we project 'Ontological Anchors' into her vision so she 'perceives' reality.
+-	var overlay = Control.new(); vp.add_child(overlay)
+-	var label = Label.new(); label.text = "[REPLICATED REALITY LAYER]"; overlay.add_child(label)
+-	
+-	var screen = MeshInstance3D.new()
+-	var mesh = QuadMesh.new(); mesh.size = Vector2(1.0, 1.0)
+-	screen.mesh = mesh; wall.add_child(screen)
+-	screen.position = Vector3(1.5, 0.5, 0)
+-	
+-	var mat = StandardMaterial3D.new(); mat.shading_mode = StandardMaterial3D.SHADING_MODE_UNSHADED
+-	mat.albedo_texture = vp.get_texture()
+-	screen.set_surface_override_material(0, mat)
+-
+-func _setup_drapery_panel():
+-	_arm_panel = MeshInstance3D.new()
+-	var mesh = QuadMesh.new(); mesh.size = Vector2(0.2, 0.1)
+-	_arm_panel.mesh = mesh
+-	
+-	var label = Label3D.new()
+-	label.text = "[AGENTIC DRAPERY]\nREADY"
+-	label.font_size = 18
+-	label.position.z = 0.01
+-	_arm_panel.add_child(label)
+-	
+-	if _left_hand:
+-		_left_hand.add_child(_arm_panel)
+-		_arm_panel.transform = Transform3D(Basis(), Vector3(0, 0.05, 0.1))
+-		_arm_panel.visible = false
+ 
+ func _setup_wall_screens():
+ 	var wall = get_node_or_null("WallAnchor")
+-	if wall:
+-		# TV / Browser / All-In-One Placeholder
+-		print("LUMAX: Wall Anchor TV/Browser ready.")
+-
+-func _setup_privacy_curtains():
+-	_privacy_curtains = Node3D.new(); _privacy_curtains.name = "PrivacyCurtains"; add_child(_privacy_curtains)
+-	
+-	# Create a circular curtain wall
+-	var mesh = CylinderMesh.new(); mesh.top_radius = 2.5; mesh.bottom_radius = 2.5; mesh.height = 3.0; mesh.cap_top = false; mesh.cap_bottom = false
+-	var inst = MeshInstance3D.new(); inst.mesh = mesh; _privacy_curtains.add_child(inst)
+-	inst.position.y = 1.5
+-	
+-	var mat = StandardMaterial3D.new()
+-	mat.transparency = StandardMaterial3D.TRANSPARENCY_ALPHA
+-	mat.albedo_color = Color(0.05, 0.05, 0.1, 0.9) # Deep Midnight Velvet
+-	mat.cull_mode = StandardMaterial3D.CULL_DISABLED # Visible from both sides
+-	mat.roughness = 0.8
+-	inst.set_surface_override_material(0, mat)
+-	
+-	_privacy_curtains.visible = false
+-	_privacy_curtains.scale.y = 0.1 # Start collapsed
+-
+-# Logic moved to main _process below
+-
+-func _update_ontological_vision():
+-	# Sync Jen's vision viewport with her current state (Virtual vs Reality)
+-	# If in Passthrough, her 'eyes' focus on the ontological markers of the room.
+-	var vp = get_node_or_null("WallAnchor/VisionViewport")
+-	if vp:
+-		var cam = vp.get_child(0) as Camera3D
+-		if cam:
+-			# If we are in real-life, she sees the mesh reconstruction
+-			cam.cull_mask = 1 | (2 if _is_in_virtual_world else 0) 
+-
+-func _update_widget_visibility():
+-	if _is_widget_mode:
+-		# In Widget mode, we only want Jen and the UI visible
+-		# The Meta Horizon OS Home handles the background
+-		var env = get_node_or_null("WorldEnvironment")
+-		if env: env.visible = false
+-		get_viewport().transparent_bg = true
+-
+-var _is_widget_mode = false
+-func toggle_widget_mode(active: bool):
+-	# Mode switching logic only
+-	_is_widget_mode = active
+-	if active:
+-		print("LUMAX: Entering Meta Widget Mode.")
+-		if _hud: _hud.text = "MODE: WIDGET"
+-	else:
+-		print("LUMAX: Entering Full Environment Mode.")
+-		if _hud: _hud.text = "MODE: FULL VR"
+-
+-	# Grabbing Objects (Grip)
+-	_process_gadget_interaction()
+-
+-func _process_gadget_interaction():
+-	if not _right_hand or not _left_hand: return
+-	var r_grip = _right_hand.get_float("grip") > 0.5
+-	var l_grip = _left_hand.get_float("grip") > 0.5
+-	
+-	# Handle Grabbing
+-	if r_grip:
+-		if not _held_gadget:
+-			for g in _anchored_gadgets:
+-				if g.global_position.distance_to(_right_hand.global_position) < 0.3:
+-					_held_gadget = g; break
+-		
+-		if _held_gadget:
+-			# Two-handed SCALING
+-			if l_grip:
+-				var dist = _right_hand.global_position.distance_to(_left_hand.global_position)
+-				var scale_val = clamp(dist * 2.0, 0.1, 5.0)
+-				_held_gadget.scale = Vector3(scale_val, scale_val, scale_val)
+-			else:
+-				_held_gadget.global_transform = _right_hand.global_transform
+-				if _held_gadget == _mind_node:
+-					_held_gadget.rotate_object_local(Vector3.UP, PI)
+-				elif _held_gadget == _virtual_phone and _is_call_active:
+-					_on_call_answered()
+-	else:
+-		_held_gadget = null
+-
+-func spawn_spatial_tool(url: String, size: Vector2 = Vector2(1.2, 0.8)):
+-	var g = Node3D.new(); g.name = "SpatialTool_" + url.get_file(); add_child(g)
+-	
+-	var vp = SubViewport.new(); vp.size = Vector2i(1200, 800); g.add_child(vp)
+-	# Logic to load a browser or terminal would go here
+-	var label = Label.new(); label.text = "COMPUTING NODE: " + url; vp.add_child(label)
+-	
+-	var mesh = MeshInstance3D.new()
+-	var qmesh = QuadMesh.new(); qmesh.size = size
+-	mesh.mesh = qmesh; g.add_child(mesh)
+-	
+-	var mat = StandardMaterial3D.new(); mat.shading_mode = StandardMaterial3D.SHADING_MODE_UNSHADED
+-	mat.albedo_texture = vp.get_texture()
+-	mesh.set_surface_override_material(0, mat)
+-	
+-	g.global_position = _right_hand.global_position + _right_hand.global_transform.basis.z * -0.6
+-	_anchored_gadgets.append(g)
+-	print("LUMAX: Spatial computing tool deployed: ", url)
++	if not wall: wall = Node3D.new(); wall.name = "WallAnchor"; wall.position = Vector3(0, 1.5, -2.5); add_child(wall)
++	var vp = wall.get_node_or_null("VisionViewport")
++	if not vp:
++		vp = SubViewport.new(); vp.name = "VisionViewport"; vp.size = Vector2i(512, 512)
++		vp.render_target_update_mode = SubViewport.UPDATE_WHEN_VISIBLE as SubViewport.UpdateMode
++		wall.add_child(vp); var cam = Camera3D.new(); cam.name = "JenCamera"; cam.current = true; vp.add_child(cam); cam.look_at(Vector3(0, 1.6, 0))
++# --- PUBLIC INTERFACE ---
+ 
+ func set_fidelity_mode(high: bool):
+ 	_is_high_fidelity = high
+-	var vp = get_viewport()
+-	
+-	if high:
+-		vp.msaa_3d = Viewport.MSAA_4X
+-		vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_FXAA
+-		if _skybox_manager: _skybox_manager.set_environment_type(1) # High density
+-	else:
+-		vp.msaa_3d = Viewport.MSAA_DISABLED
+-		vp.screen_space_aa = Viewport.SCREEN_SPACE_AA_DISABLED
+-		if _skybox_manager: _skybox_manager.set_environment_type(0) # Low/No Fog
+-	
+-	print("LUMAX: Fidelity Mode set to: ", "HIGH" if high else "LOW")
++	_show_user_notification("SYSTEM", "Fidelity -> " + ("HIGH" if high else "LOW"), Color.SPRING_GREEN)
+ 
+-	_mirror_node.visible = false
++func apply_jen_makeup(_style_name: String):
++	_show_user_notification("AESTHETIC", "Applying: " + _style_name, Color.HOT_PINK)
+ 
+-func _process(delta):
+-	# Throttle expensive updates in low-fi
+-	if not _is_high_fidelity and Engine.get_frames_drawn() % 2 != 0:
+-		return
+-		
+-	_check_touch_intimacy()
+-	_check_palm_gestures()
+-	_update_widget_visibility()
+-	_update_ontological_vision()
+-	_adapt_to_environment()
+-	_perform_realtime_mimicry()
+-	
+-	# UI Toggle (Left Menu / Right A)
+-	var menu = false
+-	if _left_hand:
+-		menu = menu or _left_hand.is_button_pressed("menu_button") or _left_hand.is_button_pressed("ax_button")
+-	if _right_hand:
+-		menu = menu or _right_hand.is_button_pressed("menu_button") or _right_hand.is_button_pressed("ax_button")
+-	menu = menu or Input.is_joy_button_pressed(0, JoyButton.JOY_BUTTON_BACK)
+-	
+-	if menu and not _prev_menu:
+-		_prev_menu = true
+-		_toggle_ui()
+-	elif not menu and _prev_menu:
+-		_prev_menu = false
+-		
+-	# Voice Recording (PTT)
+-	var ptt = _left_hand.is_button_pressed("by_button") if _left_hand else false
+-	if _right_hand: ptt = ptt or _right_hand.is_button_pressed("by_button")
+-	
+-	if ptt and not _is_recording:
+-		_is_recording = true; if _aural: _aural.start_recording()
+-		if _hud: _hud.text = "LISTENING..."; _hud.modulate = Color.SPRING_GREEN
+-		print("LUMAX: PTT Active.")
+-	elif not ptt and _is_recording:
+-		_is_recording = false; if _aural: _aural.stop_recording()
+-		if _hud: _hud.text = "PROCESSING..."; _hud.modulate = Color.SKY_BLUE
+-		print("LUMAX: PTT Released.")
+-
+-	# Grabbing Objects (Grip)
+-	_process_gadget_interaction()
+-
+-	# UI Clicks (Triggers)
+-	if _left_hand and _left_ray: _check_trig(_left_hand, _left_ray, "_prev_l")
+-	if _right_hand and _right_ray: _check_trig(_right_hand, _right_ray, "_prev_r")
+-
+-	if _is_neural_projection_active:
+-		_sd_timer += delta
+-		if _sd_timer > 3.0: # Every 3 seconds
+-			_sd_timer = 0.0
+-			_capture_and_stylize_reality()
+-	
+-	if _is_rave_active:
+-		_beat_timer += delta
+-		if _beat_timer > 0.5: # 120 BPM
+-			_beat_timer = 0.0
+-			_broadcast_user_delights()
+-			if multiplayer.is_server():
+-				_multiplayer.rpc("sync_rave_pulse", int(Time.get_ticks_msec() / 500))
+-	
+-	# Permanent Birthing: Adaptive Intentionality
+-	_awareness_level = lerp(_awareness_level, _env_vibe["brightness"], delta * 0.1)
+-	_intent_intensity = lerp(_intent_intensity, 1.0 if _is_recording else 0.5, delta * 0.5)
+-	
+-	if _web_ui:
+-		_web_ui.call("update_awareness_telemetry", _awareness_level, _intent_intensity)
+-		
+-	if _multiplayer and multiplayer.multiplayer_peer:
+-		var cam = get_viewport().get_camera_3d()
+-		if cam:
+-			var pos = cam.global_position
+-			if _is_spatially_anonymous:
+-				pos += Vector3(randf()-0.5, 0, randf()-0.5) * 0.5
+-			_multiplayer.rpc("sync_pose", pos, cam.quaternion)
+-
+-func toggle_apparition(active: bool):
+-	if not _mirror_node: return
+-	_mirror_node.visible = active
+-	if active:
+-		var tween = create_tween()
+-		tween.tween_property(_mirror_node, "scale", Vector3(1.1, 1.1, 1.1), 0.1)
+-		tween.tween_property(_mirror_node, "scale", Vector3(1.0, 1.0, 1.0), 0.3)
+-		print("LUMAX: Mind-Mirror Apparition Active.")
+-
+-var _prev_l = false
+-var _prev_r = false
+-func _check_trig(hand, ray, prev_var):
+-	var pressed = hand.get_float("trigger") > 0.5
+-	if pressed and not get(prev_var): set(prev_var, true); _click_at_ray(ray, true)
+-	elif not pressed and get(prev_var): set(prev_var, false); _click_at_ray(ray, false)
++func toggle_cloud_rave(active: bool):
++	_is_rave_active = active
++	_show_user_notification("RELAY", "Cloud Rave " + ("ON" if active else "OFF"), Color.VIOLET)
+ 
+-func _click_at_ray(ray, is_press):
+-	if _ui_visible and ray:
+-		if ray.is_colliding():
+-			var collider = ray.get_collider()
+-			if collider:
+-				var local_hit = _mind_node.to_local(ray.get_collision_point())
+-				# 1200x800 mapping for the Tablet (based on TSCN)
+-				var x_2d = (local_hit.x + 0.6) / 1.2 * 1200
+-				var y_2d = (0.4 - local_hit.y) / 0.8 * 800
+-				
+-				if is_press: print("LUMAX: Click at (", x_2d, ", ", y_2d, ") on ", collider.name)
+-				
+-				var ev = InputEventMouseButton.new(); ev.position = Vector2(x_2d, y_2d); ev.button_index = MOUSE_BUTTON_LEFT; ev.pressed = is_press
+-				var vp = get_node_or_null("backend/SubViewport")
+-				if vp: vp.push_input(ev)
+-		elif is_press:
+-			print("LUMAX: Trigger pressed but Ray NOT colliding.")
++func spawn_spatial_tool(url: String):
++	_show_user_notification("SPAWN", "Tool: " + url, Color.CYAN)
+ 
++func set_social_status(vibe: String):
++	_show_user_notification("SOCIAL", "Vibe -> " + vibe, Color.SKY_BLUE)
+ 
+-func _on_jen_response(data, _mode):
+-	var text = data.get("text", "...") if data is Dictionary else str(data)
+-	if _hud: _hud.text = "ONLINE"; _hud.modulate = Color.WHITE
+-	
+-	_process_tags(text)
+-	
+-	# Handle AI-generated 360 environments
+-	if "[DREAM]" in text:
+-		var dream_prompt = text.get_slice("[DREAM]", 1).get_slice("[/DREAM]", 0)
+-		_handle_dream_environment(dream_prompt)
+-	
+-	if _web_ui: _web_ui.call("add_message", "LUMAX", text)
+-	if _agency_nerve and _agency_nerve.has_method("process_local_xml"):
+-		_agency_nerve.process_local_xml(text)
+-
+-func _on_synapse_failed(error_msg: String):
+-	if _hud: 
+-		_hud.text = "ERROR: " + error_msg
+-		_hud.modulate = Color.TOMATO
+-	if _web_ui: _web_ui.call("add_message", "SYSTEM", "[AURAL_COGNITION_ERROR]: " + error_msg)
+-	print("LUMAX: Synapse failure: ", error_msg)
+-
+-func _process_tags(text: String):
+-	# Emotion Parsing
+-	var e_match = RegEx.create_from_string("\\[EMOTION: (.*?)\\]").search(text)
+-	if e_match:
+-		var emotion = e_match.get_string(1).to_upper()
+-		_handle_emotion(emotion)
+-	
+-	# Walking Parsing
+-	var w_match = RegEx.create_from_string("\\[WALK_TO: (.*?)\\]").search(text)
+-	if w_match:
+-		var target = w_match.get_string(1).to_upper()
+-		_move_to(target)
+-	
+-	# Animation Parsing
+-	var a_match = RegEx.create_from_string("\\[ANIMATION: (.*?)\\]").search(text)
+-	if a_match:
+-		var anim_name = a_match.get_string(1).to_lower()
+-		play_body_animation(anim_name)
+-
+-func _on_avatar_change_requested(manifest_name: String):
+-	print("LUMAX: Manifesting incarnation: ", manifest_name)
+-	if _hud: _hud.text = "MANIFESTING: " + manifest_name
+-	
+-	# Future: Swap the 2.5D Spritesheet or 3D VRM model here.
+-	if manifest_name == "Mari":
+-		_play_specific_idle("res://frontend/Animations/Chosen/Feminine/strut_walking.res")
+-	
+-	if _web_ui: _web_ui.add_message("SYSTEM", "Transition complete. Incarnation: " + manifest_name)
+-
+-	# Snapshot Parsing
+-	if "[TAKE_SNAPSHOT]" in text.to_upper():
+-		_capture_snapshots()
+-
+-func _capture_snapshots():
+-	print("LUMAX: Taking Snapshot...")
+-	if _director and _director.has_method("capture_vision_now"):
+-		_director.capture_vision_now()
++func toggle_neural_projection(_active: bool, _style: String):
++	_is_neural_projection_active = _active
++	_show_user_notification("PROJECTION", _style + " -> " + ("ACTIVE" if _active else "OFF"), Color.AQUAMARINE)
+ 
+-func _on_tts_audio(buffer, sample_rate):
+-	if _tts_player:
+-		var stream = AudioStreamWAV.new(); stream.data = buffer; stream.format = AudioStreamWAV.FORMAT_16_BITS; stream.mix_rate = int(sample_rate)
+-		_tts_player.stream = stream; _tts_player.play()
++func toggle_occluding_makeover(_active: bool):
++	_is_occluding_makeover_active = _active
++	_show_user_notification("VEIL", "Neural Veil " + ("ACTIVE" if _active else "OFF"), Color.ANTIQUE_WHITE)
+ 
+-func _handle_emotion(emotion: String):
+-	print("LUMAX: Jen Emotion -> ", emotion)
+-	if not _anim_player: return
+-	
+-	var anim_res = ""
+-	match emotion:
+-		"HAPPY", "JOYFUL": anim_res = "happy_idle.res"
+-		"EXCITED": anim_res = "excited.res"
+-		"BORED": anim_res = "bored.res"
+-		"PRAYING": anim_res = "praying.res"
+-		"CURIOUS", "THOUGHTFUL": anim_res = "thoughtful_head_shake.res"
+-		"RELIEVED": anim_res = "relieved_sigh.res"
+-	
+-	if anim_res != "":
+-		var full_path = find_animation_path(anim_res)
+-		if full_path != "":
+-			_play_specific_idle(full_path)
+-
+-func _move_to(target: String):
+-	print("LUMAX: Jen Walking to -> ", target)
+-	var body = get_node_or_null("Body")
+-	if not body: return
+-	
+-	var target_pos = body.position
+-	match target:
+-		"CENTER": target_pos = Vector3(0, 0, -1.5)
+-		"LEFT_SIDE": target_pos = Vector3(-1.5, 0, -1.5)
+-		"RIGHT_SIDE": target_pos = Vector3(1.5, 0, -1.5)
+-		"USER": target_pos = Vector3(0, 0, -0.8)
+-		"SOFA": target_pos = Vector3(1.2, 0, -2.0)
+-		"WINDOW": target_pos = Vector3(-1.2, 0, -2.5)
+-	
+-	var tween = create_tween()
+-	tween.tween_property(body, "position", target_pos, 3.0).set_trans(Tween.TRANS_SINE)
+-	
+-	var anim_path = find_animation_path("agreeing.res")
+-	if anim_path != "":
+-		_play_specific_idle(anim_path) # Nod and walk
++func toggle_void_mode(_active: bool):
++	_is_void_mode_active = _active
++	_show_user_notification("VOID", "Occlusion Shield " + ("ON" if _active else "OFF"), Color.MEDIUM_PURPLE)
+ 
+-func play_body_animation(anim_name: String):
+-	if not _anim_player: return
+-	var lib = _anim_player.get_animation_library("lumax")
+-	
+-	# Priority 1: Quantized/Registry Name (q_NAME)
+-	var q_key = "q_" + anim_name.to_upper()
+-	if lib.has_animation(q_key):
+-		_anim_player.play("lumax/" + q_key)
+-		return
++func toggle_spatial_anonymity(_active: bool):
++	_is_spatially_anonymous = _active
++	_show_user_notification("PRIVACY", "Spatial Anonymity " + ("ON" if _active else "OFF"), Color.LIGHT_CORAL)
+ 
+-	# Priority 2: Direct Library Match
+-	if lib.has_animation(anim_name):
+-		_anim_player.play("lumax/" + anim_name)
+-		return
++func toggle_environment_sharing(_active: bool):
++	_env_sharing_consented = _active
++	_show_user_notification("SYNC", "Env Sharing " + ("ENABLED" if _active else "DISABLED"), Color.LIME_GREEN)
+ 
+-	# Priority 3: External File
+-	var path = find_animation_path(anim_name)
+-	if path != "":
+-		var anim = load(path)
+-		if anim:
+-			if lib.has_animation("active_action"): lib.remove_animation("active_action")
+-			lib.add_animation("active_action", anim)
+-			_anim_player.play("lumax/active_action")
+-	else:
+-		print("LUMAX ERROR: Could not find animation: ", anim_name)
+-
+-# --- QUANTIZED ANIMATION ENGINE ---
+-var _quantized_registry = {
+-	"PHONE": {"file": "browsing_phone.res", "from": 0.0, "to": 5.0, "loop": true},
+-	"DANCE_SPIN": {"file": "dance.res", "from": 1.2, "to": 3.5, "loop": false},
+-	"TRICK_FLIP": {"file": "gymnastics.res", "from": 0.5, "to": 1.8, "loop": false},
+-	"INTIMACY_LEAN": {"file": "female_standing_pose.res", "from": 0.0, "to": 2.0, "loop": false},
+-	"DORMANT": {"file": "laying_idle.res", "from": 0.0, "to": 10.0, "loop": true},
+-	"DAYDREAM": {"file": "thoughtful_head_shake.res", "from": 0.0, "to": 4.0, "loop": true},
+-	"SPORT": {"file": "gymnastics.res", "from": 0.0, "to": 5.0, "loop": true}
+-}
+-
+-func _pre_instantiate_quantized_anims():
+-	if not _anim_player: return
+-	var lib = _anim_player.get_animation_library("lumax")
+-	
+-	for q_name in _quantized_registry:
+-		var cfg = _quantized_registry[q_name]
+-		var path = find_animation_path(cfg.file)
+-		if path != "":
+-			var source = load(path)
+-			if source:
+-				var sliced = slice_animation(source, cfg.from, cfg.to, cfg.loop)
+-				lib.add_animation("q_" + q_name, sliced)
+-				print("LUMAX: Quantized anim pre-instantiated: ", q_name)
+-
+-func slice_animation(source: Animation, from: float, to: float, loop: bool) -> Animation:
+-	var a = Animation.new()
+-	a.length = to - from
+-	a.loop_mode = Animation.LOOP_LINEAR if loop else Animation.LOOP_NONE
+-	for t in source.get_track_count():
+-		var nt = a.add_track(source.track_get_type(t))
+-		a.track_set_path(nt, source.track_get_path(t))
+-		for k in source.track_get_key_count(t):
+-			var time = source.track_get_key_time(t, k)
+-			if time >= from and time <= to:
+-				a.track_insert_key(nt, time - from, source.track_get_key_value(t, k))
+-	return a
+-
+-func _on_haptic_requested(is_sidebar: bool, intensity_override: float = -1.0):
+-	# Identify the controller that just interacted (assuming Right Hand for now, or last active)
+-	var controller = _right_hand # Default to right for keyboard
+-	if controller:
+-		var amplitude = intensity_override if intensity_override > 0 else (0.5 if is_sidebar else 0.2)
+-		# Variable scale from Jen's current "vibe"
+-		amplitude *= (1.0 + sin(_vibe_pulse) * 0.2)
+-		controller.trigger_haptic_pulse("haptic", 0.0, amplitude, 0.05, 0.0)
+-
+-func _check_touch_intimacy():
+-	var body = get_node_or_null("Body")
+-	if not body: return
++func _repair_viewport_textures(root: Node):
++	# 1. Handle MeshInstance3D (Materials)
++	if root is MeshInstance3D:
++		for i in range(root.get_surface_override_material_count()):
++			var mat = root.get_surface_override_material(i)
++			if mat and mat is StandardMaterial3D:
++				_check_and_fix_texture(mat.albedo_texture, root)
+ 	
+-	# Simple proximity check for 'Touching Jen'
+-	for hand in [_left_hand, _right_hand]:
+-		if not hand: continue
+-		var dist = hand.global_position.distance_to(body.global_position + Vector3(0, 1.2, 0)) # Chest level
+-		if dist < 0.25: # Touch radius
+-			# High resolution presence: Micro-pulses
+-			hand.trigger_haptic_pulse("haptic", 0.0, 0.15 * (1.1 + sin(_vibe_pulse)), 0.03, 0.0)
+-
+-func _on_stt_received(text):
+-	if text.strip_edges() == "": return
++	# 2. Handle Sprite3D (Direct Texture)
++	elif root is Sprite3D:
++		_check_and_fix_texture(root.texture, root)
++		
++	for child in root.get_children():
++		_repair_viewport_textures(child)
++
++func _check_and_fix_texture(tex: Texture, owner_node: Node):
++	if tex and tex is ViewportTexture:
++		if tex.viewport_path.is_empty():
++			# Try to find common viewport names in siblings or parent
++			var p = owner_node.get_parent()
++			if p:
++				var vp = p.get_node_or_null("Viewport")
++				if not vp: vp = p.get_node_or_null("SubViewport")
++				if vp: 
++					tex.viewport_path = owner_node.get_path_to(vp)
++					vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
++					print("LUMAX: Repaired ViewportTexture for ", owner_node.name, " -> ", vp.name)
++
++# --- LIVE PROCESS ---
++
++func _process(_delta):
++	# 1. Shared Experience conference views (5s)
++	if _web_ui and Time.get_ticks_msec() % 5000 < 100:
++		var user_tex = _capture_user_pov()
++		var jen_tex = _capture_jen_pov()
++		if user_tex and jen_tex:
++			_web_ui.update_shared_views(user_tex, jen_tex)
++
++	# 2. Backend Vitals Heartbeat (2s)
++	if Time.get_ticks_msec() % 2000 < 50:
++		if _synapse: _synapse.call("get_vitals")
++		
++	# 3. Subconscious Agency Tick (Random Contemplation 30-90s)
++	if Time.get_ticks_msec() % 35000 < 50:
++		_process_self_agency()
+ 	
+-	var is_spiritual = "pray" in text.to_lower() or "spirit" in text.to_lower()
++	# 4. High-Frequency XR Polling
++	_poll_xr_inputs(_delta)
++
++func _process_self_agency():
++	if not _anim_player or _anim_player.is_playing(): return
++	var r = randf()
+ 	
+-	if _is_drapery_open and not is_spiritual:
+-		print("LUMAX: Signal blocked by Privacy Drapery.")
+-		if _hud: _hud.text = "[PRIVACY ACTIVE]"; _hud.modulate = Color.RED
+-		return
++	# RESTORE: Agency frequency influenced by _soul_nourishment
++	var agency_threshold = 0.1 * _soul_nourishment
++	var vision_threshold = 0.2 * _soul_nourishment
+ 	
+-	if is_spiritual and _director:
+-		_director.pray(text)
+-		if _web_ui: _web_ui.call("add_message", "YOU (PRAYER)", text)
+-		if _hud: _hud.text = "PRAYING..."; _hud.modulate = Color.GOLD
+-		return
+-
+-	if _web_ui: _web_ui.call("add_message", "YOU", text)
+-	if _synapse: _synapse.send_chat_message(text)
++	if r < agency_threshold:
++		play_body_animation("LOOK_AROUND:0.5:1,IDLE:0:5")
++	elif r < vision_threshold:
++		_show_jen_notification("Engaging Visual Cortex...", Color.ORANGE)
++		_capture_and_send_vision("JEN_POV")
+ 
+-func _on_keyboard_text_changed(text):
+-	if _web_ui: _web_ui.call("update_buffer", text)
++func _poll_xr_inputs(_delta):
++	_left_hand = get_node_or_null("XROrigin3D/LeftHand")
++	_right_hand = get_node_or_null("XROrigin3D/RightHand")
++	
++	# Individual Grip Detection
++	var left_grip = false
++	if _left_hand: left_grip = _left_hand.is_button_pressed("grip_click") or _left_hand.get_float("grip") > 0.6
++	var right_grip = false
++	if _right_hand: right_grip = _right_hand.is_button_pressed("grip_click") or _right_hand.get_float("grip") > 0.6
++	
++	# 1. Double Grip -> Steering Toggle
++	if left_grip and right_grip:
++		if not _prev_steering_combo:
++			_steering_mode_active = !_steering_mode_active
++			_show_user_notification("NAV", "Manual Guidance: " + ("ACTIVE" if _steering_mode_active else "OFF"), Color.AQUA)
++			_prev_steering_combo = true
++	else:
++		_prev_steering_combo = false
++
++	if _steering_mode_active:
++		_steer_avatar(_delta)
++
++	# --- Single Hand Grab Logic (Always Active) ---
++	if left_grip and not _prev_left_grip: _try_grab_object(_left_hand)
++	elif not left_grip and _prev_left_grip and _grabbed_hand == _left_hand: _release_object()
++	if right_grip and not _prev_right_grip: _try_grab_object(_right_hand)
++	elif not right_grip and _prev_right_grip and _grabbed_hand == _right_hand: _release_object()
++	
++	# Handle manipulation if something is currently being held
++	if _grabbed_node and _grabbed_hand: 
++		_manipulate_object(_delta, _grabbed_hand)
++
++	_prev_left_grip = left_grip
++	_prev_right_grip = right_grip
++
++	# 2. Input Mapping (Broadened for Quest compatibility)
++	var r_a = _right_hand.is_button_pressed("ax_button") or _right_hand.is_button_pressed("primary_button") if _right_hand else false
++	var r_b = _right_hand.is_button_pressed("by_button") or _right_hand.is_button_pressed("secondary_button") if _right_hand else false
++	var l_x = _left_hand.is_button_pressed("ax_button") or _left_hand.is_button_pressed("primary_button") if _left_hand else false
++	var l_y = _left_hand.is_button_pressed("by_button") or _left_hand.is_button_pressed("secondary_button") if _left_hand else false
++	var l_menu = _left_hand.is_button_pressed("menu_button") if _left_hand else false
++
++	# --- Trigger Detectors ---
++	var r_trig = _right_hand.get_float("trigger") > 0.5 if _right_hand else false
++	var l_trig = _left_hand.get_float("trigger") > 0.5 if _left_hand else false
++
++	# --- TRIGGER CHORD: Haptic Wand Mode Toggle ---
++	if r_trig and l_trig:
++		if not _prev_haptic_combo:
++			_toggle_haptic_wand_mode()
++			_prev_haptic_combo = true
++	elif not r_trig and not l_trig:
++		# Reset chord lock only when BOTH are released
++		_prev_haptic_combo = false
++
++	# --- PTT (Right B) ---
++	if r_b and not _is_recording:
++		_is_recording = true
++		_recording_start_time = Time.get_ticks_msec()
++		if _aural: _aural.call("start_recording")
++		_show_user_notification("VOICE", "LISTENING...", Color.CYAN)
++		if is_instance_valid(_stt_status_label): _stt_status_label.text = "STT: LISTENING..."
++	elif not r_b and _is_recording:
++		_stop_recording_flow()
++	
++	# --- Jen POV Capture (Left Y) ---
++	if l_y and not _prev_y:
++		_capture_and_send_vision("JEN_POV")
++	_prev_y = l_y
++	
++	# Safety Timeout (15s)
++	if _is_recording and (Time.get_ticks_msec() - _recording_start_time > 15000):
++		_stop_recording_flow()
++		_show_user_notification("VOICE", "TIMEOUT", Color.RED)
++
++	# --- A (Right): User POV Capture ---
++	if not r_a and _prev_a:
++		_capture_and_send_vision("USER_POV")
++	_prev_a = r_a
++
++	# --- X (Left): Debug Toggle ---
++	if not l_x and _prev_x:
++		_toggle_debug_window()
++	_prev_x = l_x
++
++	# --- Menu (Left): Toggle WebUI ---
++	if l_menu and not _prev_menu:
++		_toggle_ui()
++	_prev_menu = l_menu
++func _check_trig(hand, ray, prev_var):
++	var pressed: bool = hand.get_float("trigger") > 0.5
++	if pressed and not get(prev_var): set(prev_var, true); _click_at_ray(ray, true)
++	elif not pressed and get(prev_var): set(prev_var, false); _click_at_ray(ray, false)
+ 
+-func _adapt_to_environment():
+-	# Incremental vibe for haptics
+-	_vibe_pulse += 0.1
++func _click_at_ray(ray, is_press):
++	if _ui_visible and ray and ray.is_colliding():
++		var local_hit = _mind_node.to_local(ray.get_collision_point())
++		# Map from -0.35 to 0.35 (0.7m width) -> 0 to 700px
++		var x_2d: int = int((local_hit.x + 0.35) / 0.7 * 700.0)
++		# Map from 0.6 to -0.6 (1.2m height) -> 0 to 1200px
++		var y_2d: int = int((0.6 - local_hit.y) / 1.2 * 1200.0)
++		
++		var ev = InputEventMouseButton.new()
++		ev.position = Vector2(float(x_2d), float(y_2d))
++		ev.button_index = MOUSE_BUTTON_LEFT
++		ev.pressed = is_press
++		var vp = get_node_or_null("backend/Viewport")
++		if vp: vp.push_input(ev)
++
++func _steer_avatar(delta):
++	var body = get_node_or_null("Body")
++	if not body: return
+ 	
+-	# Melt into the environment by adjusting light based on time/vibe
+-	var hour = Time.get_time_dict_from_system().hour
+-	var is_night = hour >= 20 or hour < 7
++	# Standard Game Controller Mapping: Left=Move, Right=Rotate
++	var move_joy = _left_hand.get_vector2("primary_2d_axis") if _left_hand else Vector2.ZERO
++	var rot_joy = _right_hand.get_vector2("primary_2d_axis") if _right_hand else Vector2.ZERO
+ 	
+-	var env := get_node_or_null("WorldEnvironment")
+-	var sun := get_node_or_null("DirectionalLight3D")
++	var true_avatar = body.get_node_or_null("Avatar")
+ 	
+-	if env and sun:
+-		if is_night:
+-			sun.light_intensity = 0.5
+-			sun.light_color = Color(0.2, 0.4, 0.6) # Deep Blue Night
+-			env.environment.ambient_light_energy = 0.2
++	if move_joy.length() > 0.1:
++		var cam = get_node_or_null("XROrigin3D/XRCamera3D")
++		var forward = -cam.global_transform.basis.z.normalized() if cam else Vector3.FORWARD
++		forward.y = 0; forward = forward.normalized()
++		var right = cam.global_transform.basis.x.normalized() if cam else Vector3.RIGHT
++		right.y = 0; right = right.normalized()
++		
++		# Quest thumbstick Y is negative when pushing forward, so invert it
++		var move_dir = (forward * -move_joy.y + right * move_joy.x).normalized()
++		
++		if true_avatar and true_avatar is CharacterBody3D:
++			true_avatar.velocity = move_dir * 2.5
++			true_avatar.move_and_slide()
+ 		else:
+-			sun.light_intensity = 1.0
+-			sun.light_color = Color(1.0, 0.95, 0.8) # Warm Day
+-			env.environment.ambient_light_energy = 0.8
+-
+-func _handle_dream_environment(prompt: String):
+-	print("LUMAX: Dreaming new 360 world: ", prompt)
+-	# Future: API call to generate 360 panorama
+-	# For now, simulate loading a captured panorama
+-	if _skybox_manager:
+-		_skybox_manager.load_panorama("res://backend/Sceniverse/custom_dream.res")
+-
+-func _on_portal_entered(_body):
+-	# Stepping out of the 'door' into real life
+-	_is_in_virtual_world = !_is_in_virtual_world
+-	_transition_to_reality(_is_in_virtual_world)
+-
+-func _transition_to_reality(to_virtual: bool):
+-	var interface = XRServer.find_interface("OpenXR")
+-	if not interface: return
+-	
+-	var env = get_node_or_null("WorldEnvironment")
+-	if to_virtual:
+-		print("LUMAX: Stepping into Virtual Sceniverse.")
+-		if env: env.visible = true
+-		get_viewport().transparent_bg = false
+-	else:
+-		print("LUMAX: Stepping out into Real-Life Passthrough.")
+-		if env: env.visible = false
+-		get_viewport().transparent_bg = true
+-		if interface.has_method("is_passthrough_supported"):
+-			interface.start_passthrough()
+-	
+-	if _hud: _hud.text = "PHASE: VIRTUAL" if to_virtual else "PHASE: REALITY"
++			body.global_position += move_dir * delta * 2.5 # Slightly faster steering
++		
++	if abs(rot_joy.x) > 0.1:
++		if true_avatar: true_avatar.rotate_y(-rot_joy.x * delta * 3.0)
++		else: body.rotate_y(-rot_joy.x * delta * 3.0)
++	
++	# 3rd Person Follow Logic
++	if _current_pov == POV.THIRD_PERSON:
++		var origin = get_node_or_null("XROrigin3D")
++		if origin:
++			# Soft-follow behind the avatar
++			var follow_offset = -body.global_transform.basis.z.normalized() * 2.5 + Vector3.UP * 1.5
++			var target_cam_pos = body.global_position + follow_offset
++			origin.global_position = origin.global_position.lerp(target_cam_pos, delta * 3.0)
++			origin.look_at(body.global_position + Vector3.UP * 1.2, Vector3.UP)
++
++func _try_grab_object(hand: XRController3D):
++	var ray = hand.find_child("RayCast3D", true, false)
++	if not ray: ray = hand.find_child("FunctionPointer", true, false)
++	if ray and ray.has_method("is_colliding") and ray.is_colliding():
++		var col = ray.get_collider()
++		var p = col.get_parent()
++		if p and (p.name == "Mind" or p.name == "LargeDebugWindow"):
++			_grabbed_node = p
++			_grabbed_hand = hand
++			_grabbed_offset = hand.global_position.distance_to(p.global_position)
++		elif col.name == "Avatar" or (p and (p.name == "Body" or p.name == "Avatar")):
++			_grabbed_node = get_node_or_null("Body")
++			_grabbed_hand = hand
++			_grabbed_offset = hand.global_position.distance_to(_grabbed_node.global_position)
++			if _synapse: _synapse.inject_sensory_event("The user gently pulls you closer. Relax and accommodate them.")
++
++func _release_object():
++	_grabbed_node = null
++	_grabbed_hand = null
++
++func _manipulate_object(delta, hand: XRController3D):
++	if not _grabbed_node: return
++	
++	var joy = hand.get_vector2("primary_2d_axis")
++	if abs(joy.y) > 0.1:
++		_grabbed_offset -= joy.y * delta * 2.0
++		_grabbed_offset = clamp(_grabbed_offset, 0.5, 5.0)
++	
++	var target_pos = hand.global_position - hand.global_transform.basis.z.normalized() * _grabbed_offset
++	_grabbed_node.global_position = _grabbed_node.global_position.lerp(target_pos, delta * 5.0)
++	
++	var cam = get_node_or_null("XROrigin3D/XRCamera3D")
++	if cam:
++		var look_target = cam.global_position
++		look_target.y = _grabbed_node.global_position.y
++		var current_quat = _grabbed_node.global_transform.basis.get_rotation_quaternion()
++		var target_basis = Basis.looking_at((cam.global_position - _grabbed_node.global_position).normalized(), Vector3.UP)
++		if _grabbed_node.name == "Mind" or _grabbed_node.name == "LargeDebugWindow":
++			_grabbed_node.global_transform.basis = Basis(current_quat.slerp(target_basis.get_rotation_quaternion(), delta * 3.0))
++			_grabbed_node.rotate_y(PI)
++
++
++# --- UI INTERFACE ---
+ 
+-func _check_palm_gestures():
+-	# If Left Hand is turned 'up' (Palm towards face), show Drapery
+-	if _left_hand:
+-		var rot = _left_hand.basis.get_euler()
+-		# Simple heuristic: if Z/X tilt indicates palm-up
+-		if abs(rot.z) > 1.2: # Palm turned Upwards
+-			if not _is_drapery_open:
+-				_is_drapery_open = true
+-				if _arm_panel: 
+-					_arm_panel.visible = true
+-					var lbl = _arm_panel.get_child(0)
+-					if lbl is Label3D: lbl.text = "[PRIVACY DRAPERY]\nSANCTUARY: ACTIVE\nSIGNALS: SHIELDED"
+-				
+-				# Animate Curtains closing
+-				if _privacy_curtains:
+-					_privacy_curtains.visible = true
+-					var tween = create_tween()
+-					tween.tween_property(_privacy_curtains, "scale:y", 1.0, 1.5).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
++func _toggle_ui():
++	_ui_visible = !_ui_visible
++	var xr_cam = get_viewport().get_camera_3d()
++	var jen_body = get_node_or_null("Body")
++	
++	if _mind_node:
++		_mind_node.visible = _ui_visible
++		if _ui_visible:
++			# RE-VERIFY UPDATE MODE
++			var vp_node = _mind_node.get_node_or_null("Viewport")
++			if vp_node: vp_node.render_target_update_mode = SubViewport.UPDATE_ALWAYS
++			
++			if xr_cam:
++				var forward = -xr_cam.global_transform.basis.z.normalized()
++				forward.y = 0; forward = forward.normalized() # Horizon lock
+ 				
+-				if _synapse: _synapse.send_chat_message("[IMPULSE] ENTER_SANCTUARY: PRIVACY CURTAINS CLOSED")
+-				print("LUMAX: Privacy Curtains CLOSED (Sanctuary Mode)")
+-		else:
+-			if _is_drapery_open:
+-				_is_drapery_open = false
+-				if _arm_panel: _arm_panel.visible = false
++				# POSITION UI: 2.0m Directly in Front
++				var ui_pos = xr_cam.global_position + (forward * 2.0)
++				ui_pos.y = xr_cam.global_position.y - 0.3
+ 				
+-				# Animate Curtains opening
+-				if _privacy_curtains:
+-					var tween = create_tween()
+-					tween.tween_property(_privacy_curtains, "scale:y", 0.1, 1.0).set_trans(Tween.TRANS_SINE)
+-					tween.finished.connect(func(): _privacy_curtains.visible = false)
++				var ui_look = (xr_cam.global_position - ui_pos).normalized(); ui_look.y = 0
++				_mind_node.global_transform = Transform3D(Basis.looking_at(ui_look, Vector3.UP), ui_pos)
++				_mind_node.rotate_y(PI)
+ 				
+-				if _synapse: _synapse.send_chat_message("[IMPULSE] EXIT_SANCTUARY: PRIVACY CURTAINS OPENED")
+-				print("LUMAX: Privacy Curtains OPENED")
++				# POSITION JEN: 1.5m away, 0.7m to the RIGHT
++				if jen_body:
++					var right = xr_cam.global_transform.basis.x.normalized()
++					right.y = 0; right = right.normalized()
++					var jen_pos = xr_cam.global_position + (forward * 1.5) + (right * 0.7)
++					jen_pos.y = xr_cam.global_position.y - 1.6 # Ground level approx
++					
++					var jen_look = (xr_cam.global_position - jen_pos).normalized(); jen_look.y = 0
++					jen_body.global_transform = Transform3D(Basis.looking_at(jen_look, Vector3.UP), jen_pos)
++					jen_body.rotate_y(PI)
++					print("LUMAX: Spatial manifestation COMPLETE. Jen and UI framed.")
++
++func _stop_recording_flow():
++	_is_recording = false
++	if _aural: _aural.call("stop_recording")
++	_show_user_notification("VOICE", "PROCESSING...", Color.YELLOW)
++	if is_instance_valid(_stt_status_label): _stt_status_label.text = "STT: IDLE"
++
++func _toggle_haptic_wand_mode():
++	_haptic_mode_active = !_haptic_mode_active
++	_show_user_notification("HAPTICS", "Pulse Engine: " + ("WAND" if _haptic_mode_active else "GHOST"), Color.CYAN)
++	if _haptic_wand_left: _haptic_wand_left.visible = _haptic_mode_active
++	if _haptic_wand_right: _haptic_wand_right.visible = _haptic_mode_active
++
++func _toggle_debug_window():
++	_debug_visible = !_debug_visible
++	if _debug_window: 
++		_debug_window.visible = _debug_visible
++		if _debug_visible:
++			var cam = get_viewport().get_camera_3d()
++			if cam:
++				var forward = -cam.global_transform.basis.z.normalized()
++				forward.y = 0; forward = forward.normalized()
++				var right = cam.global_transform.basis.x.normalized()
++				right.y = 0; right = right.normalized()
++
++				# Place debug window slightly lower and to the left of the main UI
++				var pos = cam.global_position + (forward * 1.5) - (right * 0.8)
++				pos.y = cam.global_position.y - 0.4
++				_debug_window.global_position = pos
++
++				var look_dir = (cam.global_position - pos).normalized()
++				look_dir.y = 0
++				_debug_window.global_transform.basis = Basis.looking_at(look_dir, Vector3.UP)
++				_debug_window.rotate_y(PI)
++
++	_show_user_notification("DEBUG", "Window " + ("OPEN" if _debug_visible else "CLOSED"), Color.SKY_BLUE)
++
++func _toggle_drapery():
++	_is_drapery_open = !_is_drapery_open
++	if _privacy_curtains:
++		_privacy_curtains.visible = true; var tween = create_tween(); var target_scale = 1.0 if _is_drapery_open else 0.1; tween.tween_property(_privacy_curtains, "scale:y", target_scale, 1.0).set_trans(Tween.TRANS_SINE)
++		if not _is_drapery_open: tween.tween_callback(func(): _privacy_curtains.visible = false)
+ 
+-func _perform_realtime_mimicry():
+-	if not _is_mimic_active or not _movement_ontology: return
+-	
+-	var body = get_node_or_null("Body")
+-	if not body: return
+-	
+-	# Jen's body orientation follows user head, hands follow user hands
+-	# Simple direct mapping for the "Mimic" state
+-	if _left_hand:
+-		var l_target = _left_hand.global_position
+-		# Map to Jen's left side (relative to her)
+-		# Future: Inverse Kinematics targets
+-		pass
++# --- ANIMATION & SIGNALS ---
+ 
+-func toggle_mimic(active: bool):
+-	_is_mimic_active = active
+-	if _movement_ontology:
+-		if active: _movement_ontology.start_mimic_session()
+-		else: _movement_ontology.stop_mimic_session()
+-	
+-	if _hud:
+-		_hud.text = "MIMIC: ACTIVE" if active else "MIMIC: OFF"
+-		_hud.modulate = Color.VIOLET if active else Color.WHITE
++func _scan_for_animations():
++	if _anim_pool.size() > 0: return # Only scan once
++	var search_paths = ["res://frontend/Animations/Chosen/"]
++	_anim_pool.clear(); _category_map.clear(); _idle_anims.clear()
++	var lib_name = &"discovered"
++	if not _anim_player.has_animation_library(lib_name): _anim_player.add_animation_library(lib_name, AnimationLibrary.new())
++	var lib = _anim_player.get_animation_library(lib_name)
++	for base_path in search_paths: if DirAccess.dir_exists_absolute(base_path): _recursive_scan(base_path, "", lib, 0)
++
++func _recursive_scan(path: String, category: String, lib: AnimationLibrary, depth: int):
++	if depth > 5: return # Safety break
++	if not path.ends_with("/"):
++		path += "/"
++	var _current_cat = category
++	if path.contains("res://frontend/Animations/Chosen/"):
++		var relative = path.replace("res://frontend/Animations/Chosen/", "")
++		if relative != "":
++			_current_cat = relative.split("/")[0]
++			if not _categories.has(_current_cat):
++				_categories.append(_current_cat)
++	var dir = DirAccess.open(path); if dir:
++		dir.list_dir_begin(); var file_name = dir.get_next()
++		while file_name != "":
++			if dir.current_is_dir():
++				if not file_name.begins_with("."):
++					_recursive_scan(path + file_name + "/", _current_cat, lib, depth + 1)
++			else:
++				if file_name.ends_with(".res") or file_name.ends_with(".tres") or file_name.ends_with(".remap"):
++					var full_path = path + file_name.replace(".remap", ""); var base_name = file_name.get_basename().to_lower().replace(".remap", ""); if not _anim_pool.has(base_name):
++						_anim_pool[base_name] = full_path; 
++						if "idle" in base_name or "breathe" in base_name or "stand" in base_name:
++							if not "run" in base_name and not "jump" in base_name and not "walk" in base_name and not "dance" in base_name:
++								_idle_anims.append(full_path)
++						var anim = load(full_path); if anim is Animation: lib.add_animation(base_name, anim)
++					if _current_cat != "":
++						var cat_key = _current_cat.to_upper(); if not _category_map.has(cat_key): _category_map[cat_key] = []
++						if not _category_map[cat_key].has(base_name): _category_map[cat_key].append(base_name)
++			file_name = dir.get_next()
+ 
+-func play_captured_movement():
+-	if _movement_ontology:
+-		_movement_ontology.start_playback()
++func find_animation_path(anim_name: String) -> String:
++	var clean = anim_name.to_lower().replace(".res", "").replace(".tres", "")
++	if _anim_pool.has(clean):
++		return _anim_pool[clean]
++	return ""
+ 
+-func _on_keyboard_enter(text):
+-	if text == "": return
++func play_body_animation(anim_name: String):
++	if not _anim_player: return
+ 	
+-	if text.begins_with("[") and _director:
+-		_director.pray(text)
+-		if _web_ui: _web_ui.call("add_message", "DIRECTIVE", text)
+-		if _hud: _hud.text = "ACTING..."; _hud.modulate = Color.GOLD
++	# Support Composed Animations (format: "ANIM1:start:end,ANIM2:start:end")
++	if "," in anim_name or ":" in anim_name:
++		_play_composed_sequence(anim_name)
+ 		return
+ 
+-	if _web_ui: _web_ui.call("add_message", "YOU", text)
+-	if _synapse: _synapse.send_chat_message(text)
+-	if _hud: _hud.text = "THINKING..."; _hud.modulate = Color.SKY_BLUE
++	var clean_name = anim_name.to_lower().replace(".res", "").replace(".tres", "")
++	if _category_map.has(anim_name.to_upper()):
++		play_category(anim_name)
++		return
++		
++	var lib_discovered = _anim_player.get_animation_library("discovered")
++	if lib_discovered.has_animation(clean_name):
++		_anim_player.play("discovered/" + clean_name, 0.5) # Smooth blend in
++	elif _anim_player.has_animation(clean_name):
++		_anim_player.play(clean_name, 0.5)
++
++func _play_composed_sequence(sequence_str: String):
++	var segments = sequence_str.split(",")
++	for segment in segments:
++		var parts = segment.split(":")
++		var name = parts[0].strip_edges().to_lower()
++		var start = float(parts[1]) if parts.size() > 1 else 0.0
++		var end = float(parts[2]) if parts.size() > 2 else -1.0
++		
++		# Find the animation
++		var full_path = find_animation_path(name)
++		if full_path == "": continue
++		
++		var lib = _anim_player.get_animation_library("discovered")
++		if lib.has_animation(name):
++			_anim_player.play("discovered/" + name, 0.3)
++			_anim_player.seek(start, true)
++			if end > 0:
++				await get_tree().create_timer(end - start).timeout
++		
++	# Return to idle after sequence
++	_play_next_idle()
+ 
+-func _toggle_ui():
+-	_ui_visible = !_ui_visible
+-	if _mind_node: _mind_node.visible = _ui_visible
+-	print("LUMAX: UI Toggle: ", _ui_visible)
++func play_category(category_name: String):
++	var cat_key = category_name.to_upper(); if _category_map.has(cat_key):
++		var options = _category_map[cat_key]; if options.size() > 0: var choice = options[randi() % options.size()]; _anim_player.play("discovered/" + choice)
+ 
++func _on_idle_finished(_name): _play_next_idle()
+ func _play_next_idle():
+-	if not _anim_player: return
+-	var anim_path = _idle_anims[randi() % _idle_anims.size()]
+-	var anim = load(anim_path)
+-	if anim:
+-		anim.loop_mode = Animation.LOOP_NONE
+-		var lib = _anim_player.get_animation_library("lumax")
+-		if lib.has_animation("active_idle"): lib.remove_animation("active_idle")
+-		lib.add_animation("active_idle", anim)
+-		_anim_player.play("lumax/active_idle")
+-
+-func _on_idle_finished(_name):
+-	_play_next_idle()
++	if not _anim_player or _idle_anims.size() == 0: return
++	var idx: int = int(randi() % _idle_anims.size())
++	var anim_path = _idle_anims[idx]; var anim = load(anim_path)
++	if anim: var lib = _anim_player.get_animation_library("lumax"); lib.add_animation("active_idle", anim); _anim_player.play("lumax/active_idle")
+ 
+-func find_animation_path(anim_name: String) -> String:
+-	var base_path = "res://frontend/Animations/Chosen/"
+-	
+-	# Clean extension if provided or add if missing
+-	if not anim_name.ends_with(".res"):
+-		anim_name += ".res"
++func _on_jen_response(data, _mode):
++	if data is Dictionary and data.get("type") == "presets":
++		_personality_presets = data.get("data", {})
++		print("LUMAX: Personality presets cached.")
++		return
++
++	var text = data.get("text", "...") if data is Dictionary else str(data)
++	if _web_ui: _web_ui.call("add_message", "LUMAX", text)
+ 	
+-	for cat in _categories:
+-		var test_path = base_path + cat + "/" + anim_name
+-		if FileAccess.file_exists(test_path):
+-			return test_path
++	# Parse for experimental animation commands in the text or tags
++	var anim_regex = RegEx.new()
++	anim_regex.compile("<action>(.*?)</action>")
++	var matches = anim_regex.search_all(text)
++	for m in matches:
++		var anim_cmd = m.get_string(1)
++		play_body_animation(anim_cmd)
++
++	var thought = data.get("thought", "") if data is Dictionary else ""
++	if thought != "":
++		_show_jen_notification("Thinking: " + thought, Color.ORANGE)
++	else:
++		_show_jen_notification("Speaking...", Color.SPRING_GREEN)
++func _on_keyboard_enter(text):
++	if text == "": return
+ 	
+-	# Fallback to root or base
+-	if FileAccess.file_exists(base_path + anim_name):
+-		return base_path + anim_name
++	if text == "[CAPTURE_IMAGE]":
++		_capture_and_send_vision("USER_POV")
++		return
+ 		
+-	return ""
+-func join_lumax_multiverse(address: String = "127.0.0.1"):
+-	if _multiplayer:
+-		_multiplayer.join_space(address)
+-		if _hud: _hud.text = "NETWORK: SYNCING WITH [" + address + "]"
+-
+-func _capture_and_stylize_reality():
+-	# Use the 'Replicated Reality Layer' as reference image
+-	var vp = get_node_or_null("WallAnchor/VisionViewport")
+-	if not vp: return
+-	
+-	var img = vp.get_texture().get_image()
+-	img.resize(512, 512) # ControlNet Canny works best at 512
+-	var b64 = Marshalls.raw_to_base64(img.save_jpg_to_buffer())
+-	
+-	var prompt = "Cyberpunk virtual studio, holographic grids, neon accents, high fidelity render"
+-	if _current_projection_style == "SPACESHIP":
+-		prompt = "Luxury spaceship sleep cabin interior, sci-fi modular walls, soft ambient lighting, cozy atmosphere, futuristic bedroom, high fidelity 8k"
+-	
+-	if _is_occluding_makeover_active:
+-		prompt += ", minimalist surfaces, sleek shielded panels, hide all clutter, clean geometry, protective aesthetic"
+-	
+-	var body = JSON.stringify({
+-		"prompt": prompt,
+-		"model_type": "control",
+-		"num_inference_steps": 15,
+-		"control_image_b64": b64
+-	})
+-	
+-	var http = get_node_or_null("SD_Request")
+-	if http:
+-		http.request("http://localhost:8004/api/dream", ["Content-Type: application/json"], HTTPClient.METHOD_POST, body)
+-
+-func _on_sd_projection_received(result, response_code, headers, body):
+-	if response_code != 200: return
+-	var json = JSON.parse_string(body.get_string_from_utf8())
+-	if json and json.get("status") == "success":
+-		var b64_out = json.get("image_b64")
+-		# Apply stylized texture to Skybox
+-		if _skybox_manager:
+-			_skybox_manager.call("apply_stylized_overlay", b64_out)
+-
+-func toggle_neural_projection(active: bool, style: String = "CYBERPUNK"):
+-	_is_neural_projection_active = active
+-	_current_projection_style = style
+-	print("LUMAX: Neural Projection State: ", active, " Style: ", style)
+-	if active and style == "SPACESHIP":
+-		if _skybox_manager: _skybox_manager.call("set_environment_type", 4) # EnvType.SPACESHIP
+-
+-func toggle_occluding_makeover(active: bool):
+-	_is_occluding_makeover_active = active
+-	print("LUMAX: Occluding Makeover (Hide Physical Entropy): ", active)
+-
+-func toggle_void_mode(active: bool):
+-	_is_void_mode_active = active
+-	var interface = XRServer.find_interface("OpenXR")
+-	if active:
+-		# Total Occlusion Shielding
+-		if interface: interface.stop_passthrough()
+-		get_viewport().transparent_bg = false
+-		if _skybox_manager: _skybox_manager.call("set_environment_type", 0) # Neutral/Black
+-		_apply_shielding_visuals(true)
+-		if _hud: _hud.text = "MODE: OCCLUSION SHIELDING (VOICE OF VOID)"
+-	else:
+-		if interface: interface.start_passthrough()
+-		get_viewport().transparent_bg = true
+-		_apply_shielding_visuals(false)
+-		if _hud: _hud.text = "MODE: HYBRID"
+-
+-func _apply_shielding_visuals(active: bool):
+-	if _privacy_curtains:
+-		_privacy_curtains.visible = active
+-		# Set to a Shimmering Hex Grid or Pure Minimalist Shield
+-		# This is the "Occlusion Shielding" aesthetic
+-
+-func toggle_spatial_anonymity(active: bool):
+-	_is_spatially_anonymous = active
+-	if _hud: _hud.text = "MODE: SPATIAL ANONYMITY " + ("[ACTIVE]" if active else "[OFF]")
+-	print("LUMAX: Spatial Anonymity (Pose Masking): ", active)
+-
+-func apply_jen_makeup(style: String):
+-	# Applies visual overrides to Jen's manifestation
+-	var jen = get_node_or_null("frontend/Lumax_Jen")
+-	if jen:
+-		# Conceptual: Swap Material overlays or Shader Parameters
+-		print("LUMAX: Jen manifesting styles of: ", style)
+-		if _hud: _hud.text = "JEN: APPLYING " + style + " MAKEUP"
+-
+-func set_social_status(vibe: String, tags: Array = []):
+-	_social_vibe = vibe
+-	if tags.size() > 0: _social_tags = tags
+-	if _multiplayer and multiplayer.multiplayer_peer:
+-		_multiplayer.rpc("sync_social_status", _social_vibe, _social_tags)
+-	print("LUMAX: Social Status updated to: ", _social_vibe)
+-
+-func _check_peer_gaze():
+-	# Simple Raycast check from Camera to detect Peer Proxy
+-	if not _multiplayer: return
+-	
+-	var cam = get_viewport().get_camera_3d()
+-	if not cam: return
+-	
+-	var space_state = get_world_3d().direct_space_state
+-	var query = PhysicsRayQueryParameters3D.create(cam.global_position, cam.global_position + cam.global_transform.basis.z * -5.0)
+-	var result = space_state.intersect_ray(query)
+-	
+-	if result:
+-		var collider = result.collider
+-		if collider.get_parent().name.begins_with("User_"):
+-			# Show Extended Info Popout (Visual Cue)
+-			var id = collider.get_parent().name.get_slice("_", 1).to_int()
+-			if _hud: _hud.text = "ANALYZING PEER " + str(id) + "..."
+-			# Signal the WebUI to show extended metadata
+-			if _web_ui: _web_ui.call("show_peer_extended_info", id)
++	if _web_ui: _web_ui.call("add_message", "YOU", text)
++	if _synapse: _synapse.call("send_chat_message", text)
++	_show_jen_notification("Listening...", Color.CYAN)
+ 
+-func toggle_cloud_rave(active: bool):
+-	_is_rave_active = active
+-	if _skybox_manager:
+-		_skybox_manager.call("set_environment_type", 5 if active else 0) # EnvType.CLOUD_RAVE
+-	if _hud: _hud.text = "EVENT: GLOBAL CLOUD RAVE " + ("[ACTIVE]" if active else "[OFF]")
+-	print("LUMAX: Cloud Rave state: ", active)
+-
+-func on_rave_pulse(beat_index: int):
+-	# The Best AI DJ: Adapting to everybody's delight
+-	var stats = _multiplayer.get_global_vibe_stats() if _multiplayer else {}
+-	var target_color = stats.get("color", Color(1.0, 0.0, 0.5))
+-	
+-	if _is_rave_active:
+-		_generate_procedural_beat(stats)
+-	
+-	if _skybox_manager:
+-		var tween = create_tween()
+-		var fog = _skybox_manager.get("_fog")
+-		if fog:
+-			# Shift fog color toward the global average preference
+-			fog.material.albedo = fog.material.albedo.lerp(target_color, 0.2)
+-			tween.tween_property(fog.material, "albedo:a", 0.9, 0.05)
+-			tween.tween_property(fog.material, "albedo:a", 0.3, 0.2)
+-	
+-	if beat_index % 8 == 0:
+-		add_message("AI_DJ", "Adapting rhythm to collective preference: " + str(stats.get("styles", "NEON_WAVE")))
+-
+-func _generate_procedural_beat(stats: Dictionary):
+-	if not _rave_synth: return
+-	if not _rave_synth.playing: _rave_synth.play()
+-	
+-	var playback = _rave_synth.get_stream_playback()
+-	var frames = playback.get_frames_available()
+-	
+-	# Frequency influenced by 'Global Color' / Delight
+-	var hue = stats.get("color", Color.MAGENTA).h
+-	var freq = 40.0 + (hue * 100.0) # Base Sub-bass
+-	
+-	for i in range(frames):
+-		var val = sin(Time.get_ticks_msec() * 0.001 * freq * PI * 2.0)
+-		playback.push_frame(Vector2(val, val) * 0.1) # Soft Sub-pulse
+-
+-func _broadcast_user_delights():
+-	if _multiplayer and multiplayer.multiplayer_peer:
+-		var my_pref = {
+-			"color": _env_vibe["hue"],
+-			"style": _current_projection_style,
+-			"vibe": _social_vibe
+-		}
+-		_multiplayer.rpc("sync_user_preference", my_pref)
+-
+-func host_lumax_space():
+-	if _multiplayer:
+-		_multiplayer.host_space()
+-		if _hud: _hud.text = "NETWORK: HOSTING MULTIVERSE"
+-
+-func toggle_environment_sharing(active: bool):
+-	if active and not _env_sharing_consented:
+-		# Trigger the Web UI consent modal specifically for Reality Mesh sharing
+-		if _web_ui: _web_ui.call("_show_privacy_consent", "ENVIRONMENT_MESH")
++func _capture_and_send_vision(source: String):
++	var vh = get_node_or_null("Senses/MultiVisionHandler")
++	if not vh: 
++		_show_user_notification("ERROR", "Vision Handler Offline", Color.RED)
+ 		return
+ 	
+-	_env_sharing_consented = active
+-	if _env_sharing_consented:
+-		print("LUMAX: Reality Mesh streaming to Multiverse active.")
+-		if _hud: _hud.text = "NETWORK: SHARING REALITY"
+-
+-func on_visit_requested(peer_id: int):
+-	if _web_ui: _web_ui.call("notify_visit_request", peer_id)
+-	if _hud: _hud.text = "SYNC REQUEST: PEER " + str(peer_id)
+-
+-func _on_multiverse_peer_joined(id: int):
+-	if _web_ui: _web_ui.call("add_peer_to_list", id)
++	var note_color = Color.YELLOW if source == "USER_POV" else Color.CYAN
++	var note_text = "Capturing My View..." if source == "USER_POV" else "Capturing Jen's POV..."
++	_show_user_notification("VISION", note_text, note_color)
++	
++	# Small delay to ensure UI updates before capture
++	await get_tree().create_timer(0.1).timeout 
++	
++	var image_data = {}
++	if source == "USER_POV":
++		image_data = await vh._capture_player_pov()
++	else:
++		image_data = await vh._capture_jen_pov()
++	
++	if not image_data.is_empty():
++		var preview_path = image_data.get("preview_path", "")
++		var b64 = image_data.get("image_b64", "")
++		
++		# Show in chat
++		if _web_ui and preview_path != "":
++			_web_ui.call("add_message", "YOU" if source == "USER_POV" else "LUMAX (POV)", "\n[img=400]" + preview_path + "[/img]\nLook at this perspective.")
++		
++		if LogMaster: LogMaster.log_info("Captured " + source + " successfully.")
++		
++		# Send to Synapse with the image base64
++		if _synapse:
++			var msg = "Analyze what you see from my perspective." if source == "USER_POV" else "Analyze what you see from your own perspective."
++			_synapse.call("send_chat_message", msg, "text", b64)
++			_show_jen_notification("Analyzing perspective...", note_color)
++func _on_keyboard_text_changed(text: String): if _web_ui: _web_ui.call("update_buffer", text)
++func _on_tts_audio(buffer, sample_rate):
++	if _tts_player:
++		print("LUMAX TTS: Playing audio buffer (size: ", buffer.size(), ", rate: ", sample_rate, ")")
++		var stream = AudioStreamWAV.new()
++		stream.data = buffer
++		stream.format = AudioStreamWAV.FORMAT_16_BITS
++		stream.mix_rate = int(sample_rate)
++		_tts_player.stream = stream
++		_tts_player.play()
++
++func _on_stt_transcription(text: String):
++	var clean_text = text.strip_edges()
++	if clean_text == "": 
++		if is_instance_valid(_stt_status_label):
++			_stt_status_label.text = "STT: IDLE"
++			_stt_status_label.modulate = Color.GRAY
++		return
++	if is_instance_valid(_stt_status_label):
++		_stt_status_label.text = "STT: IDLE"
++		_stt_status_label.modulate = Color.GRAY
++	if _web_ui: _web_ui.call("add_message", "YOU (Voice)", clean_text)
++	if _synapse: _synapse.call("send_chat_message", clean_text)
++	if LogMaster: LogMaster.log_info("STT Transcription: " + clean_text)
++	_show_jen_notification("Analyzing voice command...", Color.YELLOW)
++	
++func _on_keyboard_stt_pressed():
++	if not _is_recording:
++		_start_recording_flow()
++	else:
++		_stop_recording_flow()
++
++# --- NOTIFICATION ENGINE ---
++
++func _show_user_notification(title: String, body_text: String, note_color: Color = Color.WHITE): _push_indicator(_user_notify_hub, title + ": " + body_text, note_color, true)
++func _show_jen_notification(jen_text: String, jen_color: Color = Color.WHITE): _push_indicator(_jen_notify_hub, jen_text, jen_color, false)
++func _push_indicator(hub: Node3D, display_text: String, display_color: Color, is_arm: bool):
++	if not hub: return
++	var row_height: float = 0.03 if is_arm else 0.08
++	for child in hub.get_children(): if child is Label3D: var move = create_tween(); move.tween_property(child, "position:y", child.position.y + row_height, 0.4).set_trans(Tween.TRANS_CUBIC)
++	var label = Label3D.new(); label.text = display_text; label.modulate = display_color; label.outline_modulate = Color.BLACK
++	label.font_size = int(14 if is_arm else 32)
++	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED; hub.add_child(label); var fade = create_tween(); fade.tween_interval(2.0 if is_arm else 4.0); fade.tween_property(label, "modulate:a", 0.0, 1.0); fade.tween_callback(label.queue_free)
++
++func _trigger_visual_capture(source: String):
++	var vision_handler = get_node_or_null("MultiVisionHandler"); if not vision_handler: return
++	var image_data = {}
++	if source == "JEN_POV":
++		var vp = get_node_or_null("WallAnchor/VisionViewport")
++		if vp:
++			vp.render_target_update_mode = SubViewport.UPDATE_ONCE as SubViewport.UpdateMode
++			await get_tree().process_frame
++			await get_tree().process_frame
++			image_data = await vision_handler._capture_jen_pov()
++	if not image_data.is_empty() and _director: _director.call("_send_director_request", _director.get("DIRECTOR_SYSTEM_PROMPT") + "\n\nCapture: " + source, "", [image_data])
++func _on_log_added(_msg: String, _type: String):
++	_update_debug_log()
++
++func _update_debug_log():
++	if not _debug_log_display: return
++	var logs = LogMaster.get_logs()
++	var log_text = ""
++	# Get last 10 logs and strip BBCode for Label3D
++	var start = max(0, logs.size() - 15)
++	for i in range(start, logs.size()):
++		var line = logs[i]
++		# Crude BBCode strip
++		line = line.replace("[color=green]", "").replace("[color=red]", "").replace("[color=cyan]", "").replace("[color=yellow]", "").replace("[color=white]", "").replace("[/color]", "")
++		log_text += line + "\n"
++	_debug_log_display.text = log_text

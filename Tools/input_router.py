@@ -132,25 +132,61 @@ x11.XStringToKeysym.restype = ctypes.c_ulong
 x11.XStringToKeysym.argtypes = [ctypes.c_char_p]
 x11.XKeysymToKeycode.restype = ctypes.c_ubyte
 x11.XKeysymToKeycode.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
-xtst.XTestFakeKeyEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
-xtst.XTestFakeButtonEvent.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_int, ctypes.c_ulong]
-xtst.XTestFakeRelativeMotionEvent.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_ulong]
+xtst.XTestFakeKeyEvent.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_uint,
+    ctypes.c_int,
+    ctypes.c_ulong,
+]
+xtst.XTestFakeButtonEvent.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_uint,
+    ctypes.c_int,
+    ctypes.c_ulong,
+]
+xtst.XTestFakeRelativeMotionEvent.argtypes = [
+    ctypes.c_void_p,
+    ctypes.c_int,
+    ctypes.c_int,
+    ctypes.c_ulong,
+]
 
 XKB_OFFSET = 8  # evdev KEY_x -> X keycode for the standard AT range
 
 # evdev code -> X keysym name, for keys outside the +8 AT range
 SPECIAL_KEYS = {
-    113: "XF86AudioMute", 114: "XF86AudioLowerVolume", 115: "XF86AudioRaiseVolume",
-    142: "XF86Sleep", 143: "XF86WakeUp", 150: "XF86WWW", 152: "XF86ScreenSaver",
-    155: "XF86Mail", 158: "XF86Back", 159: "XF86Forward", 161: "XF86Eject",
-    163: "XF86AudioNext", 164: "XF86AudioPlay", 165: "XF86AudioPrev",
-    166: "XF86AudioStop", 167: "XF86AudioRecord", 172: "XF86HomePage",
-    173: "XF86Refresh", 180: "XF86HomePage", 181: "XF86New",
-    217: "XF86Search", 140: "XF86Calculator", 148: "XF86Calculator",
-    224: "XF86MonBrightnessDown", 225: "XF86MonBrightnessUp",
-    227: "XF86AudioMedia", 234: "XF86AudioMedia",
-    240: "XF86TouchpadToggle", 245: "XF86Display",
-    171: "XF86Favorites", 156: "XF86Launch1", 157: "XF86Launch2",
+    113: "XF86AudioMute",
+    114: "XF86AudioLowerVolume",
+    115: "XF86AudioRaiseVolume",
+    142: "XF86Sleep",
+    143: "XF86WakeUp",
+    150: "XF86WWW",
+    152: "XF86ScreenSaver",
+    155: "XF86Mail",
+    158: "XF86Back",
+    159: "XF86Forward",
+    161: "XF86Eject",
+    163: "XF86AudioNext",
+    164: "XF86AudioPlay",
+    165: "XF86AudioPrev",
+    166: "XF86AudioStop",
+    167: "XF86AudioRecord",
+    172: "XF86HomePage",
+    173: "XF86Refresh",
+    180: "XF86HomePage",
+    181: "XF86New",
+    217: "XF86Search",
+    140: "XF86Calculator",
+    148: "XF86Calculator",
+    224: "XF86MonBrightnessDown",
+    225: "XF86MonBrightnessUp",
+    227: "XF86AudioMedia",
+    234: "XF86AudioMedia",
+    240: "XF86TouchpadToggle",
+    245: "XF86Display",
+    171: "XF86Favorites",
+    156: "XF86Launch1",
+    157: "XF86Launch2",
 }
 
 X_BUTTONS = {BTN_LEFT: 1, BTN_MIDDLE: 2, BTN_RIGHT: 3, BTN_SIDE: 8, BTN_EXTRA: 9}
@@ -161,8 +197,8 @@ class XTarget:
     def __init__(self, name):
         self.name = name
         self.dpy = None
-        self._spare = None          # keycode pool for remapped keysyms
-        self._remap = {}            # evdev code -> remapped X keycode
+        self._spare = None  # keycode pool for remapped keysyms
+        self._remap = {}  # evdev code -> remapped X keycode
 
     def connect(self):
         while self.dpy is None:
@@ -259,7 +295,7 @@ def main():
         for path, d in find_devices(allow).items():
             if path not in devices:
                 devices[path] = d
-                log(f"+ {d[1]} {path} \"{d[2]}\"")
+                log(f'+ {d[1]} {path} "{d[2]}"')
                 if routing:
                     grab(d, True)
                     set_led(d, routing)
@@ -310,7 +346,14 @@ def main():
                         for d in devices.values():
                             grab(d, routing)
                             set_led(d, routing)
-                        log("ROUTING " + ("ON → " + target_name if routing else "OFF (pass-through)"))
+                        log(
+                            "ROUTING "
+                            + (
+                                "ON → " + target_name
+                                if routing
+                                else "OFF (pass-through)"
+                            )
+                        )
                         continue
                     if not routing:
                         continue

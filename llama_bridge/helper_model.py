@@ -10,7 +10,7 @@ The summarizer compresses context → outputs a shorter version of the input
 
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class HelperModel:
@@ -23,7 +23,7 @@ class HelperModel:
         self,
         model_path: str,
         n_ctx: int = 2048,
-        n_threads: Optional[int] = None,
+        n_threads: int | None = None,
         verbose: bool = False,
         label: str = "helper",
         n_gpu_layers: int = -1,  # Use GPU — 0.5B models are tiny (~400MB)
@@ -34,7 +34,7 @@ class HelperModel:
         self.verbose = verbose
         self.label = label
         self.n_gpu_layers = n_gpu_layers
-        self._llm: Optional[Any] = None
+        self._llm: Any | None = None
         self.loaded: bool = False
 
     def load(self) -> "HelperModel":
@@ -59,7 +59,12 @@ class HelperModel:
         print(f"    ✅ {self.label} ready (CPU-only, n_ctx={self.n_ctx})")
         return self
 
-    def chat(self, messages: List[Dict[str, str]], max_tokens: int = 128, temperature: float = 0.1) -> str:
+    def chat(
+        self,
+        messages: list[dict[str, str]],
+        max_tokens: int = 128,
+        temperature: float = 0.1,
+    ) -> str:
         """Chat completion using Qwen2/ChatML template (all helper models are Qwen-based)."""
         if not self.loaded or self._llm is None:
             return ""

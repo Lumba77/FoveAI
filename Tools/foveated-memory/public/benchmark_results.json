@@ -1,0 +1,89 @@
+[
+  {
+    "model": "XRLF 4B (Dummy Data)",
+    "timestamp": "2026-08-23T16:00:00Z",
+    "overall_accuracy": 92.5,
+    "overall_latency_ms": 125,
+    "tracks": [
+      {
+        "track": "Math Reasoning",
+        "accuracy": 95.0,
+        "avg_latency_ms": 130
+      },
+      {
+        "track": "Science Reasoning",
+        "accuracy": 90.0,
+        "avg_latency_ms": 120
+      }
+    ]
+  },
+  {
+    "model": "XRLF 4B",
+    "timestamp": "2026-08-23T15:09:36Z",
+    "overall_accuracy": 53.3,
+    "overall_latency_ms": 13723,
+    "tracks": [
+      {
+        "track": "Math Reasoning",
+        "accuracy": 80.0,
+        "avg_latency_ms": 30824
+      },
+      {
+        "track": "Science Reasoning",
+        "accuracy": 80.0,
+        "avg_latency_ms": 4926
+      },
+      {
+        "track": "Coherence",
+        "accuracy": 0.0,
+        "avg_latency_ms": 5420
+      }
+    ]
+  },
+  {
+    "model": "Llama 3.2 1B (Baseline)",
+    "timestamp": "2026-08-23T15:12:51Z",
+    "overall_accuracy": 100.0,
+    "overall_latency_ms": 4673,
+    "tracks": [
+      {
+        "track": "Math Reasoning",
+        "accuracy": 100.0,
+        "avg_latency_ms": 6698
+      },
+      {
+        "track": "Science Reasoning",
+        "accuracy": 100.0,
+        "avg_latency_ms": 3517
+      },
+      {
+        "track": "Coherence",
+        "accuracy": 100.0,
+        "avg_latency_ms": 3804
+      }
+    ]
+  },
+  {
+    "model": "XRLF (New Proxy Route)",
+    "timestamp": "2026-08-23T15:25:39Z",
+    "overall_accuracy": 0.0,
+    "overall_latency_ms": 14396,
+    "tracks": [
+      {
+        "track": "Math Reasoning",
+        "accuracy": 0.0,
+        "avg_latency_ms": 8501
+      },
+      {
+        "track": "Science Reasoning",
+        "accuracy": 0.0,
+        "avg_latency_ms": 16665
+      },
+      {
+        "track": "Coherence",
+        "accuracy": 0.0,
+        "avg_latency_ms": 18022
+      }
+    ]
+  }
+]

@@ -1,0 +1,126 @@
+# go-llm-proxy configuration
+#
+# Copy this file to config.yaml, fill in your models and keys, and start the proxy.
+# All settings below have sane defaults — uncomment and edit what you need.
+
+# ── Server ─────────────────────────────────────────────────────────────────────
+# For Docker: use "0.0.0.0:8080" (container networking requires binding all interfaces).
+# For bare metal behind nginx: use "127.0.0.1:8080".
+# For local-only testing: use ":8080".
+listen: ":8080"
+
+# ── Models ─────────────────────────────────────────────────────────────────────
+# Each model gets a name that clients use, and a backend URL where requests are sent.
+# The proxy auto-detects the protocol and translates as needed.
+models:
+  # Local vLLM / llama-server / Ollama backend (OpenAI-compatible)
+  - name: my-model
+    backend: http://192.168.1.10:8000/v1
+    # api_key: backend-key           # if your backend requires auth
+    # model: actual-model-name       # if the backend expects a different model name
+    # timeout: 300                   # request timeout in seconds (default: 300)
+    # context_window: 131072         # set manually if auto-detect fails (default: auto)
+    # supports_vision: false         # set true if the model handles images natively
+    # responses_mode: auto           # auto | native | translate (for Codex CLI)
+    # messages_mode: auto            # auto | native | translate (for Claude Code)
+    # defaults:                      # injected when the client doesn't send its own
+    #   temperature: 0.7
+    #   max_new_tokens: 4096
+    #   frequency_penalty: 0.3       # prevents repetition loops (0.0–2.0)
+    #   presence_penalty: 0.0        # encourages topic diversity (0.0–2.0)
+    #   reasoning_effort: medium     # thinking budget: low | medium | high
+
+  # Cloud Anthropic backend (native passthrough — no translation needed)
+  # - name: claude-sonnet-4
+  #   backend: https://api.anthropic.com
+  #   api_key: sk-ant-your-key
+  #   type: anthropic
+
+  # Cloud OpenAI backend
+  # - name: gpt-4.1
+  #   backend: https://api.openai.com/v1
+  #   api_key: sk-your-openai-key
+
+  # Third-party API with model name rewriting
+  # - name: glm-4.5
+  #   backend: https://api.z.ai/api/coding/paas/v4
+  #   api_key: your-zhipu-key
+
+  # AWS Bedrock — Converse API with auto-translation from /v1/messages,
+  # /v1/chat/completions. Pick ONE of the auth options:
+  #
+  # (a) Bedrock API key (simplest — bearer token, no SigV4):
+  # - name: claude-sonnet-4-bedrock
+  #   type: bedrock
+  #   region: us-east-1
+  #   model: us.anthropic.claude-sonnet-4-20250514-v1:0
+  #   api_key: bdrk-your-bedrock-api-key
+  #
+  # (b) Static IAM credentials (SigV4 signing). Falls back to
+  #     AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY env vars if omitted:
+  # - name: claude-sonnet-4-bedrock
+  #   type: bedrock
+  #   region: us-east-1
+  #   model: us.anthropic.claude-sonnet-4-20250514-v1:0
+  #   aws_access_key: AKIA...
+  #   aws_secret_key: ...
+  #   # aws_session_token: ...        # optional, for temporary STS credentials
+  #
+  # The proxy auto-derives backend URL from region; override only for VPC
+  # endpoints: backend: https://bedrock-runtime.us-east-1.amazonaws.com
+
+# ── Processing Pipeline ────────────────────────────────────────────────────────
+# Optional. Handles images, PDFs, and web search for backends that don't support them.
+# processors:
+#   vision: my-vision-model          # model name from above (must support vision)
+#   ocr: my-fast-ocr-model           # optional: fast model for PDF page text extraction (falls back to vision)
+#   web_search_key: tvly-...         # Tavily API key — enables proxy-side web search
+
+# ── API Keys ───────────────────────────────────────────────────────────────────
+# Clients authenticate with these keys via Authorization: Bearer or x-api-key.
+# Remove this entire section to disable auth (not recommended for public exposure).
+keys:
+  - key: sk-change-me-to-something-secure
+    name: admin
+    # models: []                     # empty or omitted = access to all models
+
+  # Restricted key example:
+  # - key: sk-guest-key
+  #   name: guest
+  #   models: [my-model]            # only this model
+
+# ── Features ───────────────────────────────────────────────────────────────────
+# Config generator: web UI at GET / that creates client configs for coding assistants.
+# serve_config_generator: true
+
+# Usage logging: per-request metrics to SQLite.
+# log_metrics: true
+# usage_db: usage.db                # path to SQLite database (default: usage.db)
+
+# Usage dashboard: web UI at /usage (requires log_metrics and a password).
+# usage_dashboard: true
+# usage_dashboard_password: change-me
+
+# ── Services ─────────────────────────────────────────────────────────────────
+# External service proxies. Currently supports Qdrant vector database.
+
+# Qdrant proxy with app key isolation:
+# services:
+#   qdrant:
+#     backend: http://192.168.5.143:6333
+#     api_key: your-qdrant-api-key         # backend auth (optional)
+#     app_keys:                            # separate auth from model API keys
+#       - name: webapp
+#         key: qd-webapp-abc123
+#       - name: crawler
+#         key: qd-crawler-def456
+#
+# App isolation: each app's vectors are tagged with its name on write,
+# and filtered to only return its own data on search. Transparent to clients.
+# Access via /qdrant/* with Authorization: Bearer <app_key>
+
+# ── Network ────────────────────────────────────────────────────────────────────
+# IPs allowed to set X-Real-IP / X-Forwarded-For (for rate limiting behind a proxy).
+# trusted_proxies:
+#   - "127.0.0.1"
+#   - "172.17.0.1"                  # Docker bridge gateway (for host-based nginx)

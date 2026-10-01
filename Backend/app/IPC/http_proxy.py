@@ -18,12 +18,19 @@ import asyncio
 import json
 import logging
 import os
-from typing import Optional
 
 import aiohttp
 from aiohttp import web
 
 logger = logging.getLogger("FoveAI.HTTPProxy")
+
+
+def _chat_timeout() -> float:
+    """Upstream chat timeout in seconds (cloud reasoning models need headroom)."""
+    try:
+        return max(10.0, float(os.getenv("FoveAI_CHAT_PROXY_TIMEOUT", "300") or "300"))
+    except ValueError:
+        return 300.0
 
 
 class HttpProxyServer:
@@ -41,8 +48,8 @@ class HttpProxyServer:
         self.host = host
         self.port = port
         self.xrlf_url = xrlf_url.rstrip("/")
-        self._session: Optional[aiohttp.ClientSession] = None
-        self._runner: Optional[web.AppRunner] = None
+        self._session: aiohttp.ClientSession | None = None
+        self._runner: web.AppRunner | None = None
 
     def _build_app(self) -> web.Application:
         app = web.Application()
@@ -60,18 +67,20 @@ class HttpProxyServer:
     # ── Handlers ────────────────────────────────────────────────────────────
 
     async def _index(self, request: web.Request) -> web.Response:
-        return web.json_response({
-            "service": "FoveAI HTTP Proxy",
-            "port": self.port,
-            "xrlf_url": self.xrlf_url,
-            "routes": [
-                "POST /v1/chat/completions",
-                "GET  /health",
-                "GET  /soul/status",
-                "GET  /memory/status",
-                "GET  /v1/models",
-            ],
-        })
+        return web.json_response(
+            {
+                "service": "FoveAI HTTP Proxy",
+                "port": self.port,
+                "xrlf_url": self.xrlf_url,
+                "routes": [
+                    "POST /v1/chat/completions",
+                    "GET  /health",
+                    "GET  /soul/status",
+                    "GET  /memory/status",
+                    "GET  /v1/models",
+                ],
+            }
+        )
 
     async def _health(self, request: web.Request) -> web.Response:
         # Check if XRLF is reachable
@@ -83,12 +92,14 @@ class HttpProxyServer:
                 xrlf_ok = resp.status == 200
         except Exception:
             xrlf_ok = False
-        return web.json_response({
-            "status": "ok" if xrlf_ok else "degraded",
-            "proxy_port": self.port,
-            "xrlf_url": self.xrlf_url,
-            "xrlf_reachable": xrlf_ok,
-        })
+        return web.json_response(
+            {
+                "status": "ok" if xrlf_ok else "degraded",
+                "proxy_port": self.port,
+                "xrlf_url": self.xrlf_url,
+                "xrlf_reachable": xrlf_ok,
+            }
+        )
 
     async def _chat_completions(self, request: web.Request) -> web.StreamResponse:
         """Proxy chat completions to XRLF, with streaming support."""
@@ -114,7 +125,7 @@ class HttpProxyServer:
                     f"{self.xrlf_url}/v1/chat/completions",
                     data=body,
                     headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=120),
+                    timeout=aiohttp.ClientTimeout(total=_chat_timeout()),
                 )
                 sresp = web.StreamResponse(
                     status=resp.status,
@@ -131,7 +142,7 @@ class HttpProxyServer:
                     f"{self.xrlf_url}/v1/chat/completions",
                     data=body,
                     headers=headers,
-                    timeout=aiohttp.ClientTimeout(total=120),
+                    timeout=aiohttp.ClientTimeout(total=_chat_timeout()),
                 ) as resp:
                     body_resp = await resp.read()
                     return web.Response(
@@ -141,7 +152,12 @@ class HttpProxyServer:
                     )
         except aiohttp.ClientConnectorError:
             return web.json_response(
-                {"error": {"message": "XRLF runtime not reachable", "url": self.xrlf_url}},
+                {
+                    "error": {
+                        "message": "XRLF runtime not reachable",
+                        "url": self.xrlf_url,
+                    }
+                },
                 status=502,
             )
         except Exception as e:
@@ -153,11 +169,13 @@ class HttpProxyServer:
 
     async def _chat_completions_get(self, request: web.Request) -> web.Response:
         """GET on chat completions — return info."""
-        return web.json_response({
-            "endpoint": "/v1/chat/completions",
-            "method": "POST",
-            "xrlf_url": f"{self.xrlf_url}/v1/chat/completions",
-        })
+        return web.json_response(
+            {
+                "endpoint": "/v1/chat/completions",
+                "method": "POST",
+                "xrlf_url": f"{self.xrlf_url}/v1/chat/completions",
+            }
+        )
 
     async def _proxy_get(self, request: web.Request) -> web.Response:
         """Proxy a GET request to XRLF."""
@@ -220,7 +238,9 @@ class HttpProxyServer:
         try:
             await site.start()
             logger.info(f"[HTTPProxy] ✅ Listening on http://{self.host}:{self.port}")
-            print(f"  [HTTPProxy] ✅ Unified HTTP proxy on :{self.port} → {self.xrlf_url}")
+            print(
+                f"  [HTTPProxy] ✅ Unified HTTP proxy on :{self.port} → {self.xrlf_url}"
+            )
         except OSError as e:
             logger.error(f"[HTTPProxy] ❌ Failed to bind :{self.port}: {e}")
             print(f"  [HTTPProxy] ❌ Port :{self.port} in use or unavailable: {e}")

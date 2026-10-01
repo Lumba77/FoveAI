@@ -1,0 +1,15 @@
+{
+  "name": "foveai-remote-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "In-browser RDP desktop for FoveAI Multigate — guacamole-lite over guacd, fronted by vite at /rdp/",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "guacamole-common-js": "^1.5.0",
+    "guacamole-lite": "^1.2.0"
+  }
+}

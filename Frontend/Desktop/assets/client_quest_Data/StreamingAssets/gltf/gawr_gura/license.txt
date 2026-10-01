@@ -1,0 +1,11 @@
+Model Information:
+* title:	Gawr Gura
+* source:	https://sketchfab.com/3d-models/gawr-gura-05db8ee83b54443683442ad78f19e174
+* author:	MMSkecthfab (https://sketchfab.com/MMDSKETCH)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Gawr Gura" (https://sketchfab.com/3d-models/gawr-gura-05db8ee83b54443683442ad78f19e174) by MMSkecthfab (https://sketchfab.com/MMDSKETCH) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

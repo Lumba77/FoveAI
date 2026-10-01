@@ -28,24 +28,54 @@ if not IGNORE_FILE.exists():
     IGNORE_FILE = ROOT / ".tokenslayer-ignore"
 
 SCAN_DIRS = [
-    "Backend", "runtime", "memory", "formats", "builder", "llama_bridge",
-    "foveated-memory", "Frontend/XR_Vessel/src", "Frontend/multigate/src",
-    "client_quest/Assets/Scripts", "Tools", "Scripts", "tests",
+    "Backend",
+    "runtime",
+    "memory",
+    "formats",
+    "builder",
+    "llama_bridge",
+    "foveated-memory",
+    "Frontend/XR_Vessel/src",
+    "Frontend/multigate/src",
+    "client_quest/Assets/Scripts",
+    "Tools",
+    "Scripts",
+    "tests",
 ]
 EXTS = {".py", ".ts", ".tsx", ".js", ".cs", ".sh"}
-SKIP_DIRS = {"__pycache__", "node_modules", ".venv", ".git", "dist", "build", ".venv.bak.20260906"}
+SKIP_DIRS = {
+    "__pycache__",
+    "node_modules",
+    ".venv",
+    ".git",
+    "dist",
+    "build",
+    ".venv.bak.20260906",
+}
 MAX_BYTES = 400_000
 
-CALL_RE = re.compile(r'(?:127\.0\.0\.1|localhost|192\.168\.\d+\.\d+|ws://[\d.]+|0\.0\.0\.0):(\d{4})')
+CALL_RE = re.compile(
+    r"(?:127\.0\.0\.1|localhost|192\.168\.\d+\.\d+|ws://[\d.]+|0\.0\.0\.0):(\d{4})"
+)
 BIND_RE = re.compile(
-    r'(?:port\s*=\s*(\d{4})|\.listen\(\s*(\d{4})|uvicorn\.run\([^)]*port\s*=\s*(\d{4})'
+    r"(?:port\s*=\s*(\d{4})|\.listen\(\s*(\d{4})|uvicorn\.run\([^)]*port\s*=\s*(\d{4})"
     r'|PORT\s*=\s*(\d{4})|--port["\']?\s*[,=]?\s*["\']?(\d{4}))'
 )
-IMPORT_RE = re.compile(r'^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))', re.M)
-ENV_PORT_RE = re.compile(r'(?:PORT|_URL)\s*=\s*[^\n]*?(\d{4})')
+IMPORT_RE = re.compile(r"^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.]+))", re.MULTILINE)
+ENV_PORT_RE = re.compile(r"(?:PORT|_URL)\s*=\s*[^\n]*?(\d{4})")
 
 # Local top-level modules that exist in-repo (for import edge resolution)
-LOCAL_ROOTS = ["Backend/Cognition", "Backend/Memory", "Backend/Creativity", "runtime", "memory", "formats", "builder", "llama_bridge", "Tools"]
+LOCAL_ROOTS = [
+    "Backend/Cognition",
+    "Backend/Memory",
+    "Backend/Creativity",
+    "runtime",
+    "memory",
+    "formats",
+    "builder",
+    "llama_bridge",
+    "Tools",
+]
 
 
 def load_ignores() -> list:
@@ -102,14 +132,17 @@ def main() -> None:
     for f in files:
         stems[Path(f).stem].append(f)
 
-    callers = defaultdict(set)    # file -> ports it calls
-    binders = defaultdict(set)    # file -> ports it binds
+    callers = defaultdict(set)  # file -> ports it calls
+    binders = defaultdict(set)  # file -> ports it binds
     env_ports = defaultdict(set)  # file -> ports in PORT=/URL= assignments
-    imports = defaultdict(set)    # file -> local modules it imports
-    references = defaultdict(set) # filename stem -> files that mention it
-    defs = defaultdict(list)      # symbol -> files defining it (parallel check)
+    imports = defaultdict(set)  # file -> local modules it imports
+    references = defaultdict(set)  # filename stem -> files that mention it
+    defs = defaultdict(list)  # symbol -> files defining it (parallel check)
 
-    def_re = re.compile(r'^\s*(?:async\s+)?(?:def|class|function)\s+(\w+)|^\s*(?:export\s+)?(?:class|interface)\s+(\w+)', re.M)
+    def_re = re.compile(
+        r"^\s*(?:async\s+)?(?:def|class|function)\s+(\w+)|^\s*(?:export\s+)?(?:class|interface)\s+(\w+)",
+        re.MULTILINE,
+    )
 
     texts = {}
     for rel in files:
@@ -142,7 +175,7 @@ def main() -> None:
         stem = Path(rel).stem
         if len(stem) < 4:
             continue
-        pat = re.compile(rf'(?<![\w]){re.escape(stem)}(?![\w])')
+        pat = re.compile(rf"(?<![\w]){re.escape(stem)}(?![\w])")
         for other, text in texts.items():
             if other != rel and pat.search(text):
                 references[stem].add(other)
@@ -159,9 +192,16 @@ def main() -> None:
         out.append(f"  {f}  binds {sorted(ports)}")
 
     out.append("\n▶ CALLERS (files that dial ports)")
-    interesting = {p for ps in callers.values() for p in ps if 8000 <= p <= 8510 or p in (5176, 5177, 1234, 11434)}
+    interesting = {
+        p
+        for ps in callers.values()
+        for p in ps
+        if 8000 <= p <= 8510 or p in (5176, 5177, 1234, 11434)
+    }
     for f, ports in sorted(callers.items()):
-        hits = sorted(p for p in ports if 8000 <= p <= 8510 or p in (5176, 5177, 1234, 11434))
+        hits = sorted(
+            p for p in ports if 8000 <= p <= 8510 or p in (5176, 5177, 1234, 11434)
+        )
         if hits:
             out.append(f"  {f}  → {hits}")
 
@@ -188,7 +228,7 @@ def main() -> None:
     out.append("\n▶ PARALLEL FILES (archive/backup/nested copies)")
     for f in files:
         name = Path(f).name
-        if re.search(r'(_archive|_v\d+|\.bak|_old|_legacy|_copy)', name, re.I):
+        if re.search(r"(_archive|_v\d+|\.bak|_old|_legacy|_copy)", name, re.IGNORECASE):
             out.append(f"  {f}")
     # same-stem collisions in different dirs
     for stem, fs in sorted(stems.items()):
@@ -198,7 +238,9 @@ def main() -> None:
                 out.append(f"      {f}")
 
     out.append("\n▶ UNWIRED (source files nothing references or imports)")
-    entry_ok = re.compile(r'(test_|^tests/|__init__|run_|_main|main\.|index\.|server\.js|Console|Taskbar|launcher)')
+    entry_ok = re.compile(
+        r"(test_|^tests/|__init__|run_|_main|main\.|index\.|server\.js|Console|Taskbar|launcher)"
+    )
     for f in files:
         stem = Path(f).stem
         wired = bool(references.get(stem)) or any(stem in im for im in imports.values())
@@ -209,11 +251,16 @@ def main() -> None:
     print(report)
 
     if "--json" in sys.argv:
-        (ROOT / "wiring_audit.json").write_text(json.dumps({
-            "binders": {k: sorted(v) for k, v in binders.items()},
-            "callers": {k: sorted(v) for k, v in callers.items()},
-            "imports": {k: sorted(v) for k, v in imports.items()},
-        }, indent=2))
+        (ROOT / "wiring_audit.json").write_text(
+            json.dumps(
+                {
+                    "binders": {k: sorted(v) for k, v in binders.items()},
+                    "callers": {k: sorted(v) for k, v in callers.items()},
+                    "imports": {k: sorted(v) for k, v in imports.items()},
+                },
+                indent=2,
+            )
+        )
         print("\n[wrote wiring_audit.json]")
 
 

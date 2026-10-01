@@ -1,5 +1,34 @@
 # Architecture Diagram
 
+## Current Service Map (2026-09-19, post-migration)
+
+```
+LAN clients (Quest, browsers, IDE extensions)
+        │  LAN IP is dynamic — server_config.SERVER_IP resolves it live;
+        │  foveai_network_config.json snapshots refreshed at Sleipnir startup
+        ▼
+┌────────────────────────────────────────────────────────────┐
+│  Foveated Memory Proxy  :8400  (HTTP + WS, memory rings,   │
+│  voice routing, /api/subsystems health)                    │
+│  Dashboard / settings   :8401  (served alongside proxy)    │
+└──────────────┬─────────────────────────────────────────────┘
+               │
+    ┌──────────┼───────────────┬──────────────┬─────────────┐
+    ▼          ▼               ▼              ▼             ▼
+ XRLF      WS IPC :8403    Kokoro TTS     Whisper STT   Chat Relay
+ runtime   (WS only)       :8406          :8409         :8407
+ :8402                                  (WS only)
+ (HTTP, native
+  TTS+STT,
+  Soul/compagent)
+
+ Motor :8410 · Subconscious :8411 · Creative :8408 (optional)
+ Multigate WebUI :5177 (same-origin /api/* → :8400)
+ Optional/offline: XR Vessel :5176, LM Studio :1234
+ Retired: voice :8001/:8004, soul :8000, motor :8110,
+ stardust :8109, tokenslayer :8103/:8106, old proxy :8200
+```
+
 ## Quest → PC Backend Connection (2026-09-03 verified)
 
 ```

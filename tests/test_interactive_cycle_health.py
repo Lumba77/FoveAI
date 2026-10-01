@@ -9,7 +9,7 @@ import importlib.util
 import unittest
 from pathlib import Path
 from types import ModuleType
-from typing import Any, Dict
+from typing import Any
 
 from fastapi.testclient import TestClient
 
@@ -19,7 +19,9 @@ class TestInteractiveCycleHealth(unittest.TestCase):
 
     def setUp(self) -> None:
         # Load interactive_cycle.py with a mocked .env
-        cycle_path: Path = Path(__file__).resolve().parents[1] / "Backend" / "interactive_cycle.py"
+        cycle_path: Path = (
+            Path(__file__).resolve().parents[1] / "Backend" / "interactive_cycle.py"
+        )
         spec = importlib.util.spec_from_file_location("interactive_cycle", cycle_path)
         assert spec is not None and spec.loader is not None
         module: ModuleType = importlib.util.module_from_spec(spec)
@@ -27,7 +29,7 @@ class TestInteractiveCycleHealth(unittest.TestCase):
         self.module = module
 
         # Create test clients for each service app
-        self.clients: Dict[str, TestClient] = {
+        self.clients: dict[str, TestClient] = {
             "sight": TestClient(module.app_sight),
             "hearing": TestClient(module.app_hearing),
             "contemplation": TestClient(module.app_contemplation),
@@ -42,7 +44,7 @@ class TestInteractiveCycleHealth(unittest.TestCase):
     def test_sight_health(self) -> None:
         r = self.clients["sight"].get("/health")
         self.assertEqual(r.status_code, 200)
-        body: Dict[str, Any] = r.json()
+        body: dict[str, Any] = r.json()
         self.assertEqual(body["status"], "ok")
         self.assertEqual(body["service"], "sight")
 
@@ -94,8 +96,12 @@ class TestInteractiveCycleHealth(unittest.TestCase):
         for name, client in self.clients.items():
             with self.subTest(service=name):
                 r = client.get("/health")
-                self.assertEqual(r.status_code, 200, f"{name} /health returned {r.status_code}")
-                self.assertEqual(r.json()["status"], "ok", f"{name} did not return status=ok")
+                self.assertEqual(
+                    r.status_code, 200, f"{name} /health returned {r.status_code}"
+                )
+                self.assertEqual(
+                    r.json()["status"], "ok", f"{name} did not return status=ok"
+                )
 
     def test_contemplation_root_endpoint(self) -> None:
         """The contemplation service root should return identity info."""

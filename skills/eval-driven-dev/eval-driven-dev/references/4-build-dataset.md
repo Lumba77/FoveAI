@@ -114,6 +114,7 @@ When creating dataset entries with different input sources (e.g., different URLs
 ```python
 # Example: for a web scraper, run the app's own fetch logic once
 from myapp.fetcher import fetch_page
+
 page_content = fetch_page(target_url)  # use the app's real code path
 ```
 

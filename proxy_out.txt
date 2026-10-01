@@ -1,0 +1,710 @@
+[XRLF] Loaded local .env configuration
+[ProxyMode] 🔀 ROUTING MODE — foveation, HUD, and compression enabled
+[XRLF] REACTOR HOT - repo overrides enabled (XRLF_REPO_ENABLED=true)
+[XRLF]    context_override=true capability_override=true foveation_override=true
+[PWSH] Using PowerShell: C:\Program Files\WindowsApps\Microsoft.PowerShell_7.6.5.0_x64__8wekyb3d8bbwe\pwsh.exe
+[XRLF] Proxy port: 8400
+[XRLF-Config] Loaded xrlf_config.yaml (model=lumax-plumax-omni-router-v2.xrlf, port=8402)
+[XRLF-Summarizer] enabled=true model=gemma-4-12b-it-qat-GGUF-MoQ endpoint=http://127.0.0.1:8402/v1 max_tokens=512 temp=0.3
+[ModelProfile] ✅ 'lumax-plumax-omni-router' → FoveAI Omni Router v1 (XRLF runtime) | mode=local upstream=http://127.0.0.1:8402/v1 aggression=2 ctx=8192 🔀 URL CHANGED
+[ModelProfile] 🔄 Restored 'lumax-plumax-omni-router' from active-model.json (2026-08-26T10:00:00.000Z)
+[Store] Initializing new memory workspace: default
+
+🧠 Foveated Memory Proxy
+   Default Workspace : default (personal)
+   Upstream  : http://127.0.0.1:8402
+   Port      : 8400
+   Mode      : LOCAL (LM Studio)
+   Compress  : LOCAL (LM Studio :1234) — zero cloud tokens for checkpoints
+   Healer    : Self-healing context guard (16000 chars, auto-shrink/restore)
+✅ Foveated Memory Proxy listening on http://localhost:8400
+   → Point your client at: http://localhost:8400/v1/chat/completions
+
+[Continuity] Loaded snapshot from 1288m ago (session: key_a87e5fe6d3334214_150291a6)
+[Continuity] 🔄 Previous session found: key_a87e5fe6d3334214_150291a6
+[Continuity]    Last activity: 2026-08-30T20:47:22.077Z
+[Continuity]    Messages: unknown
+[Continuity]    Model: lumax-plumax-omni-router-v2
+[Startup] Upstream LLM endpoint target: http://127.0.0.1:8402
+🖥️  Foveated Memory Dashboard on http://localhost:8401/memory
+[Store] Initializing new memory workspace: XRLF
+[Store] Initializing new memory workspace: a87e5fe6d3334214b866ba8c79af3460_lCOisLzsLJ8X9Mug6VIfwQfU
+[Store] Initializing new memory workspace: a87e5fe6d3334214b866ba8c79af3460_lCOisLzsLJ8X9Mug6VIfwQfU_bak
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[EcologicalWorker] Drift refreshed c17b9c33 @ turn 36 -> "Clarification on Proxy 8200 Status"
+[Store] Initializing new memory workspace: apk
+[Store] Initializing new memory workspace: builder
+[Store] Initializing new memory workspace: continuity
+[Store] Initializing new memory workspace: dummy
+[Store] Initializing new memory workspace: foveai_operator
+[Store] Initializing new memory workspace: jen
+[Store] Initializing new memory workspace: jenna-vscode
+[Store] Initializing new memory workspace: jenna_test
+[Store] Initializing new memory workspace: key_a87e5fe6d3334214
+[Store] Initializing new memory workspace: lmstudio
+[Store] Initializing new memory workspace: lmx_1bd66c6c82409bc6fb6e7af28885aeaf
+[Store] Initializing new memory workspace: lmx_2dcd5839554801c6377e14e230219278
+[Store] Initializing new memory workspace: lmx_6bc7b4e07a0af89d73122b722f32c382
+[Store] Initializing new memory workspace: lmx_759ae597da2d95d8dd4736097bfed448
+[Store] Initializing new memory workspace: lmx_a490cacebe06bb627b324d9e6db57d9e
+[Store] Initializing new memory workspace: lmx_c9d19f2b4f0997f5648678391b50d2e5
+[Store] Initializing new memory workspace: lmx_d0d2f80b869067a4516a6722ffeac914
+[Store] Initializing new memory workspace: lmx_dd9195767603b4504ef331409218145b
+[Store] Initializing new memory workspace: lumax
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[EcologicalWorker] Drift refreshed 79674089 @ turn 12 -> "Plan for Jenna-vscode Extension"
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[EcologicalWorker] Drift refreshed 884ae1b3 @ turn 38 -> "Create Todo List"
+[Proxy] GET /health
+[Proxy] GET /health
+[Store] Initializing new memory workspace: lumbatest
+[Store] Initializing new memory workspace: no-key-required
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /api/env
+[Proxy] POST /api/setting
+[Setting] Live switch → LOCAL mode (xrlf_proxy), upstream: http://127.0.0.1:8402
+[Proxy] POST /api/setting
+[Setting] Switching active local model to lumax-plumax-omni-router-v2...
+[Proxy] POST /api/setting
+[Setting] Live switch → LOCAL mode (xrlf_proxy), upstream: http://127.0.0.1:8402
+[Proxy] POST /api/setting
+[Setting] Live switch → LOCAL mode (xrlf_proxy), upstream: http://127.0.0.1:8402
+[Proxy] POST /api/setting
+[Setting] Switching active local model to qwen4b-concise-v1.0...
+[Proxy] POST /api/setting
+[Setting] Live switch → LOCAL mode (xrlf_proxy), upstream: http://127.0.0.1:8402
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[EcologicalWorker] Drift refreshed c17b9c33 @ turn 12 -> "Clarification on Proxy 8200 Status"
+[Proxy] GET /health
+[Store] Initializing new memory workspace: noop
+[Store] Initializing new memory workspace: org_lumax_enterprise
+[Store] Initializing new memory workspace: shadow-context
+[Store] Initializing new memory workspace: soul_core
+[Store] Initializing new memory workspace: ws_mrlylncd
+[Store] Initializing new memory workspace: ____-H_Content-Type_
+[Proxy] POST /api/control
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] POST /v1/chat/completions
+[ModelProfile] ✅ 'lumax-plumax-omni-router-v2' → FoveAI Omni Router v2 (XRLF runtime — improved) | mode=local upstream=http://127.0.0.1:8402/v1 aggression=2 ctx=32768
+[ContextHealer] 🔧 Provider=xrlf_server → max budget 16000 → 8000 chars
+[ContextHealer] 📉 Current budget clamped to 8000 chars
+[Fovea] Manual override: XRLF_PROXY_AGGRESSION=2 → multiplier=1 (L2 Light (x1.0))
+[Memory Resolution] Model 'lumax-plumax-omni-router-v2' mapped to L2 Light (x1.0). Budget: 400 tokens
+[handleChatCompletion] ▶️ entry | inject=false | rawMessages=1 | session=default_9f056dcf
+[CodePreserver] 🔒 Extracted 0 protected blocks (0 chars)
+[Retina] 🧬 0 (0%) high | 0 (0%) med | 0 (0%) low | 1 (100%) zero | 100% chars saved by discarding zero-value
+[Compressor] ▶️ entry | session=default_9f056dcf | level=3 | total=1 | system=0 | turns=1
+[Compressor] ⏭️ skip | turnMsgs=1 < threshold=10
+[handleChatCompletion] 📦 baseMessages=1 (raw=1)
+[Model] Resolved 'lumax-plumax-omni-router-v2' → 'lumax-plumax-omni-router-v2' (Env target: lumax-plumax-omni-router-v2)
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] POST /v1/chat/completions
+[ModelProfile] ✅ 'lumax-plumax-omni-router-v2' → FoveAI Omni Router v2 (XRLF runtime — improved) | mode=local upstream=http://127.0.0.1:8402/v1 aggression=2 ctx=32768
+[Fovea] Manual override: XRLF_PROXY_AGGRESSION=2 → multiplier=1 (L2 Light (x1.0))
+[Memory Resolution] Model 'lumax-plumax-omni-router-v2' mapped to L2 Light (x1.0). Budget: 400 tokens
+[handleChatCompletion] ▶️ entry | inject=false | rawMessages=1 | session=default_9f056dcf
+[CodePreserver] 🔒 Extracted 0 protected blocks (0 chars)
+[Retina] 🧬 0 (0%) high | 0 (0%) med | 1 (100%) low | 0 (0%) zero | 0% chars saved by discarding zero-value
+[Compressor] ▶️ entry | session=default_9f056dcf | level=3 | total=1 | system=0 | turns=1
+[Compressor] ⏭️ skip | turnMsgs=1 < threshold=10
+[handleChatCompletion] 📦 baseMessages=1 (raw=1)
+[Model] Resolved 'lumax-plumax-omni-router-v2' → 'lumax-plumax-omni-router-v2' (Env target: lumax-plumax-omni-router-v2)
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /api/healer-state
+[Proxy] GET /api/env
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[EcologicalWorker] Retitled default_9f056dcf @ turn 4 -> "Verify Communication"
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[EcologicalWorker] Drift refreshed c17b9c33 @ turn 36 -> "Clarification on Proxy 8200 Status"
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /api/env
+[Proxy] POST /api/setting
+[Setting] Live switch → LOCAL mode (xrlf_proxy), upstream: http://127.0.0.1:8402
+[Proxy] POST /api/setting
+[Setting] Live switch → LOCAL mode (xrlf_proxy), upstream: http://127.0.0.1:8402
+[Proxy] POST /api/setting
+[Setting] Live switch → LOCAL mode (xrlf_proxy), upstream: http://127.0.0.1:8402
+[Proxy] POST /api/setting
+[Setting] Live switch → LOCAL mode (xrlf_proxy), upstream: http://127.0.0.1:8402
+[Proxy] POST /api/setting
+[Setting] Switching active local model to lumax-plumax-omni-router-v2...
+[Proxy] POST /api/setting
+[Setting] Switching active local model to qwen4b-concise-v1.0...
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[EcologicalWorker] Drift refreshed 79674089 @ turn 12 -> "Plan for Jenna-vscode Extension"
+[Proxy] POST /api/control
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] POST /v1/chat/completions
+[ModelProfile] ✅ 'lumax-plumax-omni-router-v2' → FoveAI Omni Router v2 (XRLF runtime — improved) | mode=local upstream=http://127.0.0.1:8402/v1 aggression=2 ctx=32768
+[Fovea] Manual override: XRLF_PROXY_AGGRESSION=2 → multiplier=1 (L2 Light (x1.0))
+[Memory Resolution] Model 'lumax-plumax-omni-router-v2' mapped to L2 Light (x1.0). Budget: 400 tokens
+[handleChatCompletion] ▶️ entry | inject=false | rawMessages=1 | session=default_9f056dcf
+[CodePreserver] 🔒 Extracted 0 protected blocks (0 chars)
+[Retina] 🧬 0 (0%) high | 0 (0%) med | 1 (100%) low | 0 (0%) zero | 0% chars saved by discarding zero-value
+[Compressor] ▶️ entry | session=default_9f056dcf | level=3 | total=1 | system=0 | turns=1
+[Compressor] ⏭️ skip | turnMsgs=1 < threshold=10
+[handleChatCompletion] 📦 baseMessages=1 (raw=1)
+[Model] Resolved 'lumax-plumax-omni-router-v2' → 'lumax-plumax-omni-router-v2' (Env target: lumax-plumax-omni-router-v2)
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /api/healer-state
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[EcologicalWorker] Drift refreshed c17b9c33 @ turn 36 -> "Clarification on Proxy 8200 Status"
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[EcologicalWorker] Drift refreshed 79674089 @ turn 12 -> "Plan for Jenna-vscode Extension"
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[EcologicalWorker] Drift refreshed 884ae1b3 @ turn 38 -> "Create Todo List"
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[EcologicalWorker] Drift refreshed c17b9c33 @ turn 12 -> "Proxy 8200 Status Inquiry"
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /api/env
+[Proxy] POST /api/setting
+[Setting] Live switch → LOCAL mode (xrlf_proxy), upstream: http://127.0.0.1:8402
+[Proxy] POST /api/setting
+[Setting] Live switch → LOCAL mode (xrlf_proxy), upstream: http://127.0.0.1:8402
+[Proxy] POST /api/setting
+[Setting] Live switch → LOCAL mode (xrlf_proxy), upstream: http://127.0.0.1:8402
+[Proxy] POST /api/setting
+[Setting] Live switch → LOCAL mode (xrlf_proxy), upstream: http://127.0.0.1:8402
+[Proxy] POST /api/setting
+[Setting] Switching active local model to lumax-plumax-omni-router-v2...
+[Proxy] POST /api/setting
+[Setting] Switching active local model to qwen4b-concise-v1.0...
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] POST /v1/chat/completions
+[Fovea] Manual override: XRLF_PROXY_AGGRESSION=2 → multiplier=1 (L2 Light (x1.0))
+[Memory Resolution] Model 'auto' mapped to L2 Light (x1.0). Budget: 400 tokens
+[handleChatCompletion] ▶️ entry | inject=false | rawMessages=2 | session=foveai_operator_9f056dcf
+[CodePreserver] 🔒 Extracted 0 protected blocks (0 chars)
+[Retina] 🧬 0 (0%) high | 0 (0%) med | 1 (50%) low | 1 (50%) zero | 9% chars saved by discarding zero-value
+[Compressor] ▶️ entry | session=foveai_operator_9f056dcf | level=3 | total=2 | system=0 | turns=2
+[Compressor] ⏭️ skip | turnMsgs=2 < threshold=10
+[handleChatCompletion] 📦 baseMessages=2 (raw=2)
+[Model] Resolved 'auto' → 'qwen4b-concise-v1.0' (Env target: qwen4b-concise-v1.0)
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[EcologicalWorker] Drift refreshed c17b9c33 @ turn 36 -> "Proxy 8200 Status Inquiry"
+[Proxy] GET /health
+[EcologicalWorker] Pruning 1-2 turn stub session: foveai_operator_9f056dcf
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] POST /api/soul/stt
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[EcologicalWorker] Drift refreshed 79674089 @ turn 12 -> "Code Review and Plan"
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[EcologicalWorker] Drift refreshed 884ae1b3 @ turn 38 -> "Create Todo List"
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[EcologicalWorker] Drift refreshed c17b9c33 @ turn 12 -> "Proxy 8200 Status Inquiry"
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Store] Initializing new memory workspace: prompt_kiosk
+[Fovea] Manual override: XRLF_PROXY_AGGRESSION=2 → multiplier=1 (L2 Light (x1.0))
+[Memory Resolution] Model 'slim-summary-tiny-tool' mapped to L2 Light (x1.0). Budget: 400 tokens
+[handleChatCompletion] ▶️ entry | inject=false | rawMessages=1 | session=prompt_kiosk_9f056dcf
+[CodePreserver] 🔒 Extracted 0 protected blocks (0 chars)
+[Retina] 🧬 0 (0%) high | 0 (0%) med | 0 (0%) low | 1 (100%) zero | 100% chars saved by discarding zero-value
+[Compressor] ▶️ entry | session=prompt_kiosk_9f056dcf | level=3 | total=1 | system=0 | turns=1
+[Compressor] ⏭️ skip | turnMsgs=1 < threshold=10
+[handleChatCompletion] 📦 baseMessages=1 (raw=1)
+[Model] Resolved 'slim-summary-tiny-tool' → 'qwen4b-concise-v1.0' (Env target: qwen4b-concise-v1.0)
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /api/env
+[Proxy] POST /api/setting
+[Setting] Live switch → LOCAL mode (xrlf_proxy), upstream: http://127.0.0.1:8402
+[Proxy] POST /api/setting
+[Setting] Live switch → LOCAL mode (xrlf_proxy), upstream: http://127.0.0.1:8402
+[Proxy] POST /api/setting
+[Setting] Live switch → LOCAL mode (xrlf_proxy), upstream: http://127.0.0.1:8402
+[Proxy] POST /api/setting
+[Setting] Live switch → LOCAL mode (xrlf_proxy), upstream: http://127.0.0.1:8402
+[Proxy] POST /api/setting
+[Setting] Switching active local model to lumax-plumax-omni-router-v2...
+[Proxy] POST /api/setting
+[Setting] Switching active local model to qwen4b-concise-v1.0...
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] POST /api/control
+[Proxy] GET /health
+[Proxy] GET /health
+[EcologicalWorker] Pruning 1-2 turn stub session: prompt_kiosk_9f056dcf
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] POST /api/control
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] POST /api/control
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] POST /api/soul/stt
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] POST /v1/chat/completions
+[Fovea] Manual override: XRLF_PROXY_AGGRESSION=2 → multiplier=1 (L2 Light (x1.0))
+[Memory Resolution] Model 'auto' mapped to L2 Light (x1.0). Budget: 400 tokens
+[handleChatCompletion] ▶️ entry | inject=false | rawMessages=2 | session=foveai_operator_9f056dcf
+[CodePreserver] 🔒 Extracted 0 protected blocks (0 chars)
+[Retina] 🧬 0 (0%) high | 0 (0%) med | 1 (50%) low | 1 (50%) zero | 6% chars saved by discarding zero-value
+[Compressor] ▶️ entry | session=foveai_operator_9f056dcf | level=3 | total=2 | system=0 | turns=2
+[Compressor] ⏭️ skip | turnMsgs=2 < threshold=10
+[handleChatCompletion] 📦 baseMessages=2 (raw=2)
+[Model] Resolved 'auto' → 'qwen4b-concise-v1.0' (Env target: qwen4b-concise-v1.0)
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] POST /api/soul/stt
+[EcologicalWorker] Drift refreshed c17b9c33 @ turn 36 -> "Proxy 8200 Status Inquiry"
+[Proxy] GET /health
+[EcologicalWorker] Pruning 1-2 turn stub session: foveai_operator_9f056dcf
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] POST /api/control
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health
+[Proxy] GET /health

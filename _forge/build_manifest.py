@@ -13,7 +13,6 @@ Usage:
 import argparse
 import hashlib
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -23,7 +22,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from formats.xrlf_parser import XRLFParser
-from formats.xrlf_schema import SECTION_NAMES, SectionType, XRLFFlags
+from formats.xrlf_schema import SECTION_NAMES, XRLFFlags
 
 
 def _format_bytes(n: int) -> str:
@@ -40,7 +39,9 @@ def _sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _sha256_file_range(filepath: str, offset: int, length: int, chunk_size: int = 65536) -> str:
+def _sha256_file_range(
+    filepath: str, offset: int, length: int, chunk_size: int = 65536
+) -> str:
     h = hashlib.sha256()
     with open(filepath, "rb") as f:
         f.seek(offset)
@@ -81,15 +82,19 @@ def generate_manifest(xrlf_path: str, full_sha: bool = False) -> dict:
         sections = []
         for entry in manifest.sections:
             sha = _sha256_file_range(str(path), entry.offset, entry.length)
-            sections.append({
-                "type": entry.section_type,
-                "name": SECTION_NAMES.get(entry.section_type, f"UNKNOWN(0x{entry.section_type:02x})"),
-                "offset": entry.offset,
-                "length": entry.length,
-                "size_human": _format_bytes(entry.length),
-                "flags": entry.flags,
-                "sha256": sha,
-            })
+            sections.append(
+                {
+                    "type": entry.section_type,
+                    "name": SECTION_NAMES.get(
+                        entry.section_type, f"UNKNOWN(0x{entry.section_type:02x})"
+                    ),
+                    "offset": entry.offset,
+                    "length": entry.length,
+                    "size_human": _format_bytes(entry.length),
+                    "flags": entry.flags,
+                    "sha256": sha,
+                }
+            )
 
         full_file_sha = None
         if full_sha:
@@ -133,40 +138,51 @@ def print_manifest_table(manifest: dict):
     print(f"  XRL source      : {manifest['xrl_source_model']}")
     print(f"  Flags           : {', '.join(manifest['flags_human'])}")
     print(f"  Sections        : {manifest['section_count']}")
-    if manifest.get('full_file_sha256'):
+    if manifest.get("full_file_sha256"):
         print(f"  Full SHA-256    : {manifest['full_file_sha256']}")
     print()
-    print(f"  {'#':<4} {'Section':<22} {'Size':<12} {'Flags':<8} {'SHA-256 (first 16 chars)'}")
-    print(f"  {'-'*4} {'-'*22} {'-'*12} {'-'*8} {'-'*20}")
-    for i, s in enumerate(manifest['sections']):
-        sha_short = s['sha256'][:16] + "..."
-        print(f"  {i:<4} {s['name']:<22} {s['size_human']:<12} 0x{s['flags']:02x}     {sha_short}")
+    print(
+        f"  {'#':<4} {'Section':<22} {'Size':<12} {'Flags':<8} {'SHA-256 (first 16 chars)'}"
+    )
+    print(f"  {'-' * 4} {'-' * 22} {'-' * 12} {'-' * 8} {'-' * 20}")
+    for i, s in enumerate(manifest["sections"]):
+        sha_short = s["sha256"][:16] + "..."
+        print(
+            f"  {i:<4} {s['name']:<22} {s['size_human']:<12} 0x{s['flags']:02x}     {sha_short}"
+        )
     print("=" * 80)
 
 
 def save_manifest_json(manifest: dict, output_path: str = None):
     """Save manifest as JSON."""
     if output_path is None:
-        output_path = str(Path(manifest['file_path']).with_suffix('.manifest.json'))
-    with open(output_path, 'w') as f:
+        output_path = str(Path(manifest["file_path"]).with_suffix(".manifest.json"))
+    with open(output_path, "w") as f:
         json.dump(manifest, f, indent=2)
     print(f"\n  Manifest saved to: {output_path}")
 
 
 def main():
     parser = argparse.ArgumentParser(description="Generate XRLF file manifest")
-    parser.add_argument("--xrlf", default=str(ROOT / "gemma-4-12b-xrl.xrlf"),
-                        help="Path to .xrlf file (default: gemma-4-12b-xrl.xrlf)")
-    parser.add_argument("--full-sha", action="store_true",
-                        help="Compute full-file SHA-256 (slow for ~5 GB files)")
-    parser.add_argument("--json", action="store_true",
-                        help="Save manifest as JSON file")
+    parser.add_argument(
+        "--xrlf",
+        default=str(ROOT / "gemma-4-12b-xrl.xrlf"),
+        help="Path to .xrlf file (default: gemma-4-12b-xrl.xrlf)",
+    )
+    parser.add_argument(
+        "--full-sha",
+        action="store_true",
+        help="Compute full-file SHA-256 (slow for ~5 GB files)",
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="Save manifest as JSON file"
+    )
     parser.add_argument("--output", help="Output JSON path (with --json)")
     args = parser.parse_args()
 
     if not Path(args.xrlf).exists():
         print(f"  ❌ XRLF file not found: {args.xrlf}")
-        print(f"     Run 'python run_xrlf.py --pack' first to create the .xrlf file.")
+        print("     Run 'python run_xrlf.py --pack' first to create the .xrlf file.")
         sys.exit(1)
 
     manifest = generate_manifest(args.xrlf, full_sha=args.full_sha)

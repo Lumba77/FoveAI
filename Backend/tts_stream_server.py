@@ -19,11 +19,8 @@ import asyncio
 import io
 import json
 import logging
-import struct
-import time
-from typing import AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
 
-import numpy as np
 import websockets
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [TTS] %(message)s")
@@ -32,8 +29,8 @@ logger = logging.getLogger("tts_server")
 HOST = "0.0.0.0"
 PORT = 8403  # Unity Quest3TTSClient connects to ws://<ip>:8403/ws
 SAMPLE_RATE = 24000  # Quest3TTSClient.ServerSampleRate = 24000
-SAMPLE_WIDTH = 2     # 16-bit PCM
-CHANNELS = 1         # Mono
+SAMPLE_WIDTH = 2  # 16-bit PCM
+CHANNELS = 1  # Mono
 CHUNK_DURATION_MS = 100  # 100ms chunks for low-latency streaming
 CHUNK_SAMPLES = int(SAMPLE_RATE * CHUNK_DURATION_MS / 1000)
 CHUNK_BYTES = CHUNK_SAMPLES * SAMPLE_WIDTH * CHANNELS
@@ -58,23 +55,32 @@ class TTSServer:
         if TTS_ENGINE == "edge":
             try:
                 import edge_tts
+
                 self._edge_tts = edge_tts
                 logger.info(f"TTS engine: edge-tts (voice={DEFAULT_VOICE})")
             except ImportError:
-                logger.warning("edge-tts not installed — install with: pip install edge-tts")
+                logger.warning(
+                    "edge-tts not installed — install with: pip install edge-tts"
+                )
         elif TTS_ENGINE == "piper":
             try:
-                from piper import PiperVoice
                 # Path to Piper voice model (.onnx)
                 import os
+
+                from piper import PiperVoice
+
                 model_path = os.environ.get("PIPER_MODEL_PATH", "")
                 if model_path and os.path.exists(model_path):
                     self._piper = PiperVoice.load(model_path)
                     logger.info(f"TTS engine: piper (model={model_path})")
                 else:
-                    logger.warning("Piper model path not set — set PIPER_MODEL_PATH env var")
+                    logger.warning(
+                        "Piper model path not set — set PIPER_MODEL_PATH env var"
+                    )
             except ImportError:
-                logger.warning("piper-tts not installed — install with: pip install piper-tts")
+                logger.warning(
+                    "piper-tts not installed — install with: pip install piper-tts"
+                )
 
     async def synthesize_edge(
         self, text: str, voice: str, rate: str, volume: str
@@ -100,12 +106,10 @@ class TTSServer:
         if len(audio_buffer) > 0:
             # Pad to chunk size
             if len(audio_buffer) < CHUNK_BYTES:
-                audio_buffer.extend(b'\x00' * (CHUNK_BYTES - len(audio_buffer)))
+                audio_buffer.extend(b"\x00" * (CHUNK_BYTES - len(audio_buffer)))
             yield bytes(audio_buffer[:CHUNK_BYTES])
 
-    async def synthesize_piper(
-        self, text: str
-    ) -> AsyncGenerator[bytes, None]:
+    async def synthesize_piper(self, text: str) -> AsyncGenerator[bytes, None]:
         """Synthesize with Piper TTS and yield PCM chunks."""
         if self._piper is None:
             yield self._silence_chunk()
@@ -114,6 +118,7 @@ class TTSServer:
         # Piper outputs 16-bit PCM at its configured sample rate
         # We need to resample to SAMPLE_RATE
         import wave
+
         wav_buffer = io.BytesIO()
         with wave.open(wav_buffer, "wb") as wav_file:
             wav_file.setnchannels(CHANNELS)
@@ -127,15 +132,15 @@ class TTSServer:
         audio_data = wav_buffer.read()
 
         for i in range(0, len(audio_data), CHUNK_BYTES):
-            chunk = audio_data[i:i + CHUNK_BYTES]
+            chunk = audio_data[i : i + CHUNK_BYTES]
             if len(chunk) < CHUNK_BYTES:
-                chunk = chunk + b'\x00' * (CHUNK_BYTES - len(chunk))
+                chunk = chunk + b"\x00" * (CHUNK_BYTES - len(chunk))
             yield chunk
 
     @staticmethod
     def _silence_chunk() -> bytes:
         """Return a chunk of silence."""
-        return b'\x00' * CHUNK_BYTES
+        return b"\x00" * CHUNK_BYTES
 
     async def synthesize(
         self, text: str, voice: str = None, rate: str = None, volume: str = None
@@ -145,7 +150,7 @@ class TTSServer:
         rate = rate or DEFAULT_RATE
         volume = volume or DEFAULT_VOLUME
 
-        logger.info(f"Synthesizing: \"{text[:60]}\" (voice={voice})")
+        logger.info(f'Synthesizing: "{text[:60]}" (voice={voice})')
 
         if TTS_ENGINE == "edge":
             async for chunk in self.synthesize_edge(text, voice, rate, volume):
@@ -164,22 +169,28 @@ tts = TTSServer()
 async def handle_client(websocket, path=None):
     """Handle a single Quest 3 TTS client connection."""
     # Path guard - accept / and /ws
-    ws_path = getattr(websocket, 'path', path or '/')
-    if ws_path not in ('/', '/ws'):
+    ws_path = getattr(websocket, "path", path or "/")
+    if ws_path not in ("/", "/ws"):
         logger.warning(f"Rejected connection to unknown path: {ws_path}")
         await websocket.close(1008, "Unknown path")
         return
 
-    client_addr = websocket.remote_address if hasattr(websocket, 'remote_address') else "unknown"
+    client_addr = (
+        websocket.remote_address if hasattr(websocket, "remote_address") else "unknown"
+    )
     logger.info(f"Client connected: {client_addr} (path={ws_path})")
 
     # Send connected handshake so the client knows we are ready
-    await websocket.send(json.dumps({
-        "type": "connected",
-        "sample_rate": SAMPLE_RATE,
-        "engine": TTS_ENGINE,
-        "message": "TTS server ready"
-    }))
+    await websocket.send(
+        json.dumps(
+            {
+                "type": "connected",
+                "sample_rate": SAMPLE_RATE,
+                "engine": TTS_ENGINE,
+                "message": "TTS server ready",
+            }
+        )
+    )
     logger.info("Sent connected handshake")
 
     try:
@@ -188,13 +199,17 @@ async def handle_client(websocket, path=None):
                 try:
                     req = json.loads(message)
                 except json.JSONDecodeError:
-                    await websocket.send(json.dumps({"type": "error", "message": "invalid JSON"}))
+                    await websocket.send(
+                        json.dumps({"type": "error", "message": "invalid JSON"})
+                    )
                     continue
 
                 if req.get("type") == "speak":
                     text = req.get("text", "").strip()
                     if not text:
-                        await websocket.send(json.dumps({"type": "error", "message": "empty text"}))
+                        await websocket.send(
+                            json.dumps({"type": "error", "message": "empty text"})
+                        )
                         continue
 
                     voice = req.get("voice")
@@ -202,12 +217,16 @@ async def handle_client(websocket, path=None):
                     volume = req.get("volume")
 
                     # Send start signal
-                    await websocket.send(json.dumps({
-                        "type": "start",
-                        "sampleRate": SAMPLE_RATE,
-                        "channels": CHANNELS,
-                        "bitsPerSample": SAMPLE_WIDTH * 8,
-                    }))
+                    await websocket.send(
+                        json.dumps(
+                            {
+                                "type": "start",
+                                "sampleRate": SAMPLE_RATE,
+                                "channels": CHANNELS,
+                                "bitsPerSample": SAMPLE_WIDTH * 8,
+                            }
+                        )
+                    )
 
                     # Stream audio chunks
                     chunk_index = 0
@@ -216,12 +235,20 @@ async def handle_client(websocket, path=None):
                         chunk_index += 1
 
                     # Send end signal
-                    await websocket.send(json.dumps({
-                        "type": "end",
-                        "chunks": chunk_index,
-                        "duration": round(chunk_index * CHUNK_DURATION_MS / 1000, 2),
-                    }))
-                    logger.info(f"Streamed {chunk_index} chunks ({chunk_index * CHUNK_DURATION_MS}ms)")
+                    await websocket.send(
+                        json.dumps(
+                            {
+                                "type": "end",
+                                "chunks": chunk_index,
+                                "duration": round(
+                                    chunk_index * CHUNK_DURATION_MS / 1000, 2
+                                ),
+                            }
+                        )
+                    )
+                    logger.info(
+                        f"Streamed {chunk_index} chunks ({chunk_index * CHUNK_DURATION_MS}ms)"
+                    )
 
                 elif req.get("type") == "ping":
                     await websocket.send(json.dumps({"type": "pong"}))
@@ -231,12 +258,20 @@ async def handle_client(websocket, path=None):
                     if tts._edge_tts:
                         voices = await tts._edge_tts.list_voices()
                         voice_list = [
-                            {"name": v["ShortName"], "gender": v["Gender"], "locale": v["Locale"]}
+                            {
+                                "name": v["ShortName"],
+                                "gender": v["Gender"],
+                                "locale": v["Locale"],
+                            }
                             for v in voices
                         ]
-                        await websocket.send(json.dumps({"type": "voices", "voices": voice_list}))
+                        await websocket.send(
+                            json.dumps({"type": "voices", "voices": voice_list})
+                        )
                     else:
-                        await websocket.send(json.dumps({"type": "voices", "voices": []}))
+                        await websocket.send(
+                            json.dumps({"type": "voices", "voices": []})
+                        )
 
     except websockets.exceptions.ConnectionClosed:
         logger.info(f"Client disconnected: {client_addr}")
@@ -245,7 +280,7 @@ async def handle_client(websocket, path=None):
 async def main():
     logger.info(f"Starting TTS WebSocket server on {HOST}:{PORT} (path=/ws)")
     logger.info(f"  Engine: {TTS_ENGINE}")
-    logger.info(f"  Output: {SAMPLE_RATE}Hz, {SAMPLE_WIDTH*8}-bit, {CHANNELS}ch")
+    logger.info(f"  Output: {SAMPLE_RATE}Hz, {SAMPLE_WIDTH * 8}-bit, {CHANNELS}ch")
     logger.info(f"  Chunk: {CHUNK_DURATION_MS}ms ({CHUNK_SAMPLES} samples)")
     async with websockets.serve(handle_client, HOST, PORT, max_size=2**20):
         await asyncio.Future()  # run forever

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+
 def main():
     env_path = Path(".env")
     env_vars = {}
@@ -22,7 +23,9 @@ def main():
     required_dirs = ["XRLF_EXTENSIONS_DIR", "XRLF_CONFIG_DIR"]
 
     url = env_vars.get("XRLF_MEMORY_PROXY_URL", "")
-    print(f"XRLF_MEMORY_PROXY_URL: {url} ({'OK' if url.startswith('http://') else 'INVALID'})")
+    print(
+        f"XRLF_MEMORY_PROXY_URL: {url} ({'OK' if url.startswith('http://') else 'INVALID'})"
+    )
 
     all_ok = url.startswith("http://")
     for var in required_files:
@@ -39,6 +42,7 @@ def main():
 
     print("\nVerification:", "PASSED" if all_ok else "FAILED")
     return 0 if all_ok else 1
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

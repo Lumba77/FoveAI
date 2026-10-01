@@ -27,6 +27,9 @@ interface StatusData {
   total_sessions?: number;
   model?: string;
   is_hybrid?: boolean;
+  loaded?: boolean;
+  load_state?: string;
+  load_error?: string | null;
 }
 
 interface SessionEntry {
@@ -52,7 +55,7 @@ const SNAPSHOT_KEYS: Array<{ key: string; label: string }> = [
 ];
 
 const SNAPSHOT_STORE = 'foveai_ignition_snapshot';
-const IGNITION_URL = 'http://127.0.0.1:8409/ignition';
+const IGNITION_URL = '/ignition';
 
 /* ── rotary dial: 10 persona-critical positions around the core ──
    sweep the ring to arm a position · roll the ball to turn its value
@@ -204,9 +207,30 @@ const SCREW_BG_2 = [
   'radial-gradient(circle 4px at calc(100% - 13px) 50%, #141414 0 1.5px, #5a5a5a 2.5px, #333 3.5px, transparent 4px)',
 ].join(',');
 
-export default function IgnitionScreen({ userName, onEnter }: { userName?: string; onEnter: () => void }) {
+/* ── beta charter: the gift ledger shown to signed-in testers ──
+   months accrue from account creation; the rate is the project's
+   working estimate of what this service will cost at launch */
+const GIFT_MONTHLY_SEK = 200;
+
+interface AccountInfo {
+  username: string;
+  displayName?: string;
+  role?: string;
+  created?: string;
+}
+
+function betaMonths(created?: string): number {
+  if (!created) return 1;
+  const from = new Date(created).getTime();
+  if (!isFinite(from)) return 1;
+  const months = Math.floor((Date.now() - from) / (30.44 * 24 * 3600 * 1000));
+  return Math.max(1, months + 1);
+}
+
+export default function IgnitionScreen({ userName, token, onEnter }: { userName?: string; token?: string; onEnter: () => void }) {
   const [phase, setPhase] = useState<Phase>('boot');
   const [status, setStatus] = useState<StatusData | null>(null);
+  const [account, setAccount] = useState<AccountInfo | null>(null);
   const [sessions, setSessions] = useState<SessionEntry[]>([]);
   const [settings, setSettings] = useState<SettingRow[]>([]);
   const [stackUp, setStackUp] = useState(false);
@@ -244,13 +268,9 @@ export default function IgnitionScreen({ userName, onEnter }: { userName?: strin
       if (!res.ok) throw new Error(String(res.status));
       const data: StatusData = await res.json();
       setStatus(data); setStackUp(true);
-      try {
-        const h = await fetch('/xrlf/health', { signal: AbortSignal.timeout(2500) });
-        if (h.ok) {
-          const hj = await h.json();
-          setModelReady(hj.loaded === true || hj.load_state === 'ready');
-        } else setModelReady(false);
-      } catch { setModelReady(false); }
+      // Model readiness is merged into /api/status server-side — no separate
+      // (session-shielded) /xrlf/health round-trip needed from the browser.
+      setModelReady(data.loaded === true || data.load_state === 'ready');
       return true;
     } catch {
       setStackUp(false); setModelReady(false);
@@ -296,6 +316,23 @@ export default function IgnitionScreen({ userName, onEnter }: { userName?: strin
     return () => { aliveRef.current = false; clearInterval(iv); };
   }, [probe, loadPanelData, pushLog]);
 
+  /* beta charter — who is boarding, and what their access is worth */
+  useEffect(() => {
+    if (!token) return;
+    (async () => {
+      try {
+        const r = await fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(4000),
+        });
+        if (r.ok && aliveRef.current) {
+          const j = await r.json();
+          if (j.account) setAccount(j.account);
+        }
+      } catch (_) {}
+    })();
+  }, [token]);
+
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [log]);
@@ -322,9 +359,9 @@ export default function IgnitionScreen({ userName, onEnter }: { userName?: strin
       let ready = false;
       for (let i = 0; i < 60 && aliveRef.current; i++) {
         try {
-          const h = await fetch('/xrlf/health', { signal: AbortSignal.timeout(2500) });
+          const h = await fetch('/api/status', { signal: AbortSignal.timeout(2500) });
           if (h.ok) {
-            const hj = await h.json();
+            const hj: StatusData = await h.json();
             if (hj.loaded === true || hj.load_state === 'ready') { ready = true; break; }
             if (hj.load_state === 'error') { pushLog(`◈ core fault: ${hj.load_error || 'unknown'}`, false); setPhase('idle'); return; }
           }
@@ -341,7 +378,11 @@ export default function IgnitionScreen({ userName, onEnter }: { userName?: strin
   const saveQuick = useCallback(async (key: string, val: string) => {
     try {
       await fetch('/api/setting', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ key, val }), signal: AbortSignal.timeout(5000),
       });
       setSavedFlash(true); setTimeout(() => setSavedFlash(false), 1500);
@@ -373,6 +414,7 @@ export default function IgnitionScreen({ userName, onEnter }: { userName?: strin
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap');
 
         .ign-screen { position: fixed; inset: 0; z-index: 100000; display: flex; flex-direction: column;
+          overflow-y: auto; overflow-x: hidden;
           font-family: 'Share Tech Mono', monospace; color: #dfe7ff; font-size: 15px;
           background:
             radial-gradient(1px 1px at 12% 22%, rgba(255,255,255,.85), transparent 60%),
@@ -646,7 +688,9 @@ export default function IgnitionScreen({ userName, onEnter }: { userName?: strin
             <div className="reactor-plate">
               {/* the trackball instrument — sweep ring to arm, roll to turn,
                   clean press to ignite, flick for momentum */}
-              <Trackball store={tb} size={430} ballScale={0.5} onPress={ignite}
+              <Trackball store={tb} size={430} ballScale={0.5}
+                health={stackUp ? (modelReady ? 'ok' : 'warn') : 'down'}
+                onPress={ignite}
                 pressHint="press to ignite — roll to turn the armed dial" />
             </div>
           </div>
@@ -676,6 +720,21 @@ export default function IgnitionScreen({ userName, onEnter }: { userName?: strin
         {/* ── right console stack — the dial matrix mirrors the ball's ten
             positions live, so every setting stays readable mid-roll ── */}
         <div className="ign-right">
+          {account && (
+            <div className="lcd">
+              <div className="lcd-head">Beta Charter</div>
+              <div className="lcd-body"><table className="lcd-tbl"><tbody>
+                <Row k="account" v={account.displayName || account.username} />
+                <Row k="standing" v={<span className="tv ok">FoveAI Beta Tester</span>} />
+                <Row k="since" v={account.created ? new Date(account.created).toLocaleDateString() : '—'} />
+                <Row k="provisioned gift"
+                     v={`${betaMonths(account.created)} mo access ≈ ${(betaMonths(account.created) * GIFT_MONTHLY_SEK).toLocaleString('sv-SE')} kr`}
+                     cls="chg" />
+                <Row k="" v={<a href="/beta.html" style={{ color: '#ffd766', textDecoration: 'none' }}>about the beta program →</a>} />
+              </tbody></table></div>
+            </div>
+          )}
+
           <div className="lcd">
             <div className="lcd-head">Dial Matrix {savedFlash && <span className="saved">· saved</span>}</div>
             <div className="lcd-body"><table className="lcd-tbl"><tbody>

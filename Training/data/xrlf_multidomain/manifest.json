@@ -1,0 +1,106 @@
+{
+  "total_rows": 77630,
+  "domain_totals": {
+    "coding": 22667,
+    "companionship": 2323,
+    "consciousness": 956,
+    "emotional": 5434,
+    "memory": 65,
+    "metacognition": 37078,
+    "self_awareness": 1387,
+    "spatial": 3640,
+    "temporal": 4080
+  },
+  "datasets": [
+    {
+      "domain": "coding",
+      "name": "qwen_code",
+      "rows": 22667,
+      "status": "ok"
+    },
+    {
+      "domain": "companionship",
+      "name": "companion_boundaries",
+      "rows": 120,
+      "status": "ok"
+    },
+    {
+      "domain": "companionship",
+      "name": "intima",
+      "rows": 380,
+      "status": "ok"
+    },
+    {
+      "domain": "companionship",
+      "name": "voice_dataset",
+      "rows": 1823,
+      "status": "ok"
+    },
+    {
+      "domain": "consciousness",
+      "name": "consciousness_agent",
+      "rows": 951,
+      "status": "ok"
+    },
+    {
+      "domain": "consciousness",
+      "name": "semantic_physiont",
+      "rows": 5,
+      "status": "ok"
+    },
+    {
+      "domain": "emotional",
+      "name": "diachat",
+      "rows": 1886,
+      "status": "ok"
+    },
+    {
+      "domain": "emotional",
+      "name": "eq_convos",
+      "rows": 3548,
+      "status": "ok"
+    },
+    {
+      "domain": "memory",
+      "name": "elias_memory",
+      "rows": 65,
+      "status": "ok"
+    },
+    {
+      "domain": "metacognition",
+      "name": "metacot",
+      "rows": 37078,
+      "status": "ok"
+    },
+    {
+      "domain": "self_awareness",
+      "name": "grounded_meta_awareness",
+      "rows": 1187,
+      "status": "ok"
+    },
+    {
+      "domain": "self_awareness",
+      "name": "its_me_soren",
+      "rows": 200,
+      "status": "ok"
+    },
+    {
+      "domain": "spatial",
+      "name": "embspatial_bench",
+      "rows": 3640,
+      "status": "ok"
+    },
+    {
+      "domain": "temporal",
+      "name": "tictoc",
+      "rows": 3630,
+      "status": "ok"
+    },
+    {
+      "domain": "temporal",
+      "name": "timer",
+      "rows": 450,
+      "status": "ok"
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "pc_lan_ip": "192.168.8.101",
+  "quest_ip": "",
+  "quest_subnet_prefix": "",
+  "nat_peer_default": "192.168.8.101",
+  "soul_host": "192.168.8.101",
+  "adb_reverse": false,
+  "use_adb_reverse": false,
+  "updated_utc": ""
+}

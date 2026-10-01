@@ -1,0 +1,59 @@
+# .backupignore — exclusion list for Tools/backup/foveai-backup.sh (rsync --exclude-from)
+#
+# Ported from the schooled exclude list in backup.ps1 (the legacy Windows
+# sovereign-backup system). rsync glob syntax; trailing / = directory.
+# Edit carefully — this decides what never reaches the backup disk.
+
+# VCS & environments (rebuildable)
+.git/
+.venv/
+.venv.bak*/
+.aider-venv/
+venv/
+node_modules/
+__pycache__/
+*.pyc
+.cache/
+unsloth_compiled_cache/
+
+# Secrets — never written to the backup disk
+.env
+.env.*
+
+# Logs, build output, prior backups
+.logs/
+Build/
+build/
+dist/
+backups/
+Archive/
+backup.log
+*.log
+
+# Unity / heavy generated trees
+Library/
+PackageCache/
+Temp/
+Logs/
+obj/
+webvm_source/
+
+# Binary assets & datasets (large, non-source)
+Animations/BVH/
+Bandai-Namco*/
+*.gguf
+*.pak
+*.bin
+*.safetensors
+
+# Model weights caches
+xrl_encoded/
+llama-b11053/
+llama-bins.tar.gz
+
+# Names with NTFS-illegal chars (colons in ISO timestamps) — archived via tar instead
+foveated-memory/memory_data/shadow-context/
+
+# Windows reserved device names (cause open errors on NTFS targets)
+nul
+nulcmd

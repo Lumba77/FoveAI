@@ -1,19 +1,32 @@
 import fnmatch
 
-patterns = [l.strip() for l in open('.tokenslayer-ignore') if l.strip() and not l.startswith('#')]
+patterns = [
+    l.strip()
+    for l in open(".tokenslayer-ignore")
+    if l.strip() and not l.startswith("#")
+]
 print(f"Loaded {len(patterns)} ignore patterns")
 
 tests = [
-    ("Scripts/AUTOTEST_Lumax_current.ps1", True),   # should match Scripts/AUTOTEST_*.ps1
-    ("Scripts/generate_repo_skeleton.py", False),     # should NOT match (our generator)
-    ("Tools/foveai_stress_meter/stress_meter.py", True), # should match Tools/foveai_stress_meter/
-    ("Backend/Cognition/soul_core.py", False),        # should NOT match
-    ("Frontend/3D_Avatar_Chatbot/index.html", True),  # should match Frontend/3D_Avatar_Chatbot/
-    ("Forge/scratch/TokenSlayer/standalone/tokenslayer.js", False), # should NOT match
-    ("Scripts/tokenslayer-scan-repo.cmd", False),     # should NOT match (our script)
-    ("Backend/HomeAssistant/configuration.yaml", True), # should match Backend/HomeAssistant/
-    ("Tools/foveai-solver/cli.js", True),              # should match Tools/foveai-solver/
-    ("Backend/Memory/memory_service.py", False),       # should NOT match
+    ("Scripts/AUTOTEST_Lumax_current.ps1", True),  # should match Scripts/AUTOTEST_*.ps1
+    ("Scripts/generate_repo_skeleton.py", False),  # should NOT match (our generator)
+    (
+        "Tools/foveai_stress_meter/stress_meter.py",
+        True,
+    ),  # should match Tools/foveai_stress_meter/
+    ("Backend/Cognition/soul_core.py", False),  # should NOT match
+    (
+        "Frontend/3D_Avatar_Chatbot/index.html",
+        True,
+    ),  # should match Frontend/3D_Avatar_Chatbot/
+    ("Forge/scratch/TokenSlayer/standalone/tokenslayer.js", False),  # should NOT match
+    ("Scripts/tokenslayer-scan-repo.cmd", False),  # should NOT match (our script)
+    (
+        "Backend/HomeAssistant/configuration.yaml",
+        True,
+    ),  # should match Backend/HomeAssistant/
+    ("Tools/foveai-solver/cli.js", True),  # should match Tools/foveai-solver/
+    ("Backend/Memory/memory_service.py", False),  # should NOT match
 ]
 
 all_pass = True

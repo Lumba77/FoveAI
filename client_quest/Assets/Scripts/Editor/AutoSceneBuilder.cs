@@ -114,6 +114,9 @@ namespace FoveAI.Editor
             SetSerializedRef(roomScannerSer, "wsClient", wsClient);
             roomScannerSer.ApplyModifiedProperties();
 
+            // RoomScannerUI — in-VR scan status overlay (coverage %, detection state)
+            roomObj.AddComponent<FoveAI.UI.RoomScannerUI>();
+
             // RoomPlasterClient applies stitched camera texture to room walls — disabled at start
             var roomPlaster = roomObj.AddComponent<FoveAI.Environment.RoomPlasterClient>();
             roomPlaster.enabled = false;
@@ -128,10 +131,29 @@ namespace FoveAI.Editor
             SetSerializedRef(visSer, "userCamera", cam);
             visSer.ApplyModifiedProperties();
 
+            // --- SoftLayer (hot-reloadable JS layer — modify scene without APK rebuild) ---
+            // SoftLayerEngine loads config modules (hud/behavior/experience);
+            // SoftModuleSystem loads effect modules (chameleon, clothing, lighting,
+            // particles, sky, wall) — both fetch from the backend's /softlayer/ API.
+            var softLayerObj = new GameObject("SoftLayer");
+            softLayerObj.transform.SetParent(root.transform, false);
+            softLayerObj.AddComponent<FoveAI.SoftLayer.SoftLayerEngine>();
+            softLayerObj.AddComponent<FoveAI.SoftLayer.SoftModuleSystem>();
+
             // --- Voice pipeline: STT (your voice → text) + TTS (text → speech) ---
             var stt = wsObj.AddComponent<Lumax.Quest3Bridge.Quest3STTClient>();
             var tts = wsObj.AddComponent<Lumax.Quest3Bridge.Quest3TTSClient>();
             var cognitiveRouter = wsObj.AddComponent<Lumax.Quest3Bridge.CognitiveRouter>();
+
+            // --- Direct XRLF client (bypasses WS relay for raw inference) ---
+            wsObj.AddComponent<Lumax.Quest3Bridge.DirectXRLFClient>();
+
+            // --- Backend wake + network discovery (UDP wake packet, reachability panel) ---
+            wsObj.AddComponent<FoveAI.IPC.BackendWakeClient>();
+            wsObj.AddComponent<FoveAI.IPC.NetworkDiscoveryManager>();
+
+            // --- Comms bridge (email/SMS/phone/WhatsApp via backend /api/comms) ---
+            wsObj.AddComponent<FoveAI.Comms.CommsBridge>();
 
             // --- Avatar Container ---
             // The companion stands 1.5m in front of you, facing you
@@ -146,6 +168,26 @@ namespace FoveAI.Editor
             var avatarMovement = avatarContainer.AddComponent<FoveAI.Avatar.AvatarMovement>();
             var vrmaAnimationLoader = avatarContainer.AddComponent<FoveAI.Avatar.VRMAAnimationLoader>();
             var animationBrain = avatarContainer.AddComponent<FoveAI.Avatar.AvatarAnimationBrain>();
+
+            // --- Autonomic layer: breathing, gaze, posture, micro-gestures, emotional tremor ---
+            avatarContainer.AddComponent<FoveAI.Avatar.BodilyReflex>();
+
+            // --- T-pose detection + recovery (finds VRMAvatarLoader itself at runtime) ---
+            avatarContainer.AddComponent<FoveAI.Avatar.TposeWarningSystem>();
+
+            // --- Meta entitlement/user identity (Oculus Platform user ID) ---
+            avatarContainer.AddComponent<FoveAI.Avatar.UserAvatarManager>();
+
+            // --- Runtime GLTF/GLB avatar loader — dormant: gltfFileName cleared so it
+            //     does not auto-spawn a second avatar over the VRM; call LoadGltf() on demand ---
+            var gltfLoader = avatarContainer.AddComponent<FoveAI.Avatar.GLTFAvatarLoader>();
+            var gltfSer = new SerializedObject(gltfLoader);
+            var gltfFileProp = gltfSer.FindProperty("gltfFileName");
+            if (gltfFileProp != null)
+            {
+                gltfFileProp.stringValue = "";
+                gltfSer.ApplyModifiedProperties();
+            }
 
             // Wire avatar movement to WebSocket
             var movementSer = new SerializedObject(avatarMovement);

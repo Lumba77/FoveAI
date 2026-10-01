@@ -1,0 +1,123 @@
+# Ignore files and directories for Antigravity AI agent.
+# Prevents large folders, binaries, and backups from loading into the context window.
+
+# Node and Python Environments
+node_modules/
+.venv/
+venv/
+venv_mouth/
+.aider-venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Build and IDE configs
+dist/
+build/
+.idea/
+.vscode/
+.vs/
+.gradle/
+.antigravitycli/
+.feeder/
+.gemini/
+.github/
+.roo/
+.pytest_cache/
+*.egg-info/
+
+# Storage, Logs, and Databases
+Data/
+user_data/
+logs/
+.logs/
+db/
+div/
+projects/
+unsloth_compiled_cache/
+cognee.out
+cognee_test.log
+swarm_state.json
+keys.json
+*.log
+*.tmp
+*.cache
+.cache/
+
+# Backups and Archives
+backups/
+.backups/
+.SafeSave/
+.SafeSaves/
+Archive/
+archive/
+imported_sessions/
+imported_git_history/
+snapshots/
+snapshot-*.json
+
+# Mobile build files
+*.apk
+*.aab
+*.dex
+
+# Large weights and AI cache
+models/
+hf_cache/
+huggingface/
+f5tts_hf_cache_hub/
+**/*.safetensors
+**/*.ckpt
+**/*.pth
+**/*.gguf
+**/*.mmproj
+**/*.onnx
+
+# Media and assets
+*.wav
+*.mp3
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.pdf
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+*.ogg
+*.opus
+*.glb
+*.gltf
+*.vrm
+*.obj
+*.fbx
+*.blend
+
+# VS Code worktrees and settings files
+*.meta
+*.unity
+*.asset
+local.properties
+
+# Heavy Project Directories & Unity Caches (Prevents VRAM/RAM indexing blowup)
+client_quest/
+client_quest/**
+**/Library/
+**/PackageCache/
+**/Bee/
+**/Temp/
+**/Obj/
+Training/
+outputs/
+Nursery/
+Build/
+Tools/WonderPedal/WonderPedalUnity/
+Frontend/XR_Vessel/public/Animations/
+
+# Rig Guard Auto-Protection
+**/ArtifactDB/**
+**/*.meta
+**/*.asset
+**/venv/**

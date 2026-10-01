@@ -21,12 +21,7 @@ Usage:
     python3 FoveAI_Taskbar_Linux.py --no-autostart-stack
 """
 
-import subprocess
 import os
-import requests
-import sys
-import threading
-import time
 import signal
 
 # ─── KDE Wayland: force AppIndicator backend ───────────────────────
@@ -36,25 +31,36 @@ import signal
 # _appindicator backend instead of _xorg.
 # Detect the active system Python's site-packages (works across 3.12/3.13/3.14)
 import site as _site
-_SYS_GI_PATH = _site.getsitepackages()[0] if _site.getsitepackages() else "/usr/lib64/python3.14/site-packages"
+import subprocess
+import sys
+import threading
+import time
+
+import requests
+
+_SYS_GI_PATH = (
+    _site.getsitepackages()[0]
+    if _site.getsitepackages()
+    else "/usr/lib64/python3.14/site-packages"
+)
 if _SYS_GI_PATH not in sys.path:
     sys.path.insert(0, _SYS_GI_PATH)
 try:
-    import gi  # noqa: E402
+    import gi
+
     gi.require_version("Gtk", "3.0")
     gi.require_version("AppIndicator3", "0.1")
-    from gi.repository import Gtk, AppIndicator3  # noqa: F401,E402
+    from gi.repository import AppIndicator3, Gtk  # noqa: F401
 except Exception as _gi_err:
     pass
 
 # Now import pystray — it will detect gi/AppIndicator3 and use the
 # _appindicator backend automatically.
+import socket
+from typing import Any
+
 import pystray
 from PIL import Image, ImageDraw, ImageFont
-import socket
-import json
-from pathlib import Path
-from typing import Optional, Tuple, Dict, Any
 
 # ─── Paths ──────────────────────────────────────────────────────────
 FOVEAI_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -76,8 +82,8 @@ stack_process = None
 fm_process = None
 
 # ─── Runtime Guards ─────────────────────────────────────────────────
-from runtime.vram_guard import VRAMGuardrail
 from runtime.rig_guard import RigGuard
+from runtime.vram_guard import VRAMGuardrail
 
 vram_guard = VRAMGuardrail()
 
@@ -85,27 +91,27 @@ vram_guard = VRAMGuardrail()
 try:
     from health_monitor import (
         ContinuousHealthMonitor,
-        HealthReport,
         HealthStatus,
-        run_full_report,
-        run_sharp_report,
         auto_heal,
         execute_heal,
-        CheckResult,
+        run_full_report,
+        run_sharp_report,
     )
+
     HEALTH_MONITOR_AVAILABLE = True
 except Exception as _hm_err:
     print(f"[Tray] health_monitor not available: {_hm_err}")
     HEALTH_MONITOR_AVAILABLE = False
 
-_health_monitor: Optional[ContinuousHealthMonitor] = None
+_health_monitor: ContinuousHealthMonitor | None = None
 _health_auto_heal = False
-_last_health_report: Optional[Any] = None
-_icon_ref: Optional[Any] = None
+_last_health_report: Any | None = None
+_icon_ref: Any | None = None
 rig_guard = RigGuard(cooldown_seconds=600)
 
 # ─── Single-Instance Lock ───────────────────────────────────────────
 _lock_socket = None
+
 
 def _bind_lock_socket() -> bool:
     global _lock_socket
@@ -115,7 +121,7 @@ def _bind_lock_socket() -> bool:
         s.listen(1)
         _lock_socket = s
         return True
-    except socket.error:
+    except OSError:
         try:
             s.close()
         except Exception:
@@ -123,7 +129,7 @@ def _bind_lock_socket() -> bool:
         # Check if stale process owns the port
         try:
             out = subprocess.check_output(
-                ["ss", "-tlnp", f"sport = :48409"], text=True, timeout=2
+                ["ss", "-tlnp", "sport = :48409"], text=True, timeout=2
             )
             if "pid=" in out:
                 # Try to identify if it's a python tray process
@@ -132,7 +138,10 @@ def _bind_lock_socket() -> bool:
                 cmdline = open(f"/proc/{pid}/cmdline", "r").read().replace("\x00", " ")
                 if "FoveAI_Taskbar" in cmdline:
                     # Stale or existing instance — takeover if requested
-                    if any(flag in sys.argv for flag in ("--takeover", "--force", "--restart", "--tray")):
+                    if any(
+                        flag in sys.argv
+                        for flag in ("--takeover", "--force", "--restart", "--tray")
+                    ):
                         os.kill(pid, signal.SIGKILL)
                         time.sleep(0.4)
                         s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -147,11 +156,15 @@ def _bind_lock_socket() -> bool:
             pass
         return False
 
+
 if not _bind_lock_socket():
     # Another instance is running — open settings panel as fallback
     try:
-        subprocess.Popen(["xdg-open", "http://127.0.0.1:8401/memory/settings.html"],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(
+            ["xdg-open", "http://127.0.0.1:8401/memory/settings.html"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
     except Exception:
         pass
     sys.exit(0)
@@ -161,14 +174,16 @@ ASSET_ICON_PNG = os.path.join(FOVEAI_DIR, "assets", "Icon_small.png")
 _base_icon_art = None
 if os.path.exists(ASSET_ICON_PNG):
     try:
-        _base_icon_art = Image.open(ASSET_ICON_PNG).convert("RGBA").resize(
-            (48, 48), Image.Resampling.LANCZOS
+        _base_icon_art = (
+            Image.open(ASSET_ICON_PNG)
+            .convert("RGBA")
+            .resize((48, 48), Image.Resampling.LANCZOS)
         )
     except Exception:
         _base_icon_art = None
 
 
-def create_icon_image(color_hex: str, symbol: Optional[str] = None) -> Image.Image:
+def create_icon_image(color_hex: str, symbol: str | None = None) -> Image.Image:
     image = Image.new("RGBA", (64, 64), (15, 23, 42, 255))
     draw = ImageDraw.Draw(image)
     # Parse hex color
@@ -184,7 +199,9 @@ def create_icon_image(color_hex: str, symbol: Optional[str] = None) -> Image.Ima
         draw.ellipse((38, 34, 58, 54), fill=color, outline=(15, 23, 42, 255), width=2)
     elif symbol:
         try:
-            font = ImageFont.truetype("/usr/share/fonts/dejavu-sans-fonts/DejaVuSans-Bold.ttf", 28)
+            font = ImageFont.truetype(
+                "/usr/share/fonts/dejavu-sans-fonts/DejaVuSans-Bold.ttf", 28
+            )
         except Exception:
             font = ImageFont.load_default()
         bbox = draw.textbbox((0, 0), symbol, font=font)
@@ -220,7 +237,9 @@ def notify(icon, message: str, title: str = "FoveAI"):
 
 
 def open_url(url: str):
-    subprocess.Popen(["xdg-open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.Popen(
+        ["xdg-open", url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+    )
 
 
 def open_terminal(cmd: str, cwd: str = FOVEAI_DIR, title: str = "FoveAI"):
@@ -238,11 +257,11 @@ def open_terminal(cmd: str, cwd: str = FOVEAI_DIR, title: str = "FoveAI"):
             continue
 
 
-def read_env() -> Dict[str, str]:
+def read_env() -> dict[str, str]:
     env_path = os.path.join(FOVEAI_DIR, ".env")
     if not os.path.exists(env_path):
         env_path = os.path.join(LUMAX_DIR, ".env")
-    values: Dict[str, str] = {}
+    values: dict[str, str] = {}
     try:
         with open(env_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -328,7 +347,7 @@ def kill_process_by_name(name: str) -> int:
         return 0
 
 
-def get_service_status(port: int, path: Optional[str] = None) -> Tuple[str, str]:
+def get_service_status(port: int, path: str | None = None) -> tuple[str, str]:
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(0.3)
@@ -375,7 +394,11 @@ def start_stack(icon, item):
         time.sleep(1)
         if check_port_listener(8402):
             icon.icon = ICON_GREEN
-            notify(icon, "FoveAI Fleet airborne!\nBackend :8400, XRLF :8402, WS :8403", "FoveAI Stack")
+            notify(
+                icon,
+                "FoveAI Fleet airborne!\nBackend :8400, XRLF :8402, WS :8403",
+                "FoveAI Stack",
+            )
             _refresh_menu(icon)
             return
     icon.icon = ICON_RED
@@ -447,7 +470,16 @@ def start_memory_proxy(icon, item):
     icon.icon = ICON_ORANGE
     backend_dir = os.path.join(FOVEAI_DIR, "Backend")
     subprocess.Popen(
-        [VENV_PYTHON, "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8400"],
+        [
+            VENV_PYTHON,
+            "-m",
+            "uvicorn",
+            "app.main:app",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "8400",
+        ],
         cwd=backend_dir,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -482,7 +514,16 @@ def restart_memory_proxy(icon, item):
     time.sleep(1.5)
     backend_dir = os.path.join(FOVEAI_DIR, "Backend")
     subprocess.Popen(
-        [VENV_PYTHON, "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8400"],
+        [
+            VENV_PYTHON,
+            "-m",
+            "uvicorn",
+            "app.main:app",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "8400",
+        ],
         cwd=backend_dir,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -530,7 +571,7 @@ def free_ram_flush_caches(icon, item=None):
 
 # ─── Model Selectors ────────────────────────────────────────────────
 
-PERSONA_MODELS: Dict[str, Dict[str, Any]] = {
+PERSONA_MODELS: dict[str, dict[str, Any]] = {
     "gemma_e2b_xrlf": {
         "name": "Gemma 4 E2B MTP (Default Persona)",
         "id": "gemma-4-e2b-multimodal-v1.0.xrlf",
@@ -577,7 +618,7 @@ PERSONA_MODELS: Dict[str, Dict[str, Any]] = {
     },
 }
 
-ROUTER_MODELS: Dict[str, Dict[str, Any]] = {
+ROUTER_MODELS: dict[str, dict[str, Any]] = {
     "foveai_omni_router_v2": {
         "name": "FoveAI Omni Router v2",
         "id": "foveai-omni-router-v2.xrlf",
@@ -625,7 +666,11 @@ def select_persona_model(icon, item, model_key: str):
     except Exception:
         pass
 
-    notify(icon, f"Launching Persona AI: {m['name']}...\nLoading {m['size_gb']:.1f}GB model...", "Persona AI Loader")
+    notify(
+        icon,
+        f"Launching Persona AI: {m['name']}...\nLoading {m['size_gb']:.1f}GB model...",
+        "Persona AI Loader",
+    )
 
     # Start XRLF runtime with the selected model
     try:
@@ -633,17 +678,27 @@ def select_persona_model(icon, item, model_key: str):
         env["XRLF_REPO_ENABLED"] = "true"
         env["GGML_CUDA_NO_VMM"] = "1"
         subprocess.Popen(
-            [VENV_PYTHON, os.path.join(FOVEAI_DIR, "run_xrlf.py"),
-             "--model", xrlf_model,
-             "--port", "8402",
-             "--ws-port", "8403"],
+            [
+                VENV_PYTHON,
+                os.path.join(FOVEAI_DIR, "run_xrlf.py"),
+                "--model",
+                xrlf_model,
+                "--port",
+                "8402",
+                "--ws-port",
+                "8403",
+            ],
             cwd=FOVEAI_DIR,
             env=env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
         mm_note = " Native STT + Vision" if m.get("multimodal") else ""
-        notify(icon, f"Persona AI set to {m['name']}{mm_note}\nXRLF runtime starting on :8402", "Persona AI Loader")
+        notify(
+            icon,
+            f"Persona AI set to {m['name']}{mm_note}\nXRLF runtime starting on :8402",
+            "Persona AI Loader",
+        )
     except Exception as e:
         notify(icon, f"Persona AI launch failed: {e}", "Persona AI Error")
 
@@ -686,7 +741,7 @@ def unload_models(icon, item=None):
 # ─── Hardware Telemetry ─────────────────────────────────────────────
 
 
-def get_hardware_telemetry() -> Tuple[float, float, float, Image.Image, str]:
+def get_hardware_telemetry() -> tuple[float, float, float, Image.Image, str]:
     """Query physical free VRAM and compute color-coded health status."""
     try:
         free_gb = vram_guard.get_realtime_free_vram_gb()
@@ -697,16 +752,24 @@ def get_hardware_telemetry() -> Tuple[float, float, float, Image.Image, str]:
 
     if used_gb < 4.5:
         color = ICON_GREEN
-        status_text = f"Healthy | VRAM {used_gb:.1f}/{total_gb:.0f}GB ({free_gb:.1f}GB Free)"
+        status_text = (
+            f"Healthy | VRAM {used_gb:.1f}/{total_gb:.0f}GB ({free_gb:.1f}GB Free)"
+        )
     elif used_gb < 6.0:
         color = ICON_BLUE
-        status_text = f"Active | VRAM {used_gb:.1f}/{total_gb:.0f}GB ({free_gb:.1f}GB Free)"
+        status_text = (
+            f"Active | VRAM {used_gb:.1f}/{total_gb:.0f}GB ({free_gb:.1f}GB Free)"
+        )
     elif used_gb < 7.0:
         color = ICON_ORANGE
-        status_text = f"Protected | VRAM {used_gb:.1f}/{total_gb:.0f}GB ({free_gb:.1f}GB Free)"
+        status_text = (
+            f"Protected | VRAM {used_gb:.1f}/{total_gb:.0f}GB ({free_gb:.1f}GB Free)"
+        )
     else:
         color = ICON_RED
-        status_text = f"Critical | VRAM {used_gb:.1f}/{total_gb:.0f}GB ({free_gb:.1f}GB Free)"
+        status_text = (
+            f"Critical | VRAM {used_gb:.1f}/{total_gb:.0f}GB ({free_gb:.1f}GB Free)"
+        )
 
     return total_gb, used_gb, free_gb, color, status_text
 
@@ -757,19 +820,35 @@ def open_debug_terminal(icon, item):
 
 def launch_jenna_vscode(icon, item):
     """Launch Jenna VSCode extension as context-stripping trojan horse for Antigravity IDE."""
-    notify(icon, "Launching Jenna-VSCode (Antigravity Trojan Horse)...", "FoveAI Antigravity")
+    notify(
+        icon,
+        "Launching Jenna-VSCode (Antigravity Trojan Horse)...",
+        "FoveAI Antigravity",
+    )
     jenna_dir = os.path.join(LUMAX_DIR, "Tools", "jenna-vscode")
     if os.path.exists(jenna_dir):
         for editor_cmd in ["antigravity-ide", "code", "codium", "devin-desktop"]:
             try:
-                subprocess.Popen([editor_cmd, jenna_dir], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                notify(icon, f"Jenna-VSCode opened in {editor_cmd}", "FoveAI Antigravity")
+                subprocess.Popen(
+                    [editor_cmd, jenna_dir],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                notify(
+                    icon, f"Jenna-VSCode opened in {editor_cmd}", "FoveAI Antigravity"
+                )
                 return
             except FileNotFoundError:
                 continue
-        notify(icon, "No supported editor found (tried antigravity-ide, code, codium, devin-desktop)", "FoveAI Antigravity")
+        notify(
+            icon,
+            "No supported editor found (tried antigravity-ide, code, codium, devin-desktop)",
+            "FoveAI Antigravity",
+        )
     else:
-        notify(icon, f"Jenna-VSCode directory not found: {jenna_dir}", "FoveAI Antigravity")
+        notify(
+            icon, f"Jenna-VSCode directory not found: {jenna_dir}", "FoveAI Antigravity"
+        )
 
 
 def toggle_antigravity_proxy(icon, item):
@@ -778,7 +857,9 @@ def toggle_antigravity_proxy(icon, item):
     current = env.get("FOVEAI_ANTIGRAVITY_PROXY", "false").lower()
     new_val = "false" if current == "true" else "true"
     set_env_key("FOVEAI_ANTIGRAVITY_PROXY", new_val)
-    state = "Enabled (Routing through :8400)" if new_val == "true" else "Disabled (Direct)"
+    state = (
+        "Enabled (Routing through :8400)" if new_val == "true" else "Disabled (Direct)"
+    )
     notify(icon, f"Antigravity Proxy: {state}", "FoveAI Antigravity")
     _refresh_menu(icon)
 
@@ -886,7 +967,11 @@ def set_fovea(icon, item, level: int):
 
 
 def switch_frontend(icon, item, ui_type: str):
-    labels = {"3d_avatar": "3D Avatar Chatbot", "multigate": "Multigate Portal", "xr_vessel": "XR Vessel"}
+    labels = {
+        "3d_avatar": "3D Avatar Chatbot",
+        "multigate": "Multigate Portal",
+        "xr_vessel": "XR Vessel",
+    }
     label = labels.get(ui_type, ui_type)
     notify(icon, f"Switching frontend to {label}...", "FoveAI Frontend")
     try:
@@ -937,7 +1022,9 @@ def clean_unity_temp_action(icon, item=None):
 
 
 def fix_workspace_ignores_action(icon, item=None):
-    notify(icon, "Verifying and injecting workspace ignore protections...", "Rig Guardian")
+    notify(
+        icon, "Verifying and injecting workspace ignore protections...", "Rig Guardian"
+    )
     ok, msg = rig_guard.fix_workspace_ignores()
     notify(icon, msg, "Rig Guardian")
     _refresh_menu(icon)
@@ -946,7 +1033,11 @@ def fix_workspace_ignores_action(icon, item=None):
 def inspect_ram_consumers_action(icon, item=None):
     top = rig_guard.get_top_ram_consumers(5)
     lines = [f"• {p['name']} (PID {p['id']}): {p['ram_mb']} MB" for p in top]
-    notify(icon, "\n".join(lines) if lines else "No process data found.", "Top RAM Consumers")
+    notify(
+        icon,
+        "\n".join(lines) if lines else "No process data found.",
+        "Top RAM Consumers",
+    )
 
 
 # ─── Memory Tools ───────────────────────────────────────────────────
@@ -1076,7 +1167,11 @@ def toggle_continuous_monitor(icon, item):
     if not HEALTH_MONITOR_AVAILABLE:
         notify(icon, "Health monitor not available", "FoveAI Health")
         return
-    if _health_monitor and _health_monitor._thread and _health_monitor._thread.is_alive():
+    if (
+        _health_monitor
+        and _health_monitor._thread
+        and _health_monitor._thread.is_alive()
+    ):
         _health_monitor.stop()
         _health_monitor = None
         notify(icon, "Continuous monitoring OFF", "FoveAI Health")
@@ -1089,7 +1184,11 @@ def toggle_continuous_monitor(icon, item):
             coherence_interval=300.0,
         )
         _health_monitor.start()
-        notify(icon, "Continuous monitoring ON (30s interval, coherence every 5min)", "FoveAI Health")
+        notify(
+            icon,
+            "Continuous monitoring ON (30s interval, coherence every 5min)",
+            "FoveAI Health",
+        )
     _refresh_menu(icon)
 
 
@@ -1163,7 +1262,11 @@ def _format_health_line(r: Any) -> str:
 
 
 def is_monitoring() -> bool:
-    return bool(_health_monitor and _health_monitor._thread and _health_monitor._thread.is_alive())
+    return bool(
+        _health_monitor
+        and _health_monitor._thread
+        and _health_monitor._thread.is_alive()
+    )
 
 
 # ─── Quit / Restart ─────────────────────────────────────────────────
@@ -1190,13 +1293,22 @@ def reload_softlayer_modules(icon, item=None):
     # For now, we just notify — the frontend auto-reloads on next init.
     try:
         import urllib.request
+
         # Touch the softlayer endpoint to verify it's serving
         req = urllib.request.Request("http://127.0.0.1:8402/softlayer/modules")
         with urllib.request.urlopen(req, timeout=2) as resp:
             if resp.status == 200:
-                notify(icon, "SoftLayer modules available. Frontend will reload on reconnect.", "FoveAI SoftLayer")
+                notify(
+                    icon,
+                    "SoftLayer modules available. Frontend will reload on reconnect.",
+                    "FoveAI SoftLayer",
+                )
             else:
-                notify(icon, f"SoftLayer endpoint returned {resp.status}", "FoveAI SoftLayer")
+                notify(
+                    icon,
+                    f"SoftLayer endpoint returned {resp.status}",
+                    "FoveAI SoftLayer",
+                )
     except Exception as e:
         notify(icon, f"SoftLayer reload failed: {e}", "FoveAI SoftLayer")
 
@@ -1206,6 +1318,7 @@ def reload_softlayer_config(icon, item, name: str):
     notify(icon, f"Reloading {name}...", "FoveAI SoftLayer")
     try:
         import urllib.request
+
         req = urllib.request.Request(f"http://127.0.0.1:8402/softlayer/{name}")
         with urllib.request.urlopen(req, timeout=2) as resp:
             if resp.status == 200:
@@ -1221,12 +1334,17 @@ def reload_softlayer_module(icon, item, name: str):
     notify(icon, f"Reloading module {name}...", "FoveAI SoftLayer")
     try:
         import urllib.request
+
         req = urllib.request.Request(f"http://127.0.0.1:8402/softlayer/modules/{name}")
         with urllib.request.urlopen(req, timeout=2) as resp:
             if resp.status == 200:
-                notify(icon, f"Module {name} available for hot-reload", "FoveAI SoftLayer")
+                notify(
+                    icon, f"Module {name} available for hot-reload", "FoveAI SoftLayer"
+                )
             else:
-                notify(icon, f"Module {name} returned {resp.status}", "FoveAI SoftLayer")
+                notify(
+                    icon, f"Module {name} returned {resp.status}", "FoveAI SoftLayer"
+                )
     except Exception as e:
         notify(icon, f"Reload {name} failed: {e}", "FoveAI SoftLayer")
 
@@ -1234,12 +1352,18 @@ def reload_softlayer_module(icon, item, name: str):
 def list_softlayer_modules(icon, item=None):
     """List available SoftLayer modules from the API."""
     try:
-        import urllib.request, json as _json
+        import json as _json
+        import urllib.request
+
         req = urllib.request.Request("http://127.0.0.1:8402/softlayer/modules")
         with urllib.request.urlopen(req, timeout=2) as resp:
             data = _json.loads(resp.read())
             mods = data.get("modules", [])
-            notify(icon, f"Available modules: {', '.join(mods) if mods else 'none'}", "FoveAI SoftLayer")
+            notify(
+                icon,
+                f"Available modules: {', '.join(mods) if mods else 'none'}",
+                "FoveAI SoftLayer",
+            )
     except Exception as e:
         notify(icon, f"List modules failed: {e}", "FoveAI SoftLayer")
 
@@ -1254,14 +1378,22 @@ def toggle_webcam_plaster(icon, item=None):
     """Toggle the live webcam plaster on/off via SoftLayer param."""
     _webcam_plaster_state["enabled"] = not _webcam_plaster_state["enabled"]
     state = "ON" if _webcam_plaster_state["enabled"] else "OFF"
-    notify(icon, f"Webcam plaster toggled {state}. Frontend will apply on next param poll.", "FoveAI SoftLayer")
+    notify(
+        icon,
+        f"Webcam plaster toggled {state}. Frontend will apply on next param poll.",
+        "FoveAI SoftLayer",
+    )
     # The frontend listens for FoveAIParams changes; we can't directly set them
     # from here, but the user can also reload experience_config.js to apply.
 
 
 def set_webcam_plaster_orientation(icon, item, orientation: str):
     """Set the webcam plaster orientation (portrait or landscape)."""
-    notify(icon, f"Webcam plaster orientation set to {orientation}. Reload experience_config.js to apply.", "FoveAI SoftLayer")
+    notify(
+        icon,
+        f"Webcam plaster orientation set to {orientation}. Reload experience_config.js to apply.",
+        "FoveAI SoftLayer",
+    )
 
 
 def toggle_jen_pov(icon, item=None):
@@ -1310,7 +1442,9 @@ def toggle_avalanche_music(icon, item=None):
 
 def build_menu() -> pystray.Menu:
     env = read_env()
-    current_ui = env.get("XRLF_FRONTEND_UI_PRESET", env.get("FoveAI_FRONTEND_UI", "3d_avatar")).lower()
+    current_ui = env.get(
+        "XRLF_FRONTEND_UI_PRESET", env.get("FoveAI_FRONTEND_UI", "3d_avatar")
+    ).lower()
     current_fovea = int(env.get("XRLF_PROXY_AGGRESSION", "0") or "0")
     voice_enabled = env.get("FoveAI_VOICE_ENABLED", "").lower() == "true"
     mic_enabled = env.get("FoveAI_MIC_ENABLED", "").lower() == "true"
@@ -1351,10 +1485,15 @@ def build_menu() -> pystray.Menu:
         exists_tag = "" if os.path.exists(full_path) else " [MISSING]"
         lbl = f"{prefix}{mv['name']}{mm_tag}{xrlf_tag} [{mv['size_gb']:.1f}GB]{exists_tag}"
         persona_menu_items.append(
-            pystray.MenuItem(lbl, (lambda k: lambda icon, item: select_persona_model(icon, item, k))(mk))
+            pystray.MenuItem(
+                lbl,
+                (lambda k: lambda icon, item: select_persona_model(icon, item, k))(mk),
+            )
         )
     persona_menu_items.append(pystray.Menu.SEPARATOR)
-    persona_menu_items.append(pystray.MenuItem("🧹 Unload Model & Free VRAM", unload_models))
+    persona_menu_items.append(
+        pystray.MenuItem("🧹 Unload Model & Free VRAM", unload_models)
+    )
 
     router_menu_items = []
     for rk, rv in ROUTER_MODELS.items():
@@ -1365,7 +1504,10 @@ def build_menu() -> pystray.Menu:
         exists_tag = "" if os.path.exists(full_path) else " [MISSING]"
         lbl = f"{prefix}{rv['name']}{xrlf_tag} [{rv['size_gb']:.1f}GB]{exists_tag}"
         router_menu_items.append(
-            pystray.MenuItem(lbl, (lambda k: lambda icon, item: select_router_model(icon, item, k))(rk))
+            pystray.MenuItem(
+                lbl,
+                (lambda k: lambda icon, item: select_router_model(icon, item, k))(rk),
+            )
         )
 
     # Stack items
@@ -1375,7 +1517,9 @@ def build_menu() -> pystray.Menu:
         stack_items.append(pystray.MenuItem("🔄 Restart FoveAI Stack", restart_stack))
     else:
         stack_items.append(pystray.MenuItem("🚀 Start Full FoveAI Stack", start_stack))
-        stack_items.append(pystray.MenuItem("🎙️ Start Light Stack (Backend Only)", start_light_stack))
+        stack_items.append(
+            pystray.MenuItem("🎙️ Start Light Stack (Backend Only)", start_light_stack)
+        )
 
     # Proxy items
     proxy_items = []
@@ -1399,14 +1543,27 @@ def build_menu() -> pystray.Menu:
     rig_menu_items = [
         pystray.MenuItem(ls_st.get("status_text", "Language Server"), show_status_info),
         pystray.MenuItem(u_st.get("status_text", "Unity Engine"), show_status_info),
-        pystray.MenuItem(f"RAM: {ram_st.get('used_gb', 0)}/{ram_st.get('total_gb', 0)} GB ({ram_st.get('percent', 0)}%)", show_status_info),
-        pystray.MenuItem(ig_st.get("status_text", "Workspace Ignores"), show_status_info),
+        pystray.MenuItem(
+            f"RAM: {ram_st.get('used_gb', 0)}/{ram_st.get('total_gb', 0)} GB ({ram_st.get('percent', 0)}%)",
+            show_status_info,
+        ),
+        pystray.MenuItem(
+            ig_st.get("status_text", "Workspace Ignores"), show_status_info
+        ),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("🛠️ Enforce Workspace Ignores & Search Cap", fix_workspace_ignores_action),
-        pystray.MenuItem("🧹 Kill Runaway Git Tasks (Reclaim RAM)", kill_runaway_git_action),
-        pystray.MenuItem("🧹 Clean Unity Temp & Kill Zombie Workers", clean_unity_temp_action),
+        pystray.MenuItem(
+            "🛠️ Enforce Workspace Ignores & Search Cap", fix_workspace_ignores_action
+        ),
+        pystray.MenuItem(
+            "🧹 Kill Runaway Git Tasks (Reclaim RAM)", kill_runaway_git_action
+        ),
+        pystray.MenuItem(
+            "🧹 Clean Unity Temp & Kill Zombie Workers", clean_unity_temp_action
+        ),
         pystray.MenuItem("📊 Inspect Top RAM Consumers", inspect_ram_consumers_action),
-        pystray.MenuItem("ℹ️ Safe Language Server Reload Guide", safe_language_server_guide_action),
+        pystray.MenuItem(
+            "ℹ️ Safe Language Server Reload Guide", safe_language_server_guide_action
+        ),
     ]
 
     # ── Health Monitor submenu ──
@@ -1415,30 +1572,53 @@ def build_menu() -> pystray.Menu:
         # Show last report results if available
         if _last_health_report:
             health_items.append(
-                pystray.MenuItem(f"Overall: {_last_health_report.summary}", show_status_info)
+                pystray.MenuItem(
+                    f"Overall: {_last_health_report.summary}", show_status_info
+                )
             )
             health_items.append(pystray.Menu.SEPARATOR)
             for r in _last_health_report.results:
-                health_items.append(pystray.MenuItem(_format_health_line(r), show_status_info))
+                health_items.append(
+                    pystray.MenuItem(_format_health_line(r), show_status_info)
+                )
             health_items.append(pystray.Menu.SEPARATOR)
         else:
-            health_items.append(pystray.MenuItem("No report yet — run a check", show_status_info))
+            health_items.append(
+                pystray.MenuItem("No report yet — run a check", show_status_info)
+            )
             health_items.append(pystray.Menu.SEPARATOR)
 
-        health_items.extend([
-            pystray.MenuItem("🔍 Run Health Check Now", run_health_check_now),
-            pystray.MenuItem("🔬 Sharp Coherence Test (30s)", run_sharp_coherence_test),
-            pystray.MenuItem(checked("📡 Continuous Monitoring (30s)", is_monitoring()), toggle_continuous_monitor),
-            pystray.MenuItem(checked("🩹 Auto-Heal on Failure", _health_auto_heal), toggle_auto_heal),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("🔄 Restart XRLF Runtime", heal_restart_xrlf_action),
-            pystray.MenuItem("🔄 Restart XRLF + Clear Memory", heal_restart_xrlf_clear_memory_action),
-            pystray.MenuItem("🧹 Clear Memory DB Only", heal_clear_memory_action),
-            pystray.MenuItem("🔄 Restart Proxy (8400/8401)", heal_restart_proxy_action),
-            pystray.MenuItem("🩹 Heal All Failing Now", heal_all_action),
-        ])
+        health_items.extend(
+            [
+                pystray.MenuItem("🔍 Run Health Check Now", run_health_check_now),
+                pystray.MenuItem(
+                    "🔬 Sharp Coherence Test (30s)", run_sharp_coherence_test
+                ),
+                pystray.MenuItem(
+                    checked("📡 Continuous Monitoring (30s)", is_monitoring()),
+                    toggle_continuous_monitor,
+                ),
+                pystray.MenuItem(
+                    checked("🩹 Auto-Heal on Failure", _health_auto_heal),
+                    toggle_auto_heal,
+                ),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("🔄 Restart XRLF Runtime", heal_restart_xrlf_action),
+                pystray.MenuItem(
+                    "🔄 Restart XRLF + Clear Memory",
+                    heal_restart_xrlf_clear_memory_action,
+                ),
+                pystray.MenuItem("🧹 Clear Memory DB Only", heal_clear_memory_action),
+                pystray.MenuItem(
+                    "🔄 Restart Proxy (8400/8401)", heal_restart_proxy_action
+                ),
+                pystray.MenuItem("🩹 Heal All Failing Now", heal_all_action),
+            ]
+        )
     else:
-        health_items = [pystray.MenuItem("Health monitor not available", show_status_info)]
+        health_items = [
+            pystray.MenuItem("Health monitor not available", show_status_info)
+        ]
 
     return pystray.Menu(
         pystray.MenuItem(f"🛡️ Guardian: {status_text}", show_status_info),
@@ -1446,99 +1626,271 @@ def build_menu() -> pystray.Menu:
         pystray.MenuItem("🛡️ Rig & Bloat Guardian", pystray.Menu(*rig_menu_items)),
         pystray.MenuItem("🧹 Liberate VRAM & Flush Caches", free_ram_flush_caches),
         pystray.MenuItem("🧹 Free RAM (Drop Caches)", free_ram_flush_caches),
-        pystray.MenuItem("🤖 Default Persona AI Model (Main AI)", pystray.Menu(*persona_menu_items)),
-        pystray.MenuItem("🔀 Default Router Model (Intention & Compression)", pystray.Menu(*router_menu_items)),
-        pystray.MenuItem(checked("🧠 Context & Intuition Collector (Consented)", is_context_collector_enabled()), toggle_context_collector),
+        pystray.MenuItem(
+            "🤖 Default Persona AI Model (Main AI)", pystray.Menu(*persona_menu_items)
+        ),
+        pystray.MenuItem(
+            "🔀 Default Router Model (Intention & Compression)",
+            pystray.Menu(*router_menu_items),
+        ),
+        pystray.MenuItem(
+            checked(
+                "🧠 Context & Intuition Collector (Consented)",
+                is_context_collector_enabled(),
+            ),
+            toggle_context_collector,
+        ),
         pystray.Menu.SEPARATOR,
         *stack_items,
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("⚡ Live Process Monitor", pystray.Menu(
-            pystray.MenuItem(f"{tag_backend} FoveAI Backend WS (:8400)", show_status_info),
-            pystray.MenuItem(f"{tag_dash} Settings & Memory Dashboard (:8401)", show_status_info),
-            pystray.MenuItem(f"{tag_xrlf} XRLF Runtime (:8402)", show_status_info),
-            pystray.MenuItem(f"{tag_ws} Multimodal WebSocket IPC (:8403)", show_status_info),
-            pystray.MenuItem(f"{tag_media} Media Proxy (:8402)", show_status_info),
-        )),
+        pystray.MenuItem(
+            "⚡ Live Process Monitor",
+            pystray.Menu(
+                pystray.MenuItem(
+                    f"{tag_backend} FoveAI Backend WS (:8400)", show_status_info
+                ),
+                pystray.MenuItem(
+                    f"{tag_dash} Settings & Memory Dashboard (:8401)", show_status_info
+                ),
+                pystray.MenuItem(f"{tag_xrlf} XRLF Runtime (:8402)", show_status_info),
+                pystray.MenuItem(
+                    f"{tag_ws} Multimodal WebSocket IPC (:8403)", show_status_info
+                ),
+                pystray.MenuItem(f"{tag_media} Media Proxy (:8402)", show_status_info),
+            ),
+        ),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem(" Multigate WebUI Portal", launch_multigate),
         pystray.MenuItem("⚙️ Open Settings Panel", open_settings_panel),
-        pystray.MenuItem("🎨 SoftLayer Modules (Hot-Reloadable)", pystray.Menu(
-            pystray.MenuItem("📦 Reload All Modules", reload_softlayer_modules),
-            pystray.MenuItem("🔄 Reload behavior_config.js", lambda icon, item: reload_softlayer_config(icon, item, "behavior_config.js")),
-            pystray.MenuItem("🔄 Reload experience_config.js", lambda icon, item: reload_softlayer_config(icon, item, "experience_config.js")),
-            pystray.MenuItem("🔄 Reload hud_config.js", lambda icon, item: reload_softlayer_config(icon, item, "hud_config.js")),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("🔄 Reload lighting.js", lambda icon, item: reload_softlayer_module(icon, item, "lighting.js")),
-            pystray.MenuItem("🔄 Reload sky.js", lambda icon, item: reload_softlayer_module(icon, item, "sky.js")),
-            pystray.MenuItem("🔄 Reload particles.js", lambda icon, item: reload_softlayer_module(icon, item, "particles.js")),
-            pystray.MenuItem("🔄 Reload chameleon.js", lambda icon, item: reload_softlayer_module(icon, item, "chameleon.js")),
-            pystray.MenuItem("🔄 Reload clothing.js", lambda icon, item: reload_softlayer_module(icon, item, "clothing.js")),
-            pystray.MenuItem("🔄 Reload wall.js", lambda icon, item: reload_softlayer_module(icon, item, "wall.js")),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("🧑 Be Jen (First-Person POV): Toggle", toggle_jen_pov),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("🎙️ Director: Speak Narrator (test voice)", test_director_voice),
-            pystray.MenuItem("🎵 Director: Toggle Avalanche Music", toggle_avalanche_music),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("📹 Webcam Plaster: Toggle On/Off", toggle_webcam_plaster),
-            pystray.MenuItem("📹 Webcam Plaster: Portrait Mode", lambda icon, item: set_webcam_plaster_orientation(icon, item, "portrait")),
-            pystray.MenuItem("📹 Webcam Plaster: Landscape Mode", lambda icon, item: set_webcam_plaster_orientation(icon, item, "landscape")),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("📡 List Loaded Modules (check console)", list_softlayer_modules),
-        )),
+        pystray.MenuItem(
+            "🎨 SoftLayer Modules (Hot-Reloadable)",
+            pystray.Menu(
+                pystray.MenuItem("📦 Reload All Modules", reload_softlayer_modules),
+                pystray.MenuItem(
+                    "🔄 Reload behavior_config.js",
+                    lambda icon, item: reload_softlayer_config(
+                        icon, item, "behavior_config.js"
+                    ),
+                ),
+                pystray.MenuItem(
+                    "🔄 Reload experience_config.js",
+                    lambda icon, item: reload_softlayer_config(
+                        icon, item, "experience_config.js"
+                    ),
+                ),
+                pystray.MenuItem(
+                    "🔄 Reload hud_config.js",
+                    lambda icon, item: reload_softlayer_config(
+                        icon, item, "hud_config.js"
+                    ),
+                ),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(
+                    "🔄 Reload lighting.js",
+                    lambda icon, item: reload_softlayer_module(
+                        icon, item, "lighting.js"
+                    ),
+                ),
+                pystray.MenuItem(
+                    "🔄 Reload sky.js",
+                    lambda icon, item: reload_softlayer_module(icon, item, "sky.js"),
+                ),
+                pystray.MenuItem(
+                    "🔄 Reload particles.js",
+                    lambda icon, item: reload_softlayer_module(
+                        icon, item, "particles.js"
+                    ),
+                ),
+                pystray.MenuItem(
+                    "🔄 Reload chameleon.js",
+                    lambda icon, item: reload_softlayer_module(
+                        icon, item, "chameleon.js"
+                    ),
+                ),
+                pystray.MenuItem(
+                    "🔄 Reload clothing.js",
+                    lambda icon, item: reload_softlayer_module(
+                        icon, item, "clothing.js"
+                    ),
+                ),
+                pystray.MenuItem(
+                    "🔄 Reload wall.js",
+                    lambda icon, item: reload_softlayer_module(icon, item, "wall.js"),
+                ),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(
+                    "🧑 Be Jen (First-Person POV): Toggle", toggle_jen_pov
+                ),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(
+                    "🎙️ Director: Speak Narrator (test voice)", test_director_voice
+                ),
+                pystray.MenuItem(
+                    "🎵 Director: Toggle Avalanche Music", toggle_avalanche_music
+                ),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(
+                    "📹 Webcam Plaster: Toggle On/Off", toggle_webcam_plaster
+                ),
+                pystray.MenuItem(
+                    "📹 Webcam Plaster: Portrait Mode",
+                    lambda icon, item: set_webcam_plaster_orientation(
+                        icon, item, "portrait"
+                    ),
+                ),
+                pystray.MenuItem(
+                    "📹 Webcam Plaster: Landscape Mode",
+                    lambda icon, item: set_webcam_plaster_orientation(
+                        icon, item, "landscape"
+                    ),
+                ),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(
+                    "📡 List Loaded Modules (check console)", list_softlayer_modules
+                ),
+            ),
+        ),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("Memory Tools", pystray.Menu(
-            pystray.MenuItem("Super Prompt Kiosk", start_super_kiosk),
-            pystray.MenuItem("AUI Memory Dashboard", open_memory_dashboard),
-            pystray.MenuItem("FoveAI Super Memory Terminal", start_foveai_super_terminal),
-        )),
+        pystray.MenuItem(
+            "Memory Tools",
+            pystray.Menu(
+                pystray.MenuItem("Super Prompt Kiosk", start_super_kiosk),
+                pystray.MenuItem("AUI Memory Dashboard", open_memory_dashboard),
+                pystray.MenuItem(
+                    "FoveAI Super Memory Terminal", start_foveai_super_terminal
+                ),
+            ),
+        ),
         pystray.MenuItem("Backend Service (Port 8400)", pystray.Menu(*proxy_items)),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("🛰️ Antigravity / Jenna-VSCode Trojan Horse", pystray.Menu(
-            pystray.MenuItem("🪐 Launch Antigravity Desktop", lambda icon, item: subprocess.Popen(["antigravity"])),
-            pystray.MenuItem("💻 Launch Antigravity IDE", lambda icon, item: subprocess.Popen(["antigravity-ide", FOVEAI_DIR])),
-            pystray.MenuItem("🚀 Launch Jenna-VSCode (Context Stripping)", launch_jenna_vscode),
-            pystray.MenuItem(checked("Route Antigravity CLI through Proxy (:8400)", ag_proxy), toggle_antigravity_proxy),
-        )),
-        pystray.MenuItem("Select Frontend UI", pystray.Menu(
-            pystray.MenuItem(checked("3D Avatar Chatbot (Port 8080)", current_ui == "3d_avatar"),
-                             lambda icon, item: switch_frontend(icon, item, "3d_avatar")),
-            pystray.MenuItem(checked("XR Vessel (Port 5176)", current_ui == "xr_vessel"),
-                             lambda icon, item: switch_frontend(icon, item, "xr_vessel")),
-            pystray.MenuItem(checked("Multigate Portal (Port 5177)", current_ui == "multigate"),
-                             lambda icon, item: switch_frontend(icon, item, "multigate")),
-        )),
+        pystray.MenuItem(
+            "🛰️ Antigravity / Jenna-VSCode Trojan Horse",
+            pystray.Menu(
+                pystray.MenuItem(
+                    "🪐 Launch Antigravity Desktop",
+                    lambda icon, item: subprocess.Popen(["antigravity"]),
+                ),
+                pystray.MenuItem(
+                    "💻 Launch Antigravity IDE",
+                    lambda icon, item: subprocess.Popen(
+                        ["antigravity-ide", FOVEAI_DIR]
+                    ),
+                ),
+                pystray.MenuItem(
+                    "🚀 Launch Jenna-VSCode (Context Stripping)", launch_jenna_vscode
+                ),
+                pystray.MenuItem(
+                    checked("Route Antigravity CLI through Proxy (:8400)", ag_proxy),
+                    toggle_antigravity_proxy,
+                ),
+            ),
+        ),
+        pystray.MenuItem(
+            "Select Frontend UI",
+            pystray.Menu(
+                pystray.MenuItem(
+                    checked("3D Avatar Chatbot (Port 8080)", current_ui == "3d_avatar"),
+                    lambda icon, item: switch_frontend(icon, item, "3d_avatar"),
+                ),
+                pystray.MenuItem(
+                    checked("XR Vessel (Port 5176)", current_ui == "xr_vessel"),
+                    lambda icon, item: switch_frontend(icon, item, "xr_vessel"),
+                ),
+                pystray.MenuItem(
+                    checked("Multigate Portal (Port 5177)", current_ui == "multigate"),
+                    lambda icon, item: switch_frontend(icon, item, "multigate"),
+                ),
+            ),
+        ),
         pystray.Menu.SEPARATOR,
-        pystray.MenuItem("Foveation", pystray.Menu(
-            *[pystray.MenuItem(checked(FOVEA_LEVELS[lvl], current_fovea == lvl),
-                               (lambda l: lambda icon, item: set_fovea(icon, item, l))(lvl))
-              for lvl in sorted(FOVEA_LEVELS.keys())]
-        )),
-        pystray.MenuItem("Voice", pystray.Menu(
-            pystray.MenuItem(checked("Voice Output ON", voice_enabled), voice_on),
-            pystray.MenuItem(checked("Voice Output OFF", not voice_enabled), voice_off),
-            pystray.MenuItem(checked("Microphone ON", mic_enabled), mic_on),
-            pystray.MenuItem(checked("Microphone OFF", not mic_enabled), mic_off),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem("TTS Engine", pystray.Menu(
-                pystray.MenuItem(checked("Kokoro Emotional Mouth (:8402)", tts_provider in ["kokoro", "qwen"]),
-                                 lambda icon, item: switch_tts_provider(icon, item, "kokoro")),
-                pystray.MenuItem(checked("WebSocket IPC (ws://:8403)", tts_provider == "websocket"),
-                                 lambda icon, item: switch_tts_provider(icon, item, "websocket")),
-                pystray.MenuItem(checked("Edge-TTS (Cloud Neural)", tts_provider == "edgetts"),
-                                 lambda icon, item: switch_tts_provider(icon, item, "edgetts")),
-            )),
-            pystray.MenuItem("STT Engine", pystray.Menu(
-                pystray.MenuItem(checked("Faster-Whisper Ears (:8405)", stt_provider == "whisper"),
-                                 lambda icon, item: switch_stt_provider(icon, item, "whisper")),
-                pystray.MenuItem(checked("Web Speech API / Browser VAD", stt_provider == "browser"),
-                                 lambda icon, item: switch_stt_provider(icon, item, "browser")),
-            )),
-        )),
-        pystray.MenuItem("Cognitive Mode", pystray.Menu(
-            pystray.MenuItem(checked("Local", cognitive_mode == "local"), switch_to_local),
-            pystray.MenuItem(checked("Cloud", cognitive_mode == "cloud"), switch_to_cloud),
-        )),
+        pystray.MenuItem(
+            "Foveation",
+            pystray.Menu(
+                *[
+                    pystray.MenuItem(
+                        checked(FOVEA_LEVELS[lvl], current_fovea == lvl),
+                        (lambda l: lambda icon, item: set_fovea(icon, item, l))(lvl),
+                    )
+                    for lvl in sorted(FOVEA_LEVELS.keys())
+                ]
+            ),
+        ),
+        pystray.MenuItem(
+            "Voice",
+            pystray.Menu(
+                pystray.MenuItem(checked("Voice Output ON", voice_enabled), voice_on),
+                pystray.MenuItem(
+                    checked("Voice Output OFF", not voice_enabled), voice_off
+                ),
+                pystray.MenuItem(checked("Microphone ON", mic_enabled), mic_on),
+                pystray.MenuItem(checked("Microphone OFF", not mic_enabled), mic_off),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(
+                    "TTS Engine",
+                    pystray.Menu(
+                        pystray.MenuItem(
+                            checked(
+                                "Kokoro Emotional Mouth (:8402)",
+                                tts_provider in ["kokoro", "qwen"],
+                            ),
+                            lambda icon, item: switch_tts_provider(
+                                icon, item, "kokoro"
+                            ),
+                        ),
+                        pystray.MenuItem(
+                            checked(
+                                "WebSocket IPC (ws://:8403)",
+                                tts_provider == "websocket",
+                            ),
+                            lambda icon, item: switch_tts_provider(
+                                icon, item, "websocket"
+                            ),
+                        ),
+                        pystray.MenuItem(
+                            checked(
+                                "Edge-TTS (Cloud Neural)", tts_provider == "edgetts"
+                            ),
+                            lambda icon, item: switch_tts_provider(
+                                icon, item, "edgetts"
+                            ),
+                        ),
+                    ),
+                ),
+                pystray.MenuItem(
+                    "STT Engine",
+                    pystray.Menu(
+                        pystray.MenuItem(
+                            checked(
+                                "Faster-Whisper Ears (:8405)", stt_provider == "whisper"
+                            ),
+                            lambda icon, item: switch_stt_provider(
+                                icon, item, "whisper"
+                            ),
+                        ),
+                        pystray.MenuItem(
+                            checked(
+                                "Web Speech API / Browser VAD",
+                                stt_provider == "browser",
+                            ),
+                            lambda icon, item: switch_stt_provider(
+                                icon, item, "browser"
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        pystray.MenuItem(
+            "Cognitive Mode",
+            pystray.Menu(
+                pystray.MenuItem(
+                    checked("Local", cognitive_mode == "local"), switch_to_local
+                ),
+                pystray.MenuItem(
+                    checked("Cloud", cognitive_mode == "cloud"), switch_to_cloud
+                ),
+            ),
+        ),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("🐛 Open Debug Terminal", open_debug_terminal),
         pystray.MenuItem("Stop Llama Server (Free VRAM)", unload_models),
@@ -1551,7 +1903,9 @@ def build_menu() -> pystray.Menu:
 # ─── App ────────────────────────────────────────────────────────────
 
 _, _, _, _initial_color, _initial_status = get_hardware_telemetry()
-app = pystray.Icon("FoveAI", _initial_color, f"FoveAI Guardian | {_initial_status}", menu=build_menu())
+app = pystray.Icon(
+    "FoveAI", _initial_color, f"FoveAI Guardian | {_initial_status}", menu=build_menu()
+)
 app.default_action = open_settings_panel
 _icon_ref = app
 
@@ -1586,7 +1940,11 @@ def auto_start_stack():
     for _ in range(60):
         time.sleep(1)
         if check_port_listener(8402):
-            notify(app, "FoveAI Fleet airborne!\nBackend :8400, XRLF :8402, WS :8403", "FoveAI Boot")
+            notify(
+                app,
+                "FoveAI Fleet airborne!\nBackend :8400, XRLF :8402, WS :8403",
+                "FoveAI Boot",
+            )
             try:
                 app.icon = ICON_GREEN
                 app.update_menu()
@@ -1627,17 +1985,36 @@ def menu_refresh_loop():
 def _collect_workspace_context():
     """Gather git branch, last commit, and modified files."""
     try:
-        r_branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                                  capture_output=True, text=True, cwd=FOVEAI_DIR, timeout=3)
+        r_branch = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            cwd=FOVEAI_DIR,
+            timeout=3,
+        )
         branch = r_branch.stdout.strip() if r_branch.returncode == 0 else "main"
 
-        r_log = subprocess.run(["git", "log", "-1", "--format=%h - %s (%cr)"],
-                               capture_output=True, text=True, cwd=FOVEAI_DIR, timeout=3)
+        r_log = subprocess.run(
+            ["git", "log", "-1", "--format=%h - %s (%cr)"],
+            capture_output=True,
+            text=True,
+            cwd=FOVEAI_DIR,
+            timeout=3,
+        )
         last_commit = r_log.stdout.strip() if r_log.returncode == 0 else "N/A"
 
-        r_status = subprocess.run(["git", "status", "--short"],
-                                  capture_output=True, text=True, cwd=FOVEAI_DIR, timeout=3)
-        modified = [l.strip() for l in r_status.stdout.strip().splitlines() if l.strip()] if r_status.returncode == 0 else []
+        r_status = subprocess.run(
+            ["git", "status", "--short"],
+            capture_output=True,
+            text=True,
+            cwd=FOVEAI_DIR,
+            timeout=3,
+        )
+        modified = (
+            [l.strip() for l in r_status.stdout.strip().splitlines() if l.strip()]
+            if r_status.returncode == 0
+            else []
+        )
 
         try:
             requests.post(

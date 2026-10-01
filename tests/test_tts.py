@@ -1,14 +1,10 @@
-import requests
 import json
 
+import requests
+
 url = "http://localhost:8005/tts"
-payload = {
-    "text": "Hello, this is a test.",
-    "speaker_id": "female_american1-lumba.wav"
-}
-headers = {
-    'Content-Type': 'application/json'
-}
+payload = {"text": "Hello, this is a test.", "speaker_id": "female_american1-lumba.wav"}
+headers = {"Content-Type": "application/json"}
 
 try:
     response = requests.post(url, data=json.dumps(payload), headers=headers)

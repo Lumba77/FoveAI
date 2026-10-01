@@ -23,6 +23,7 @@ class AppRunnable(pixie.Runnable[AppArgs]):
 
     async def run(self, args: AppArgs) -> None:
         from myapp.agent import answer_question
+
         await answer_question(args.question)
 ```
 
@@ -31,8 +32,10 @@ If the function is synchronous, wrap it with `asyncio.to_thread`:
 ```python
 import asyncio
 
+
 async def run(self, args: AppArgs) -> None:
     from myapp.agent import answer_question
+
     await asyncio.to_thread(answer_question, args.question)
 ```
 
@@ -52,9 +55,11 @@ class AppRunnable(pixie.Runnable[AppArgs]):
 
     async def setup(self) -> None:
         from myapp.models import load_model
+
         self._model = load_model()
 
     async def run(self, args: AppArgs) -> None:
         from myapp.agent import answer_question
+
         await answer_question(args.question, model=self._model)
 ```

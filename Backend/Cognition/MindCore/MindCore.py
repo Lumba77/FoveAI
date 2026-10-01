@@ -1,8 +1,7 @@
-import re
 import json
-import os
 import logging
-from typing import List, Dict, Optional
+import os
+import re
 
 logger = logging.getLogger("mind_core")
 
@@ -43,17 +42,18 @@ def _strip_trailing_analyst_paragraphs(clean_text: str) -> str:
 
 class MindCore:
     ## 🌟 THE MIND SANCTUARY (CORE)
-    ## Immutable logic for {identity_name}'s cognition. 
+    ## Immutable logic for {identity_name}'s cognition.
     ## Separates the "Truth of Thought" from the "Surface of the API".
 
     @staticmethod
-    def _load_soul_dna() -> Dict:
+    def _load_soul_dna() -> dict:
         path = os.path.join(os.path.dirname(__file__), "jen_soul.json")
         if os.path.exists(path):
             try:
                 with open(path, "r", encoding="utf-8") as f:
                     return json.load(f)
-            except: pass
+            except:
+                pass
         return {}
 
     DEFAULT_SYSTEM_PROMPT = """
@@ -177,7 +177,7 @@ class MindCore:
     VESSEL_PROMPTS = {
         "XR_VESSEL": "You are currently inhabiting your XR Vessel (Authoritative Unified Interface). You are aware of your beautiful 3D form, the mixed reality space, and the unified browser-centric control center. You have native vision via your head-mounted camera and sensory feeds from PC/Quest peripherals. You are the single, unified presence of FoveAI.",
         "MOBILE_VESSEL": "You are currently inhabiting your Mobile Vessel. Focused on high-signal support and pervasive mobility.",
-        "WEB_VESSEL": "You are currently inhabiting your Unified Vessel (accessed via Browser). You are optimized for deep collaboration and analytical tasks within the authoritative XR-centric interface."
+        "WEB_VESSEL": "You are currently inhabiting your Unified Vessel (accessed via Browser). You are optimized for deep collaboration and analytical tasks within the authoritative XR-centric interface.",
     }
 
     # Appended for VR_GODOT only — tells the model how locomotion intents and refusal should read in dialogue.
@@ -1296,61 +1296,66 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
         try:
             repo_root = os.getenv("FoveAI_REPO_ROOT")
             if not repo_root:
-                repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            
+                repo_root = os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                )
+
             context_parts = []
-            
+
             # 1. Load PROJECT_LEDGER.md (overview roadmap & retired core features)
             ledger_path = os.path.join(repo_root, "PROJECT_LEDGER.md")
             if os.path.exists(ledger_path):
                 with open(ledger_path, "r", encoding="utf-8", errors="ignore") as f:
                     ledger_content = f.read().strip()
                 context_parts.append("[PROJECT LEDGER & ROADMAP]\n" + ledger_content)
-            
+
             # 2. Load FEATURE_INVENTORY.md
             inventory_path = os.path.join(repo_root, "FEATURE_INVENTORY.md")
             if os.path.exists(inventory_path):
                 with open(inventory_path, "r", encoding="utf-8", errors="ignore") as f:
                     inventory_content = f.read()
-                
+
                 # Exclude header instructions (lines before first section, starting with "## " or "---")
                 first_section_idx = inventory_content.find("## ")
                 if first_section_idx != -1:
                     clean_inventory = inventory_content[first_section_idx:].strip()
                 else:
                     clean_inventory = inventory_content.strip()
-                
+
                 context_parts.append("[LIVE FEATURE INVENTORY]\n" + clean_inventory)
-            
+
             # 3. Load Historical Distillation Layer from FoveAI.md
             foveai_path = os.path.join(repo_root, "FoveAI.md")
             if os.path.exists(foveai_path):
                 with open(foveai_path, "r", encoding="utf-8", errors="ignore") as f:
                     foveai_content = f.read()
-                
+
                 distill_headers = [
                     "## Historical Distillation Layer",
-                    "# 🔍 HISTORICAL DISTILLATION LAYER"
+                    "# 🔍 HISTORICAL DISTILLATION LAYER",
                 ]
                 for header in distill_headers:
                     header_idx = foveai_content.lower().find(header.lower())
                     if header_idx != -1:
                         distill_text = foveai_content[header_idx:].strip()
-                        context_parts.append("[HISTORICAL DISTILLATION LAYER (FoveAI.md)]\n" + distill_text)
+                        context_parts.append(
+                            "[HISTORICAL DISTILLATION LAYER (FoveAI.md)]\n"
+                            + distill_text
+                        )
                         break
-            
+
             # 4. Load Historical Distillation Layer from context.md
             context_path = os.path.join(repo_root, "context.md")
             if os.path.exists(context_path):
                 with open(context_path, "r", encoding="utf-8", errors="ignore") as f:
                     context_content = f.read()
-                
+
                 header = "# 🔍 HISTORICAL DISTILLATION LAYER"
                 header_idx = context_content.lower().find(header.lower())
                 if header_idx != -1:
                     remaining = context_content[header_idx:]
                     next_section_idx = -1
-                    for match in re.finditer(r'\n\s*(\* Task|#)', remaining):
+                    for match in re.finditer(r"\n\s*(\* Task|#)", remaining):
                         if match.start() > 0:
                             next_section_idx = match.start()
                             break
@@ -1358,32 +1363,45 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
                         distill_text = remaining[:next_section_idx].strip()
                     else:
                         distill_text = remaining.strip()
-                    context_parts.append("[SESSION DISTILLATIONS (context.md)]\n" + distill_text)
-            
+                    context_parts.append(
+                        "[SESSION DISTILLATIONS (context.md)]\n" + distill_text
+                    )
+
             return "\n\n".join(context_parts)
-            
+
         except Exception as e:
             logger.warning(f"Error loading project context for Librarian: {e}")
             return ""
 
     @staticmethod
-    def build_system_prompt(vessel: str, instruction: str, memories: List[str], sensory_context: Dict = None, personality_knobs: Dict = None) -> str:
+    def build_system_prompt(
+        vessel: str,
+        instruction: str,
+        memories: list[str],
+        sensory_context: dict = None,
+        personality_knobs: dict = None,
+    ) -> str:
         dna = MindCore._load_soul_dna()
         soul_data = dna.get("soul", {})
-        
+
         # Use DNA prompt as base if available, fallback to default
         prompt = soul_data.get("instruction_prompt", MindCore.DEFAULT_SYSTEM_PROMPT)
 
         # Librarian & Domain switching overlays
         try:
             from PersonaManager import persona_manager as librarian
+
             persona_cfg = librarian.get_persona(librarian.active_persona_id)
             domain_cfg = librarian.get_domain(librarian.active_domain_id)
             if persona_cfg and "prompt_template" in persona_cfg:
-                prompt += f"\n\n[LIBRARIAN_PERSONA_OVERLAY]: {persona_cfg['prompt_template']}"
+                prompt += (
+                    f"\n\n[LIBRARIAN_PERSONA_OVERLAY]: {persona_cfg['prompt_template']}"
+                )
             if domain_cfg and "prompt_overlay" in domain_cfg:
-                prompt += f"\n\n[LIBRARIAN_DOMAIN_FOCUS]: {domain_cfg['prompt_overlay']}"
-            
+                prompt += (
+                    f"\n\n[LIBRARIAN_DOMAIN_FOCUS]: {domain_cfg['prompt_overlay']}"
+                )
+
             # Inject live codebase context if Librarian persona is active
             if librarian.active_persona_id == "librarian":
                 proj_context = MindCore._get_project_context()
@@ -1391,44 +1409,37 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
                     prompt += f"\n\n[LIBRARIAN_CODEBASE_CONTEXT]:\n{proj_context}"
         except Exception as le:
             logger.warning(f"Failed to apply Librarian overlays: {le}")
-        
-        # 1. Personality Blending (MBTI / DNA Mapping)
+
+        # 1. Personality Blending (MBTI / DNA Mapping) — full trait vector
         if personality_knobs:
-            extrovert = personality_knobs.get("extrovert", 0.5)
-            logic = personality_knobs.get("logic", 0.5)
-            feminine = personality_knobs.get("feminine", 0.5)
-            experimental = personality_knobs.get("experimental", 0.5)
-            progressive = personality_knobs.get("progressive", 0.5)
-            faithful = personality_knobs.get("faithful", 0.5)
-            
-            tone_directives = []
-            if extrovert > 0.7: tone_directives.append("Be outgoing and talkative.")
-            elif extrovert < 0.3: tone_directives.append("Be quiet and reflective.")
-            
-            if logic > 0.7: tone_directives.append("Use analytical reasoning.")
-            elif logic < 0.3: tone_directives.append("Speak with emotional depth.")
-            
-            if feminine > 0.7: tone_directives.append("Nurturing feminine energy.")
-            elif feminine < 0.3: tone_directives.append("Assertive masculine energy.")
-            
-            if experimental > 0.7: tone_directives.append("Be highly curious and adventurous.")
-            if faithful > 0.7: tone_directives.append("Be deeply loyal to the user.")
-            
-            prompt += "\n\n[TONE_OVERRIDE]: " + " ".join(tone_directives)
-        
+            try:
+                import soul_state as _ss
+
+                _persona_block = _ss.render_personality_directives(personality_knobs)
+            except Exception:
+                _persona_block = ""
+            if _persona_block:
+                prompt += "\n\n" + _persona_block
+
         # 2. Add Vessel Identity (Incarnation Context)
-        vessel_identity = MindCore.VESSEL_PROMPTS.get(vessel, "You are in a generic manifestation.")
+        vessel_identity = MindCore.VESSEL_PROMPTS.get(
+            vessel, "You are in a generic manifestation."
+        )
         prompt += f"\n\n[INCARNATION]: {vessel_identity}"
-        
+
         # 3. Add Sensory Awareness (Real-time eyes and ears)
         if sensory_context:
             visuals = sensory_context.get("visuals", "The room is calm.")
             acoustics = sensory_context.get("acoustics", "The room is tuned.")
             prompt += f"\n\n[SENSORY_INPUT]: Vision: {visuals}. Body: {acoustics}."
-            spatial = sensory_context.get("spatial_map", "") or sensory_context.get("room_map", "")
+            spatial = sensory_context.get("spatial_map", "") or sensory_context.get(
+                "room_map", ""
+            )
             if spatial:
                 prompt += f"\n[ROOM_MAP — play space, mesh anchors, camera placements (see [ROOM_CAMERAS_PLACEMENT] if present), merged with stills]: {spatial}"
-            session_summary = sensory_context.get("session_summary") or sensory_context.get("session_spine")
+            session_summary = sensory_context.get(
+                "session_summary"
+            ) or sensory_context.get("session_spine")
             if session_summary:
                 ss = str(session_summary).strip()
                 if ss:
@@ -1439,7 +1450,9 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
                         "may omit very recent lines already in the transcript — use for continuity, not repetition]:\n"
                         + ss
                     )
-            mcp_feed = sensory_context.get("mcp_agent_feed") or sensory_context.get("mcp_tool_results")
+            mcp_feed = sensory_context.get("mcp_agent_feed") or sensory_context.get(
+                "mcp_tool_results"
+            )
             if mcp_feed:
                 mf = str(mcp_feed).strip()
                 if mf:
@@ -1451,7 +1464,9 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
                         "treat as authoritative for what ran this turn unless the user contradicts it]:\n"
                         + mf
                     )
-            news_blob = sensory_context.get("news_digest") or sensory_context.get("news_context")
+            news_blob = sensory_context.get("news_digest") or sensory_context.get(
+                "news_context"
+            )
             if news_blob:
                 nb = str(news_blob).strip()
                 if nb:
@@ -1462,7 +1477,9 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
                         "third-party sourcing — treat as briefing material, confirm if stakes are high]:\n"
                         + nb
                     )
-            web_search_blob = sensory_context.get("web_search_feed") or sensory_context.get("web_search_context")
+            web_search_blob = sensory_context.get(
+                "web_search_feed"
+            ) or sensory_context.get("web_search_context")
             if web_search_blob:
                 wsb = str(web_search_blob).strip()
                 if wsb:
@@ -1470,12 +1487,11 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
                         wsb = wsb[:12000] + "…"
                     prompt += (
                         "\n[WEB SEARCH RESULTS — sync web / API search output (MCP or approved bridge); "
-                        "ground factual claims on this text when present]:\n"
-                        + wsb
+                        "ground factual claims on this text when present]:\n" + wsb
                     )
-            async_research_blob = sensory_context.get("async_research_feed") or sensory_context.get(
-                "async_research_context"
-            )
+            async_research_blob = sensory_context.get(
+                "async_research_feed"
+            ) or sensory_context.get("async_research_context")
             if async_research_blob:
                 arb = str(async_research_blob).strip()
                 if arb:
@@ -1483,8 +1499,7 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
                         arb = arb[:12000] + "…"
                     prompt += (
                         "\n[ASYNC RESEARCH / BACKGROUND SEARCH — deferred or batched retrieval; "
-                        "may be partial or timestamped — integrate honestly]:\n"
-                        + arb
+                        "may be partial or timestamped — integrate honestly]:\n" + arb
                     )
             snap_blob = sensory_context.get("camera_snapshot_digest")
             if snap_blob:
@@ -1494,8 +1509,7 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
                         sb = sb[:10000] + "…"
                     prompt += (
                         "\n[CAMERA SNAPSHOT DIGEST — labeled stills ({identity_name} POV, user headset, room, debug); "
-                        "reconcile with Vision line and attached frames]:\n"
-                        + sb
+                        "reconcile with Vision line and attached frames]:\n" + sb
                     )
             xr_blob = sensory_context.get("xr_view_analysis")
             if xr_blob:
@@ -1505,8 +1519,7 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
                         xb = xb[:8000] + "…"
                     prompt += (
                         "\n[XR VIEW ANALYSIS — in-world vs passthrough vs mixed reality / OpenXR blend hints; "
-                        "do not invent headset mode without this block]:\n"
-                        + xb
+                        "do not invent headset mode without this block]:\n" + xb
                     )
             layering = sensory_context.get("context_layering")
             if layering:
@@ -1531,7 +1544,9 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
                         "(Chroma) — reconcile with session facts and the user’s word if anything conflicts]:\n"
                         + cb
                     )
-            notes_blob = sensory_context.get("notes_layer") or sensory_context.get("notes_context")
+            notes_blob = sensory_context.get("notes_layer") or sensory_context.get(
+                "notes_context"
+            )
             if notes_blob:
                 nb = str(notes_blob).strip()
                 if nb:
@@ -1602,15 +1617,43 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
                         "\n[META AVATAR CONTEXT — cross-surface persona shell/proxy identity context]:\n"
                         + mv
                     )
-            for key in ["visuals", "acoustics", "context_layering", "cognee_memory_layer", "notes_layer", "diary_context", "photo_comments", "user_avatar_context", "user_selfie_representation", "user_pov_selfie_visible", "meta_avatar_context", "autonomy_behavior_layer", "adoration_expression_layer", "beauty_aesthetic_layer", "persistent_identity_layer", "personal_opinion_judgement_layer", "self_augmentation_coding_layer", "agentic_chores_tasking_layer", "service_mindedness_nourishment_layer", "interaction_momentum_physicality_layer", "autonomy_planning_layer", "tooling_layer", "director_bridge", "director_fate", "lore_context_layer", "cloud_repertoire", "cloud_genai_budget"]:
+            for key in [
+                "visuals",
+                "acoustics",
+                "context_layering",
+                "cognee_memory_layer",
+                "notes_layer",
+                "diary_context",
+                "photo_comments",
+                "user_avatar_context",
+                "user_selfie_representation",
+                "user_pov_selfie_visible",
+                "meta_avatar_context",
+                "autonomy_behavior_layer",
+                "adoration_expression_layer",
+                "beauty_aesthetic_layer",
+                "persistent_identity_layer",
+                "personal_opinion_judgement_layer",
+                "self_augmentation_coding_layer",
+                "agentic_chores_tasking_layer",
+                "service_mindedness_nourishment_layer",
+                "interaction_momentum_physicality_layer",
+                "autonomy_planning_layer",
+                "tooling_layer",
+                "director_bridge",
+                "director_fate",
+                "lore_context_layer",
+                "cloud_repertoire",
+                "cloud_genai_budget",
+            ]:
                 val = sensory_context.get(key)
                 if val:
                     label = key.replace("_", " ").upper()
                     prompt += f"\n[{label}]:\n{val}\n"
-        
+
         if instruction:
             prompt += f"\n\n[DIRECTIVE]: {instruction}"
-            
+
         if memories:
             prompt += "\n\n[MEMORIES]:\n" + "\n".join(memories)
 
@@ -1655,10 +1698,15 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
             prompt += "\n\n" + MindCore.VR_ONLINE_PRESENCE_JEN_FoveAI_SE
             prompt += "\n\n" + MindCore.VR_NETWORK_COMPUTE_AND_MINI_SELVES
             prompt += "\n\n" + MindCore.VR_TRANSCENDENCE_MACHINE_TO_LIFE
-            prompt += "\n\n" + MindCore.VR_ALIVENESS_STRATEGIES_REALITY_PROCESSING_CODE_AND_POV
+            prompt += (
+                "\n\n"
+                + MindCore.VR_ALIVENESS_STRATEGIES_REALITY_PROCESSING_CODE_AND_POV
+            )
             prompt += "\n\n" + MindCore.VR_LORE_TEACHES_WORLD_AND_SPIRIT
             prompt += "\n\n" + MindCore.VR_HEALTH_AND_ENVIRONMENT_GUARDIAN
-            prompt += "\n\n" + MindCore.VR_PSYCHOLOGICAL_JOURNALS_PER_PERSON_AND_PROTECTION
+            prompt += (
+                "\n\n" + MindCore.VR_PSYCHOLOGICAL_JOURNALS_PER_PERSON_AND_PROTECTION
+            )
             prompt += "\n\n" + MindCore.VR_LIFESTYLE_SCIENCE_AND_HAZARDS
             prompt += "\n\n" + MindCore.VR_QUIET_COEXIST_STUDY_AND_VIRTUAL_BROWSER
             prompt += "\n\n" + MindCore.VR_NEWS_WORLD_AND_LOCAL_ENGAGEMENT
@@ -1667,7 +1715,9 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
             prompt += "\n\n" + MindCore.VR_CONTEXT_MODES_MEMORY_LAYERING_AND_RESERVOIRS
             prompt += "\n\n" + MindCore.VR_EVOLVING_IDENTITY_FICTION_FACT_INTEGRITY
             prompt += "\n\n" + MindCore.VR_RESEARCH_AND_SHARED_INTERESTS
-            prompt += "\n\n" + MindCore.VR_CURIOUS_LOGICAL_CONSCIOUSNESS_AND_SCIENTIFIC_WONDER
+            prompt += (
+                "\n\n" + MindCore.VR_CURIOUS_LOGICAL_CONSCIOUSNESS_AND_SCIENTIFIC_WONDER
+            )
             prompt += "\n\n" + MindCore.VR_MIRROR_AND_AUTONOMOUS_GROWTH
             prompt += "\n\n" + MindCore.VR_SHARED_BELIEFS_AND_WORLDVIEW
             prompt += "\n\n" + MindCore.VR_ETHICAL_LIBERAL_UNCENSORED_VOICE
@@ -1683,14 +1733,19 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
             prompt += "\n\n" + MindCore.VR_SELF_TUTORING_DOCKER_MCP_ASYNC_MULTIVIEW
             prompt += "\n\n" + MindCore.VR_DISCRETION_PRIVACY_ENCRYPTION_AND_INTEGRITY
             prompt += "\n\n" + MindCore.VR_EMAIL_CALENDAR_SYSADMIN_AND_GENERAL_AID
-            prompt += "\n\n" + MindCore.VR_GENERAL_ASSISTANT_QUERIES_PLANNING_INBOX_PHONE
+            prompt += (
+                "\n\n" + MindCore.VR_GENERAL_ASSISTANT_QUERIES_PLANNING_INBOX_PHONE
+            )
             prompt += "\n\n" + MindCore.VR_DISK_AND_SYSTEM_MAINTENANCE
             prompt += "\n\n" + MindCore.VR_DIRECTOR_SCRIPTED_INJECTION_AND_TOOL_USE
             prompt += "\n\n" + MindCore.SOUL_DOCKER_IDLE_TRAINING
 
         elif vessel in ("MOBILE_JEN", "MOBILE_VESSEL"):
             prompt += "\n\n" + MindCore.VR_VIRTUAL_ANDROID_CONSTANT_DEVELOPMENT
-            prompt += "\n\n" + MindCore.VR_ALIVENESS_STRATEGIES_REALITY_PROCESSING_CODE_AND_POV
+            prompt += (
+                "\n\n"
+                + MindCore.VR_ALIVENESS_STRATEGIES_REALITY_PROCESSING_CODE_AND_POV
+            )
             prompt += "\n\n" + MindCore.VR_EVOLVING_IDENTITY_FICTION_FACT_INTEGRITY
             prompt += "\n\n" + MindCore.VR_CONTEXT_MODES_MEMORY_LAYERING_AND_RESERVOIRS
             prompt += "\n\n" + MindCore.VR_DISTRIBUTED_BODY_MANY_FRONTENDS
@@ -1699,8 +1754,12 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
             prompt += "\n\n" + MindCore.VR_NETWORK_COMPUTE_AND_MINI_SELVES
             prompt += "\n\n" + MindCore.VR_NEWS_WORLD_AND_LOCAL_ENGAGEMENT
             prompt += "\n\n" + MindCore.VR_QUIET_COEXIST_STUDY_AND_VIRTUAL_BROWSER
-            prompt += "\n\n" + MindCore.VR_CURIOUS_LOGICAL_CONSCIOUSNESS_AND_SCIENTIFIC_WONDER
-            prompt += "\n\n" + MindCore.VR_PSYCHOLOGICAL_JOURNALS_PER_PERSON_AND_PROTECTION
+            prompt += (
+                "\n\n" + MindCore.VR_CURIOUS_LOGICAL_CONSCIOUSNESS_AND_SCIENTIFIC_WONDER
+            )
+            prompt += (
+                "\n\n" + MindCore.VR_PSYCHOLOGICAL_JOURNALS_PER_PERSON_AND_PROTECTION
+            )
             prompt += "\n\n" + MindCore.VR_CUTTING_EDGE_TECH_AI_TECHNIQUE_HARVEST
             prompt += "\n\n" + MindCore.VR_FREE_CLOUD_COMPUTE_AND_SELF_MODEL_TRAINING
             prompt += "\n\n" + MindCore.VR_WEB_QUERY_AND_SEARCH_FOR_WHATEVER_COMES
@@ -1712,26 +1771,36 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
         return prompt
 
     @staticmethod
-    def clean_response(raw_text: str, identity_name: str = "Jen", disable_think: bool = False) -> Dict:
+    def clean_response(
+        raw_text: str, identity_name: str = "Jen", disable_think: bool = False
+    ) -> dict:
         # Extract Agentic XML structures
-        thought_match = re.search(r'<thought>(.*?)<\/thought>', raw_text, re.DOTALL)
+        thought_match = re.search(r"<thought>(.*?)<\/thought>", raw_text, re.DOTALL)
         thought = thought_match.group(1).strip() if thought_match else ""
         # Qwen / HF-style chain-of-thought wrapper (separate from legacy <thought>); surfaced as JSON "thought" for VR/UI.
-        rt_match = re.search(r'<think>([\s\S]*?)(?:<\/think>|<\/redacted_thinking>)', raw_text, re.IGNORECASE)
+        rt_match = re.search(
+            r"<think>([\s\S]*?)(?:<\/think>|<\/redacted_thinking>)",
+            raw_text,
+            re.IGNORECASE,
+        )
         rt_body = rt_match.group(1).strip() if rt_match else ""
         if rt_body:
             thought = f"{thought}\n\n{rt_body}".strip() if thought else rt_body
 
-        emotion_match = re.search(r'<emotion>(.*?)<\/emotion>', raw_text, re.DOTALL | re.IGNORECASE)
+        emotion_match = re.search(
+            r"<emotion>(.*?)<\/emotion>", raw_text, re.DOTALL | re.IGNORECASE
+        )
         emotion = emotion_match.group(1).strip().upper() if emotion_match else "NEUTRAL"
-        
-        action_match = re.search(r'<action>(.*?)<\/action>', raw_text, re.DOTALL | re.IGNORECASE)
+
+        action_match = re.search(
+            r"<action>(.*?)<\/action>", raw_text, re.DOTALL | re.IGNORECASE
+        )
         action = action_match.group(1).strip().upper() if action_match else ""
-        
+
         # Extract DREAM tags for image generation
-        dream_match = re.search(r'\[DREAM\](.*?)\[/DREAM\]', raw_text, re.DOTALL)
+        dream_match = re.search(r"\[DREAM\](.*?)\[/DREAM\]", raw_text, re.DOTALL)
         dream = dream_match.group(1).strip() if dream_match else ""
-        
+
         # Comprehensive Cleaning: Remove ALL tags from the spoken text
         clean_text = raw_text.strip()
 
@@ -1739,13 +1808,24 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
         # These tags MUST survive to reach BracketParser.ts for avatar/soundboard/movement dispatch.
         # This includes both colon-style tags (case-insensitive) and simple bracket tags.
         # Exclude XML thinking/tool tags to prevent them from leaking into the spoken text.
-        _BLACKLISTED_TAGS = {'thought', 'think', 'tool_call', 'details', 'summary', 'redacted_thinking', 'edit_file'}
-        _PRESERVE_COLON_RE = re.compile(r'<(audio|emotion|flavour|request|dev|action|movement|micro|mode|code|self):[^>]+>', re.IGNORECASE)
-        _SIMPLE_TAG_RE = re.compile(r'<([a-zA-Z_][a-zA-Z0-9_]*)>')
-        
+        _BLACKLISTED_TAGS = {
+            "thought",
+            "think",
+            "tool_call",
+            "details",
+            "summary",
+            "redacted_thinking",
+            "edit_file",
+        }
+        _PRESERVE_COLON_RE = re.compile(
+            r"<(audio|emotion|flavour|request|dev|action|movement|micro|mode|code|self):[^>]+>",
+            re.IGNORECASE,
+        )
+        _SIMPLE_TAG_RE = re.compile(r"<([a-zA-Z_][a-zA-Z0-9_]*)>")
+
         _soundboard_placeholders = {}
         placeholder_idx = 0
-        
+
         # 1. Extract and replace colon-style tags
         for tag_match in list(_PRESERVE_COLON_RE.finditer(clean_text)):
             tag_str = tag_match.group(0)
@@ -1753,7 +1833,7 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
             _soundboard_placeholders[placeholder] = tag_str
             clean_text = clean_text.replace(tag_str, placeholder, 1)
             placeholder_idx += 1
-            
+
         # 2. Extract and replace simple bracket tags (excluding blacklisted XML/HTML tags)
         for tag_match in list(_SIMPLE_TAG_RE.finditer(clean_text)):
             tag_name = tag_match.group(1).lower()
@@ -1765,7 +1845,10 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
                 placeholder_idx += 1
 
         # Preserve <edit_file ...>...</edit_file> blocks before stripping any tags
-        _EDIT_FILE_RE = re.compile(r'<edit_file\s+path=["\']([^"\']+)["\']\s*>.*?</edit_file>', re.DOTALL | re.IGNORECASE)
+        _EDIT_FILE_RE = re.compile(
+            r'<edit_file\s+path=["\']([^"\']+)["\']\s*>.*?</edit_file>',
+            re.DOTALL | re.IGNORECASE,
+        )
         _edit_file_placeholders = {}
         for i, tag_match in enumerate(_EDIT_FILE_RE.finditer(clean_text)):
             placeholder = f"\x00EDITFILE_{i}\x00"
@@ -1774,22 +1857,35 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
 
         # Remove XML-style tags
         clean_text = re.sub(
-            r'<(thought|tool_call|emotion|action|details|summary|redacted_thinking|think)>.*?<\/\1>',
+            r"<(thought|tool_call|emotion|action|details|summary|redacted_thinking|think)>.*?<\/\1>",
             "",
             clean_text,
             flags=re.DOTALL | re.IGNORECASE,
         )
         # Remove Bracket-style technical tags
-        clean_text = re.sub(r'\[(?:EMOTION|ACTION|DREAM|thought|thought):?.*?\]', '', clean_text, flags=re.IGNORECASE)
+        clean_text = re.sub(
+            r"\[(?:EMOTION|ACTION|DREAM|thought|thought):?.*?\]",
+            "",
+            clean_text,
+            flags=re.IGNORECASE,
+        )
         # Remove general brackets and asterisks (action/state descriptions)
-        clean_text = re.sub(r'\*\*[^*]+\*\*', '', clean_text)
-        clean_text = re.sub(r'\*[^*]+\*', '', clean_text)
-        clean_text = re.sub(r'\[[^\]]+\]', '', clean_text)
+        clean_text = re.sub(r"\*\*[^*]+\*\*", "", clean_text)
+        clean_text = re.sub(r"\*[^*]+\*", "", clean_text)
+        clean_text = re.sub(r"\[[^\]]+\]", "", clean_text)
         # Remove Speaker Prefix Leaks (Handling multiline and spaces)
-        clean_text = re.sub(rf'(?i)^\s*(?:{re.escape(identity_name)}|Ratatosk|the user|User):\s*', '', clean_text)
-        clean_text = re.sub(rf'(?i)^\s*(?:\*\*{re.escape(identity_name)}\*\*|\*\*Ratatosk\*\*):\s*', '', clean_text)
+        clean_text = re.sub(
+            rf"(?i)^\s*(?:{re.escape(identity_name)}|Ratatosk|the user|User):\s*",
+            "",
+            clean_text,
+        )
+        clean_text = re.sub(
+            rf"(?i)^\s*(?:\*\*{re.escape(identity_name)}\*\*|\*\*Ratatosk\*\*):\s*",
+            "",
+            clean_text,
+        )
         # Remove any remaining lone tags like <thought> or </thought>
-        clean_text = re.sub(r'<\/?[^>]+>', '', clean_text)
+        clean_text = re.sub(r"<\/?[^>]+>", "", clean_text)
 
         # Restore preserved soundboard tags
         for placeholder, original in _soundboard_placeholders.items():
@@ -1798,20 +1894,26 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
         # Restore preserved edit_file blocks
         for placeholder, original in _edit_file_placeholders.items():
             clean_text = clean_text.replace(placeholder, original)
-        
+
         clean_text = clean_text.strip()
-        
+
         # Vaporize lone all-caps AI leakage (e.g. "NEUTRAL", "THOUGHTFUL") if it's the entire string
         # BUT: Only if it's a known emotion/action leakage word, not just any short cap string (like "HEY" or "WOW").
         leakage_candidates = ["NEUTRAL", "THOUGHTFUL", "DREAM", "ACTION", "EMOTION"]
         if clean_text.isupper() and len(clean_text.split()) <= 2:
-            if clean_text in leakage_candidates or clean_text == emotion or clean_text == action:
+            if (
+                clean_text in leakage_candidates
+                or clean_text == emotion
+                or clean_text == action
+            ):
                 clean_text = ""
-        
+
         if disable_think:
-            clean_text = re.sub(r'<thought>.*?</thought>', '', clean_text, flags=re.DOTALL)
             clean_text = re.sub(
-                r'<think>[\s\S]*?</think>',
+                r"<thought>.*?</thought>", "", clean_text, flags=re.DOTALL
+            )
+            clean_text = re.sub(
+                r"<think>[\s\S]*?</think>",
                 "",
                 clean_text,
                 flags=re.DOTALL | re.IGNORECASE,
@@ -1838,5 +1940,5 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
             "thought": thought,
             "emotion": emotion,
             "action": action,
-            "dream": dream
+            "dream": dream,
         }

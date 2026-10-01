@@ -11,10 +11,16 @@
         location.replace(`https://${location.host}${location.pathname}${location.search}`);
       }
     </script>
+    <!-- FoveAI mark — white rounded-square icon works on light and dark
+         browser chrome; favicon.svg kept as fallback -->
+    <link rel="icon" type="image/png" href="/foveai-icon.png" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Dark UA scheme: WebKitGTK (Epiphany) renders select popups as native
+         GTK menus — this makes it use the dark scheme for form controls -->
+    <meta name="color-scheme" content="dark" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <title>multigate</title>
+    <title>FoveAI</title>
     <style>
       html, body {
         margin: 0;

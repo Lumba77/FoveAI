@@ -28,7 +28,6 @@ import os
 import socket
 import subprocess
 import sys
-import time
 import urllib.request
 from datetime import datetime, timezone
 
@@ -42,28 +41,51 @@ ENV_PATH = os.path.join(LUMAX_DIR, ".env")
 
 # ─── Service Port Map (from FoveAI_Taskbar.pyw) ─────────────────────────
 SERVICE_PORTS = {
-    "Soul Core (AI)":         8000,
-    "XR Vessel Backend":      8101,
-    "Kokoro Mouth TTS":       8004,
-    "TokenSlayer Context":    8103,
-    "LM Studio Server":       7272,
-    "Raw Benchmark Proxy":    8106,
+    "Soul Core (AI)": 8000,
+    "XR Vessel Backend": 8101,
+    "Kokoro Mouth TTS": 8004,
+    "TokenSlayer Context": 8103,
+    "LM Studio Server": 7272,
+    "Raw Benchmark Proxy": 8106,
     "Stardust Vector Gnists": 8109,
-    "3D Avatar UI":           8080,
-    "XR Vessel UI":           5176,
-    "Multigate Portal":       5177,
-    "Unsloth Gemma":          8888,
-    "Concordia Dashboard":    8201,
-    "Foveated Memory Proxy":  8200,
-    "XRLF Proxy":             8300,
+    "3D Avatar UI": 8080,
+    "XR Vessel UI": 5176,
+    "Multigate Portal": 5177,
+    "Unsloth Gemma": 8888,
+    "Concordia Dashboard": 8201,
+    "Foveated Memory Proxy": 8200,
+    "XRLF Proxy": 8300,
 }
 
-FLEET_PORTS = [8000, 8001, 8004, 8080, 8101, 8103, 8104, 8106, 8109, 8110, 8112, 8113, 8888, 5000]
+FLEET_PORTS = [
+    8000,
+    8001,
+    8004,
+    8080,
+    8101,
+    8103,
+    8104,
+    8106,
+    8109,
+    8110,
+    8112,
+    8113,
+    8888,
+    5000,
+]
 
-FOVEA_LEVELS = {0: "Auto", 1: "Max Compression", 2: "Aggressive", 3: "Balanced", 4: "Conservative", 5: "Minimal", 6: "Off"}
+FOVEA_LEVELS = {
+    0: "Auto",
+    1: "Max Compression",
+    2: "Aggressive",
+    3: "Balanced",
+    4: "Conservative",
+    5: "Minimal",
+    6: "Off",
+}
 
 CLOUDFLARE_HOSTS = {
-    "Main Portal":   "https://foveai.1um6a.se",
+    "Main Portal": "https://foveai.1um6a.se",
     # "XR Lab Front" ("https://XRLF.1um6a.se") — not configured as Cloudflare subdomain per user confirmation
 }
 
@@ -71,6 +93,7 @@ CLOUDFLARE_HOSTS = {
 tests_passed = 0
 tests_failed = 0
 test_log = []
+
 
 def log(msg: str, ok: bool = True, detail: str = ""):
     global tests_passed, tests_failed
@@ -86,14 +109,16 @@ def log(msg: str, ok: bool = True, detail: str = ""):
         tests_failed += 1
     print(line)
 
+
 def check_port(port: int, timeout: float = 0.5) -> bool:
     """Return True if something is listening on 127.0.0.1:port."""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(timeout)
-            return s.connect_ex(('127.0.0.1', port)) == 0
+            return s.connect_ex(("127.0.0.1", port)) == 0
     except Exception:
         return False
+
 
 def http_get(url: str, timeout: float = 3.0) -> tuple:
     """Attempt HTTP GET, return (ok, status_code_or_error)."""
@@ -106,19 +131,28 @@ def http_get(url: str, timeout: float = 3.0) -> tuple:
     except Exception as e:
         return (False, str(e))
 
+
 def run_ps(command: str, timeout: int = 30) -> subprocess.CompletedProcess:
     return subprocess.run(
         [PWSH, "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
-        cwd=LUMAX_DIR, timeout=timeout, capture_output=True, text=True,
-        creationflags=0x08000000
+        cwd=LUMAX_DIR,
+        timeout=timeout,
+        capture_output=True,
+        text=True,
+        creationflags=0x08000000,
     )
+
 
 def run_cmd(command: str, timeout: int = 30) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["cmd", "/c", command],
-        cwd=LUMAX_DIR, timeout=timeout, capture_output=True, text=True,
-        creationflags=0x08000000
+        cwd=LUMAX_DIR,
+        timeout=timeout,
+        capture_output=True,
+        text=True,
+        creationflags=0x08000000,
     )
+
 
 def read_env() -> dict:
     values = {}
@@ -134,11 +168,14 @@ def read_env() -> dict:
         pass
     return values
 
+
 def parse_netstat(port: int) -> list:
     """Return list of PIDs listening on given port."""
     pids = []
     try:
-        out = subprocess.check_output("netstat -ano -p tcp", creationflags=0x08000000).decode(errors='ignore')
+        out = subprocess.check_output(
+            "netstat -ano -p tcp", creationflags=0x08000000
+        ).decode(errors="ignore")
         for line in out.splitlines():
             if f":{port}" not in line:
                 continue
@@ -150,13 +187,18 @@ def parse_netstat(port: int) -> list:
         pass
     return pids
 
+
 # ─── Test Functions ────────────────────────────────────────────────────
+
 
 def test_00_script_import():
     """Verify the taskbar script can be parsed (syntax check)."""
     r = run_ps(f"python -m py_compile '{TASKBAR_SCRIPT}'")
-    log(f"Taskbar script compiles without syntax errors", r.returncode == 0,
-        r.stderr.strip() if r.returncode != 0 else "")
+    log(
+        "Taskbar script compiles without syntax errors",
+        r.returncode == 0,
+        r.stderr.strip() if r.returncode != 0 else "",
+    )
 
 
 def test_01_venv_python_exists():
@@ -164,8 +206,14 @@ def test_01_venv_python_exists():
     ok = os.path.exists(VENV_PYTHON)
     log(f"Venv Python exists at {VENV_PYTHON}", ok)
     if ok:
-        r = subprocess.run([VENV_PYTHON, "--version"], capture_output=True, text=True, timeout=5)
-        log(f"Venv Python version: {r.stdout.strip()}", r.returncode == 0, r.stderr.strip())
+        r = subprocess.run(
+            [VENV_PYTHON, "--version"], capture_output=True, text=True, timeout=5
+        )
+        log(
+            f"Venv Python version: {r.stdout.strip()}",
+            r.returncode == 0,
+            r.stderr.strip(),
+        )
 
 
 def test_02_powershell_found():
@@ -173,8 +221,17 @@ def test_02_powershell_found():
     ok = os.path.exists(PWSH)
     log(f"PowerShell 7+ at {PWSH}", ok)
     if ok:
-        r = subprocess.run([PWSH, "-NoProfile", "-Command", "$PSVersionTable.PSVersion"], capture_output=True, text=True, timeout=5)
-        log(f"PowerShell version info: {r.stdout.strip()[:60]}", r.returncode == 0, r.stderr.strip())
+        r = subprocess.run(
+            [PWSH, "-NoProfile", "-Command", "$PSVersionTable.PSVersion"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        log(
+            f"PowerShell version info: {r.stdout.strip()[:60]}",
+            r.returncode == 0,
+            r.stderr.strip(),
+        )
 
 
 def test_03_wt_exe_exists():
@@ -187,11 +244,21 @@ def test_03_wt_exe_exists():
 def test_04_env_file_readable():
     """Verify .env file is readable and contains expected keys."""
     env = read_env()
-    has_keys = any(k in env for k in ["FoveAI_VOICE_ENABLED", "FoveAI_MIC_ENABLED",
-                                        "XRLF_FRONTEND_UI_PRESET", "XRLF_COGNITIVE_MODE",
-                                        "FoveAI_FRONTEND_UI"])
-    log(f".env file readable with {len(env)} keys, contains expected keys: {has_keys}",
-        bool(env), f"Keys: {list(env.keys())[:10]}")
+    has_keys = any(
+        k in env
+        for k in [
+            "FoveAI_VOICE_ENABLED",
+            "FoveAI_MIC_ENABLED",
+            "XRLF_FRONTEND_UI_PRESET",
+            "XRLF_COGNITIVE_MODE",
+            "FoveAI_FRONTEND_UI",
+        ]
+    )
+    log(
+        f".env file readable with {len(env)} keys, contains expected keys: {has_keys}",
+        bool(env),
+        f"Keys: {list(env.keys())[:10]}",
+    )
 
 
 def test_05_cloudflared_config_exists():
@@ -202,8 +269,11 @@ def test_05_cloudflared_config_exists():
             content = f.read()
         has_ingress = "ingress:" in content
         has_tunnel = "tunnel:" in content
-        log(f"Cloudflare config exists with tunnel={has_tunnel} ingress={has_ingress}",
-            has_tunnel and has_ingress, "Active entry: foveai.1um6a.se")
+        log(
+            f"Cloudflare config exists with tunnel={has_tunnel} ingress={has_ingress}",
+            has_tunnel and has_ingress,
+            "Active entry: foveai.1um6a.se",
+        )
     else:
         log(f"Cloudflare config not found at {CLOUDFLARE_CONFIG}", False)
 
@@ -218,80 +288,112 @@ def test_10_port_detection():
         else:
             inactive.append((name, port))
     total = len(SERVICE_PORTS)
-    log(f"Port detection: {len(active)}/{total} services active",
-        True, f"Active: {[n for n,p in active]} | Inactive: {[n for n,p in inactive]}")
+    log(
+        f"Port detection: {len(active)}/{total} services active",
+        True,
+        f"Active: {[n for n, p in active]} | Inactive: {[n for n, p in inactive]}",
+    )
 
 
 def test_11_health_endpoint_soul():
     """If XRLF Runtime port (8402) is up, try GET /health."""
     if not check_port(8402):
-        log(f"XRLF Runtime health check skipped (port 8402 inactive)", True, "Port not listening")
+        log(
+            "XRLF Runtime health check skipped (port 8402 inactive)",
+            True,
+            "Port not listening",
+        )
         return
     ok, status = http_get("http://127.0.0.1:8402/health", timeout=2)
-    log(f"XRLF Runtime health endpoint responds", ok, f"status={status}")
+    log("XRLF Runtime health endpoint responds", ok, f"status={status}")
 
 
 def test_12_health_endpoint_memory_proxy():
     """If Memory Proxy port (8200) is up, try GET /health."""
     if not check_port(8200):
-        log(f"Memory Proxy health check skipped (port 8200 inactive)", True, "Port not listening")
+        log(
+            "Memory Proxy health check skipped (port 8200 inactive)",
+            True,
+            "Port not listening",
+        )
         return
     ok, status = http_get("http://127.0.0.1:8400/health", timeout=2)
-    log(f"Memory Proxy /health responds", ok, f"status={status}")
+    log("Memory Proxy /health responds", ok, f"status={status}")
 
 
 def test_13_health_endpoint_xrlf():
     """If XRLF port (8300) is up, try GET /health and check 'loaded'."""
     if not check_port(8300):
-        log(f"XRLF health check skipped (port 8300 inactive)", True, "Port not listening")
+        log(
+            "XRLF health check skipped (port 8300 inactive)",
+            True,
+            "Port not listening",
+        )
         return
     ok, status = http_get("http://127.0.0.1:8400/health", timeout=3)
     detail = f"status={status}"
     if ok:
         try:
-            req = urllib.request.Request("http://127.0.0.1:8400/health", headers={"User-Agent": "FoveAI-Test/1.0"})
+            req = urllib.request.Request(
+                "http://127.0.0.1:8400/health",
+                headers={"User-Agent": "FoveAI-Test/1.0"},
+            )
             with urllib.request.urlopen(req, timeout=2) as resp:
                 data = resp.read().decode("utf-8", errors="ignore")
                 detail += f" | response contains 'loaded': {'loaded' in data}"
         except Exception:
             pass
-    log(f"XRLF /health responds", ok, detail)
+    log("XRLF /health responds", ok, detail)
 
 
 def test_14_health_endpoint_dashboard():
     """If Dashboard port (8201) is up, try GET /api/status."""
     if not check_port(8201):
-        log(f"Dashboard health check skipped (port 8201 inactive)", True, "Port not listening")
+        log(
+            "Dashboard health check skipped (port 8201 inactive)",
+            True,
+            "Port not listening",
+        )
         return
     ok, status = http_get("http://127.0.0.1:8401/api/status", timeout=2)
-    log(f"Dashboard /api/status responds", ok, f"status={status}")
+    log("Dashboard /api/status responds", ok, f"status={status}")
 
 
 def test_15_health_endpoint_tokenslayer():
     """If TokenSlayer Proxy port (8103) is up, try GET /api/tier-info."""
     if not check_port(8103):
-        log(f"TokenSlayer health check skipped (port 8103 inactive)", True, "Port not listening")
+        log(
+            "TokenSlayer health check skipped (port 8103 inactive)",
+            True,
+            "Port not listening",
+        )
         return
     ok, status = http_get("http://127.0.0.1:8103/api/tier-info", timeout=2)
-    log(f"TokenSlayer /api/tier-info responds", ok, f"status={status}")
+    log("TokenSlayer /api/tier-info responds", ok, f"status={status}")
 
 
 def test_16_health_endpoint_lm_studio():
     """If LM Studio port (7272) is up, try GET /v1/models."""
     if not check_port(7272):
-        log(f"LM Studio health check skipped (port 7272 inactive)", True, "Port not listening")
+        log(
+            "LM Studio health check skipped (port 7272 inactive)",
+            True,
+            "Port not listening",
+        )
         return
     ok, status = http_get("http://127.0.0.1:7272/v1/models", timeout=2)
-    log(f"LM Studio /v1/models responds", ok, f"status={status}")
+    log("LM Studio /v1/models responds", ok, f"status={status}")
 
 
 def test_17_health_endpoint_tts():
     """If TTS port (8004) is up, try GET /health."""
     if not check_port(8004):
-        log(f"TTS health check skipped (port 8004 inactive)", True, "Port not listening")
+        log(
+            "TTS health check skipped (port 8004 inactive)", True, "Port not listening"
+        )
         return
     ok, status = http_get("http://127.0.0.1:8004/health", timeout=2)
-    log(f"TTS /health responds", ok, f"status={status}")
+    log("TTS /health responds", ok, f"status={status}")
 
 
 def test_18_service_status_labeling():
@@ -300,19 +402,27 @@ def test_18_service_status_labeling():
     soul_up = check_port(8402)
     unused_up = check_port(9999)
     log(f"Port 8402 (XRLF Runtime) detection works: active={soul_up}", True)
-    log(f"Port 9999 (unused) reports inactive correctly: active={unused_up}", not unused_up)
+    log(
+        f"Port 9999 (unused) reports inactive correctly: active={unused_up}",
+        not unused_up,
+    )
 
 
 def test_20_netstat_parsing():
     """Verify netstat parsing logic works (as used by stop_stack)."""
     try:
-        out = subprocess.check_output("netstat -ano -p tcp", creationflags=0x08000000).decode(errors='ignore')
+        out = subprocess.check_output(
+            "netstat -ano -p tcp", creationflags=0x08000000
+        ).decode(errors="ignore")
         has_listening = "LISTENING" in out
         has_lines = len(out.splitlines()) > 5
-        log(f"netstat output: LISTENING={has_listening}, lines={len(out.splitlines())}",
-            has_listening and has_lines, f"First line: {out.splitlines()[0] if out.splitlines() else '(empty)'}")
+        log(
+            f"netstat output: LISTENING={has_listening}, lines={len(out.splitlines())}",
+            has_listening and has_lines,
+            f"First line: {out.splitlines()[0] if out.splitlines() else '(empty)'}",
+        )
     except Exception as e:
-        log(f"netstat command failed", False, str(e))
+        log("netstat command failed", False, str(e))
 
 
 def test_21_parse_netstat_known_ports():
@@ -323,7 +433,10 @@ def test_21_parse_netstat_known_ports():
             log(f"Found PID(s) {pids} listening on port {port} ({name})", True)
             break
     else:
-        log(f"No listeners found on any known service port (expected if services are off)", True)
+        log(
+            "No listeners found on any known service port (expected if services are off)",
+            True,
+        )
 
 
 def test_22_get_service_status_function():
@@ -336,8 +449,10 @@ def test_22_get_service_status_function():
         http_result = ""
         if sock_result:
             try:
-                req = urllib.request.Request(f"http://127.0.0.1:{port}/health",
-                    headers={"User-Agent": "FoveAI-Test/1.0"})
+                req = urllib.request.Request(
+                    f"http://127.0.0.1:{port}/health",
+                    headers={"User-Agent": "FoveAI-Test/1.0"},
+                )
                 with urllib.request.urlopen(req, timeout=1) as resp:
                     http_result = f"HTTP {resp.status}"
             except Exception as e:
@@ -349,51 +464,72 @@ def test_30_start_stop_stack_simulation():
     """Simulate stack start/stop — verify sleipnir_launcher.js exists."""
     launcher = os.path.join(LUMAX_DIR, "sleipnir_launcher.js")
     ok = os.path.exists(launcher)
-    log(f"Stack launcher exists at sleipnir_launcher.js", ok)
+    log("Stack launcher exists at sleipnir_launcher.js", ok)
     if ok:
         with open(launcher, "r", encoding="utf-8") as f:
             content = f.read(500)
         has_node = "require" in content or "process" in content or "import" in content
-        log(f"Launcher appears to be valid Node.js script", has_node, f"First 100 chars: {content[:100]}")
+        log(
+            "Launcher appears to be valid Node.js script",
+            has_node,
+            f"First 100 chars: {content[:100]}",
+        )
 
 
 def test_31_taskkill_format():
     """Verify taskkill command format (as used by stop_stack)."""
     # Dry-run: just verify the command syntax is valid
-    r = run_ps("Get-Command taskkill -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name")
+    r = run_ps(
+        "Get-Command taskkill -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name"
+    )
     ok = "taskkill" in r.stdout.lower()
-    log(f"taskkill command is available on system", ok, r.stdout.strip() if ok else r.stderr.strip())
+    log(
+        "taskkill command is available on system",
+        ok,
+        r.stdout.strip() if ok else r.stderr.strip(),
+    )
 
 
 def test_32_schtasks_available():
     """Verify schtasks.exe is available (used for memory proxy auto-start)."""
-    r = run_ps("Get-Command schtasks -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name")
+    r = run_ps(
+        "Get-Command schtasks -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name"
+    )
     ok = "schtasks" in r.stdout.lower()
-    log(f"schtasks.exe is available", ok, r.stdout.strip() if ok else r.stderr.strip())
+    log("schtasks.exe is available", ok, r.stdout.strip() if ok else r.stderr.strip())
 
 
 def test_33_memory_proxy_registration():
     """Check if FoveAI_Foveated_Memory scheduled task exists."""
     r = run_ps("schtasks /query /tn 'FoveAI_Foveated_Memory' /v /fo CSV 2>$null")
     if r.returncode == 0:
-        log(f"Scheduled task 'FoveAI_Foveated_Memory' exists", True, r.stdout.strip()[:200])
+        log(
+            "Scheduled task 'FoveAI_Foveated_Memory' exists",
+            True,
+            r.stdout.strip()[:200],
+        )
     else:
-        log(f"Scheduled task 'FoveAI_Foveated_Memory' NOT registered", True,
-            "Task does not exist (may need to register via taskbar menu)")
+        log(
+            "Scheduled task 'FoveAI_Foveated_Memory' NOT registered",
+            True,
+            "Task does not exist (may need to register via taskbar menu)",
+        )
 
 
 def test_34_sleipnir_launcher_content():
     """Verify sleipnir_launcher.js has reasonable content for starting services."""
     launcher = os.path.join(LUMAX_DIR, "sleipnir_launcher.js")
     if not os.path.exists(launcher):
-        log(f"sleipnir_launcher.js not found", False)
+        log("sleipnir_launcher.js not found", False)
         return
     with open(launcher, "r", encoding="utf-8") as f:
         content = f.read()
     has_spawn = "spawn" in content or "exec" in content or "fork" in content
     has_path = "FoveAI" in content or "Backend" in content or "Scripts" in content
-    log(f"sleipnir_launcher.js: {len(content)} chars, spawn/exec={has_spawn}, path refs={has_path}",
-        has_spawn or has_path)
+    log(
+        f"sleipnir_launcher.js: {len(content)} chars, spawn/exec={has_spawn}, path refs={has_path}",
+        has_spawn or has_path,
+    )
 
 
 def test_35_fleet_port_list():
@@ -402,39 +538,58 @@ def test_35_fleet_port_list():
     actual = sorted(SERVICE_PORTS.values())
     # Score: how many of our declared service ports are covered by fleet list
     covered = len(set(FLEET_PORTS) & set(SERVICE_PORTS.values()))
-    log(f"Fleet port list covers {covered}/{len(SERVICE_PORTS)} declared service ports",
-        covered >= 5, f"Fleet: {expected[:8]}... | Services: {actual[:8]}...")
+    log(
+        f"Fleet port list covers {covered}/{len(SERVICE_PORTS)} declared service ports",
+        covered >= 5,
+        f"Fleet: {expected[:8]}... | Services: {actual[:8]}...",
+    )
 
 
 def test_40_cloudflare_tunnel_check_local():
     """Check if cloudflared tunnel process is running locally."""
-    r = run_ps("Get-Process cloudflared -ErrorAction SilentlyContinue | Select-Object Id, ProcessName")
+    r = run_ps(
+        "Get-Process cloudflared -ErrorAction SilentlyContinue | Select-Object Id, ProcessName"
+    )
     if r.stdout.strip():
-        lines = [l for l in r.stdout.strip().splitlines() if 'cloudflared' in l]
-        log(f"cloudflared process is running", len(lines) > 0, '\n'.join(lines[:3]))
+        lines = [l for l in r.stdout.strip().splitlines() if "cloudflared" in l]
+        log("cloudflared process is running", len(lines) > 0, "\n".join(lines[:3]))
     else:
-        log(f"cloudflared process not found locally", True,
-            "Tunnel may run as Windows service or not be active")
+        log(
+            "cloudflared process not found locally",
+            True,
+            "Tunnel may run as Windows service or not be active",
+        )
 
 
 def test_41_cloudflare_tunnel_service():
     """Check if cloudflared is registered as a Windows service."""
-    r = run_ps("Get-Service cloudflared* -ErrorAction SilentlyContinue | Select-Object Name, Status")
+    r = run_ps(
+        "Get-Service cloudflared* -ErrorAction SilentlyContinue | Select-Object Name, Status"
+    )
     if r.stdout.strip():
-        log(f"cloudflared Windows service found", True, r.stdout.strip()[:200])
+        log("cloudflared Windows service found", True, r.stdout.strip()[:200])
     else:
-        r2 = run_ps("Get-Service | Where-Object { $_.DisplayName -like '*cloudflare*' } | Select-Object Name, Status")
+        r2 = run_ps(
+            "Get-Service | Where-Object { $_.DisplayName -like '*cloudflare*' } | Select-Object Name, Status"
+        )
         if r2.stdout.strip():
-            log(f"Cloudflare service found via DisplayName", True, r2.stdout.strip()[:200])
+            log(
+                "Cloudflare service found via DisplayName",
+                True,
+                r2.stdout.strip()[:200],
+            )
         else:
-            log(f"No cloudflared Windows service found", True,
-                "Tunnel may run via direct binary or not be active")
+            log(
+                "No cloudflared Windows service found",
+                True,
+                "Tunnel may run via direct binary or not be active",
+            )
 
 
 def test_42_cloudflare_ingress_hosts(skip_cloudflare: bool):
     """Attempt HTTPS reachability to Cloudflare tunnel hosts."""
     if skip_cloudflare:
-        log(f"Cloudflare reachability tests skipped (--skip-cloudflare)", True)
+        log("Cloudflare reachability tests skipped (--skip-cloudflare)", True)
         return
     for name, url in CLOUDFLARE_HOSTS.items():
         ok, status = http_get(url, timeout=5)
@@ -455,22 +610,39 @@ def test_43_cloudflare_foveai_login_page():
             req = urllib.request.Request(url, headers={"User-Agent": "FoveAI-Test/1.0"})
             with urllib.request.urlopen(req, timeout=5) as resp:
                 html = resp.read(2000).decode("utf-8", errors="ignore").lower()
-            has_login = "login" in html or "signin" in html or "sign in" in html or "auth" in html
-            log(f"foveai.1um6a.se returns status={status}, page contains login references: {has_login}",
-                True, f"First 200 chars: {html[:200]}")
+            has_login = (
+                "login" in html
+                or "signin" in html
+                or "sign in" in html
+                or "auth" in html
+            )
+            log(
+                f"foveai.1um6a.se returns status={status}, page contains login references: {has_login}",
+                True,
+                f"First 200 chars: {html[:200]}",
+            )
         except urllib.error.HTTPError as e:
-            log(f"foveai.1um6a.se returns status={e.code} (tunnel working)", True,
-                f"HTTP {e.code} means Cloudflare is proxying traffic")
+            log(
+                f"foveai.1um6a.se returns status={e.code} (tunnel working)",
+                True,
+                f"HTTP {e.code} means Cloudflare is proxying traffic",
+            )
         except Exception as e:
-            log(f"foveai.1um6a.se reachable (status={status}) but detail error: {e}", True)
+            log(
+                f"foveai.1um6a.se reachable (status={status}) but detail error: {e}",
+                True,
+            )
     else:
-        log(f"foveai.1um6a.se NOT reachable", False, f"Error: {status}")
+        log("foveai.1um6a.se NOT reachable", False, f"Error: {status}")
 
 
 def test_44_cloudflare_xrlf_endpoint():
     """Stub — XRLF.1um6a.se subdomain is not configured as a Cloudflare DNS entry (confirmed by user)."""
-    log("XRLF.1um6a.se stub: subdomain not configured — skip tunnel verification", True,
-        "Configure DNS entry & cloudflared ingress rule when XRLF frontend is deployed")
+    log(
+        "XRLF.1um6a.se stub: subdomain not configured — skip tunnel verification",
+        True,
+        "Configure DNS entry & cloudflared ingress rule when XRLF frontend is deployed",
+    )
 
 
 def test_50_fovea_level_validation():
@@ -478,36 +650,46 @@ def test_50_fovea_level_validation():
     levels = sorted(FOVEA_LEVELS.keys())
     expected = list(range(7))
     ok = levels == expected
-    log(f"Fovea levels {levels} match expected {expected}",
-        ok, f"Labels: {[FOVEA_LEVELS[l] for l in levels]}")
+    log(
+        f"Fovea levels {levels} match expected {expected}",
+        ok,
+        f"Labels: {[FOVEA_LEVELS[l] for l in levels]}",
+    )
 
 
 def test_51_fovea_setting_script_exists():
     """Verify Set-LumaxSetting.ps1 exists for fovea level changes."""
     script = os.path.join(LUMAX_DIR, "Scripts", "windows", "Set-LumaxSetting.ps1")
     ok = os.path.exists(script)
-    log(f"Set-LumaxSetting.ps1 exists", ok)
+    log("Set-LumaxSetting.ps1 exists", ok)
     if ok:
         r = run_ps(f"Get-Command '{script}' -Syntax")
-        log(f"  Script syntax valid", r.returncode == 0, r.stdout.strip()[:200] if r.returncode == 0 else r.stderr.strip())
+        log(
+            "  Script syntax valid",
+            r.returncode == 0,
+            r.stdout.strip()[:200] if r.returncode == 0 else r.stderr.strip(),
+        )
 
 
 def test_52_env_roundtrip():
     """Test that reading from .env returns expected structure (no write)."""
     env = read_env()
     if not env:
-        log(f"  No .env entries found — skipping env validation", True)
+        log("  No .env entries found — skipping env validation", True)
         return
     # Check for key-value pairs with proper format
     invalid = [k for k, v in env.items() if not k or not v]
-    log(f"  .env has {len(env)} entries, {len(invalid)} invalid (empty key/value)",
-        len(invalid) == 0, f"Sample keys: {list(env.keys())[:5]}")
+    log(
+        f"  .env has {len(env)} entries, {len(invalid)} invalid (empty key/value)",
+        len(invalid) == 0,
+        f"Sample keys: {list(env.keys())[:5]}",
+    )
 
 
 def test_53_route_switching_endpoint():
     """Verify that the route switching endpoint exists on port 8200."""
     if not check_port(8200):
-        log(f"Route switching test skipped (Memory Proxy not running)", True)
+        log("Route switching test skipped (Memory Proxy not running)", True)
         return
     # Just check if the endpoint accepts POST
     try:
@@ -516,38 +698,54 @@ def test_53_route_switching_endpoint():
             "http://127.0.0.1:8400/api/route",
             data=data,
             headers={"Content-Type": "application/json"},
-            method="POST"
+            method="POST",
         )
         with urllib.request.urlopen(req, timeout=3) as resp:
-            log(f"Route switching API endpoint responds", resp.status == 200, f"status={resp.status}")
+            log(
+                "Route switching API endpoint responds",
+                resp.status == 200,
+                f"status={resp.status}",
+            )
     except urllib.error.HTTPError as e:
         # Even 404 or 405 means the endpoint exists but may need auth
-        log(f"Route endpoint reachable (HTTP {e.code})", True,
-            f"Server responded to /api/route with {e.code}")
+        log(
+            f"Route endpoint reachable (HTTP {e.code})",
+            True,
+            f"Server responded to /api/route with {e.code}",
+        )
     except Exception as e:
-        log(f"Route endpoint not reachable", False, str(e))
+        log("Route endpoint not reachable", False, str(e))
 
 
 def test_54_frontend_switching_endpoint():
     """Verify frontend switching API endpoint exists."""
     if not check_port(8200):
-        log(f"Frontend switching test skipped (Memory Proxy not running)", True)
+        log("Frontend switching test skipped (Memory Proxy not running)", True)
         return
     try:
-        data = json.dumps({"key": "XRLF_FRONTEND_UI_PRESET", "val": "3d_avatar"}).encode("utf-8")
+        data = json.dumps(
+            {"key": "XRLF_FRONTEND_UI_PRESET", "val": "3d_avatar"}
+        ).encode("utf-8")
         req = urllib.request.Request(
             "http://127.0.0.1:8400/api/setting",
             data=data,
             headers={"Content-Type": "application/json"},
-            method="POST"
+            method="POST",
         )
         with urllib.request.urlopen(req, timeout=3) as resp:
-            log(f"Frontend switching API endpoint responds", resp.status == 200, f"status={resp.status}")
+            log(
+                "Frontend switching API endpoint responds",
+                resp.status == 200,
+                f"status={resp.status}",
+            )
     except urllib.error.HTTPError as e:
-        log(f"Frontend endpoint reachable (HTTP {e.code})", True,
-            f"Server responded to /api/setting with {e.code}")
+        log(
+            f"Frontend endpoint reachable (HTTP {e.code})",
+            True,
+            f"Server responded to /api/setting with {e.code}",
+        )
     except Exception as e:
-        log(f"Frontend endpoint not reachable", False, str(e))
+        log("Frontend endpoint not reachable", False, str(e))
 
 
 def test_55_menu_build_logs():
@@ -564,13 +762,16 @@ print('PIL: OK')
 " 2>&1
     """)
     ok = "pystray" in r.stdout and "PIL:" in r.stdout
-    log(f"Taskbar dependencies (pystray, PIL) importable",
-        ok, r.stdout.strip()[:200] if ok else r.stderr.strip()[:200])
+    log(
+        "Taskbar dependencies (pystray, PIL) importable",
+        ok,
+        r.stdout.strip()[:200] if ok else r.stderr.strip()[:200],
+    )
 
 
 def test_56_icon_creation():
     """Test that icon creation functions work (create_icon_image)."""
-    r = run_ps(f"""
+    r = run_ps("""
         python -c "
 from PIL import Image, ImageDraw, ImageFont
 
@@ -584,40 +785,46 @@ def create_icon_image(color, symbol=None):
 # Test all four icon colors
 for name, color in [('red', '#ef4444'), ('green', '#22c55e'), ('orange', '#f97316'), ('blue', '#3b82f6')]:
     img = create_icon_image(color)
-    print(f'{{name}}: {{img.size}} mode={{img.mode}}')
+    print(f'{name}: {img.size} mode={img.mode}')
 print('All icons created successfully')
 " 2>&1
     """)
     ok = "All icons created successfully" in r.stdout
-    log(f"Icon creation functions work correctly",
-        ok, r.stdout.strip()[:300] if ok else r.stderr.strip()[:200])
+    log(
+        "Icon creation functions work correctly",
+        ok,
+        r.stdout.strip()[:300] if ok else r.stderr.strip()[:200],
+    )
 
 
 def test_60_debug_flag_parsing():
     """Verify that the taskbar correctly parses --debug flag."""
-    r = run_ps(f"""
+    r = run_ps("""
         python -c "
 import sys
 sys.argv = ['FoveAI_Taskbar.pyw', '--debug']
 DEBUG = '--debug' in sys.argv or '-debug' in sys.argv
-print(f'DEBUG={{DEBUG}}')
+print(f'DEBUG={DEBUG}')
 assert DEBUG == True, '--debug flag not detected'
 
 sys.argv = ['FoveAI_Taskbar.pyw']
 DEBUG = '--debug' in sys.argv or '-debug' in sys.argv
-print(f'No-flag DEBUG={{DEBUG}}')
+print(f'No-flag DEBUG={DEBUG}')
 assert DEBUG == False, 'Default should be non-debug'
 print('All debug flag tests passed')
 " 2>&1
     """)
     ok = "All debug flag tests passed" in r.stdout
-    log(f"Debug flag parsing works correctly",
-        ok, r.stdout.strip()[:300] if ok else r.stderr.strip()[:200])
+    log(
+        "Debug flag parsing works correctly",
+        ok,
+        r.stdout.strip()[:300] if ok else r.stderr.strip()[:200],
+    )
 
 
 def test_61_notification_function():
     """Test that notify() function signature is compatible."""
-    r = run_ps(f"""
+    r = run_ps("""
         python -c "
 # Just verify the notification logic would execute (no icon instance)
 def notify(icon, message, title='FoveAI'):
@@ -626,15 +833,18 @@ def notify(icon, message, title='FoveAI'):
             icon.notify(message, title)
         except Exception:
             pass
-    print(f'notify() accepts icon={{icon is not None}}, msg len={{len(message)}}, title={{title}}')
+    print(f'notify() accepts icon={icon is not None}, msg len={len(message)}, title={title}')
 
 notify(None, 'Test notification', 'FoveAI Test')
 print('Notification function signature is valid')
 " 2>&1
     """)
     ok = "Notification function signature is valid" in r.stdout
-    log(f"Notification function works correctly",
-        ok, r.stdout.strip()[:200] if ok else r.stderr.strip()[:200])
+    log(
+        "Notification function works correctly",
+        ok,
+        r.stdout.strip()[:200] if ok else r.stderr.strip()[:200],
+    )
 
 
 def test_62_read_env_function():
@@ -667,8 +877,11 @@ for k, v in list(env.items())[:5]:
 " 2>&1
     """)
     ok = "entries from .env" in r.stdout
-    log(f"read_env() function works",
-        ok, r.stdout.strip()[:300] if ok else r.stderr.strip()[:200])
+    log(
+        "read_env() function works",
+        ok,
+        r.stdout.strip()[:300] if ok else r.stderr.strip()[:200],
+    )
 
 
 def test_70_anti_gravity_config():
@@ -678,11 +891,17 @@ def test_70_anti_gravity_config():
         with open(agy_cfg, "r", encoding="utf-8") as f:
             content = f.read()
         has_proxy = "apiBaseUrl" in content
-        log(f"AntiGravity config exists, proxy setting found: {has_proxy}",
-            True, f"Config at {agy_cfg}")
+        log(
+            f"AntiGravity config exists, proxy setting found: {has_proxy}",
+            True,
+            f"Config at {agy_cfg}",
+        )
     else:
-        log(f"AntiGravity config not found at {agy_cfg}", True,
-            "Settings may be stored elsewhere or not configured")
+        log(
+            f"AntiGravity config not found at {agy_cfg}",
+            True,
+            "Settings may be stored elsewhere or not configured",
+        )
 
 
 def test_71_mcp_server_file_exists():
@@ -699,10 +918,14 @@ def test_80_registry_shortcuts_script():
     """Verify register_start_menu_shortcuts.py exists."""
     script = os.path.join(LUMAX_DIR, "Tools", "register_start_menu_shortcuts.py")
     ok = os.path.exists(script)
-    log(f"Start menu shortcuts script exists", ok)
+    log("Start menu shortcuts script exists", ok)
     if ok:
         r = run_ps(f"python -m py_compile '{script}'")
-        log(f"  Script compiles", r.returncode == 0, r.stderr.strip() if r.returncode != 0 else "")
+        log(
+            "  Script compiles",
+            r.returncode == 0,
+            r.stderr.strip() if r.returncode != 0 else "",
+        )
 
 
 def test_81_corner_companion_exists():
@@ -728,33 +951,51 @@ def test_83_mouth_tts_server_exists():
 
 def test_84_situational_awareness_daemon_exists():
     """Verify Situational Awareness Daemon exists."""
-    sad = os.path.join(LUMAX_DIR, "Backend", "Cognition", "SituationalAwarenessDaemon.py")
+    sad = os.path.join(
+        LUMAX_DIR, "Backend", "Cognition", "SituationalAwarenessDaemon.py"
+    )
     ok = os.path.exists(sad)
     log(f"Situational Awareness Daemon exists at {sad}", ok)
 
 
 def test_89_pkg_requirements():
     """Verify pystray and Pillow are installed in venv."""
-    r = run_ps(f"& '{VENV_PYTHON}' -c \"import pystray; import PIL; print('pystray:', pystray.__version__ if hasattr(pystray, '__version__') else 'OK'); print('Pillow:', PIL.__version__)\"")
+    r = run_ps(
+        f"& '{VENV_PYTHON}' -c \"import pystray; import PIL; print('pystray:', pystray.__version__ if hasattr(pystray, '__version__') else 'OK'); print('Pillow:', PIL.__version__)\""
+    )
     ok = "pystray:" in r.stdout and "Pillow:" in r.stdout
-    log(f"Required packages (pystray, Pillow) installed in venv",
-        ok, r.stdout.strip()[:200] if ok else r.stderr.strip()[:200])
+    log(
+        "Required packages (pystray, Pillow) installed in venv",
+        ok,
+        r.stdout.strip()[:200] if ok else r.stderr.strip()[:200],
+    )
 
 
 # ─── Main ──────────────────────────────────────────────────────────────
 
+
 def main():
-    parser = argparse.ArgumentParser(description="FoveAI Taskbar Functionality Test Suite")
-    parser.add_argument("--skip-cloudflare", action="store_true",
-                        help="Skip Cloudflare reachability tests")
-    parser.add_argument("--skip-destructive", action="store_true",
-                        help="Skip tests that start/stop services")
+    parser = argparse.ArgumentParser(
+        description="FoveAI Taskbar Functionality Test Suite"
+    )
+    parser.add_argument(
+        "--skip-cloudflare",
+        action="store_true",
+        help="Skip Cloudflare reachability tests",
+    )
+    parser.add_argument(
+        "--skip-destructive",
+        action="store_true",
+        help="Skip tests that start/stop services",
+    )
     args = parser.parse_args()
 
     print("=" * 72)
-    print(f"  FoveAI TASKBAR FUNCTIONALITY TEST SUITE")
+    print("  FoveAI TASKBAR FUNCTIONALITY TEST SUITE")
     print(f"  Started: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
-    print(f"  Flags: skip-cloudflare={args.skip_cloudflare}, skip-destructive={args.skip_destructive}")
+    print(
+        f"  Flags: skip-cloudflare={args.skip_cloudflare}, skip-destructive={args.skip_destructive}"
+    )
     print("=" * 72)
 
     # ── PHASE 0: Environment Sanity ──────────────────────────────────
@@ -848,8 +1089,14 @@ def main():
     print("\n" + "=" * 72)
     total = tests_passed + tests_failed
     pct = (tests_passed / total * 100) if total > 0 else 0
-    verdict = "✅ ALL TESTS PASSED" if tests_failed == 0 else f"❌ {tests_failed}/{total} TESTS FAILED"
-    print(f"  RESULTS:  ✅ Passed: {tests_passed}  ❌ Failed: {tests_failed}  📊 Total: {total} ({pct:.1f}%)")
+    verdict = (
+        "✅ ALL TESTS PASSED"
+        if tests_failed == 0
+        else f"❌ {tests_failed}/{total} TESTS FAILED"
+    )
+    print(
+        f"  RESULTS:  ✅ Passed: {tests_passed}  ❌ Failed: {tests_failed}  📊 Total: {total} ({pct:.1f}%)"
+    )
     print(f"  VERDICT:  {verdict}")
     print("=" * 72)
 
@@ -861,7 +1108,7 @@ def main():
         "total_tests": total,
         "pass_rate_pct": round(pct, 1),
         "verdict": "PASS" if tests_failed == 0 else "FAIL",
-        "details": test_log
+        "details": test_log,
     }
     results_path = os.path.join(LUMAX_DIR, "Tests", "test_taskbar_results.json")
     with open(results_path, "w", encoding="utf-8") as f:

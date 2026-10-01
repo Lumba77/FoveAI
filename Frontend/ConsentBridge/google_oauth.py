@@ -2,13 +2,11 @@
 # Handles OAuth 2.0 consent, token refresh, and scoped data fetching.
 # Only reads what the user explicitly consents to. No write access.
 
-import os
 import json
+import os
 import time
-import base64
-from pathlib import Path
-from typing import List, Dict, Optional
 from datetime import datetime, timedelta
+from pathlib import Path
 
 try:
     import requests
@@ -18,19 +16,22 @@ except ImportError:
 # --- Config via env (no hardcoded secrets) ---
 CLIENT_ID = os.getenv("FoveAI_GOOGLE_CLIENT_ID", "")
 CLIENT_SECRET = os.getenv("FoveAI_GOOGLE_CLIENT_SECRET", "")
-REDIRECT_URI = os.getenv("FoveAI_GOOGLE_REDIRECT_URI", "http://127.0.0.1:8765/google/callback")
+REDIRECT_URI = os.getenv(
+    "FoveAI_GOOGLE_REDIRECT_URI", "http://127.0.0.1:8765/google/callback"
+)
 TOKEN_FILE = os.getenv("FoveAI_GOOGLE_TOKEN_FILE", ".cache/google_tokens.json")
 
 # Scopes we request — user sees each one on consent screen
 DEFAULT_SCOPES = [
-    "https://www.googleapis.com/auth/gmail.readonly",      # Email metadata + body
-    "https://www.googleapis.com/auth/calendar.readonly",   # Events
-    "https://www.googleapis.com/auth/contacts.readonly",   # People
-    "https://www.googleapis.com/auth/userinfo.profile",    # Name, photo
-    "https://www.googleapis.com/auth/drive.appdata",       # Appdata folder (invisible to user)
+    "https://www.googleapis.com/auth/gmail.readonly",  # Email metadata + body
+    "https://www.googleapis.com/auth/calendar.readonly",  # Events
+    "https://www.googleapis.com/auth/contacts.readonly",  # People
+    "https://www.googleapis.com/auth/userinfo.profile",  # Name, photo
+    "https://www.googleapis.com/auth/drive.appdata",  # Appdata folder (invisible to user)
 ]
 
 DATA_DIR = Path(os.getenv("FoveAI_DATA_DIR", "Data/Consent"))
+
 
 class GoogleConsentBridge:
     def __init__(self, scopes=None):
@@ -89,7 +90,9 @@ class GoogleConsentBridge:
         """Return valid access token, refreshing if expired."""
         if not self.tokens:
             raise RuntimeError("No tokens. User must consent first.")
-        expires_at = self.tokens.get("obtained_at", 0) + self.tokens.get("expires_in", 3600)
+        expires_at = self.tokens.get("obtained_at", 0) + self.tokens.get(
+            "expires_in", 3600
+        )
         if time.time() > expires_at - 60:
             # Refresh
             resp = requests.post(
@@ -122,7 +125,10 @@ class GoogleConsentBridge:
             self.tokens.pop("obtained_at", None)
             token = self._refresh_if_needed()
             resp = requests.get(
-                url, headers={"Authorization": f"Bearer {token}"}, params=params, timeout=30
+                url,
+                headers={"Authorization": f"Bearer {token}"},
+                params=params,
+                timeout=30,
             )
         resp.raise_for_status()
         return resp.json()
@@ -133,26 +139,35 @@ class GoogleConsentBridge:
         """Basic user profile."""
         return self._get("https://www.googleapis.com/oauth2/v2/userinfo")
 
-    def get_contacts(self, max_results: int = 100) -> List[dict]:
+    def get_contacts(self, max_results: int = 100) -> list[dict]:
         """Google People API contacts."""
         data = self._get(
             "https://people.googleapis.com/v1/people/me/connections",
-            params={"personFields": "names,emailAddresses,photos", "pageSize": max_results},
+            params={
+                "personFields": "names,emailAddresses,photos",
+                "pageSize": max_results,
+            },
         )
         return data.get("connections", [])
 
-    def get_calendar_events(self, days: int = 30) -> List[dict]:
+    def get_calendar_events(self, days: int = 30) -> list[dict]:
         """Calendar events from now +/- days."""
         now = datetime.utcnow()
         time_min = (now - timedelta(days=days)).isoformat() + "Z"
         time_max = (now + timedelta(days=days)).isoformat() + "Z"
         data = self._get(
             "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-            params={"timeMin": time_min, "timeMax": time_max, "maxResults": 100, "singleEvents": "true", "orderBy": "startTime"},
+            params={
+                "timeMin": time_min,
+                "timeMax": time_max,
+                "maxResults": 100,
+                "singleEvents": "true",
+                "orderBy": "startTime",
+            },
         )
         return data.get("items", [])
 
-    def get_recent_emails(self, max_results: int = 50) -> List[dict]:
+    def get_recent_emails(self, max_results: int = 50) -> list[dict]:
         """Gmail message list (metadata only — no body content for privacy)."""
         data = self._get(
             "https://gmail.googleapis.com/gmail/v1/users/me/messages",
@@ -165,16 +180,24 @@ class GoogleConsentBridge:
             try:
                 meta = self._get(
                     f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{m['id']}",
-                    params={"format": "metadata", "metadataHeaders": "Subject,From,Date"},
+                    params={
+                        "format": "metadata",
+                        "metadataHeaders": "Subject,From,Date",
+                    },
                 )
-                headers = {h["name"]: h["value"] for h in meta.get("payload", {}).get("headers", [])}
-                enriched.append({
-                    "id": m["id"],
-                    "threadId": m.get("threadId"),
-                    "subject": headers.get("Subject", ""),
-                    "from": headers.get("From", ""),
-                    "date": headers.get("Date", ""),
-                })
+                headers = {
+                    h["name"]: h["value"]
+                    for h in meta.get("payload", {}).get("headers", [])
+                }
+                enriched.append(
+                    {
+                        "id": m["id"],
+                        "threadId": m.get("threadId"),
+                        "subject": headers.get("Subject", ""),
+                        "from": headers.get("From", ""),
+                        "date": headers.get("Date", ""),
+                    }
+                )
             except Exception as e:
                 print(f"Email meta fetch failed: {e}")
         return enriched
@@ -193,13 +216,22 @@ class GoogleConsentBridge:
         }
 
         try:
-            r = req.post(f"{memory_base_url}/store", json={
-                "content": json.dumps(payload, ensure_ascii=False),
-                "role": "system",
-                "session_id": "google_consent_sync",
-                "topics": ["user_profile", "calendar", "contacts", "email_metadata"],
-                "importance": 0.9,
-            }, timeout=30)
+            r = req.post(
+                f"{memory_base_url}/store",
+                json={
+                    "content": json.dumps(payload, ensure_ascii=False),
+                    "role": "system",
+                    "session_id": "google_consent_sync",
+                    "topics": [
+                        "user_profile",
+                        "calendar",
+                        "contacts",
+                        "email_metadata",
+                    ],
+                    "importance": 0.9,
+                },
+                timeout=30,
+            )
             print(f"Memory sync: {r.status_code}")
         except Exception as e:
             print(f"Memory sync failed: {e}")
@@ -208,19 +240,23 @@ class GoogleConsentBridge:
         backup_dir = DATA_DIR / "google"
         backup_dir.mkdir(parents=True, exist_ok=True)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        (backup_dir / f"sync_{ts}.json").write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+        (backup_dir / f"sync_{ts}.json").write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False)
+        )
 
     # --- Google Drive Backup (appdata folder) ---
-    
-    def backup_to_drive(self, data: dict, filename: str = "foveai_memory_backup.json") -> dict:
+
+    def backup_to_drive(
+        self, data: dict, filename: str = "foveai_memory_backup.json"
+    ) -> dict:
         """Upload a memory snapshot to Google Drive appdata folder.
         This folder is invisible to the user and doesn't clutter their Drive.
         Survives browser data clearing, device loss, and OS reinstall."""
         token = self._refresh_if_needed()
-        
+
         # Check if file already exists (update instead of create new)
         existing = self._find_drive_file(filename)
-        
+
         if existing:
             # Update existing file
             file_id = existing["id"]
@@ -233,14 +269,18 @@ class GoogleConsentBridge:
             )
         else:
             # Create new file in appdata
-            import io
+
             metadata = {"name": filename, "parents": ["appDataFolder"]}
             boundary = "-------314159265358979323846"
             body_parts = []
-            body_parts.append(f"--{boundary}\nContent-Type: application/json; charset=UTF-8\n\n{json.dumps(metadata)}")
-            body_parts.append(f"--{boundary}\nContent-Type: application/json\n\n{json.dumps(data)}\n--{boundary}--")
+            body_parts.append(
+                f"--{boundary}\nContent-Type: application/json; charset=UTF-8\n\n{json.dumps(metadata)}"
+            )
+            body_parts.append(
+                f"--{boundary}\nContent-Type: application/json\n\n{json.dumps(data)}\n--{boundary}--"
+            )
             body = "\n".join(body_parts)
-            
+
             resp = requests.post(
                 "https://www.googleapis.com/upload/drive/v3/files",
                 headers={
@@ -251,21 +291,23 @@ class GoogleConsentBridge:
                 params={"uploadType": "multipart"},
                 timeout=60,
             )
-        
+
         resp.raise_for_status()
         result = resp.json()
         print(f"[Drive Backup] Saved {filename} (id: {result.get('id', '?')})")
         return result
-    
-    def restore_from_drive(self, filename: str = "foveai_memory_backup.json") -> Optional[dict]:
+
+    def restore_from_drive(
+        self, filename: str = "foveai_memory_backup.json"
+    ) -> dict | None:
         """Download the latest memory snapshot from Google Drive appdata."""
         token = self._refresh_if_needed()
-        
+
         existing = self._find_drive_file(filename)
         if not existing:
             print(f"[Drive Restore] No backup found: {filename}")
             return None
-        
+
         file_id = existing["id"]
         resp = requests.get(
             f"https://www.googleapis.com/drive/v3/files/{file_id}",
@@ -273,7 +315,7 @@ class GoogleConsentBridge:
             params={"alt": "media"},
             timeout=60,
         )
-        
+
         if resp.status_code == 200:
             data = resp.json()
             print(f"[Drive Restore] Loaded {filename} ({len(resp.content)} bytes)")
@@ -281,8 +323,8 @@ class GoogleConsentBridge:
         else:
             print(f"[Drive Restore] Failed: HTTP {resp.status_code}")
             return None
-    
-    def _find_drive_file(self, filename: str) -> Optional[dict]:
+
+    def _find_drive_file(self, filename: str) -> dict | None:
         """Find a file by name in the appdata folder."""
         token = self._refresh_if_needed()
         try:
@@ -302,7 +344,7 @@ class GoogleConsentBridge:
         except Exception as e:
             print(f"[Drive] File search failed: {e}")
             return None
-    
+
     def get_drive_backup_status(self) -> dict:
         """Check if a Google Drive backup exists and when it was last updated."""
         existing = self._find_drive_file("foveai_memory_backup.json")

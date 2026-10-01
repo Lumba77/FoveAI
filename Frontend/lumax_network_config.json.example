@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "_comment": "Generate with .\\connect_quest.ps1 (LAN default) or .\\connect_quest.ps1 --adb (USB reverse). Or copy this file to lumax_network_config.json and set IPs.",
+  "pc_lan_ip": "192.168.1.100",
+  "quest_ip": "",
+  "quest_subnet_prefix": "",
+  "nat_peer_default": "192.168.1.100",
+  "soul_host": "192.168.1.100",
+  "adb_reverse": false,
+  "use_adb_reverse": false
+}

@@ -26,13 +26,19 @@ class AppRunnable(pixie.Runnable[AppArgs]):
 
     async def run(self, args: AppArgs) -> None:
         proc = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", "myapp", "--query", args.query,
+            sys.executable,
+            "-m",
+            "myapp",
+            "--query",
+            args.query,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
         if proc.returncode != 0:
-            raise RuntimeError(f"App failed (exit {proc.returncode}): {stderr.decode()}")
+            raise RuntimeError(
+                f"App failed (exit {proc.returncode}): {stderr.decode()}"
+            )
 ```
 
 ## When the CLI needs patched dependencies
@@ -42,10 +48,13 @@ If the CLI reads from external services, create a wrapper entry point that patch
 ```python
 # pixie_qa/patched_app.py
 """Entry point that patches external deps before running the real CLI."""
+
 import myapp.config as config
+
 config.redis_url = "mock://localhost"
 
 from myapp.main import main
+
 main()
 ```
 
@@ -54,7 +63,11 @@ Then point your Runnable at the wrapper:
 ```python
 async def run(self, args: AppArgs) -> None:
     proc = await asyncio.create_subprocess_exec(
-        sys.executable, "-m", "pixie_qa.patched_app", "--query", args.query,
+        sys.executable,
+        "-m",
+        "pixie_qa.patched_app",
+        "--query",
+        args.query,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )

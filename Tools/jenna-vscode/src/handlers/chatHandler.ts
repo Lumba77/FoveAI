@@ -11,6 +11,7 @@ import { SessionLogger } from '../bonding/sessionLogger';
 import { FarmedContext, farmContext } from '../memory/contextFarmer';
 import { processUserIntent, classifyIntent } from '../intentEngine';
 import { ExecutionBuffer } from '../executionBuffer';
+import { AgentTools, AGENT_TOOLS_PROMPT, parseToolCalls } from '../agentTools';
 
 export class ChatHandler {
   private _history: ChatMessage[] = [];
@@ -32,9 +33,11 @@ export class ChatHandler {
   async handleChat(text: string, tasks?: { text: string; done: boolean }[]): Promise<void> {
     if (!text) return;
 
-    // Intent engine for agent mode
+    // Intent engine for agent mode — superseded by the agentic tool loop
+    // (agentTools), which lets the model drive tools itself instead of a
+    // client-side keyword classifier pre-empting the conversation.
     const config = vscode.workspace.getConfiguration('jenna');
-    const agentMode = config.get<boolean>('agentMode', false);
+    const agentMode = config.get<boolean>('agentMode', false) && !config.get<boolean>('agentTools', true);
     if (agentMode && text.length < 2000) {
       try {
         const intent = classifyIntent(text);
@@ -92,20 +95,53 @@ export class ChatHandler {
     this._history.push({ role: 'user', content: finalText });
     this._post({ type: 'stream_start' });
 
+    const toolsEnabled = config.get<boolean>('agentTools', true);
+    const tools = toolsEnabled ? new AgentTools(this._client, this._workspaceId) : null;
+    const MAX_TOOL_ROUNDS = 6;
+
     let fullResponse = '';
     try {
       const activeSid = this._workspaceId + '_' + this._getSessionStart();
-      const stream = this._client.chat(this._history, {
+      const chatOpts = {
         model, workspaceId: this._workspaceId,
         stream: config.get<boolean>('streamingEnabled', true),
         persona: this._getPersona(),
         compressionLevel: this._getXrl(),
         sessionId: activeSid,
+        customSystemPrompt: toolsEnabled ? AGENT_TOOLS_PROMPT : undefined,
         ...(tasks && tasks.length > 0 ? { tasks } : {}),
-      });
+      };
+      const stream = this._client.chat(this._history, chatOpts);
       for await (const chunk of stream) { fullResponse += chunk; this._post({ type: 'stream_chunk', chunk }); }
 
       this._history.push({ role: 'assistant', content: fullResponse });
+
+      // ── Agentic tool loop ──
+      // If the model emitted <tool> calls, execute them and feed the results
+      // back as a user message, then let it continue. Repeats until she stops
+      // calling tools, emits <done/>, or hits the round cap.
+      if (tools) {
+        for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+          const calls = parseToolCalls(fullResponse);
+          if (calls.length === 0) break;
+
+          const names = calls.map(c => c.name + (c.args.path || c.args.query || c.args.cmd ? ':' + (c.args.path || c.args.query || c.args.cmd) : '')).join(' · ');
+          this._post({ type: 'status_update', status: { online: true, loading: true, message: '⚙ tools: ' + names } });
+          const { feedback, isDone } = await tools.executeAll(calls);
+          if (isDone) break;
+          if (!feedback) break;
+
+          this._history.push({ role: 'user', content: feedback });
+          this._post({ type: 'stream_start' });
+          fullResponse = '';
+          const cont = this._client.chat(this._history, chatOpts);
+          for await (const chunk of cont) { fullResponse += chunk; this._post({ type: 'stream_chunk', chunk }); }
+          this._history.push({ role: 'assistant', content: fullResponse });
+          this._post({ type: 'stream_end' });
+        }
+        this._post({ type: 'status_update', status: { online: true, loading: false } });
+      }
+
       this._logger.recordTurn(userText, fullResponse);
       this._saveSessionLocally(userText);
 

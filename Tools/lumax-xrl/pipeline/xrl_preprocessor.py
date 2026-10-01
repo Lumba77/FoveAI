@@ -23,18 +23,17 @@ Options:
     --workers       Parallel workers (default: 4)
 """
 
-import os
-import sys
-import json
-import glob
 import argparse
+import json
 import logging
-import subprocess
 import multiprocessing
+import subprocess
+import sys
 from pathlib import Path
-from typing import Optional
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+)
 logger = logging.getLogger("70xrl-preprocessor")
 
 # ─── Paths ───────────────────────────────────────────────────────────
@@ -44,17 +43,48 @@ XRS_CLI = Path(__file__).parent.parent / "xrs" / "xrs.cjs"
 
 # Supported file extensions for code
 CODE_EXTENSIONS = {
-    ".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".rs", ".java",
-    ".cpp", ".c", ".h", ".hpp", ".cs", ".rb", ".php", ".swift",
-    ".kt", ".scala", ".m", ".mm", ".vue", ".svelte", ".sql",
-    ".sh", ".bash", ".zsh", ".ps1", ".yaml", ".yml", ".json",
-    ".xml", ".html", ".css", ".scss", ".less",
+    ".py",
+    ".js",
+    ".ts",
+    ".jsx",
+    ".tsx",
+    ".go",
+    ".rs",
+    ".java",
+    ".cpp",
+    ".c",
+    ".h",
+    ".hpp",
+    ".cs",
+    ".rb",
+    ".php",
+    ".swift",
+    ".kt",
+    ".scala",
+    ".m",
+    ".mm",
+    ".vue",
+    ".svelte",
+    ".sql",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".ps1",
+    ".yaml",
+    ".yml",
+    ".json",
+    ".xml",
+    ".html",
+    ".css",
+    ".scss",
+    ".less",
 }
 
 
 # ─── XRL Tokenizer Interface ────────────────────────────────────────
 
-def run_xrl(filepath: str, depth: int = 2) -> Optional[dict]:
+
+def run_xrl(filepath: str, depth: int = 2) -> dict | None:
     """Run XRL tokenizer on a file and return the result."""
     if not XRL_CLI.exists():
         logger.error(f"XRL CLI not found at: {XRL_CLI}")
@@ -72,7 +102,7 @@ def run_xrl(filepath: str, depth: int = 2) -> Optional[dict]:
         return None
 
 
-def run_xrs(filepath: str) -> Optional[str]:
+def run_xrs(filepath: str) -> str | None:
     """Run XRS skeletonizer and return the text skeleton."""
     if not XRS_CLI.exists():
         logger.error(f"XRS CLI not found at: {XRS_CLI}")
@@ -90,7 +120,8 @@ def run_xrs(filepath: str) -> Optional[str]:
 
 # ─── Dataset Processing ─────────────────────────────────────────────
 
-def process_file(filepath: str, depth: int = 2) -> Optional[dict]:
+
+def process_file(filepath: str, depth: int = 2) -> dict | None:
     """Process a single file: generate XRL skeleton + training pair."""
     # Read original content
     try:
@@ -148,9 +179,19 @@ def process_file(filepath: str, depth: int = 2) -> Optional[dict]:
 def _generate_understanding(original: str, skeleton: str) -> str:
     """Generate a simple structural understanding of the code."""
     lines = original.split("\n")
-    imports = [l for l in lines if l.strip().startswith(("import ", "from ", "require(", "include"))]
-    functions = [l for l in lines if any(kw in l for kw in ["def ", "fn ", "function ", "async def"])]
-    classes = [l for l in lines if any(kw in l for kw in ["class ", "struct ", "interface "])]
+    imports = [
+        l
+        for l in lines
+        if l.strip().startswith(("import ", "from ", "require(", "include"))
+    ]
+    functions = [
+        l
+        for l in lines
+        if any(kw in l for kw in ["def ", "fn ", "function ", "async def"])
+    ]
+    classes = [
+        l for l in lines if any(kw in l for kw in ["class ", "struct ", "interface "])
+    ]
 
     parts = []
     if imports:
@@ -160,10 +201,20 @@ def _generate_understanding(original: str, skeleton: str) -> str:
     if functions:
         parts.append(f"Functions: {len(functions)}")
 
-    return f"This code has {len(lines)} lines. {' | '.join(parts)}" if parts else f"This code has {len(lines)} lines."
+    return (
+        f"This code has {len(lines)} lines. {' | '.join(parts)}"
+        if parts
+        else f"This code has {len(lines)} lines."
+    )
 
 
-def process_directory(input_dir: str, output_dir: str, depth: int = 2, max_samples: int = None, workers: int = 4):
+def process_directory(
+    input_dir: str,
+    output_dir: str,
+    depth: int = 2,
+    max_samples: int = None,
+    workers: int = 4,
+):
     """Process all code files in a directory."""
     input_path = Path(input_dir)
     output_path = Path(output_dir)
@@ -175,8 +226,21 @@ def process_directory(input_dir: str, output_dir: str, depth: int = 2, max_sampl
         files.extend(input_path.rglob(f"*{ext}"))
 
     # Filter out common non-source directories
-    skip_dirs = {".git", "__pycache__", "node_modules", ".venv", "venv", "env",
-                 ".cache", "dist", "build", ".next", "target", "bin", "obj"}
+    skip_dirs = {
+        ".git",
+        "__pycache__",
+        "node_modules",
+        ".venv",
+        "venv",
+        "env",
+        ".cache",
+        "dist",
+        "build",
+        ".next",
+        "target",
+        "bin",
+        "obj",
+    }
     files = [f for f in files if not any(d in f.parts for d in skip_dirs)]
 
     if max_samples:
@@ -192,22 +256,25 @@ def process_directory(input_dir: str, output_dir: str, depth: int = 2, max_sampl
             if result:
                 results.append(result)
             if (i + 1) % 100 == 0:
-                logger.info(f"  Processed {i + 1}/{len(files)} files ({len(results)} valid)")
+                logger.info(
+                    f"  Processed {i + 1}/{len(files)} files ({len(results)} valid)"
+                )
 
     logger.info(f"Generated {len(results)} training pairs from {len(files)} files")
 
     # Write output
     output_file = output_path / "xrl_dataset.jsonl"
     with open(output_file, "w", encoding="utf-8") as f:
-        for item in results:
-            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(item, ensure_ascii=False) + "\n" for item in results)
 
     # Write stats
     stats = {
         "total_files": len(files),
         "valid_pairs": len(results),
         "depth": depth,
-        "avg_reduction": sum(r.get("reduction_pct", 0) for r in results) / len(results) if results else 0,
+        "avg_reduction": sum(r.get("reduction_pct", 0) for r in results) / len(results)
+        if results
+        else 0,
         "languages": {},
     }
     for r in results:
@@ -224,7 +291,9 @@ def process_directory(input_dir: str, output_dir: str, depth: int = 2, max_sampl
     return results
 
 
-def process_hf_dataset(dataset_id: str, output_dir: str, max_samples: int = None, depth: int = 2):
+def process_hf_dataset(
+    dataset_id: str, output_dir: str, max_samples: int = None, depth: int = 2
+):
     """Process a HuggingFace dataset through XRL."""
     try:
         from datasets import load_dataset
@@ -244,7 +313,9 @@ def process_hf_dataset(dataset_id: str, output_dir: str, max_samples: int = None
     results = []
     for i, sample in enumerate(dataset):
         # Extract code content (varies by dataset format)
-        content = sample.get("content") or sample.get("text") or sample.get("code") or ""
+        content = (
+            sample.get("content") or sample.get("text") or sample.get("code") or ""
+        )
         if not content or len(content) > 100_000:
             continue
 
@@ -274,13 +345,13 @@ def process_hf_dataset(dataset_id: str, output_dir: str, max_samples: int = None
     # Write output
     output_file = output_path / "xrl_dataset.jsonl"
     with open(output_file, "w", encoding="utf-8") as f:
-        for item in results:
-            f.write(json.dumps(item, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(item, ensure_ascii=False) + "\n" for item in results)
 
     logger.info(f"✅ HF dataset processed: {len(results)} pairs → {output_file}")
 
 
 # ─── CLI ─────────────────────────────────────────────────────────────
+
 
 def main():
     parser = argparse.ArgumentParser(description="70XRL Dataset Preprocessor")
@@ -288,7 +359,9 @@ def main():
     parser.add_argument("--hf-dataset", help="HuggingFace dataset ID")
     parser.add_argument("--output", required=True, help="Output directory")
     parser.add_argument("--max-samples", type=int, help="Max samples to process")
-    parser.add_argument("--depth", type=int, default=2, choices=[0, 1, 2, 3], help="XRL skeleton depth")
+    parser.add_argument(
+        "--depth", type=int, default=2, choices=[0, 1, 2, 3], help="XRL skeleton depth"
+    )
     parser.add_argument("--workers", type=int, default=4, help="Parallel workers")
 
     args = parser.parse_args()

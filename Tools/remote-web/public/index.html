@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Xarel — Web RDP</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#05070e; color:#e0faff; font-family:'Share Tech Mono',monospace; min-height:100vh; display:flex; flex-direction:column; }
+  header { padding:10px 16px; border-bottom:1px solid rgba(0,229,255,.2); display:flex; align-items:center; gap:12px; background:#0a1322; }
+  header h1 { font-size:.85rem; letter-spacing:2px; color:#00e5ff; font-weight:600; }
+  header .sub { font-size:.62rem; color:#7a8a9a; }
+  #login { margin:auto; background:rgba(20,20,35,.85); border:1px solid rgba(100,180,255,.18); border-radius:14px; padding:2rem; width:340px; backdrop-filter:blur(10px); }
+  #login h2 { font-size:1.05rem; margin-bottom:.4rem; }
+  #login p { font-size:.72rem; color:#7a8a9a; margin-bottom:1.1rem; }
+  #login label { display:block; font-size:.66rem; color:#7a8a9a; margin:.7rem 0 .25rem; }
+  #login input { width:100%; padding:.6rem .8rem; border-radius:7px; border:1px solid rgba(100,180,255,.2); background:rgba(10,10,20,.7); color:#e0faff; font-family:inherit; outline:none; }
+  #login input:focus { border-color:rgba(100,180,255,.5); }
+  #login button { width:100%; margin-top:1.2rem; padding:.7rem; border:none; border-radius:7px; background:linear-gradient(135deg,#4a9eff,#6b5bff); color:#fff; font-weight:700; font-family:inherit; cursor:pointer; }
+  #err { color:#ff6b6b; font-size:.7rem; margin-top:.8rem; display:none; }
+  #stage { flex:1; display:none; position:relative; overflow:hidden; background:#000; }
+  #stage.on { display:block; }
+  #display { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; }
+  #display > div { position:relative !important; }
+  #bar { position:absolute; top:8px; right:8px; z-index:5; display:flex; gap:6px; }
+  #bar button, #bar span { background:rgba(0,0,0,.55); border:1px solid rgba(0,229,255,.35); color:#00e5ff; border-radius:5px; padding:4px 10px; font-size:.62rem; font-family:inherit; cursor:pointer; backdrop-filter:blur(6px); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🪟 WEB RDP</h1>
+  <span class="sub">guacd → xrdp :3389 — fresh session, works from cold boot</span>
+</header>
+
+<div id="login">
+  <h2>Connect to this machine</h2>
+  <p>Separate virtual desktop session. Your Linux account credentials.</p>
+  <label>Host</label>
+  <input id="f-host" placeholder="127.0.0.1 (this machine)">
+  <label>Username</label>
+  <input id="f-user" autocomplete="username" autofocus>
+  <label>Password</label>
+  <input id="f-pass" type="password" autocomplete="current-password">
+  <button id="f-go">Connect</button>
+  <div id="err"></div>
+</div>
+
+<div id="stage">
+  <div id="bar">
+    <span id="status">connecting…</span>
+    <button id="f-end">⎋ Disconnect</button>
+  </div>
+  <div id="display"></div>
+</div>
+
+<script type="module">
+import Guacamole from './js/esm/guacamole-common.js';
+
+(function () {
+  const $ = (id) => document.getElementById(id);
+  let client = null, keyboard = null, mouse = null;
+
+  const err = (m) => { const e = $('err'); e.textContent = m; e.style.display = 'block'; };
+
+  function basePath() {
+    // served under /rdp/ by the vite proxy — WS must stay under the same prefix
+    return location.pathname.replace(/[^/]*$/, '');
+  }
+
+  function teardown() {
+    if (client) { try { client.disconnect(); } catch (_) {} client = null; }
+    keyboard = mouse = null;
+    $('display').innerHTML = '';
+    $('stage').classList.remove('on');
+    $('login').style.display = 'block';
+  }
+
+  $('f-end').onclick = teardown;
+  $('f-go').onclick = async () => {
+    $('err').style.display = 'none';
+    const body = {
+      host: $('f-host').value.trim() || undefined,
+      username: $('f-user').value.trim(),
+      password: $('f-pass').value,
+      width: Math.min(1920, window.innerWidth),
+      height: Math.min(1080, window.innerHeight - 44),
+    };
+    if (!body.username || !body.password) return err('username and password required');
+    let token;
+    try {
+      const r = await fetch(basePath() + 'token', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      });
+      const j = await r.json();
+      if (!r.ok) return err(j.error || ('HTTP ' + r.status));
+      token = j.token;
+    } catch (e) { return err('remote-web unreachable — is it running? ' + e); }
+
+    $('login').style.display = 'none';
+    $('stage').classList.add('on');
+    $('status').textContent = 'connecting…';
+
+    const wsBase = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + basePath();
+    const tunnel = new Guacamole.WebSocketTunnel(wsBase + 'guacamole?token=' + encodeURIComponent(token));
+    client = new Guacamole.Client(tunnel);
+
+    client.onerror = (e) => { $('status').textContent = 'error'; teardown(); err(e.message || 'connection failed'); };
+    client.onstatechange = (s) => {
+      $('status').textContent = ['idle','connecting','waiting','connected','disconnecting','disconnected'][s] || s;
+      if (s === 5) setTimeout(teardown, 400);
+    };
+
+    $('display').appendChild(client.getDisplay().getElement());
+    client.getDisplay().scale(Math.min(1, window.innerWidth / 1280));
+
+    mouse = new Guacamole.Mouse(client.getDisplay().getElement());
+    mouse.onmousedown = mouse.onmouseup = mouse.onmousemove = (st) => client.sendMouseState(st);
+    // touch → mouse for tablets/Quest browser
+    const touch = new Guacamole.Touch(client.getDisplay().getElement());
+    touch.onmousedown = touch.onmouseup = touch.onmousemove = (st) => client.sendMouseState(st);
+
+    keyboard = new Guacamole.Keyboard(document);
+    keyboard.onkeydown = (k) => client.sendKeyEvent(1, k);
+    keyboard.onkeyup = (k) => client.sendKeyEvent(0, k);
+
+    client.connect();
+  };
+  $('f-pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('f-go').click(); });
+})();
+</script>
+</body>
+</html>

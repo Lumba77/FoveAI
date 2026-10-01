@@ -33,6 +33,7 @@
 
 const fs   = require('fs');
 const path = require('path');
+const { withLocalUpstream } = require('./local-upstream-queue');
 
 // ── Value Levels ─────────────────────────────────────────────────────────────
 
@@ -265,7 +266,7 @@ function createGnist(lmStudioUrl = 'http://127.0.0.1:1234', model = 'smart-route
     return async function gnistFn(content, context = {}) {
         // Only invoke for ambiguous cases (called by classifyMessage when score is 3-8)
         try {
-            const res = await fetch(`${lmStudioUrl}/v1/chat/completions`, {
+            const res = await withLocalUpstream(() => fetch(`${lmStudioUrl}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -282,7 +283,7 @@ function createGnist(lmStudioUrl = 'http://127.0.0.1:1234', model = 'smart-route
                     stream: false
                 }),
                 signal: AbortSignal.timeout(3000)
-            });
+            }));
 
             if (!res.ok) return null;
             const data = await res.json();

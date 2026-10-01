@@ -27,10 +27,12 @@ if str(ROOT) not in sys.path:
 
 try:
     import yaml
+
     def _load_yaml(p):
         with open(p) as f:
             return yaml.safe_load(f) or {}
 except ImportError:
+
     def _load_yaml(p):
         return {}
 
@@ -38,41 +40,51 @@ except ImportError:
 def main():
     parser = argparse.ArgumentParser(description="XRLF Benchmark Runner")
     parser.add_argument(
-        "--model", default=None,
+        "--model",
+        default=None,
         help="Path to .xrlf file (default: from xrlf_config.yaml)",
     )
     parser.add_argument(
-        "--config", default="xrlf_config.yaml",
+        "--config",
+        default="xrlf_config.yaml",
         help="Config file path",
     )
     parser.add_argument(
-        "--track", nargs="+",
+        "--track",
+        nargs="+",
         choices=["reasoning", "coherence", "multimodal"],
         default=None,
         help="Tracks to run (default: all)",
     )
     parser.add_argument(
-        "--quick", action="store_true",
+        "--quick",
+        action="store_true",
         help="Quick mode: 5 questions per track instead of 20",
     )
     parser.add_argument(
-        "--port", type=int, default=8402,
+        "--port",
+        type=int,
+        default=8402,
         help="Port for API server (default: 8402)",
     )
     parser.add_argument(
-        "--api", action="store_true",
+        "--api",
+        action="store_true",
         help="Use active API server on port 8402 (or --port) instead of loading model locally",
     )
     parser.add_argument(
-        "--stub", action="store_true",
+        "--stub",
+        action="store_true",
         help="Force stub mode (no XRLF runtime required)",
     )
     parser.add_argument(
-        "--out", default=None,
+        "--out",
+        default=None,
         help="Output JSON path (default: auto-generated timestamp filename)",
     )
     parser.add_argument(
-        "--verbose", action="store_true",
+        "--verbose",
+        action="store_true",
         help="Print each question result",
     )
     args = parser.parse_args()
@@ -94,12 +106,14 @@ def main():
     print(f"  Model  : {xrlf_path}")
     print(f"  Tracks : {tracks or 'all'}")
     print(f"  Mode   : {'quick (5q)' if args.quick else 'full (20q)'}")
-    print(f"  Target : {f'API Server (port {args.port})' if args.api else 'Local runtime'}")
+    print(
+        f"  Target : {f'API Server (port {args.port})' if args.api else 'Local runtime'}"
+    )
     print(f"  Stub   : {args.stub}")
     print()
 
     # ── Import benchmark suite ────────────────────────────────────────────────
-    from builder.probes.benchmark_suite import run_benchmark, print_report
+    from builder.probes.benchmark_suite import print_report, run_benchmark
 
     # Force stub mode if requested
     if args.stub:
@@ -123,7 +137,9 @@ def main():
             print(f"\n  ── {track.name} ──")
             for q in track.questions:
                 icon = "✅" if q.correct else "❌"
-                print(f"    {icon} exp={q.expected!r:20s} pred={q.predicted!r:20s}  ({q.elapsed_ms:.0f}ms)")
+                print(
+                    f"    {icon} exp={q.expected!r:20s} pred={q.predicted!r:20s}  ({q.elapsed_ms:.0f}ms)"
+                )
 
     # ── Save JSON ─────────────────────────────────────────────────────────────
     ts = time.strftime("%Y%m%d_%H%M%S")

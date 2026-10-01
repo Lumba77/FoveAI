@@ -1,4 +1,5 @@
 import time
+
 from pythonosc import udp_client
 
 client = udp_client.SimpleUDPClient("127.0.0.1", 9000)
@@ -9,9 +10,13 @@ client.send_message("/tracking/trackers/1/position", [0.0, 1.0, 0.0])
 time.sleep(0.05)
 client.send_message("/tracking/trackers/1/position", [0.0, 0.8, 0.0])  # Moving down
 time.sleep(0.05)
-client.send_message("/tracking/trackers/1/position", [0.0, 0.5, 0.0])  # Moving down fast
+client.send_message(
+    "/tracking/trackers/1/position", [0.0, 0.5, 0.0]
+)  # Moving down fast
 time.sleep(0.05)
-client.send_message("/tracking/trackers/1/position", [0.0, 0.5, 0.0])  # Stopped (bounce!)
+client.send_message(
+    "/tracking/trackers/1/position", [0.0, 0.5, 0.0]
+)  # Stopped (bounce!)
 time.sleep(0.05)
 client.send_message("/tracking/trackers/1/position", [0.0, 0.6, 0.0])  # Moving back up
 

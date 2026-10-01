@@ -14,24 +14,28 @@ Usage:
 
 import json
 import mmap
-import os
-import shutil
 import struct
-import tempfile
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 try:
     import msgpack
+
     _MSGPACK = True
 except ImportError:
     _MSGPACK = False
 
 from formats.xrlf_schema import (
-    HEADER_STRUCT, HEADER_SIZE,
-    SECTION_ENTRY_STRUCT, SECTION_ENTRY_SIZE,
-    MAGIC, FORMAT_VERSION,
-    XRLFHeader, SectionEntry, XRLFManifest, SectionType, SectionFlags,
+    FORMAT_VERSION,
+    HEADER_SIZE,
+    HEADER_STRUCT,
+    MAGIC,
+    SECTION_ENTRY_SIZE,
+    SECTION_ENTRY_STRUCT,
+    SectionEntry,
+    SectionType,
+    XRLFHeader,
+    XRLFManifest,
 )
 
 
@@ -49,10 +53,10 @@ class XRLFParser:
     def __init__(self, path: str):
         self.path = Path(path)
         self._file = None
-        self._mm: Optional[mmap.mmap] = None
-        self.manifest: Optional[XRLFManifest] = None
-        self._section_map: Dict[SectionType, SectionEntry] = {}
-        self._data_offset: int = 0   # byte offset where section payloads start
+        self._mm: mmap.mmap | None = None
+        self.manifest: XRLFManifest | None = None
+        self._section_map: dict[SectionType, SectionEntry] = {}
+        self._data_offset: int = 0  # byte offset where section payloads start
 
     # ── Open / close ─────────────────────────────────────────────────────────
 
@@ -89,7 +93,9 @@ class XRLFParser:
         if len(raw) < HEADER_SIZE:
             raise XRLFParseError("File too small to be a valid XRLF file")
 
-        magic, version, base_len, xrl_len, flags, section_count, _ = HEADER_STRUCT.unpack(raw)
+        magic, version, base_len, xrl_len, flags, section_count, _ = (
+            HEADER_STRUCT.unpack(raw)
+        )
 
         if magic != MAGIC:
             raise XRLFParseError(f"Invalid magic bytes: {magic!r} (expected {MAGIC!r})")
@@ -98,9 +104,9 @@ class XRLFParser:
 
         # Read variable-length model name strings immediately after header
         cursor = HEADER_SIZE
-        base_model_name = self._mm[cursor: cursor + base_len].decode("utf-8")
+        base_model_name = self._mm[cursor : cursor + base_len].decode("utf-8")
         cursor += base_len
-        xrl_source_model = self._mm[cursor: cursor + xrl_len].decode("utf-8")
+        xrl_source_model = self._mm[cursor : cursor + xrl_len].decode("utf-8")
         cursor += xrl_len
 
         header = XRLFHeader(
@@ -123,7 +129,7 @@ class XRLFParser:
         count = self.manifest.header.section_count
 
         for _ in range(count):
-            raw = self._mm[cursor: cursor + SECTION_ENTRY_SIZE]
+            raw = self._mm[cursor : cursor + SECTION_ENTRY_SIZE]
             if len(raw) < SECTION_ENTRY_SIZE:
                 raise XRLFParseError("Section table truncated")
             stype, offset, length, sflags = SECTION_ENTRY_STRUCT.unpack(raw)
@@ -143,7 +149,7 @@ class XRLFParser:
         entry = self._section_map.get(section_type)
         if entry is None:
             raise XRLFParseError(f"Section {section_type.name} not present in file")
-        return bytes(self._mm[entry.offset: entry.offset + entry.length])
+        return bytes(self._mm[entry.offset : entry.offset + entry.length])
 
     def _decompress(self, section_type: SectionType, raw: bytes) -> bytes:
         entry = self._section_map[section_type]
@@ -161,7 +167,13 @@ class XRLFParser:
         entry = self._section_map[section_type]
         if entry.compressed and _MSGPACK:
             return msgpack.unpackb(raw, raw=False)
-        return json.loads(raw.decode("utf-8"))
+        try:
+            return json.loads(raw.decode("utf-8"))
+        except UnicodeDecodeError:
+            # Some packers store msgpack payloads without the compressed flag
+            if _MSGPACK:
+                return msgpack.unpackb(raw, raw=False)
+            raise
 
     def has_section(self, section_type: SectionType) -> bool:
         return section_type in self._section_map
@@ -176,10 +188,18 @@ class XRLFParser:
         entry = self._section_map.get(SectionType.CORE_GGUF)
         if entry is None:
             raise XRLFParseError("No CORE_GGUF section in this XRLF file")
-        return self._extract_to_file(entry, dest_path, "GGUF core", show_progress, unit="GB")
+        return self._extract_to_file(
+            entry, dest_path, "GGUF core", show_progress, unit="GB"
+        )
 
-    def _extract_to_file(self, entry, dest_path: str, label: str,
-                         show_progress: bool = True, unit: str = "MB") -> str:
+    def _extract_to_file(
+        self,
+        entry,
+        dest_path: str,
+        label: str,
+        show_progress: bool = True,
+        unit: str = "MB",
+    ) -> str:
         """Stream a section entry to disk. Writes to <dest>.part first and
         renames on completion — a mid-extraction kill must not leave a
         truncated file that the artifact cache would treat as valid."""
@@ -197,11 +217,13 @@ class XRLFParser:
                 while pos < entry.offset + total:
                     end = min(pos + chunk, entry.offset + total)
                     out.write(self._mm[pos:end])
-                    written += (end - pos)
+                    written += end - pos
                     pos = end
                     if show_progress:
                         pct = 100 * written / total
-                        print(f"\r  Extracting {label}... {pct:.1f}%", end="", flush=True)
+                        print(
+                            f"\r  Extracting {label}... {pct:.1f}%", end="", flush=True
+                        )
             tmp.replace(dest)
         finally:
             tmp.unlink(missing_ok=True)
@@ -258,7 +280,7 @@ class XRLFParser:
         dest.parent.mkdir(parents=True, exist_ok=True)
         # Memory data is packed as: [4B sqlite_len][sqlite bytes][rest = tfidf index]
         sqlite_len = struct.unpack_from("<I", raw, 0)[0]
-        sqlite_bytes = raw[4: 4 + sqlite_len]
+        sqlite_bytes = raw[4 : 4 + sqlite_len]
         dest.write_bytes(sqlite_bytes)
         print(f"  Extracted memory DB → {dest}  ({len(sqlite_bytes)} bytes)")
         return str(dest)
@@ -267,21 +289,21 @@ class XRLFParser:
         """Extract the embedded TF-IDF index blob."""
         raw = self._raw_bytes(SectionType.XRL_MEMORY_DATA)
         sqlite_len = struct.unpack_from("<I", raw, 0)[0]
-        tfidf_bytes = raw[4 + sqlite_len:]
+        tfidf_bytes = raw[4 + sqlite_len :]
         dest = Path(dest_path)
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(tfidf_bytes)
         print(f"  Extracted TF-IDF index → {dest}  ({len(tfidf_bytes)} bytes)")
         return str(dest)
 
-    def get_memory_schema(self) -> Dict:
+    def get_memory_schema(self) -> dict:
         """Return the memory retrieval policy and ring config."""
         return self.get_section_json(SectionType.XRL_MEMORY_SCHEMA)
 
-    def get_mm_hooks(self) -> Dict:
+    def get_mm_hooks(self) -> dict:
         """Return the multimodal hook descriptors."""
         return self.get_section_json(SectionType.XRL_MM_HOOKS)
 
-    def get_runtime_meta(self) -> Dict:
+    def get_runtime_meta(self) -> dict:
         """Return build info and capability map."""
         return self.get_section_json(SectionType.RUNTIME_META)

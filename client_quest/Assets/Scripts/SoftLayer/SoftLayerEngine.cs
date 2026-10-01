@@ -91,6 +91,14 @@ namespace FoveAI.SoftLayer
 
         private async void Start()
         {
+            // Derive backend URL from central config (AppConfig.json) instead of hardcoded IP
+            var cfg = FoveAI.Config.ConfigLoader.Settings;
+            if (cfg != null && !string.IsNullOrEmpty(cfg.serverIp))
+            {
+                backendUrl = $"http://{cfg.serverIp}:{cfg.httpPort}";
+                wsUrl = $"ws://{cfg.serverIp}:{cfg.wsPort}/ws";
+            }
+
             _hud = FindAnyObjectByType<UI.UserHUD>();
             _avatarBrain = FindAnyObjectByType<Avatar.AvatarAnimationBrain>();
             _vrmaLoader = FindAnyObjectByType<Avatar.VRMAAnimationLoader>();

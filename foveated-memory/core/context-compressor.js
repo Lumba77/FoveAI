@@ -19,6 +19,7 @@ const crypto = require('crypto');
 const fs     = require('fs');
 const path   = require('path');
 const fetch  = require('node-fetch');
+const { withLocalUpstream } = require('./local-upstream-queue');
 
 // ── Config ──────────────────────────────────────────────────────────────────
 
@@ -59,7 +60,7 @@ async function summarizeWithLMStudio(messages) {
 
     try {
         const COMPRESS_MODEL = process.env.XRLF_MIDDLEMAN_MODEL || process.env.FoveAI_MIDDLEMAN_MODEL || process.env.LOCAL_LLM_MODEL || 'slim-summary-tiny-tool';
-        const res = await fetch(`${XRLF_RUNTIME_URL}/v1/chat/completions`, {
+        const res = await withLocalUpstream(() => fetch(`${XRLF_RUNTIME_URL}/v1/chat/completions`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -86,7 +87,7 @@ CHECKPOINT:`
                 stream: false
             }),
             signal: AbortSignal.timeout(20000)
-        });
+        }));
 
         if (!res.ok) throw new Error(`LM Studio ${res.status}: ${await res.text()}`);
         const data = await res.json();

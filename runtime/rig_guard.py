@@ -15,13 +15,12 @@ Monitors:
   5. Alert Cooldown: Throttles toast notifications (default 10 minutes) to avoid annoyance.
 """
 
-import os
-import sys
-import time
 import json
+import os
 import subprocess
+import time
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any
 
 # ctypes is Windows-only; guard the import
 if os.name == "nt":
@@ -33,9 +32,13 @@ CLIENT_QUEST_DIR = FOVEAI_DIR / "client_quest"
 
 # Cross-platform Antigravity IDE settings path
 if os.name == "nt":
-    ANTIGRAVITY_SETTINGS_PATH = Path(os.path.expanduser(r"~\AppData\Roaming\Antigravity IDE\User\settings.json"))
+    ANTIGRAVITY_SETTINGS_PATH = Path(
+        os.path.expanduser(r"~\AppData\Roaming\Antigravity IDE\User\settings.json")
+    )
 else:
-    ANTIGRAVITY_SETTINGS_PATH = Path(os.path.expanduser("~/.config/Antigravity IDE/User/settings.json"))
+    ANTIGRAVITY_SETTINGS_PATH = Path(
+        os.path.expanduser("~/.config/Antigravity IDE/User/settings.json")
+    )
 
 # Crucial ignore patterns for game engines and ML monorepos
 CRITICAL_IGNORE_PATTERNS = [
@@ -56,6 +59,7 @@ CRITICAL_IGNORE_PATTERNS = [
 ]
 
 if os.name == "nt":
+
     class MEMORYSTATUSEX(ctypes.Structure):
         _fields_ = [
             ("dwLength", ctypes.c_ulong),
@@ -75,10 +79,10 @@ class RigGuard:
 
     def __init__(self, cooldown_seconds: int = 600):
         self.cooldown_seconds = cooldown_seconds
-        self._last_alert_times: Dict[str, float] = {}
+        self._last_alert_times: dict[str, float] = {}
 
     # ── System RAM Telemetry ───────────────────────────────────────────────
-    def get_system_ram(self) -> Dict[str, Any]:
+    def get_system_ram(self) -> dict[str, Any]:
         """Query physical RAM. Uses /proc/meminfo on Linux, GlobalMemoryStatusEx on Windows."""
         if os.name != "nt":
             try:
@@ -89,8 +93,8 @@ class RigGuard:
                     parts = line.split()
                     if len(parts) >= 2:
                         info[parts[0].rstrip(":")] = int(parts[1]) * 1024  # kB to bytes
-                total_gb = info.get("MemTotal", 0) / (1024 ** 3)
-                avail_gb = info.get("MemAvailable", info.get("MemFree", 0)) / (1024 ** 3)
+                total_gb = info.get("MemTotal", 0) / (1024**3)
+                avail_gb = info.get("MemAvailable", info.get("MemFree", 0)) / (1024**3)
                 used_gb = max(0.0, total_gb - avail_gb)
                 percent = int((used_gb / total_gb * 100) if total_gb > 0 else 0)
                 return {
@@ -103,8 +107,12 @@ class RigGuard:
                 }
             except Exception as e:
                 return {
-                    "total_gb": 16.0, "used_gb": 8.0, "avail_gb": 8.0,
-                    "percent": 50, "is_critical": False, "is_warning": False,
+                    "total_gb": 16.0,
+                    "used_gb": 8.0,
+                    "avail_gb": 8.0,
+                    "percent": 50,
+                    "is_critical": False,
+                    "is_warning": False,
                     "error": str(e),
                 }
         # Windows
@@ -112,8 +120,8 @@ class RigGuard:
             stat = MEMORYSTATUSEX()
             stat.dwLength = ctypes.sizeof(stat)
             ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(stat))
-            total_gb = stat.ullTotalPhys / (1024 ** 3)
-            avail_gb = stat.ullAvailPhys / (1024 ** 3)
+            total_gb = stat.ullTotalPhys / (1024**3)
+            avail_gb = stat.ullAvailPhys / (1024**3)
             used_gb = max(0.0, total_gb - avail_gb)
             percent = int(stat.dwMemoryLoad)
             return {
@@ -136,7 +144,7 @@ class RigGuard:
             }
 
     # ── Language Server Watchdog ───────────────────────────────────────────
-    def get_language_server_status(self) -> Dict[str, Any]:
+    def get_language_server_status(self) -> dict[str, Any]:
         """
         Query running language server process metrics.
         On Linux: uses ps/pgrep. On Windows: uses PowerShell.
@@ -146,16 +154,26 @@ class RigGuard:
             return self._get_language_server_status_linux()
         return self._get_language_server_status_windows()
 
-    def _get_language_server_status_linux(self) -> Dict[str, Any]:
+    def _get_language_server_status_linux(self) -> dict[str, Any]:
         """Linux: find language server / LSP / copilot processes via ps."""
         try:
             # Search for common language server process names
             out = subprocess.check_output(
                 ["ps", "aux", "--sort=-rss"], text=True, timeout=5
             )
-            target_names = ["language_server", "languageserver", "lsp", "copilot",
-                            "tsserver", "pyright", "pylance", "rust-analyzer",
-                            "clangd", "gopls", "jdtls"]
+            target_names = [
+                "language_server",
+                "languageserver",
+                "lsp",
+                "copilot",
+                "tsserver",
+                "pyright",
+                "pylance",
+                "rust-analyzer",
+                "clangd",
+                "gopls",
+                "jdtls",
+            ]
             for line in out.splitlines()[1:]:  # skip header
                 parts = line.split(None, 10)
                 if len(parts) < 11:
@@ -170,7 +188,9 @@ class RigGuard:
 
                     if ram_mb >= 2000 or vmem_mb >= 15000:
                         tier = "CRITICAL"
-                        status_text = f"🔴 Language Server: {ram_mb} MB (Runaway Indexing!)"
+                        status_text = (
+                            f"🔴 Language Server: {ram_mb} MB (Runaway Indexing!)"
+                        )
                     elif ram_mb >= 1000 or vmem_mb >= 10000:
                         tier = "WARNING"
                         status_text = f"🟠 Language Server: {ram_mb} MB (Elevated RAM)"
@@ -179,30 +199,45 @@ class RigGuard:
                         status_text = f"🟢 Language Server: {ram_mb} MB (Healthy)"
 
                     return {
-                        "running": True, "pid": pid, "ram_mb": ram_mb,
-                        "vmem_mb": vmem_mb, "tier": tier, "status_text": status_text,
+                        "running": True,
+                        "pid": pid,
+                        "ram_mb": ram_mb,
+                        "vmem_mb": vmem_mb,
+                        "tier": tier,
+                        "status_text": status_text,
                     }
             return {
-                "running": False, "pid": None, "ram_mb": 0, "vmem_mb": 0,
-                "tier": "INACTIVE", "status_text": "⚪ Language Server: Not Running",
+                "running": False,
+                "pid": None,
+                "ram_mb": 0,
+                "vmem_mb": 0,
+                "tier": "INACTIVE",
+                "status_text": "⚪ Language Server: Not Running",
             }
         except Exception as e:
             return {
-                "running": False, "pid": None, "ram_mb": 0, "vmem_mb": 0,
-                "tier": "UNKNOWN", "status_text": f"⚪ Language Server: Query Error ({e})",
+                "running": False,
+                "pid": None,
+                "ram_mb": 0,
+                "vmem_mb": 0,
+                "tier": "UNKNOWN",
+                "status_text": f"⚪ Language Server: Query Error ({e})",
             }
 
-    def _get_language_server_status_windows(self) -> Dict[str, Any]:
+    def _get_language_server_status_windows(self) -> dict[str, Any]:
         """Windows: query via PowerShell."""
         ps_cmd = (
             'Get-Process -Name "*language_server*" -ErrorAction SilentlyContinue | '
-            'Select-Object -First 1 Id, ProcessName, WorkingSet64, VirtualMemorySize64 | '
-            'ConvertTo-Json -Compress'
+            "Select-Object -First 1 Id, ProcessName, WorkingSet64, VirtualMemorySize64 | "
+            "ConvertTo-Json -Compress"
         )
         try:
             res = subprocess.run(
                 ["powershell.exe", "-NoProfile", "-Command", ps_cmd],
-                capture_output=True, text=True, timeout=5, creationflags=0x08000000
+                capture_output=True,
+                text=True,
+                timeout=5,
+                creationflags=0x08000000,
             )
             out = res.stdout.strip()
             if not out or out == "null":
@@ -249,7 +284,7 @@ class RigGuard:
                 "status_text": f"⚪ Language Server: Query Error ({e})",
             }
 
-    def get_language_server_guidance(self) -> Dict[str, str]:
+    def get_language_server_guidance(self) -> dict[str, str]:
         """
         Safe advice for resetting Language Server without killing Antigravity IDE.
         """
@@ -261,11 +296,11 @@ class RigGuard:
                 "1. In Antigravity IDE, press Ctrl+Shift+P\n"
                 "2. Type 'Developer: Reload Window' and press Enter\n"
                 "Or simply restart Antigravity IDE cleanly."
-            )
+            ),
         }
 
     # ── Memory Proxy Watchdog ──────────────────────────────────────────────
-    def get_memory_proxy_status(self) -> Dict[str, Any]:
+    def get_memory_proxy_status(self) -> dict[str, Any]:
         """
         Query running Port 8400 backend process metrics.
         Returns PID, RAM (MB), and health tier.
@@ -274,7 +309,7 @@ class RigGuard:
             return self._get_memory_proxy_status_linux()
         return self._get_memory_proxy_status_windows()
 
-    def _get_memory_proxy_status_linux(self) -> Dict[str, Any]:
+    def _get_memory_proxy_status_linux(self) -> dict[str, Any]:
         """Linux: find process on port 8400 via ss, then read /proc RSS."""
         try:
             out = subprocess.check_output(
@@ -289,8 +324,11 @@ class RigGuard:
                         break
             if not pid:
                 return {
-                    "running": False, "pid": None, "ram_mb": 0,
-                    "tier": "INACTIVE", "status_text": "⚪ Memory Proxy: Offline",
+                    "running": False,
+                    "pid": None,
+                    "ram_mb": 0,
+                    "tier": "INACTIVE",
+                    "status_text": "⚪ Memory Proxy: Offline",
                 }
             # Read RSS from /proc
             try:
@@ -310,26 +348,38 @@ class RigGuard:
                 tier = "HEALTHY"
                 status_text = f"🟢 Memory Proxy: {ram_mb} MB (Healthy)"
 
-            return {"running": True, "pid": pid, "ram_mb": ram_mb, "tier": tier, "status_text": status_text}
+            return {
+                "running": True,
+                "pid": pid,
+                "ram_mb": ram_mb,
+                "tier": tier,
+                "status_text": status_text,
+            }
         except Exception as e:
             return {
-                "running": False, "pid": None, "ram_mb": 0,
-                "tier": "UNKNOWN", "status_text": f"⚪ Memory Proxy: Query Error ({e})",
+                "running": False,
+                "pid": None,
+                "ram_mb": 0,
+                "tier": "UNKNOWN",
+                "status_text": f"⚪ Memory Proxy: Query Error ({e})",
             }
 
-    def _get_memory_proxy_status_windows(self) -> Dict[str, Any]:
+    def _get_memory_proxy_status_windows(self) -> dict[str, Any]:
         """Windows: query via PowerShell."""
         ps_cmd = (
-            '$conn = Get-NetTCPConnection -LocalPort 8400 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 OwningProcess; '
-            'if ($conn -and $conn.OwningProcess) { '
-            '  Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue | '
-            '  Select-Object Id, ProcessName, WorkingSet64, VirtualMemorySize64 | ConvertTo-Json -Compress '
+            "$conn = Get-NetTCPConnection -LocalPort 8400 -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1 OwningProcess; "
+            "if ($conn -and $conn.OwningProcess) { "
+            "  Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue | "
+            "  Select-Object Id, ProcessName, WorkingSet64, VirtualMemorySize64 | ConvertTo-Json -Compress "
             '} else { "null" }'
         )
         try:
             res = subprocess.run(
                 ["powershell.exe", "-NoProfile", "-Command", ps_cmd],
-                capture_output=True, text=True, timeout=5, creationflags=0x08000000
+                capture_output=True,
+                text=True,
+                timeout=5,
+                creationflags=0x08000000,
             )
             out = res.stdout.strip()
             if not out or out == "null":
@@ -372,7 +422,7 @@ class RigGuard:
             }
 
     # ── Runaway Git & Worker Hunter ─────────────────────────────────────────
-    def kill_runaway_git_processes(self, min_mb: int = 250) -> Tuple[int, int, str]:
+    def kill_runaway_git_processes(self, min_mb: int = 250) -> tuple[int, int, str]:
         """
         Detect and terminate orphaned git processes that consume huge RAM.
         Returns: (killed_count, freed_mb, message)
@@ -381,12 +431,14 @@ class RigGuard:
             return self._kill_runaway_git_linux(min_mb)
         return self._kill_runaway_git_windows(min_mb)
 
-    def _kill_runaway_git_linux(self, min_mb: int) -> Tuple[int, int, str]:
+    def _kill_runaway_git_linux(self, min_mb: int) -> tuple[int, int, str]:
         """Linux: use ps to find git processes over min_mb RSS."""
         killed = 0
         freed = 0
         try:
-            out = subprocess.check_output(["ps", "aux", "--sort=-rss"], text=True, timeout=5)
+            out = subprocess.check_output(
+                ["ps", "aux", "--sort=-rss"], text=True, timeout=5
+            )
             for line in out.splitlines()[1:]:
                 parts = line.split(None, 10)
                 if len(parts) < 11:
@@ -405,12 +457,16 @@ class RigGuard:
                     except Exception:
                         pass
             if killed > 0:
-                return killed, freed, f"Terminated {killed} runaway git process(es), liberating ~{freed} MB RAM!"
+                return (
+                    killed,
+                    freed,
+                    f"Terminated {killed} runaway git process(es), liberating ~{freed} MB RAM!",
+                )
             return 0, 0, "No runaway git processes detected (all < 250MB)."
         except Exception as e:
             return 0, 0, f"Error killing runaway git processes: {e}"
 
-    def _kill_runaway_git_windows(self, min_mb: int) -> Tuple[int, int, str]:
+    def _kill_runaway_git_windows(self, min_mb: int) -> tuple[int, int, str]:
         """Windows: use PowerShell."""
         ps_cmd = (
             f"Get-Process -Name 'git' -ErrorAction SilentlyContinue | "
@@ -423,7 +479,10 @@ class RigGuard:
         try:
             res = subprocess.run(
                 ["powershell.exe", "-NoProfile", "-Command", ps_cmd],
-                capture_output=True, text=True, timeout=6, creationflags=0x08000000
+                capture_output=True,
+                text=True,
+                timeout=6,
+                creationflags=0x08000000,
             )
             raw = res.stdout.strip()
             if not raw or raw == "null":
@@ -437,7 +496,12 @@ class RigGuard:
                 pid = item.get("Id")
                 ws_mb = int(item.get("WorkingSet64", 0) / (1024 * 1024))
                 if pid:
-                    k = subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True, text=True, creationflags=0x08000000)
+                    k = subprocess.run(
+                        ["taskkill", "/F", "/PID", str(pid)],
+                        capture_output=True,
+                        text=True,
+                        creationflags=0x08000000,
+                    )
                     if k.returncode == 0:
                         killed_count += 1
                         freed_mb += ws_mb
@@ -451,7 +515,7 @@ class RigGuard:
             return 0, 0, f"Error killing runaway git processes: {e}"
 
     # ── Unity & Zombie Process Watchdog ─────────────────────────────────────
-    def get_unity_status(self) -> Dict[str, Any]:
+    def get_unity_status(self) -> dict[str, Any]:
         """
         Check for Unity Editor processes and orphaned background workers.
         On Linux: uses pgrep/ps. On Windows: uses PowerShell.
@@ -460,7 +524,7 @@ class RigGuard:
             return self._get_unity_status_linux()
         return self._get_unity_status_windows()
 
-    def _get_unity_status_linux(self) -> Dict[str, Any]:
+    def _get_unity_status_linux(self) -> dict[str, Any]:
         """Linux: check for Unity Editor and shader compiler processes."""
         try:
             # Check for Unity Editor (Unity.x86_64 or Unity)
@@ -469,7 +533,9 @@ class RigGuard:
             crash_pids = []
 
             try:
-                out = subprocess.check_output(["pgrep", "-f", "Unity"], text=True, timeout=3)
+                out = subprocess.check_output(
+                    ["pgrep", "-f", "Unity"], text=True, timeout=3
+                )
                 unity_pids = []
                 for p in out.strip().splitlines():
                     if not p.strip().isdigit():
@@ -485,14 +551,22 @@ class RigGuard:
                 pass
 
             try:
-                out = subprocess.check_output(["pgrep", "-f", "UnityShaderCompiler"], text=True, timeout=3)
-                shader_pids = [int(p) for p in out.strip().splitlines() if p.strip().isdigit()]
+                out = subprocess.check_output(
+                    ["pgrep", "-f", "UnityShaderCompiler"], text=True, timeout=3
+                )
+                shader_pids = [
+                    int(p) for p in out.strip().splitlines() if p.strip().isdigit()
+                ]
             except (subprocess.CalledProcessError, FileNotFoundError):
                 pass
 
             try:
-                out = subprocess.check_output(["pgrep", "-f", "UnityCrashHandler"], text=True, timeout=3)
-                crash_pids = [int(p) for p in out.strip().splitlines() if p.strip().isdigit()]
+                out = subprocess.check_output(
+                    ["pgrep", "-f", "UnityCrashHandler"], text=True, timeout=3
+                )
+                crash_pids = [
+                    int(p) for p in out.strip().splitlines() if p.strip().isdigit()
+                ]
             except (subprocess.CalledProcessError, FileNotFoundError):
                 pass
 
@@ -522,36 +596,46 @@ class RigGuard:
                 tier = "HEALTHY"
 
             return {
-                "unity_running": unity_running, "shader_workers": shader_workers,
-                "crash_handlers": crash_handlers, "zombies": zombies,
-                "has_stale_lock": has_stale_lock, "shader_pids": shader_pids,
-                "crash_pids": crash_pids, "tier": tier, "status_text": status_text,
+                "unity_running": unity_running,
+                "shader_workers": shader_workers,
+                "crash_handlers": crash_handlers,
+                "zombies": zombies,
+                "has_stale_lock": has_stale_lock,
+                "shader_pids": shader_pids,
+                "crash_pids": crash_pids,
+                "tier": tier,
+                "status_text": status_text,
             }
         except Exception as e:
             return {
-                "unity_running": False, "zombies": 0, "tier": "UNKNOWN",
+                "unity_running": False,
+                "zombies": 0,
+                "tier": "UNKNOWN",
                 "status_text": f"⚪ Unity: Query Error ({e})",
             }
 
-    def _get_unity_status_windows(self) -> Dict[str, Any]:
+    def _get_unity_status_windows(self) -> dict[str, Any]:
         """Windows: query via PowerShell."""
         ps_cmd = (
             '$u = @(Get-Process -Name "Unity" -ErrorAction SilentlyContinue); '
             '$s = @(Get-Process -Name "*UnityShaderCompiler*" -ErrorAction SilentlyContinue); '
             '$c = @(Get-Process -Name "*UnityCrashHandler*" -ErrorAction SilentlyContinue); '
-            '[PSCustomObject]@{ '
-            '  UnityRunning = ($u.Count -gt 0); '
-            '  UnityCount = $u.Count; '
-            '  ShaderWorkers = $s.Count; '
-            '  CrashHandlers = $c.Count; '
-            '  ShaderPids = @($s | Select-Object -ExpandProperty Id); '
-            '  CrashPids = @($c | Select-Object -ExpandProperty Id); '
-            '} | ConvertTo-Json -Compress'
+            "[PSCustomObject]@{ "
+            "  UnityRunning = ($u.Count -gt 0); "
+            "  UnityCount = $u.Count; "
+            "  ShaderWorkers = $s.Count; "
+            "  CrashHandlers = $c.Count; "
+            "  ShaderPids = @($s | Select-Object -ExpandProperty Id); "
+            "  CrashPids = @($c | Select-Object -ExpandProperty Id); "
+            "} | ConvertTo-Json -Compress"
         )
         try:
             res = subprocess.run(
                 ["powershell.exe", "-NoProfile", "-Command", ps_cmd],
-                capture_output=True, text=True, timeout=5, creationflags=0x08000000
+                capture_output=True,
+                text=True,
+                timeout=5,
+                creationflags=0x08000000,
             )
             data = json.loads(res.stdout.strip())
             unity_running = bool(data.get("UnityRunning"))
@@ -602,7 +686,7 @@ class RigGuard:
                 "status_text": f"⚪ Unity: Query Error ({e})",
             }
 
-    def kill_zombie_unity_workers(self) -> Tuple[int, str]:
+    def kill_zombie_unity_workers(self) -> tuple[int, str]:
         """Kill orphaned Unity shader compiler and crash handler instances."""
         killed = 0
         try:
@@ -610,14 +694,21 @@ class RigGuard:
                 # Linux: use pkill
                 for pattern in ["UnityShaderCompiler", "UnityCrashHandler"]:
                     try:
-                        subprocess.run(["pkill", "-f", pattern], capture_output=True, timeout=3)
+                        subprocess.run(
+                            ["pkill", "-f", pattern], capture_output=True, timeout=3
+                        )
                         killed += 1
                     except Exception:
                         pass
             else:
                 # Windows: taskkill
                 for proc in ["UnityShaderCompiler.exe", "UnityCrashHandler64.exe"]:
-                    r = subprocess.run(["taskkill", "/F", "/IM", proc], capture_output=True, text=True, creationflags=0x08000000)
+                    r = subprocess.run(
+                        ["taskkill", "/F", "/IM", proc],
+                        capture_output=True,
+                        text=True,
+                        creationflags=0x08000000,
+                    )
                     if r.returncode == 0:
                         killed += 1
             # Clean stale lockfile if Unity is not running
@@ -633,7 +724,7 @@ class RigGuard:
         except Exception as e:
             return killed, str(e)
 
-    def clean_unity_temp(self) -> Tuple[bool, str]:
+    def clean_unity_temp(self) -> tuple[bool, str]:
         """Clean client_quest/Temp directory safely if Unity is closed."""
         st = self.get_unity_status()
         if st.get("unity_running"):
@@ -645,6 +736,7 @@ class RigGuard:
 
         try:
             import shutil
+
             # Remove all items inside Temp rather than deleting root Temp dir
             freed_count = 0
             for item in temp_dir.iterdir():
@@ -662,7 +754,7 @@ class RigGuard:
             return False, f"Failed to clean Temp: {e}"
 
     # ── Workspace Ignore & Search Cap Safeguards ────────────────────────────
-    def check_workspace_ignores(self) -> Dict[str, Any]:
+    def check_workspace_ignores(self) -> dict[str, Any]:
         """
         Verify that .antigravityignore has essential exclusions and IDE file count cap is set.
         """
@@ -686,8 +778,14 @@ class RigGuard:
         current_cap = 5000
         if ANTIGRAVITY_SETTINGS_PATH.exists():
             try:
-                settings_data = json.loads(ANTIGRAVITY_SETTINGS_PATH.read_text(encoding="utf-8", errors="ignore"))
-                current_cap = settings_data.get("antigravity.searchMaxWorkspaceFileCount", 5000)
+                settings_data = json.loads(
+                    ANTIGRAVITY_SETTINGS_PATH.read_text(
+                        encoding="utf-8", errors="ignore"
+                    )
+                )
+                current_cap = settings_data.get(
+                    "antigravity.searchMaxWorkspaceFileCount", 5000
+                )
                 if current_cap > 300:
                     cap_status = "UNCAPPED"
             except Exception:
@@ -712,20 +810,23 @@ class RigGuard:
             "status_text": status_text,
         }
 
-    def fix_workspace_ignores(self) -> Tuple[bool, str]:
+    def fix_workspace_ignores(self) -> tuple[bool, str]:
         """
         Auto-inject required ignore patterns to .antigravityignore and cap searchMaxWorkspaceFileCount.
         """
         changes = []
         # 1. Update LUMAX/.antigravityignore
-        for target_path in [LUMAX_DIR / ".antigravityignore", FOVEAI_DIR / ".antigravityignore"]:
+        for target_path in [
+            LUMAX_DIR / ".antigravityignore",
+            FOVEAI_DIR / ".antigravityignore",
+        ]:
             existing = ""
             if target_path.exists():
                 try:
                     existing = target_path.read_text(encoding="utf-8", errors="ignore")
                 except Exception:
                     existing = ""
-            
+
             lines_to_add = []
             for pat in CRITICAL_IGNORE_PATTERNS:
                 base = pat.split("/**")[0]
@@ -733,9 +834,16 @@ class RigGuard:
                     lines_to_add.append(pat)
 
             if lines_to_add:
-                new_content = existing.rstrip() + "\n\n# Rig Guard Auto-Protection\n" + "\n".join(lines_to_add) + "\n"
+                new_content = (
+                    existing.rstrip()
+                    + "\n\n# Rig Guard Auto-Protection\n"
+                    + "\n".join(lines_to_add)
+                    + "\n"
+                )
                 target_path.write_text(new_content, encoding="utf-8")
-                changes.append(f"Injected {len(lines_to_add)} patterns into {target_path.name}")
+                changes.append(
+                    f"Injected {len(lines_to_add)} patterns into {target_path.name}"
+                )
 
         # 2. Update Antigravity IDE settings.json (both User and Workspace)
         for s_path in [
@@ -747,10 +855,19 @@ class RigGuard:
                 try:
                     raw = s_path.read_text(encoding="utf-8", errors="ignore")
                     settings_data = json.loads(raw)
-                    if settings_data.get("antigravity.searchMaxWorkspaceFileCount", 5000) > 200:
+                    if (
+                        settings_data.get(
+                            "antigravity.searchMaxWorkspaceFileCount", 5000
+                        )
+                        > 200
+                    ):
                         settings_data["antigravity.searchMaxWorkspaceFileCount"] = 200
-                        s_path.write_text(json.dumps(settings_data, indent=4), encoding="utf-8")
-                        changes.append(f"Capped searchMaxWorkspaceFileCount to 200 in {s_path.name}")
+                        s_path.write_text(
+                            json.dumps(settings_data, indent=4), encoding="utf-8"
+                        )
+                        changes.append(
+                            f"Capped searchMaxWorkspaceFileCount to 200 in {s_path.name}"
+                        )
                 except Exception as e:
                     changes.append(f"Could not update {s_path.name}: {e}")
 
@@ -759,13 +876,13 @@ class RigGuard:
         return True, " | ".join(changes)
 
     # ── Top RAM Consumers ──────────────────────────────────────────────────
-    def get_top_ram_consumers(self, limit: int = 4) -> List[Dict[str, Any]]:
+    def get_top_ram_consumers(self, limit: int = 4) -> list[dict[str, Any]]:
         """Identify processes consuming the most RAM."""
         if os.name != "nt":
             return self._get_top_ram_consumers_linux(limit)
         return self._get_top_ram_consumers_windows(limit)
 
-    def _get_top_ram_consumers_linux(self, limit: int) -> List[Dict[str, Any]]:
+    def _get_top_ram_consumers_linux(self, limit: int) -> list[dict[str, Any]]:
         """Linux: use ps to find top RAM consumers."""
         try:
             out = subprocess.check_output(
@@ -790,7 +907,7 @@ class RigGuard:
         except Exception:
             return []
 
-    def _get_top_ram_consumers_windows(self, limit: int) -> List[Dict[str, Any]]:
+    def _get_top_ram_consumers_windows(self, limit: int) -> list[dict[str, Any]]:
         """Windows: use PowerShell."""
         ps_cmd = (
             f"Get-Process | Sort-Object -Descending WorkingSet64 | "
@@ -800,7 +917,10 @@ class RigGuard:
         try:
             res = subprocess.run(
                 ["powershell.exe", "-NoProfile", "-Command", ps_cmd],
-                capture_output=True, text=True, timeout=6, creationflags=0x08000000
+                capture_output=True,
+                text=True,
+                timeout=6,
+                creationflags=0x08000000,
             )
             raw = res.stdout.strip()
             if not raw:
@@ -811,17 +931,19 @@ class RigGuard:
             results = []
             for p in data:
                 mb = int(p.get("WorkingSet64", 0) / (1024 * 1024))
-                results.append({
-                    "id": p.get("Id"),
-                    "name": p.get("ProcessName"),
-                    "ram_mb": mb,
-                })
+                results.append(
+                    {
+                        "id": p.get("Id"),
+                        "name": p.get("ProcessName"),
+                        "ram_mb": mb,
+                    }
+                )
             return results
         except Exception:
             return []
 
     # ── Audit & Notification Cooldown ──────────────────────────────────────
-    def audit_and_alert(self, notify_fn) -> List[str]:
+    def audit_and_alert(self, notify_fn) -> list[str]:
         """
         Runs comprehensive bloat checks and sends throttled notifications.
         Returns a list of dispatched alert messages.
@@ -847,7 +969,9 @@ class RigGuard:
             g_count = 0
             g_sum_mb = 0
             if os.name != "nt":
-                git_out = subprocess.check_output(["ps", "aux", "--sort=-rss"], text=True, timeout=5)
+                git_out = subprocess.check_output(
+                    ["ps", "aux", "--sort=-rss"], text=True, timeout=5
+                )
                 for line in git_out.splitlines()[1:]:
                     parts = line.split(None, 10)
                     if len(parts) < 11 or not parts[10].startswith("git"):
@@ -864,7 +988,13 @@ class RigGuard:
                     "Measure-Object -Property WorkingSet64 -Sum | "
                     "Select-Object Count, Sum | ConvertTo-Json -Compress"
                 )
-                g_res = subprocess.run(["powershell.exe", "-NoProfile", "-Command", ps_git], capture_output=True, text=True, timeout=5, creationflags=0x08000000)
+                g_res = subprocess.run(
+                    ["powershell.exe", "-NoProfile", "-Command", ps_git],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                    creationflags=0x08000000,
+                )
                 if g_res.stdout.strip() and g_res.stdout.strip() != "null":
                     g_data = json.loads(g_res.stdout.strip())
                     g_count = g_data.get("Count", 0)

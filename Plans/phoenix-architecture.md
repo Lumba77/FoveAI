@@ -245,7 +245,7 @@ torch.onnx.export(
     opset_version=17,
     input_names=["skeleton_tokens"],
     output_names=["full_tokens"],
-    dynamic_axes={"skeleton_tokens": {0: "batch", 1: "seq_len"}}
+    dynamic_axes={"skeleton_tokens": {0: "batch", 1: "seq_len"}},
 )
 ```
 

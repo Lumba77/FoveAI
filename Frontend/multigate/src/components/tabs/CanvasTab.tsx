@@ -7,6 +7,7 @@ export const CanvasTab: React.FC = () => {
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [isForging, setIsForging] = useState(false);
   const [resultImage, setResultImage] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -25,15 +26,56 @@ export const CanvasTab: React.FC = () => {
     if (fileInput) fileInput.value = '';
   };
 
-  const handleForge = () => {
+  // ratio → SD-friendly pixel dims (multiples of 8)
+  const RATIO_DIMS: Record<string, [number, number]> = {
+    '1:1': [512, 512],
+    '16:9': [768, 432],
+    '9:16': [432, 768],
+  };
+  // UI engine ids → creative_service model_type
+  const ENGINE_MAP: Record<string, string> = {
+    turbo: 'turbo',
+    sd15: 'turbo',
+    control: 'control',
+    upscale: 'enhance',
+  };
+
+  const handleForge = async () => {
     if (!prompt.trim()) return;
     setIsForging(true);
-    // Placeholder logic for API call
-    setTimeout(() => {
+    setErrorMsg(null);
+    const [w, h] = RATIO_DIMS[ratio] || [512, 512];
+    try {
+      const body: Record<string, unknown> = {
+        prompt: prompt.trim(),
+        model_type: ENGINE_MAP[engine] || 'turbo',
+        width: w,
+        height: h,
+      };
+      // sd-turbo is a distilled model — CFG isn't trained in, so guidance must
+      // be 0 and 1-4 steps suffice (a plain 7.5/20-style config produces garbage).
+      if (engine === 'turbo') {
+        body.guidance_scale = 0;
+        body.num_inference_steps = 4;
+      }
+      if (uploadedImage) {
+        body.reference_image_b64 = uploadedImage.split(',')[1] || uploadedImage;
+      }
+      const res = await fetch('/api/dream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== 'success') {
+        throw new Error(data.detail || data.error || `HTTP ${res.status}`);
+      }
+      setResultImage(`data:image/png;base64,${data.image_b64}`);
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : String(e));
+    } finally {
       setIsForging(false);
-      // We don't have a real image to show yet, but this proves the UI state works
-      setResultImage('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400"><rect width="400" height="400" fill="%230a0f19"/><text x="200" y="200" font-family="Orbitron" font-size="20" fill="%2300f3ff" text-anchor="middle" dominant-baseline="middle">API NOT CONNECTED</text></svg>');
-    }, 2000);
+    }
   };
 
   return (
@@ -102,10 +144,18 @@ export const CanvasTab: React.FC = () => {
         </div>
 
         <div className="glass-card" style={{ flex: 1, minHeight: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden', background: 'rgba(0,0,0,0.4)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-          {!isForging && !resultImage && (
+          {!isForging && !resultImage && !errorMsg && (
             <div style={{ textAlign: 'center', opacity: 0.5 }}>
               <div style={{ fontSize: '2rem', marginBottom: '10px' }}>✨</div>
               <div style={{ fontFamily: 'Orbitron', fontSize: '0.7rem' }}>AWAITING ARTILLERY COMMAND</div>
+            </div>
+          )}
+
+          {errorMsg && !isForging && (
+            <div style={{ textAlign: 'center', padding: '20px', maxWidth: '80%' }}>
+              <div style={{ fontSize: '2rem', marginBottom: '10px' }}>⚠️</div>
+              <div style={{ fontFamily: 'Orbitron', fontSize: '0.7rem', color: '#ff5577', marginBottom: '8px' }}>FORGE FAILED</div>
+              <div style={{ fontFamily: 'Share Tech Mono', fontSize: '0.7rem', color: 'rgba(255,255,255,0.6)', wordBreak: 'break-word' }}>{errorMsg}</div>
             </div>
           )}
           

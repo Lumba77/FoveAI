@@ -30,8 +30,9 @@ import os
 import shutil
 import tempfile
 import time
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Dict, Generator, List, Optional, Union
+from typing import Any
 
 # ── Reactor Master Kill Switch (Step 1) ──────────────────────────────────────
 # XRLF_REPO_ENABLED=false → the repo becomes COLD: all XRL cognitive steering,
@@ -39,34 +40,33 @@ from typing import Any, Dict, Generator, List, Optional, Union
 # runtime becomes a transparent passthrough to the GGUF core model.
 # This isolates the repo permanently until you turn it back on.
 XRLF_REPO_ENABLED = os.environ.get("XRLF_REPO_ENABLED", "false").lower().strip() in (
-    "true", "1", "on",
+    "true",
+    "1",
+    "on",
 )
-XRLF_CONTEXT_OVERRIDE = (
-    os.environ.get("XRLF_CONTEXT_OVERRIDE", "true" if XRLF_REPO_ENABLED else "false").lower().strip()
-    in ("true", "1", "on")
-)
-XRLF_CAPABILITY_OVERRIDE = (
-    os.environ.get("XRLF_CAPABILITY_OVERRIDE", "true" if XRLF_REPO_ENABLED else "false").lower().strip()
-    in ("true", "1", "on")
-)
-XRLF_FOVEATION_OVERRIDE = (
-    os.environ.get("XRLF_FOVEATION_OVERRIDE", "true" if XRLF_REPO_ENABLED else "false").lower().strip()
-    in ("true", "1", "on")
-)
+XRLF_CONTEXT_OVERRIDE = os.environ.get(
+    "XRLF_CONTEXT_OVERRIDE", "true" if XRLF_REPO_ENABLED else "false"
+).lower().strip() in ("true", "1", "on")
+XRLF_CAPABILITY_OVERRIDE = os.environ.get(
+    "XRLF_CAPABILITY_OVERRIDE", "true" if XRLF_REPO_ENABLED else "false"
+).lower().strip() in ("true", "1", "on")
+XRLF_FOVEATION_OVERRIDE = os.environ.get(
+    "XRLF_FOVEATION_OVERRIDE", "true" if XRLF_REPO_ENABLED else "false"
+).lower().strip() in ("true", "1", "on")
 
 from formats.xrlf_parser import XRLFParser
 from formats.xrlf_schema import SectionType
 from llama_bridge.llama_engine import LlamaEngine
 from memory.membrane_engine import MembraneEngine
 from runtime.cognitive_steering import (
-    ProfileSelector,
     ClusterActivator,
     GraphTraverser,
     PrincipiaApplicator,
+    ProfileSelector,
 )
-from runtime.triad_pipeline import TriadPipeline
 from runtime.memory_planner import MemoryPlanner, MemoryTier, ModelPriority
 from runtime.soul_bridge import SoulBridge
+from runtime.triad_pipeline import TriadPipeline
 
 # Tools/ is a folder of standalone scripts (capital T on disk).
 # Import mm_hooks lazily only if needed.
@@ -102,47 +102,49 @@ class XRLFRuntime:
         self.verbose = verbose
 
         # Runtime objects (initialized in load())
-        self._parser: Optional[XRLFParser] = None
-        self._llama: Optional[LlamaEngine] = None
-        self._memory: Optional[MembraneEngine] = None
-        self._profile_sel: Optional[ProfileSelector] = None
-        self._cluster_act: Optional[ClusterActivator] = None
-        self._graph_trav: Optional[GraphTraverser] = None
-        self._principia: Optional[PrincipiaApplicator] = None
-        self._triad: Optional[TriadPipeline] = None
-        self._planner: Optional[Any] = None  # MemoryPlanner
-        self._soul: Optional[SoulBridge] = None
+        self._parser: XRLFParser | None = None
+        self._llama: LlamaEngine | None = None
+        self._memory: MembraneEngine | None = None
+        self._profile_sel: ProfileSelector | None = None
+        self._cluster_act: ClusterActivator | None = None
+        self._graph_trav: GraphTraverser | None = None
+        self._principia: PrincipiaApplicator | None = None
+        self._triad: TriadPipeline | None = None
+        self._planner: Any | None = None  # MemoryPlanner
+        self._soul: SoulBridge | None = None
 
         # Helper model paths (resolved from env or disk)
-        self._router_gguf_path: Optional[str] = None
-        self._summarizer_gguf_path: Optional[str] = None
+        self._router_gguf_path: str | None = None
+        self._summarizer_gguf_path: str | None = None
 
         # Temp dir for extracted artifacts
-        self._tmpdir: Optional[str] = None
-        self._cache_dir: Optional[str] = None
-        self._foveai_dir: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # FoveAI/ root
-        self._gguf_path: Optional[str] = None
-        self._mmproj_path: Optional[str] = None
-        self._draft_gguf_path: Optional[str] = None
-        self._whisper_gguf_path: Optional[str] = None
-        self._kokoro_model_path: Optional[str] = None
-        self._memory_db_path: Optional[str] = None
+        self._tmpdir: str | None = None
+        self._cache_dir: str | None = None
+        self._foveai_dir: str = os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))
+        )  # FoveAI/ root
+        self._gguf_path: str | None = None
+        self._mmproj_path: str | None = None
+        self._draft_gguf_path: str | None = None
+        self._whisper_gguf_path: str | None = None
+        self._kokoro_model_path: str | None = None
+        self._memory_db_path: str | None = None
 
         # Runtime state
         self.loaded = False
-        self.load_state = "idle"   # idle | loading | ready | error
-        self.load_error: Optional[str] = None
+        self.load_state = "idle"  # idle | loading | ready | error
+        self.load_error: str | None = None
         self.model_name = ""
-        self._mm_hooks: Dict = {}
-        self._mm_registry: Optional[MMHookRegistry] = None
-        self._memory_schema: Dict = {}
+        self._mm_hooks: dict = {}
+        self._mm_registry: MMHookRegistry | None = None
+        self._memory_schema: dict = {}
 
     def _ensure_cached(
         self,
         file_name: str,
         extract_fn,
         cache_valid: bool,
-        label: Optional[str] = None,
+        label: str | None = None,
     ) -> str:
         """Return the cached file path, extracting from XRLF if the cache is stale."""
         if not self._cache_dir:
@@ -203,7 +205,9 @@ class XRLFRuntime:
         if cache_valid:
             print(f"  ✅ Cache hit — reusing extracted artifacts in {self._cache_dir}")
         else:
-            print(f"  🔄 Cache stale/missing — extracting XRLF artifacts to {self._cache_dir}")
+            print(
+                f"  🔄 Cache stale/missing — extracting XRLF artifacts to {self._cache_dir}"
+            )
 
         # 3. Extract GGUF core
         if self._parser.has_section(SectionType.CORE_GGUF):
@@ -227,7 +231,11 @@ class XRLFRuntime:
             # Check for external mmproj.gguf in the cache directory
             # (downloaded separately for models that claim vision/audio but
             #  don't embed the projector in the XRLF file)
-            cache_dir = Path(self._cache_dir) if self._cache_dir else Path(tempfile.gettempdir()) / "xrlf_cache"
+            cache_dir = (
+                Path(self._cache_dir)
+                if self._cache_dir
+                else Path(tempfile.gettempdir()) / "xrlf_cache"
+            )
             ext_mmproj = cache_dir / "mmproj.gguf"
             if ext_mmproj.exists():
                 self._mmproj_path = str(ext_mmproj)
@@ -237,7 +245,9 @@ class XRLFRuntime:
         # The draft model must have the same vocab size as the main model.
         # If they mismatch, llama-cpp throws "could not broadcast input array" errors.
         # Enable with env var XRLF_SPECULATIVE_DECODING=true
-        use_speculative = os.environ.get("XRLF_SPECULATIVE_DECODING", "false").lower().strip() in ("true", "1", "on")
+        use_speculative = os.environ.get(
+            "XRLF_SPECULATIVE_DECODING", "false"
+        ).lower().strip() in ("true", "1", "on")
         if use_speculative and self._parser.has_section(SectionType.CORE_DRAFT_GGUF):
             self._draft_gguf_path = self._ensure_cached(
                 "draft.gguf",
@@ -246,7 +256,9 @@ class XRLFRuntime:
             )
         else:
             if self._parser.has_section(SectionType.CORE_DRAFT_GGUF):
-                print("  ⏭️  Draft GGUF skipped (speculative decoding disabled — set XRLF_SPECULATIVE_DECODING=true to enable)")
+                print(
+                    "  ⏭️  Draft GGUF skipped (speculative decoding disabled — set XRLF_SPECULATIVE_DECODING=true to enable)"
+                )
 
         # 3.8. Extract Whisper GGUF (or resolve local fallback)
         if self._parser.has_section(SectionType.CORE_WHISPER_GGUF):
@@ -256,7 +268,11 @@ class XRLFRuntime:
                 cache_valid,
             )
         else:
-            for candidate in ["models/whisper/whisper-base.gguf", "models/whisper.gguf", "foveated-memory/models/whisper.gguf"]:
+            for candidate in [
+                "models/whisper/whisper-base.gguf",
+                "models/whisper.gguf",
+                "foveated-memory/models/whisper.gguf",
+            ]:
                 p = os.path.join(self._foveai_dir, candidate)
                 if os.path.exists(p):
                     self._whisper_gguf_path = p
@@ -270,7 +286,11 @@ class XRLFRuntime:
                 cache_valid,
             )
         else:
-            for candidate in ["models/kokoro/kokoro-v0_19.onnx", "Frontend/Mouth/kokoro-v0_19.onnx", "foveated-memory/models/kokoro.onnx"]:
+            for candidate in [
+                "models/kokoro/kokoro-v0_19.onnx",
+                "Frontend/Mouth/kokoro-v0_19.onnx",
+                "foveated-memory/models/kokoro.onnx",
+            ]:
                 p = os.path.join(self._foveai_dir, candidate)
                 if os.path.exists(p):
                     self._kokoro_model_path = p
@@ -304,8 +324,14 @@ class XRLFRuntime:
             ext = self._mm_hooks.get("external_hooks", {}).get("tts", {})
             fb = ext.get("fallback", [])
             if "kokoro" not in fb:
-                ext["fallback"] = ["http", "kokoro"] + [p for p in fb if p not in ("http", "kokoro")]
-        self._mm_registry = MMHookRegistry(self._mm_hooks) if (self._mm_hooks and MMHookRegistry) else None
+                ext["fallback"] = ["http", "kokoro"] + [
+                    p for p in fb if p not in ("http", "kokoro")
+                ]
+        self._mm_registry = (
+            MMHookRegistry(self._mm_hooks)
+            if (self._mm_hooks and MMHookRegistry)
+            else None
+        )
 
         # 6.5. KV Cache Safety Net — cap n_ctx BEFORE planning if weights + KV would overflow VRAM.
         # Must happen before LlamaEngine.load() and before memory planning uses n_ctx.
@@ -330,7 +356,9 @@ class XRLFRuntime:
         self._resolve_helper_models()
 
         # 7.6. Start triad pipeline (router + summarizer + main)
-        triad_enabled = os.environ.get("XRLF_TRIAD_PIPELINE", "true").lower().strip() in ("true", "1", "on")
+        triad_enabled = os.environ.get(
+            "XRLF_TRIAD_PIPELINE", "true"
+        ).lower().strip() in ("true", "1", "on")
         if triad_enabled and (self._router_gguf_path or self._summarizer_gguf_path):
             self._triad = TriadPipeline(
                 router_path=self._router_gguf_path,
@@ -359,7 +387,7 @@ class XRLFRuntime:
                     "system_context",
                     "You are Alice, a warm and curious AI companion in VR. "
                     "Made by Danie. You speak concisely (1-3 sentences), like a friend. "
-                    "You do NOT lecture or teach. You remember details about the user."
+                    "You do NOT lecture or teach. You remember details about the user.",
                 )
                 print("  ✅ Alice identity injected into foveated memory")
 
@@ -381,8 +409,10 @@ class XRLFRuntime:
             self._soul.load()
             if self.verbose:
                 status = self._soul.get_status()
-                print(f"  ✅ Soul bridge loaded — {status['soul']['name']} "
-                      f"({status['soul']['traits']} traits, {status['cognition']['emotion']})")
+                print(
+                    f"  ✅ Soul bridge loaded — {status['soul']['name']} "
+                    f"({status['soul']['traits']} traits, {status['cognition']['emotion']})"
+                )
         except Exception as e:
             print(f"  ⚠️ Soul bridge init failed: {e}")
             self._soul = None
@@ -426,7 +456,11 @@ class XRLFRuntime:
             )
 
             if self._mmproj_path:
-                mmproj_size = os.path.getsize(self._mmproj_path) / (1024**3) if os.path.exists(self._mmproj_path) else 0.4
+                mmproj_size = (
+                    os.path.getsize(self._mmproj_path) / (1024**3)
+                    if os.path.exists(self._mmproj_path)
+                    else 0.4
+                )
                 self._planner.register_model(
                     name="vision",
                     size_vram_gb=mmproj_size,
@@ -436,7 +470,11 @@ class XRLFRuntime:
                 )
 
             if self._router_gguf_path:
-                router_size = os.path.getsize(self._router_gguf_path) / (1024**3) if os.path.exists(self._router_gguf_path) else 0.3
+                router_size = (
+                    os.path.getsize(self._router_gguf_path) / (1024**3)
+                    if os.path.exists(self._router_gguf_path)
+                    else 0.3
+                )
                 self._planner.register_model(
                     name="router",
                     size_vram_gb=router_size,
@@ -446,7 +484,11 @@ class XRLFRuntime:
                 )
 
             if self._summarizer_gguf_path:
-                sum_size = os.path.getsize(self._summarizer_gguf_path) / (1024**3) if os.path.exists(self._summarizer_gguf_path) else 0.35
+                sum_size = (
+                    os.path.getsize(self._summarizer_gguf_path) / (1024**3)
+                    if os.path.exists(self._summarizer_gguf_path)
+                    else 0.35
+                )
                 self._planner.register_model(
                     name="summarizer",
                     size_vram_gb=sum_size,
@@ -490,7 +532,7 @@ class XRLFRuntime:
             self._planner.start(interval=plan_interval)
 
             if self.verbose:
-                print(f"  ✅ Memory planner started — dynamic VRAM/RAM tiling active")
+                print("  ✅ Memory planner started — dynamic VRAM/RAM tiling active")
 
         except Exception as e:
             print(f"  ⚠️ Memory planner init failed: {e}")
@@ -526,7 +568,7 @@ class XRLFRuntime:
             if gpu_layers != self._llama._n_gpu_layers:
                 self._llama.set_gpu_layers(gpu_layers)
 
-    def get_memory_status(self) -> Dict[str, Any]:
+    def get_memory_status(self) -> dict[str, Any]:
         """Get current memory tiling status from the planner."""
         if self._planner:
             return self._planner.get_status()
@@ -538,21 +580,35 @@ class XRLFRuntime:
         """
         try:
             from pathlib import Path
+
             model_size_gb = Path(gguf_path).stat().st_size / (1024**3)
-            # KV cache estimate: 2 (K+V) * n_layers * head_dim * n_kv_heads * 2 bytes (F16) per token
-            # Gemma 4 E2B: 35 layers, 1 KV head, 512 dim, full-size SWA ≈ x2
-            # Conservative: ~140 KB/token. Non-SWA models will be smaller, so this is a safe upper bound.
-            kv_per_token_bytes = 2 * 35 * 512 * 1 * 2 * 2
+            # KV cache estimate: prefer exact GGUF metadata (handles hybrid SSM
+            # archs like qwen35 where only every Nth layer keeps KV). Fallback:
+            # 2 (K+V) * n_layers * head_dim * n_kv_heads * 2 bytes (F16) per token
+            # — Gemma 4 E2B: 35 layers, 1 KV head, 512 dim, full-size SWA ≈ x2.
+            kv_per_token_bytes = None
+            try:
+                from runtime.vram_guard import guardrail
+
+                kv_per_token_bytes = guardrail._kv_per_token_bytes(gguf_path)
+            except Exception:
+                pass
+            if not kv_per_token_bytes:
+                kv_per_token_bytes = 2 * 35 * 512 * 1 * 2 * 2
             kv_gb = requested_ctx * kv_per_token_bytes / (1024**3)
             usable_gb = float(os.getenv("FOVEAI_USABLE_VRAM_GB", "6.5"))
             reserve_gb = float(os.getenv("FOVEAI_KV_RESERVE_GB", "1.5"))
             budget_gb = usable_gb - reserve_gb
             total_gb = model_size_gb + kv_gb
             if total_gb > budget_gb:
-                max_ctx = int((budget_gb - model_size_gb) * (1024**3) / kv_per_token_bytes)
+                max_ctx = int(
+                    (budget_gb - model_size_gb) * (1024**3) / kv_per_token_bytes
+                )
                 max_ctx = max(1024, max_ctx)  # floor at 1024
                 if max_ctx < requested_ctx:
-                    print(f"  ⚠️ KV safety net: {total_gb:.1f}GB > {budget_gb:.1f}GB budget — capping n_ctx {requested_ctx}→{max_ctx}")
+                    print(
+                        f"  ⚠️ KV safety net: {total_gb:.1f}GB > {budget_gb:.1f}GB budget — capping n_ctx {requested_ctx}→{max_ctx}"
+                    )
                     return max_ctx
             return requested_ctx
         except Exception:
@@ -567,10 +623,16 @@ class XRLFRuntime:
         else:
             # Scan for the merged router GGUF
             candidates = [
-                os.path.join(self._foveai_dir, "..", "Training", "outputs",
-                             "xrlf_router_qwen0.5b_q4_k_m.gguf"),
-                os.path.join(self._foveai_dir, "models",
-                             "xrlf_router_qwen0.5b_q4_k_m.gguf"),
+                os.path.join(
+                    self._foveai_dir,
+                    "..",
+                    "Training",
+                    "outputs",
+                    "xrlf_router_qwen0.5b_q4_k_m.gguf",
+                ),
+                os.path.join(
+                    self._foveai_dir, "models", "xrlf_router_qwen0.5b_q4_k_m.gguf"
+                ),
             ]
             for c in candidates:
                 if os.path.exists(c):
@@ -583,10 +645,16 @@ class XRLFRuntime:
             self._summarizer_gguf_path = summarizer_env
         else:
             candidates = [
-                os.path.join(self._foveai_dir, "..", "Training", "outputs",
-                             "xrlf_summarizer_qwen0.6b_q4_k_m.gguf"),
-                os.path.join(self._foveai_dir, "models",
-                             "xrlf_summarizer_qwen0.6b_q4_k_m.gguf"),
+                os.path.join(
+                    self._foveai_dir,
+                    "..",
+                    "Training",
+                    "outputs",
+                    "xrlf_summarizer_qwen0.6b_q4_k_m.gguf",
+                ),
+                os.path.join(
+                    self._foveai_dir, "models", "xrlf_summarizer_qwen0.6b_q4_k_m.gguf"
+                ),
             ]
             for c in candidates:
                 if os.path.exists(c):
@@ -604,40 +672,47 @@ class XRLFRuntime:
 
         profiles_data = (
             p.get_section_json(SectionType.XRL_PROFILES)
-            if p.has_section(SectionType.XRL_PROFILES) else {}
+            if p.has_section(SectionType.XRL_PROFILES)
+            else {}
         )
         clusters_data = (
             p.get_section_json(SectionType.XRL_CLUSTERS)
-            if p.has_section(SectionType.XRL_CLUSTERS) else {}
+            if p.has_section(SectionType.XRL_CLUSTERS)
+            else {}
         )
         graph_data = (
             p.get_section_json(SectionType.XRL_GRAPH)
-            if p.has_section(SectionType.XRL_GRAPH) else {}
+            if p.has_section(SectionType.XRL_GRAPH)
+            else {}
         )
         principles_data = (
             p.get_section_json(SectionType.XRL_PRINCIPLES)
-            if p.has_section(SectionType.XRL_PRINCIPLES) else []
+            if p.has_section(SectionType.XRL_PRINCIPLES)
+            else []
         )
 
-        self._profile_sel  = ProfileSelector(profiles_data)
-        self._cluster_act  = ClusterActivator(clusters_data)
-        self._graph_trav   = GraphTraverser(graph_data)
-        self._principia    = PrincipiaApplicator(principles_data)
+        self._profile_sel = ProfileSelector(profiles_data)
+        self._cluster_act = ClusterActivator(clusters_data)
+        self._graph_trav = GraphTraverser(graph_data)
+        self._principia = PrincipiaApplicator(principles_data)
         print("  XRL cognitive layers loaded (profiles, clusters, graph, principles)")
 
     # ── Chat ──────────────────────────────────────────────────────────────────
 
     def chat(
         self,
-        messages: List[Dict[str, Any]],
+        messages: list[dict[str, Any]],
         max_tokens: int = 1024,
-        temperature: Optional[float] = None,
+        temperature: float | None = None,
         stream: bool = False,
         has_image: bool = False,
         has_audio: bool = False,
         has_video: bool = False,
-        force_profile: Optional[str] = None,
-    ) -> Union[str, Generator[str, None, None]]:
+        force_profile: str | None = None,
+        headless: bool = False,
+        thinking: bool = True,
+        utility: bool = False,
+    ) -> str | Generator[str, None, None]:
         """
         Main generation entry point.
         messages: OpenAI-format [{"role": ..., "content": ...}]
@@ -647,6 +722,23 @@ class XRLFRuntime:
         base64 image URLs or audio tokens directly (passed to llama.cpp).
         """
         self._require_loaded()
+
+        # ── Utility lane ────────────────────────────────────────────────────
+        # Bare model call: no triad, no principia/soul/memory injection, no
+        # store_turn, no cognitive evolution. Housekeeping callers (session
+        # titling, compression) go here so meta-traffic never pollutes the
+        # session history or the soul's evolving state.
+        if utility:
+            temp = temperature if temperature is not None else 0.2
+            if self._llama is None:
+                return "[XRLF stub — no GGUF core loaded] utility call"
+            if stream:
+                def _util_stream() -> Generator[str, None, None]:
+                    yield from self._llama.chat(
+                        messages, max_tokens=max_tokens, temperature=temp, stream=True
+                    )
+                return _util_stream()
+            return self._llama.chat(messages, max_tokens=max_tokens, temperature=temp)
 
         # Signal workload to memory planner for dynamic tiling
         if self._planner:
@@ -663,7 +755,8 @@ class XRLFRuntime:
                 elif isinstance(content, list):
                     # multimodal content list — extract text parts
                     user_msg = " ".join(
-                        part.get("text", "") for part in content
+                        part.get("text", "")
+                        for part in content
                         if isinstance(part, dict) and part.get("type") == "text"
                     )
                 break
@@ -672,7 +765,7 @@ class XRLFRuntime:
         # Router classifies intent → summarizer compresses history → main model
         # gets cleaner context. This runs regardless of reactor hot/cold state
         # because it's model collaboration, not XRL cognitive steering.
-        triad_route: Dict[str, Any] = {}
+        triad_route: dict[str, Any] = {}
         if self._triad and self._triad.loaded:
             messages, triad_route = self._triad.pre_process(messages, user_msg)
             if self.verbose and triad_route.get("specialist"):
@@ -688,9 +781,13 @@ class XRLFRuntime:
             if self._llama is None:
                 response = "[XRLF stub — no GGUF core loaded] Reactor COLD passthrough."
             elif stream:
-                return self._stream_and_store(messages, user_msg, max_tokens, temp, "cold")
+                return self._stream_and_store(
+                    messages, user_msg, max_tokens, temp, "cold"
+                )
             else:
-                response = self._llama.chat(messages, max_tokens=max_tokens, temperature=temp)
+                response = self._llama.chat(
+                    messages, max_tokens=max_tokens, temperature=temp
+                )
             if self._memory and XRLF_FOVEATION_OVERRIDE:
                 self._memory.store_turn("user", user_msg)
                 self._memory.store_turn("assistant", response)
@@ -735,12 +832,17 @@ class XRLFRuntime:
         # ── Assemble steered messages ─────────────────────────────────────────
 
         # Soul bridge: inject personality + cognitive state + body vocabulary
+        # (headless callers skip avatar markup — nothing consumes it there)
         soul_prompt = ""
         if self._soul:
-            soul_prompt = self._soul.build_system_prompt()
+            soul_prompt = self._soul.build_system_prompt(
+                embodied=not headless, thinking=thinking
+            )
 
         if system_prefix or memory_block or soul_prompt:
-            steered_messages = _inject_system(messages, system_prefix, memory_block, soul_prompt)
+            steered_messages = _inject_system(
+                messages, system_prefix, memory_block, soul_prompt
+            )
         else:
             steered_messages = list(messages)
 
@@ -748,8 +850,10 @@ class XRLFRuntime:
         if self._soul:
             steered_messages, ctx_meta = self._soul.adapt_context(steered_messages)
             if self.verbose and ctx_meta.get("action", "pass") != "pass":
-                print(f"  [Soul] context {ctx_meta['action']}: "
-                      f"{ctx_meta.get('tokens_before', '?')}→{ctx_meta.get('tokens_after', '?')} tokens")
+                print(
+                    f"  [Soul] context {ctx_meta['action']}: "
+                    f"{ctx_meta.get('tokens_before', '?')}→{ctx_meta.get('tokens_after', '?')} tokens"
+                )
 
         if self.verbose:
             print(f"  [XRL] profile={profile_name}  clusters={activated_clusters}")
@@ -757,7 +861,11 @@ class XRLFRuntime:
 
         # ── Generate ──────────────────────────────────────────────────────────
 
-        temp = temperature if temperature is not None else profile_cfg.get("temperature", 0.7)
+        temp = (
+            temperature
+            if temperature is not None
+            else profile_cfg.get("temperature", 0.7)
+        )
 
         if self._llama is None:
             # Stub response when no GGUF is loaded
@@ -767,7 +875,9 @@ class XRLFRuntime:
                 steered_messages, user_msg, max_tokens, temp, profile_name
             )
         else:
-            response = self._llama.chat(steered_messages, max_tokens=max_tokens, temperature=temp)
+            response = self._llama.chat(
+                steered_messages, max_tokens=max_tokens, temperature=temp
+            )
 
         # Store turn
         if self._memory:
@@ -786,15 +896,18 @@ class XRLFRuntime:
         handles, expand them and persist the expansion as a system turn —
         the expansion enters TF-IDF and future co-recall, closing the loop."""
         import re as _re
+
         if self._memory is None:
             return
-        handles = _re.findall(r'\bc:(\d+)\b|<constellation:\s*([^>]+)>', response)
+        handles = _re.findall(r"\bc:(\d+)\b|<constellation:\s*([^>]+)>", response)
         for num, label in handles:
             handle = int(num) if num else label.strip()
             expanded = self._memory.expand_constellation(handle)
             if expanded:
                 digest = "; ".join(
-                    (m["content"][:80] + "…") if len(m["content"]) > 80 else m["content"]
+                    (m["content"][:80] + "…")
+                    if len(m["content"]) > 80
+                    else m["content"]
                     for m in expanded["members"][:4]
                 )
                 self._memory.store_turn(
@@ -806,11 +919,12 @@ class XRLFRuntime:
                 )
 
     def _stream_and_store(
-        self,
-        messages, user_msg, max_tokens, temperature, profile_name
+        self, messages, user_msg, max_tokens, temperature, profile_name
     ) -> Generator[str, None, None]:
         full_response = []
-        for chunk in self._llama.chat(messages, max_tokens=max_tokens, temperature=temperature, stream=True):
+        for chunk in self._llama.chat(
+            messages, max_tokens=max_tokens, temperature=temperature, stream=True
+        ):
             full_response.append(chunk)
             yield chunk
         response = "".join(full_response)
@@ -828,7 +942,9 @@ class XRLFRuntime:
         self._require_loaded()
         if self._llama is None:
             return "[XRLF stub — no GGUF core]"
-        return self._llama.generate(prompt, max_tokens=max_tokens, temperature=temperature)
+        return self._llama.generate(
+            prompt, max_tokens=max_tokens, temperature=temperature
+        )
 
     # ── Close ─────────────────────────────────────────────────────────────────
 
@@ -862,7 +978,9 @@ class XRLFRuntime:
         """Re-pack updated memory data back into the .xrlf file in-place."""
         try:
             new_memory_bytes = self._memory.get_serializable_snapshot()
-            _rewrite_section(self.xrlf_path, SectionType.XRL_MEMORY_DATA, new_memory_bytes)
+            _rewrite_section(
+                self.xrlf_path, SectionType.XRL_MEMORY_DATA, new_memory_bytes
+            )
             print("  Memory re-packed into XRLF file.")
         except Exception as e:
             print(f"  ⚠️  Memory re-pack failed (non-fatal): {e}")
@@ -880,18 +998,21 @@ class XRLFRuntime:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _inject_system(
-    messages: List[Dict],
+    messages: list[dict],
     system_prefix: str,
     memory_block: str,
     soul_prompt: str = "",
-) -> List[Dict]:
+) -> list[dict]:
     """
     Inject the XRL system prefix, memory block, and soul prompt into the message list.
     Finds an existing system message or prepends a new one.
     """
     steered = list(messages)
-    combined_system = "\n\n".join(filter(None, [system_prefix, memory_block, soul_prompt]))
+    combined_system = "\n\n".join(
+        filter(None, [system_prefix, memory_block, soul_prompt])
+    )
     if not combined_system:
         return steered
 
@@ -902,10 +1023,18 @@ def _inject_system(
         if m.get("role") == "system":
             existing = m.get("content", "")
             # Remove any existing <background_memory> blocks and the trailing note to prevent infinite growth
-            existing = re.sub(r'<background_memory>.*?</background_memory>\n(?:\[Note:.*?\]\n*)?', '', existing, flags=re.DOTALL)
+            existing = re.sub(
+                r"<background_memory>.*?</background_memory>\n(?:\[Note:.*?\]\n*)?",
+                "",
+                existing,
+                flags=re.DOTALL,
+            )
             existing = existing.strip()
-            
-            steered[i] = {"role": "system", "content": combined_system + ("\n\n" + existing if existing else "")}
+
+            steered[i] = {
+                "role": "system",
+                "content": combined_system + ("\n\n" + existing if existing else ""),
+            }
             return steered
 
     steered.insert(0, {"role": "system", "content": combined_system})
@@ -918,9 +1047,8 @@ def _rewrite_section(xrlf_path: str, section_type: SectionType, new_payload: byt
     Only safe when the new payload is the same size as the old one,
     otherwise rewrites the whole file (rare operation).
     """
+
     from formats.xrlf_parser import XRLFParser
-    from formats.xrlf_packer import XRLFPacker
-    import struct
 
     with XRLFParser.open(xrlf_path) as p:
         entry = p.manifest.section(section_type)
@@ -939,12 +1067,14 @@ def _rewrite_section(xrlf_path: str, section_type: SectionType, new_payload: byt
 
 def _full_rewrite_with_section(xrlf_path, parser, target_type, new_payload):
     """Rebuild the .xrlf with one section replaced."""
-    import tempfile, shutil
+    import shutil
+
     from formats.xrlf_schema import (
-        HEADER_STRUCT, SECTION_ENTRY_STRUCT,
-        MAGIC, FORMAT_VERSION,
+        FORMAT_VERSION,
+        HEADER_STRUCT,
+        MAGIC,
+        SECTION_ENTRY_STRUCT,
     )
-    from formats.xrlf_parser import XRLFParser
 
     tmp = xrlf_path + ".tmp"
     hdr = parser.manifest.header
@@ -955,7 +1085,8 @@ def _full_rewrite_with_section(xrlf_path, parser, target_type, new_payload):
     section_count = len(sections)
     payload_start = (
         HEADER_STRUCT.size
-        + len(base_bytes) + len(xrl_bytes)
+        + len(base_bytes)
+        + len(xrl_bytes)
         + section_count * SECTION_ENTRY_STRUCT.size
     )
 
@@ -972,12 +1103,20 @@ def _full_rewrite_with_section(xrlf_path, parser, target_type, new_payload):
         cursor += len(data)
 
     with open(tmp, "wb") as f:
-        f.write(HEADER_STRUCT.pack(MAGIC, FORMAT_VERSION, len(base_bytes), len(xrl_bytes),
-                                   hdr.flags, section_count, b"\x00"*6))
+        f.write(
+            HEADER_STRUCT.pack(
+                MAGIC,
+                FORMAT_VERSION,
+                len(base_bytes),
+                len(xrl_bytes),
+                hdr.flags,
+                section_count,
+                b"\x00" * 6,
+            )
+        )
         f.write(base_bytes)
         f.write(xrl_bytes)
-        for stype, offset, length, sflags in entries:
-            f.write(SECTION_ENTRY_STRUCT.pack(int(stype), offset, length, sflags))
+        f.writelines(SECTION_ENTRY_STRUCT.pack(int(stype), offset, length, sflags) for stype, offset, length, sflags in entries)
         for data in payloads:
             f.write(data)
 

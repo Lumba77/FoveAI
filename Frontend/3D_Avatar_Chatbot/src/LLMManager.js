@@ -142,7 +142,7 @@
         // ----- Streaming Implementations -----
 
         async _streamLumax(userMessage, systemPrompt, conversationHistory, onToken) {
-            const targetUrl = 'http://127.0.0.1:8000/compagent/stream';
+            const targetUrl = 'http://127.0.0.1:8405/compagent/stream';
             
             // Reformat history into the chat_log format FoveAI expects
             const innerBody = {

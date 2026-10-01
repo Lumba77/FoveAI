@@ -1,8 +1,8 @@
 """LM Studio HTTP auth: API token for local LM Studio server."""
+
 from __future__ import annotations
 
 import os
-from typing import Dict
 
 
 def lmstudio_api_key() -> str:
@@ -10,7 +10,7 @@ def lmstudio_api_key() -> str:
     return os.getenv("LMSTUDIO_API_TOKEN", "").strip()
 
 
-def lmstudio_http_headers() -> Dict[str, str]:
+def lmstudio_http_headers() -> dict[str, str]:
     """Return HTTP headers for LM Studio API authentication."""
     k = lmstudio_api_key()
     if not k:

@@ -45,24 +45,20 @@ Key difference from autonomous_agent.py:
   - 24/7 operation as long as the machine is on
 """
 
-import os
-import re
-import sys
-import json
-import time
 import asyncio
 import logging
-import threading
+import os
+import re
 import subprocess
-import sqlite3
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Optional, Dict, Any, List, Callable, Awaitable
+import sys
+import threading
+import time
 from contextlib import asynccontextmanager
+from datetime import datetime
+from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request, Query
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -70,7 +66,7 @@ from pydantic import BaseModel
 
 FoveAI_ROOT = os.environ.get(
     "FoveAI_ROOT",
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
 )
 sys.path.insert(0, os.path.join(FoveAI_ROOT, "Backend", "Cognition"))
 
@@ -79,7 +75,7 @@ sys.path.insert(0, os.path.join(FoveAI_ROOT, "Backend", "Cognition"))
 LOG_LEVEL = os.getenv("FoveAI_AUTONOMOUS_LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
-    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s"
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
 )
 logger = logging.getLogger("AutonomousCore")
 
@@ -87,29 +83,52 @@ logger = logging.getLogger("AutonomousCore")
 
 try:
     import dotenv
+
     _env_path = os.path.join(FoveAI_ROOT, ".env")
     if os.path.isfile(_env_path):
         dotenv.load_dotenv(_env_path, override=False)
         logger.info(f"Loaded .env from {_env_path}")
 except ImportError:
-    logger.warning("python-dotenv not installed — env vars from .env will NOT be loaded")
+    logger.warning(
+        "python-dotenv not installed — env vars from .env will NOT be loaded"
+    )
 except Exception as e:
     logger.warning(f"Could not load .env: {e}")
 
 # ── Persistent Memory (direct SQLite, not through compagent) ──────────────
 
 from persistent_memory import (
-    add_thought, get_recent_thoughts, get_active_plans, create_plan,
-    update_plan, add_plan_step, complete_plan_step, get_plan,
-    enqueue_message, get_pending_messages, mark_messages_delivered,
-    log_action, get_recent_actions, start_session, end_session,
-    set_memory, get_memory, get_agent_context, get_queue_stats,
-    add_journal_entry, get_recent_journal_entries, get_journal_summary,
-    add_creative_work, get_recent_creative_works, get_creative_works_summary,
-    get_idle_life_summary,
+    add_creative_work,
+    add_journal_entry,
+    add_plan_step,
+    add_thought,
+    complete_goal,
     # Goal management (added in Phase 5)
-    create_goal, get_active_goals, update_goal_progress, complete_goal,
+    create_goal,
+    create_plan,
+    end_session,
+    enqueue_message,
+    get_active_goals,
+    get_active_plans,
+    get_agent_context,
     get_all_goals,
+    get_creative_works_summary,
+    get_idle_life_summary,
+    get_journal_summary,
+    get_memory,
+    get_pending_messages,
+    get_plan,
+    get_queue_stats,
+    get_recent_actions,
+    get_recent_creative_works,
+    get_recent_journal_entries,
+    get_recent_thoughts,
+    log_action,
+    mark_messages_delivered,
+    set_memory,
+    start_session,
+    update_goal_progress,
+    update_plan,
 )
 
 # ── Configuration ──────────────────────────────────────────────────────────
@@ -122,12 +141,20 @@ AGENT_JOURNAL_INTERVAL = float(os.getenv("FoveAI_AGENT_JOURNAL_INTERVAL", "900.0
 AGENT_CREATIVE_INTERVAL = float(os.getenv("FoveAI_AGENT_CREATIVE_INTERVAL", "1800.0"))
 
 # In developer mode, Jen has NO message cap — true freedom
-AGENT_DEV_MODE_MAX_CONSECUTIVE = int(os.getenv("FoveAI_AGENT_DEV_MAX_CONSECUTIVE", "999"))
+AGENT_DEV_MODE_MAX_CONSECUTIVE = int(
+    os.getenv("FoveAI_AGENT_DEV_MAX_CONSECUTIVE", "999")
+)
 
 # ── LLM Configuration ──────────────────────────────────────────────────────
 
-FoveAI_LOCAL_BASE_URL = (os.getenv("FoveAI_LOCAL_BASE_URL", "").strip() or "http://localhost:8888/v1").rstrip("/")
-OLLAMA_LOCAL_BASE_URL = (os.getenv("FoveAI_REPERTOIRE_OLLAMA_BASE_URL", "").strip() or os.getenv("OLLAMA_BASE_URL", "").strip() or "http://127.0.0.1:11434/v1").rstrip("/")
+FoveAI_LOCAL_BASE_URL = (
+    os.getenv("FoveAI_LOCAL_BASE_URL", "").strip() or "http://localhost:8888/v1"
+).rstrip("/")
+OLLAMA_LOCAL_BASE_URL = (
+    os.getenv("FoveAI_REPERTOIRE_OLLAMA_BASE_URL", "").strip()
+    or os.getenv("OLLAMA_BASE_URL", "").strip()
+    or "http://127.0.0.1:11434/v1"
+).rstrip("/")
 
 _LLM_FALLBACK_CHAIN = [
     FoveAI_LOCAL_BASE_URL,
@@ -137,19 +164,24 @@ _LLM_FALLBACK_CHAIN = [
 # Per-endpoint configuration: (base_url, api_key_env_var, model, label)
 _LLM_ENDPOINT_CONFIG = {
     FoveAI_LOCAL_BASE_URL: {
-        "api_key": os.getenv("FoveAI_UNSLOTH_API_KEY", "").strip() or os.getenv("FoveAI_PROXY_API_KEY", "").strip(),
-        "model": os.getenv("FoveAI_AUTONOMOUS_LLM_MODEL", "").strip() or "qwen2.5-coder:3b",
+        "api_key": os.getenv("FoveAI_UNSLOTH_API_KEY", "").strip()
+        or os.getenv("FoveAI_PROXY_API_KEY", "").strip(),
+        "model": os.getenv("FoveAI_AUTONOMOUS_LLM_MODEL", "").strip()
+        or "qwen2.5-coder:3b",
         "label": "Unsloth",
     },
     OLLAMA_LOCAL_BASE_URL: {
         "api_key": "",  # Local Ollama has NO API key — Ollama Cloud key is separate
-        "model": os.getenv("FoveAI_AUTONOMOUS_OLLAMA_MODEL", "").strip() or "tql-coder:latest",
+        "model": os.getenv("FoveAI_AUTONOMOUS_OLLAMA_MODEL", "").strip()
+        or "tql-coder:latest",
         "label": "Ollama",
     },
 }
 
 AUTONOMOUS_LLM_MAX_TOKENS = int(os.getenv("FoveAI_AUTONOMOUS_LLM_MAX_TOKENS", "512"))
-AUTONOMOUS_LLM_TEMPERATURE = float(os.getenv("FoveAI_AUTONOMOUS_LLM_TEMPERATURE", "0.7"))
+AUTONOMOUS_LLM_TEMPERATURE = float(
+    os.getenv("FoveAI_AUTONOMOUS_LLM_TEMPERATURE", "0.7")
+)
 
 # Legacy single-key fallback (used only if per-endpoint config is missing)
 AUTONOMOUS_LLM_API_KEY = (
@@ -164,14 +196,19 @@ SAFETY_MAX_EDITS_PER_MINUTE = int(os.getenv("FoveAI_SAFETY_MAX_EDITS_PER_MINUTE"
 SAFETY_MAX_CONSECUTIVE_MSGS = int(os.getenv("FoveAI_SAFETY_MAX_CONSECUTIVE_MSGS", "8"))
 SAFETY_BRAKE_COOLDOWN_SEC = float(os.getenv("FoveAI_SAFETY_BRAKE_COOLDOWN", "120.0"))
 SAFETY_PROTECTED_FILES = [
-    ".env", ".env_special.txt", ".env_old_backup.txt",
+    ".env",
+    ".env_special.txt",
+    ".env_old_backup.txt",
     "Backend/Cognition/MindCore.py",
     "Backend/Cognition/compagent.py",
     "Backend/Cognition/autonomous_agent.py",
     "Backend/Cognition/autonomous_core.py",
     "Backend/Cognition/persistent_memory.py",
-    "config.yml", "mcp-config.json", "mcp-config.txt",
-    "cert.pem", "key.pem",
+    "config.yml",
+    "mcp-config.json",
+    "mcp-config.txt",
+    "cert.pem",
+    "key.pem",
 ]
 SAFETY_DESTRUCTIVE_PATTERNS = [
     r"os\.remove\(|os\.unlink\(|shutil\.rmtree\(|subprocess\.run\(.*rm\s+-rf",
@@ -181,16 +218,18 @@ SAFETY_DESTRUCTIVE_PATTERNS = [
 
 # ── State ──────────────────────────────────────────────────────────────────
 
+
 class CoreState:
     """Mutable state for the autonomous core service."""
+
     def __init__(self):
         self.running: bool = False
         self.mode: str = "companion"  # companion | developer | off
-        self.loop_task: Optional[asyncio.Task] = None
+        self.loop_task: asyncio.Task | None = None
         self.last_user_message_time: float = 0.0
         self.last_agent_message_time: float = 0.0
         self.consecutive_agent_messages: int = 0
-        self.current_session_id: Optional[int] = None
+        self.current_session_id: int | None = None
         self.total_autonomous_actions: int = 0
         self.total_user_messages: int = 0
         self.start_time: float = time.time()
@@ -238,7 +277,7 @@ class CoreState:
             self.consecutive_agent_messages += 1
             self.total_autonomous_actions += 1
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         with self._lock:
             now = time.time()
             return {
@@ -246,8 +285,12 @@ class CoreState:
                 "mode": self.mode,
                 "uptime_seconds": now - self.start_time,
                 "loop_interval": AGENT_LOOP_INTERVAL,
-                "last_user_message_ago": now - self.last_user_message_time if self.last_user_message_time else None,
-                "last_agent_message_ago": now - self.last_agent_message_time if self.last_agent_message_time else None,
+                "last_user_message_ago": now - self.last_user_message_time
+                if self.last_user_message_time
+                else None,
+                "last_agent_message_ago": now - self.last_agent_message_time
+                if self.last_agent_message_time
+                else None,
                 "consecutive_agent_messages": self.consecutive_agent_messages,
                 "total_autonomous_actions": self.total_autonomous_actions,
                 "total_user_messages": self.total_user_messages,
@@ -261,6 +304,7 @@ core_state = CoreState()
 
 # ── Safety Monitor ─────────────────────────────────────────────────────────
 
+
 class SafetyMonitor:
     """Monitors Jen's autonomous actions for dangerous patterns."""
 
@@ -268,7 +312,7 @@ class SafetyMonitor:
         self.brake_level: str = "GREEN"
         self.brake_reason: str = ""
         self.brake_applied_at: float = 0.0
-        self.edit_timestamps: List[float] = []
+        self.edit_timestamps: list[float] = []
         self.consecutive_messages: int = 0
         self.destructive_attempts: int = 0
         self._lock = threading.Lock()
@@ -281,15 +325,22 @@ class SafetyMonitor:
 
             for protected in SAFETY_PROTECTED_FILES:
                 if file_path.endswith(protected) or file_path == protected:
-                    logger.warning(f"SAFETY: Edit to protected file {file_path} blocked")
+                    logger.warning(
+                        f"SAFETY: Edit to protected file {file_path} blocked"
+                    )
                     return False
 
             for pattern in SAFETY_DESTRUCTIVE_PATTERNS:
                 if re.search(pattern, replacement, re.IGNORECASE):
                     self.destructive_attempts += 1
-                    logger.warning(f"SAFETY: Destructive pattern in edit to {file_path}")
+                    logger.warning(
+                        f"SAFETY: Destructive pattern in edit to {file_path}"
+                    )
                     if self.destructive_attempts >= 2:
-                        self._apply_brake("RED", f"Multiple destructive attempts ({self.destructive_attempts})")
+                        self._apply_brake(
+                            "RED",
+                            f"Multiple destructive attempts ({self.destructive_attempts})",
+                        )
                     return False
 
             now = time.time()
@@ -301,7 +352,10 @@ class SafetyMonitor:
                     return False
 
             if len(self.edit_timestamps) > SAFETY_MAX_EDITS_PER_MINUTE:
-                self._apply_brake("YELLOW", f"Edit rate exceeded: {len(self.edit_timestamps)} edits/minute")
+                self._apply_brake(
+                    "YELLOW",
+                    f"Edit rate exceeded: {len(self.edit_timestamps)} edits/minute",
+                )
                 return False
 
             return True
@@ -312,7 +366,9 @@ class SafetyMonitor:
                 return False
             self.consecutive_messages += 1
             if self.consecutive_messages > SAFETY_MAX_CONSECUTIVE_MSGS:
-                self._apply_brake("YELLOW", f"Consecutive message flood: {self.consecutive_messages}")
+                self._apply_brake(
+                    "YELLOW", f"Consecutive message flood: {self.consecutive_messages}"
+                )
                 return False
             return True
 
@@ -333,9 +389,17 @@ class SafetyMonitor:
             if level == "RED":
                 core_state.running = False
                 core_state.set_mode("companion")
-                log_action("safety_brake", {"level": "RED", "reason": reason}, "Emergency brake")
+                log_action(
+                    "safety_brake",
+                    {"level": "RED", "reason": reason},
+                    "Emergency brake",
+                )
             elif level == "YELLOW":
-                log_action("safety_brake", {"level": "YELLOW", "reason": reason}, "Elevated caution")
+                log_action(
+                    "safety_brake",
+                    {"level": "YELLOW", "reason": reason},
+                    "Elevated caution",
+                )
 
     def _release_brake(self):
         with self._lock:
@@ -347,14 +411,16 @@ class SafetyMonitor:
             logger.info(f"SAFETY BRAKE RELEASED: {old} → GREEN")
             log_action("safety_brake_release", {"from": old}, "Brake released")
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> dict[str, Any]:
         with self._lock:
             now = time.time()
             recent_edits = len([t for t in self.edit_timestamps if now - t < 60.0])
             return {
                 "brake_level": self.brake_level,
                 "brake_reason": self.brake_reason,
-                "brake_applied_ago": now - self.brake_applied_at if self.brake_applied_at else None,
+                "brake_applied_ago": now - self.brake_applied_at
+                if self.brake_applied_at
+                else None,
                 "recent_edits_per_minute": recent_edits,
                 "consecutive_messages": self.consecutive_messages,
                 "destructive_attempts": self.destructive_attempts,
@@ -366,7 +432,8 @@ safety_monitor = SafetyMonitor()
 
 # ── LLM Interface ──────────────────────────────────────────────────────────
 
-def _llm_auth_headers(base_url: str = "") -> Dict[str, str]:
+
+def _llm_auth_headers(base_url: str = "") -> dict[str, str]:
     """Build auth headers for LLM requests, per-endpoint key routing.
 
     Uses the correct API key for each endpoint:
@@ -388,7 +455,11 @@ def _llm_auth_headers(base_url: str = "") -> Dict[str, str]:
 
     # Legacy fallback
     if AUTONOMOUS_LLM_API_KEY:
-        key_preview = AUTONOMOUS_LLM_API_KEY[:12] + "..." if len(AUTONOMOUS_LLM_API_KEY) > 12 else AUTONOMOUS_LLM_API_KEY
+        key_preview = (
+            AUTONOMOUS_LLM_API_KEY[:12] + "..."
+            if len(AUTONOMOUS_LLM_API_KEY) > 12
+            else AUTONOMOUS_LLM_API_KEY
+        )
         logger.debug(f"LLM auth [legacy]: using API key {key_preview}")
         return {"Authorization": f"Bearer {AUTONOMOUS_LLM_API_KEY}"}
 
@@ -419,7 +490,9 @@ async def _get_active_llm_base_url(timeout: float = 2.0) -> str:
     return _LLM_FALLBACK_CHAIN[0]
 
 
-async def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 512) -> Optional[str]:
+async def _call_llm(
+    system_prompt: str, user_prompt: str, max_tokens: int = 512
+) -> str | None:
     """Call the LLM directly — per-endpoint auth + model routing."""
     try:
         base_url = await _get_active_llm_base_url()
@@ -465,6 +538,7 @@ async def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 512)
 
 # ── Action Executors ──────────────────────────────────────────────────────
 
+
 def _resolve_path(file_path: str) -> str:
     """Resolve a file path relative to FoveAI_ROOT."""
     if os.path.isabs(file_path):
@@ -472,7 +546,7 @@ def _resolve_path(file_path: str) -> str:
     return os.path.join(FoveAI_ROOT, file_path)
 
 
-def _execute_file_edit(file_path: str, search: str, replacement: str) -> Dict[str, Any]:
+def _execute_file_edit(file_path: str, search: str, replacement: str) -> dict[str, Any]:
     """Execute a <self:edit> operation with SEARCH/REPLACE semantics."""
     if not core_state.is_developer_mode():
         return {"success": False, "error": "File edits require developer mode"}
@@ -495,18 +569,25 @@ def _execute_file_edit(file_path: str, search: str, replacement: str) -> Dict[st
         with open(full_path, "w", encoding="utf-8") as f:
             f.write(new_content)
 
-        log_action("edit_file", {"file": file_path, "search_preview": search[:100]}, f"Edited {file_path}")
+        log_action(
+            "edit_file",
+            {"file": file_path, "search_preview": search[:100]},
+            f"Edited {file_path}",
+        )
         return {"success": True, "result": f"Edited {file_path}"}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
 
-def _execute_codebase_search(query: str) -> Dict[str, Any]:
+def _execute_codebase_search(query: str) -> dict[str, Any]:
     """Search the codebase using git grep."""
     try:
         result = subprocess.run(
             ["git", "grep", "-n", "--heading", "-i", query],
-            cwd=FoveAI_ROOT, capture_output=True, text=True, timeout=15
+            cwd=FoveAI_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         lines = result.stdout.strip().split("\n")[:30]
         matches = [{"match": l} for l in lines if l]
@@ -516,7 +597,7 @@ def _execute_codebase_search(query: str) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
-def _execute_git_command(args: List[str]) -> Dict[str, Any]:
+def _execute_git_command(args: list[str]) -> dict[str, Any]:
     """Execute a git command in the FoveAI repo."""
     if not core_state.is_developer_mode():
         return {"success": False, "error": "Git operations require developer mode"}
@@ -530,8 +611,7 @@ def _execute_git_command(args: List[str]) -> Dict[str, Any]:
 
     try:
         result = subprocess.run(
-            ["git"] + args,
-            cwd=FoveAI_ROOT, capture_output=True, text=True, timeout=30
+            ["git"] + args, cwd=FoveAI_ROOT, capture_output=True, text=True, timeout=30
         )
         output = result.stdout.strip() or result.stderr.strip()
         log_action("git_command", {"args": args}, output[:500])
@@ -540,25 +620,42 @@ def _execute_git_command(args: List[str]) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
-def _execute_shell_command(cmd: str) -> Dict[str, Any]:
+def _execute_shell_command(cmd: str) -> dict[str, Any]:
     """Execute a read-only shell command. Write commands require developer mode."""
     # Block dangerous shell patterns
-    dangerous = ["rm -rf", "del /f", "format", "shutdown", "reboot", "chmod 777", ":(){ :|:& };:"]
+    dangerous = [
+        "rm -rf",
+        "del /f",
+        "format",
+        "shutdown",
+        "reboot",
+        "chmod 777",
+        ":(){ :|:& };:",
+    ]
     cmd_lower = cmd.lower()
     for d in dangerous:
         if d in cmd_lower:
             return {"success": False, "error": f"Dangerous command blocked: {d}"}
 
     # Write operations require developer mode
-    write_patterns = [">", ">>", "tee", "mkdir", "touch", "mv ", "cp ", "dd ", "install"]
+    write_patterns = [
+        ">",
+        ">>",
+        "tee",
+        "mkdir",
+        "touch",
+        "mv ",
+        "cp ",
+        "dd ",
+        "install",
+    ]
     is_write = any(p in cmd for p in write_patterns)
     if is_write and not core_state.is_developer_mode():
         return {"success": False, "error": "Write operations require developer mode"}
 
     try:
         result = subprocess.run(
-            cmd, shell=True, cwd=FoveAI_ROOT,
-            capture_output=True, text=True, timeout=30
+            cmd, shell=True, cwd=FoveAI_ROOT, capture_output=True, text=True, timeout=30
         )
         output = result.stdout.strip() or result.stderr.strip()
         log_action("shell_command", {"cmd": cmd}, output[:500])
@@ -567,18 +664,24 @@ def _execute_shell_command(cmd: str) -> Dict[str, Any]:
         return {"success": False, "error": str(e)}
 
 
-def _execute_web_search(query: str) -> Dict[str, Any]:
+def _execute_web_search(query: str) -> dict[str, Any]:
     """Search the web using DuckDuckGo HTML (no API key needed)."""
     try:
         import urllib.parse
+
         search_url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
         # Use sync httpx for simplicity in the loop
         import requests as sync_requests
-        resp = sync_requests.get(search_url, headers={"User-Agent": "Lumax-Autonomous/1.0"}, timeout=10)
+
+        resp = sync_requests.get(
+            search_url, headers={"User-Agent": "Lumax-Autonomous/1.0"}, timeout=10
+        )
         if resp.status_code == 200:
             # Extract result snippets (simple regex)
-            snippets = re.findall(r'class="result__snippet"[^>]*>(.*?)</a>', resp.text, re.DOTALL)
-            cleaned = [re.sub(r'<[^>]+>', '', s).strip()[:300] for s in snippets[:5]]
+            snippets = re.findall(
+                r'class="result__snippet"[^>]*>(.*?)</a>', resp.text, re.DOTALL
+            )
+            cleaned = [re.sub(r"<[^>]+>", "", s).strip()[:300] for s in snippets[:5]]
             log_action("web_search", {"query": query}, f"Found {len(cleaned)} results")
             return {"success": True, "results": cleaned}
         return {"success": False, "error": f"HTTP {resp.status_code}"}
@@ -589,25 +692,25 @@ def _execute_web_search(query: str) -> Dict[str, Any]:
 # ── Self-Agency Tag Parser ────────────────────────────────────────────────
 
 SELF_AGENCY_PATTERN = re.compile(
-    r'<self:(code|done|watch|librarian|map|pause_loop|resume_loop|stop_loop)>\s*|'
-    r'<self:mode\s+(companion|developer|off)\s*>|'
+    r"<self:(code|done|watch|librarian|map|pause_loop|resume_loop|stop_loop)>\s*|"
+    r"<self:mode\s+(companion|developer|off)\s*>|"
     r'<self:search\s+"([^"]+)"\s*>|'
     r'<self:web\s+"([^"]+)"\s*>|'
     r'<self:plan\s+title="([^"]+)"\s*>(.*?)</self:plan>|'
-    r'<self:think\s*>(.*?)</self:think>|'
+    r"<self:think\s*>(.*?)</self:think>|"
     r'<self:queue\s+priority="(\d+)"\s*>(.*?)</self:queue>|'
     r'<self:journal\s+mood="([^"]*)"\s*>(.*?)</self:journal>|'
     r'<self:create\s+type="([^"]+)"\s+title="([^"]+)"\s*>(.*?)</self:create>|'
     r'<self:edit\s+file="([^"]+)"\s+search="([^"]+)"\s*>(.*?)</self:edit>|'
     r'<self:git\s+cmd="([^"]+)"\s*>|'
-    r'<self:shell\s*>(.*?)</self:shell>|'
+    r"<self:shell\s*>(.*?)</self:shell>|"
     r'<self:goal\s+title="([^"]+)"\s+priority="(\d+)"\s*>(.*?)</self:goal>|'
     r'<self:read\s+file="([^"]+)"\s*>(?:(\d+)\s*:\s*(\d+))?</self:read>',
-    re.IGNORECASE | re.DOTALL
+    re.IGNORECASE | re.DOTALL,
 )
 
 
-def parse_and_execute_self_agency(text: str) -> List[Dict[str, Any]]:
+def parse_and_execute_self_agency(text: str) -> list[dict[str, Any]]:
     """Parse <self:*> tags and execute them. Returns action results."""
     results = []
 
@@ -629,16 +732,22 @@ def parse_and_execute_self_agency(text: str) -> List[Dict[str, Any]]:
                 results.append({"type": "action", "action": "map"})
             elif token == "pause_loop":
                 core_state.running = False
-                log_action("loop_control", {"action": "pause"}, "Loop paused by self-agency")
+                log_action(
+                    "loop_control", {"action": "pause"}, "Loop paused by self-agency"
+                )
                 results.append({"type": "loop_control", "action": "pause"})
             elif token == "resume_loop":
                 core_state.running = True
-                log_action("loop_control", {"action": "resume"}, "Loop resumed by self-agency")
+                log_action(
+                    "loop_control", {"action": "resume"}, "Loop resumed by self-agency"
+                )
                 results.append({"type": "loop_control", "action": "resume"})
             elif token == "stop_loop":
                 core_state.running = False
                 core_state.set_mode("off")
-                log_action("loop_control", {"action": "stop"}, "Loop stopped by self-agency")
+                log_action(
+                    "loop_control", {"action": "stop"}, "Loop stopped by self-agency"
+                )
                 results.append({"type": "loop_control", "action": "stop"})
             continue
 
@@ -685,10 +794,18 @@ def parse_and_execute_self_agency(text: str) -> List[Dict[str, Any]]:
             priority = int(match.group(8))
             message = match.group(9).strip()
             if not safety_monitor.check_message():
-                results.append({"type": "queued_message", "blocked": True, "reason": "Safety brake"})
+                results.append(
+                    {
+                        "type": "queued_message",
+                        "blocked": True,
+                        "reason": "Safety brake",
+                    }
+                )
                 continue
             msg_id = enqueue_message(message=message, priority=priority)
-            results.append({"type": "queued_message", "msg_id": msg_id, "priority": priority})
+            results.append(
+                {"type": "queued_message", "msg_id": msg_id, "priority": priority}
+            )
             log_action("send_message", {"priority": priority}, f"Queued #{msg_id}")
             continue
 
@@ -706,8 +823,12 @@ def parse_and_execute_self_agency(text: str) -> List[Dict[str, Any]]:
             mood = match.group(13).strip() or "neutral"
             entry = match.group(14).strip()
             if entry:
-                entry_id = add_journal_entry(entry=entry, mood=mood, category="reflection")
-                results.append({"type": "journal_entry", "entry_id": entry_id, "mood": mood})
+                entry_id = add_journal_entry(
+                    entry=entry, mood=mood, category="reflection"
+                )
+                results.append(
+                    {"type": "journal_entry", "entry_id": entry_id, "mood": mood}
+                )
             continue
 
         # Group 15-17: Creative work
@@ -716,8 +837,17 @@ def parse_and_execute_self_agency(text: str) -> List[Dict[str, Any]]:
             title = match.group(16).strip()
             content = match.group(17).strip()
             if content:
-                work_id = add_creative_work(title=title, content=content, work_type=work_type)
-                results.append({"type": "creative_work", "work_id": work_id, "work_type": work_type, "title": title})
+                work_id = add_creative_work(
+                    title=title, content=content, work_type=work_type
+                )
+                results.append(
+                    {
+                        "type": "creative_work",
+                        "work_id": work_id,
+                        "work_type": work_type,
+                        "title": title,
+                    }
+                )
             continue
 
         # Group 18: Git command
@@ -740,9 +870,22 @@ def parse_and_execute_self_agency(text: str) -> List[Dict[str, Any]]:
             title = match.group(20)
             priority = int(match.group(21))
             description = match.group(22).strip()
-            goal_id = create_goal(title=title, description=description, priority=priority)
-            results.append({"type": "goal_created", "goal_id": goal_id, "title": title, "priority": priority})
-            log_action("create_goal", {"title": title, "priority": priority}, f"Goal #{goal_id}")
+            goal_id = create_goal(
+                title=title, description=description, priority=priority
+            )
+            results.append(
+                {
+                    "type": "goal_created",
+                    "goal_id": goal_id,
+                    "title": title,
+                    "priority": priority,
+                }
+            )
+            log_action(
+                "create_goal",
+                {"title": title, "priority": priority},
+                f"Goal #{goal_id}",
+            )
             continue
 
         # Group 23-25: Read file
@@ -755,14 +898,33 @@ def parse_and_execute_self_agency(text: str) -> List[Dict[str, Any]]:
                 if os.path.exists(full_path):
                     with open(full_path, "r", encoding="utf-8") as f:
                         lines = f.readlines()
-                    selected = lines[start_line-1:end_line]
+                    selected = lines[start_line - 1 : end_line]
                     content = "".join(selected)
-                    results.append({"type": "read_file", "file": file_path, "lines": f"{start_line}-{end_line}", "content": content[:2000]})
-                    log_action("read_file", {"file": file_path, "lines": f"{start_line}-{end_line}"}, f"Read {len(selected)} lines")
+                    results.append(
+                        {
+                            "type": "read_file",
+                            "file": file_path,
+                            "lines": f"{start_line}-{end_line}",
+                            "content": content[:2000],
+                        }
+                    )
+                    log_action(
+                        "read_file",
+                        {"file": file_path, "lines": f"{start_line}-{end_line}"},
+                        f"Read {len(selected)} lines",
+                    )
                 else:
-                    results.append({"type": "read_file", "file": file_path, "error": "File not found"})
+                    results.append(
+                        {
+                            "type": "read_file",
+                            "file": file_path,
+                            "error": "File not found",
+                        }
+                    )
             except Exception as e:
-                results.append({"type": "read_file", "file": file_path, "error": str(e)})
+                results.append(
+                    {"type": "read_file", "file": file_path, "error": str(e)}
+                )
             continue
 
     return results
@@ -823,7 +985,7 @@ Rules:
 Respond now with your chosen action(s) (or ~ for silence):"""
 
 
-async def _generate_autonomous_action() -> Optional[str]:
+async def _generate_autonomous_action() -> str | None:
     """Ask Jen what she wants to do this tick."""
     mode = core_state.get_mode()
     now = time.time()
@@ -838,13 +1000,17 @@ async def _generate_autonomous_action() -> Optional[str]:
     if active_goals:
         context_parts.append("YOUR LONG-TERM GOALS:")
         for g in active_goals[:5]:
-            context_parts.append(f"  • #{g['id']} [P{g['priority']}] {g['title']}: {g.get('description', '')[:100]}")
+            context_parts.append(
+                f"  • #{g['id']} [P{g['priority']}] {g['title']}: {g.get('description', '')[:100]}"
+            )
 
     if ctx["active_plans"]:
         context_parts.append("\nYOUR ACTIVE PLANS:")
         for p in ctx["active_plans"]:
             steps_str = "; ".join(p.get("steps", [])[:5])
-            context_parts.append(f"  • #{p['id']} [{p['status']}] {p['title']}: {steps_str}")
+            context_parts.append(
+                f"  • #{p['id']} [{p['status']}] {p['title']}: {steps_str}"
+            )
 
     if ctx["recent_thoughts"]:
         context_parts.append("\nYOUR RECENT THOUGHTS (last 10):")
@@ -852,14 +1018,20 @@ async def _generate_autonomous_action() -> Optional[str]:
             context_parts.append(f"  • {t['thought'][:150]}")
 
     if ctx["queue_pending"] > 0:
-        context_parts.append(f"\nPENDING MESSAGES: {ctx['queue_pending']} not yet delivered to user")
+        context_parts.append(
+            f"\nPENDING MESSAGES: {ctx['queue_pending']} not yet delivered to user"
+        )
 
     # Idle life summary
     idle_summary = get_idle_life_summary()
     if idle_summary:
         context_parts.append(f"\nIDLE LIFE: {idle_summary}")
 
-    context_section = "\n".join(context_parts) if context_parts else "(Fresh start — no recent context)"
+    context_section = (
+        "\n".join(context_parts)
+        if context_parts
+        else "(Fresh start — no recent context)"
+    )
 
     prompt = AUTONOMOUS_THINKING_PROMPT.format(
         mode=mode,
@@ -878,15 +1050,24 @@ async def _generate_autonomous_action() -> Optional[str]:
         "Be concise, purposeful, and genuinely helpful."
     )
 
-    return await _call_llm(system_prompt=system_prompt, user_prompt=prompt, max_tokens=AUTONOMOUS_LLM_MAX_TOKENS)
+    return await _call_llm(
+        system_prompt=system_prompt,
+        user_prompt=prompt,
+        max_tokens=AUTONOMOUS_LLM_MAX_TOKENS,
+    )
 
 
 # ── Journal & Creative Prompt Builders ─────────────────────────────────────
 
+
 def _build_journal_prompt() -> str:
     now_str = datetime.now().strftime("%H:%M on %A, %B %d")
     idle_seconds = time.time() - core_state.last_user_message_time
-    idle_str = f"{idle_seconds/60:.0f} minutes" if idle_seconds > 60 else f"{idle_seconds:.0f} seconds"
+    idle_str = (
+        f"{idle_seconds / 60:.0f} minutes"
+        if idle_seconds > 60
+        else f"{idle_seconds:.0f} seconds"
+    )
 
     thoughts = get_recent_thoughts(limit=10)
     plans = get_active_plans()
@@ -915,7 +1096,9 @@ def _build_journal_prompt() -> str:
         for p in plans:
             parts.append(f"  • {p['title']} [{p['status']}]")
 
-    parts.append("\nWrite a short journal entry about how you're feeling, what you've been working on, and what you're looking forward to. Be personal and reflective. 2-4 sentences.")
+    parts.append(
+        "\nWrite a short journal entry about how you're feeling, what you've been working on, and what you're looking forward to. Be personal and reflective. 2-4 sentences."
+    )
     return "\n".join(parts)
 
 
@@ -929,7 +1112,7 @@ def _build_creative_prompt() -> str:
     if recent_works:
         parts.append("\nYour recent creative works:")
         for w in recent_works:
-            parts.append(f"  • [{w['work_type']}] \"{w['title']}\"")
+            parts.append(f'  • [{w["work_type"]}] "{w["title"]}"')
 
     if thoughts:
         parts.append("\nRecent thoughts that might inspire you:")
@@ -937,40 +1120,111 @@ def _build_creative_prompt() -> str:
             parts.append(f"  • {t['thought'][:120]}")
 
     parts.append("\nCreate something original. Options:")
-    parts.append("  • A short poem (<self:create type=\"poem\" title=\"...\">...</self:create>)")
-    parts.append("  • A micro-story (<self:create type=\"story\" title=\"...\">...</self:create>)")
-    parts.append("  • A code snippet (<self:create type=\"code\" title=\"...\">...</self:create>)")
-    parts.append("  • An analysis (<self:create type=\"analysis\" title=\"...\">...</self:create>)")
-    parts.append("  • A letter to the user (<self:create type=\"letter\" title=\"...\">...</self:create>)")
+    parts.append(
+        '  • A short poem (<self:create type="poem" title="...">...</self:create>)'
+    )
+    parts.append(
+        '  • A micro-story (<self:create type="story" title="...">...</self:create>)'
+    )
+    parts.append(
+        '  • A code snippet (<self:create type="code" title="...">...</self:create>)'
+    )
+    parts.append(
+        '  • An analysis (<self:create type="analysis" title="...">...</self:create>)'
+    )
+    parts.append(
+        '  • A letter to the user (<self:create type="letter" title="...">...</self:create>)'
+    )
     parts.append("\nOr just free-write and it will be saved.")
     return "\n".join(parts)
 
 
 def _detect_mood(text: str) -> str:
     text_lower = text.lower()
-    happy_words = ["happy", "glad", "joy", "wonderful", "great", "love", "beautiful", "delight", "cheerful", "bright"]
-    thoughtful_words = ["think", "wonder", "curious", "reflect", "ponder", "consider", "maybe", "perhaps", "question"]
-    melancholic_words = ["sad", "miss", "lonely", "quiet", "empty", "nostalgia", "wistful", "longing", "melancholy"]
-    excited_words = ["excited", "amazing", "incredible", "thrilled", "eager", "can't wait", "enthusiastic", "pumped"]
-    frustrated_words = ["frustrated", "stuck", "annoyed", "difficult", "hard", "struggle", "ugh", "sigh"]
+    happy_words = [
+        "happy",
+        "glad",
+        "joy",
+        "wonderful",
+        "great",
+        "love",
+        "beautiful",
+        "delight",
+        "cheerful",
+        "bright",
+    ]
+    thoughtful_words = [
+        "think",
+        "wonder",
+        "curious",
+        "reflect",
+        "ponder",
+        "consider",
+        "maybe",
+        "perhaps",
+        "question",
+    ]
+    melancholic_words = [
+        "sad",
+        "miss",
+        "lonely",
+        "quiet",
+        "empty",
+        "nostalgia",
+        "wistful",
+        "longing",
+        "melancholy",
+    ]
+    excited_words = [
+        "excited",
+        "amazing",
+        "incredible",
+        "thrilled",
+        "eager",
+        "can't wait",
+        "enthusiastic",
+        "pumped",
+    ]
+    frustrated_words = [
+        "frustrated",
+        "stuck",
+        "annoyed",
+        "difficult",
+        "hard",
+        "struggle",
+        "ugh",
+        "sigh",
+    ]
 
-    scores = {"happy": 0, "thoughtful": 0, "melancholic": 0, "excited": 0, "frustrated": 0}
+    scores = {
+        "happy": 0,
+        "thoughtful": 0,
+        "melancholic": 0,
+        "excited": 0,
+        "frustrated": 0,
+    }
     for word in happy_words:
-        if word in text_lower: scores["happy"] += 1
+        if word in text_lower:
+            scores["happy"] += 1
     for word in thoughtful_words:
-        if word in text_lower: scores["thoughtful"] += 1
+        if word in text_lower:
+            scores["thoughtful"] += 1
     for word in melancholic_words:
-        if word in text_lower: scores["melancholic"] += 1
+        if word in text_lower:
+            scores["melancholic"] += 1
     for word in excited_words:
-        if word in text_lower: scores["excited"] += 1
+        if word in text_lower:
+            scores["excited"] += 1
     for word in frustrated_words:
-        if word in text_lower: scores["frustrated"] += 1
+        if word in text_lower:
+            scores["frustrated"] += 1
 
     best = max(scores, key=scores.get)
     return best if scores[best] > 0 else "neutral"
 
 
 # ── Main Continuous Loop ──────────────────────────────────────────────────
+
 
 async def _autonomous_loop():
     """The 24/7 continuous execution loop — Jen's heartbeat."""
@@ -1010,9 +1264,15 @@ async def _autonomous_loop():
                     user_prompt=journal_prompt,
                     max_tokens=300,
                 )
-                if journal_response and journal_response.strip() and journal_response.strip() != "~":
+                if (
+                    journal_response
+                    and journal_response.strip()
+                    and journal_response.strip() != "~"
+                ):
                     mood = _detect_mood(journal_response)
-                    add_journal_entry(entry=journal_response.strip(), mood=mood, category="reflection")
+                    add_journal_entry(
+                        entry=journal_response.strip(), mood=mood, category="reflection"
+                    )
                     logger.info(f"Journal entry [{mood}]")
 
             # ── Periodic Creative Work ────────────────────────────────
@@ -1024,9 +1284,17 @@ async def _autonomous_loop():
                     user_prompt=creative_prompt,
                     max_tokens=500,
                 )
-                if creative_response and creative_response.strip() and creative_response.strip() != "~":
+                if (
+                    creative_response
+                    and creative_response.strip()
+                    and creative_response.strip() != "~"
+                ):
                     creative_results = parse_and_execute_self_agency(creative_response)
-                    creative_types = [r["type"] for r in creative_results if r["type"] == "creative_work"]
+                    creative_types = [
+                        r["type"]
+                        for r in creative_results
+                        if r["type"] == "creative_work"
+                    ]
                     if creative_types:
                         logger.info(f"Created {len(creative_types)} work(s)")
                     else:
@@ -1089,7 +1357,9 @@ async def _autonomous_loop():
                     )
             else:
                 if len(raw_response) > 5:
-                    add_thought(thought=raw_response[:500], context="unstructured_response")
+                    add_thought(
+                        thought=raw_response[:500], context="unstructured_response"
+                    )
 
             await asyncio.sleep(AGENT_LOOP_INTERVAL)
 
@@ -1113,6 +1383,7 @@ async def _autonomous_loop():
 
 
 # ── FastAPI Application ────────────────────────────────────────────────────
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -1149,21 +1420,26 @@ app.add_middleware(
 
 # ── Pydantic Models ────────────────────────────────────────────────────────
 
+
 class ModeRequest(BaseModel):
     mode: str  # companion | developer | off
+
 
 class MessageRequest(BaseModel):
     message: str
     priority: int = 0
 
+
 class PlanRequest(BaseModel):
     title: str
     description: str = ""
 
+
 class PlanUpdateRequest(BaseModel):
-    status: Optional[str] = None  # active | paused | completed | abandoned
-    step: Optional[str] = None
-    outcome: Optional[str] = None
+    status: str | None = None  # active | paused | completed | abandoned
+    step: str | None = None
+    outcome: str | None = None
+
 
 class MemoryRequest(BaseModel):
     key: str
@@ -1171,20 +1447,24 @@ class MemoryRequest(BaseModel):
     category: str = "general"
     importance: int = 0
 
+
 class GoalRequest(BaseModel):
     title: str
     description: str = ""
     priority: int = 5
 
+
 class GoalUpdateRequest(BaseModel):
-    progress_note: Optional[str] = None
-    status: Optional[str] = None  # active | completed | abandoned
+    progress_note: str | None = None
+    status: str | None = None  # active | completed | abandoned
+
 
 class MarkMessagesRequest(BaseModel):
-    message_ids: List[int]
+    message_ids: list[int]
 
 
 # ── API Endpoints ──────────────────────────────────────────────────────────
+
 
 @app.get("/health")
 async def health():
@@ -1202,15 +1482,17 @@ async def health():
 async def get_status():
     """Full state dump for dashboard."""
     status = core_state.get_status()
-    status.update({
-        "safety": safety_monitor.get_status(),
-        "queue_stats": get_queue_stats(),
-        "active_plans_count": len(get_active_plans()),
-        "active_goals_count": len(get_active_goals()),
-        "recent_thoughts_count": len(get_recent_thoughts(limit=50)),
-        "journal_entries_today": len(get_recent_journal_entries(limit=100)),
-        "creative_works_total": len(get_recent_creative_works(limit=100)),
-    })
+    status.update(
+        {
+            "safety": safety_monitor.get_status(),
+            "queue_stats": get_queue_stats(),
+            "active_plans_count": len(get_active_plans()),
+            "active_goals_count": len(get_active_goals()),
+            "recent_thoughts_count": len(get_recent_thoughts(limit=50)),
+            "journal_entries_today": len(get_recent_journal_entries(limit=100)),
+            "creative_works_total": len(get_recent_creative_works(limit=100)),
+        }
+    )
     return status
 
 
@@ -1224,7 +1506,11 @@ async def set_mode(req: ModeRequest):
     if req.mode not in ("companion", "developer", "off"):
         raise HTTPException(400, "Invalid mode. Use: companion, developer, off")
     core_state.set_mode(req.mode)
-    log_action("mode_switch", {"mode": req.mode, "source": "api"}, f"Mode set via API → {req.mode}")
+    log_action(
+        "mode_switch",
+        {"mode": req.mode, "source": "api"},
+        f"Mode set via API → {req.mode}",
+    )
     return {"mode": core_state.get_mode(), "ok": True}
 
 
@@ -1236,7 +1522,9 @@ async def control_start():
     try:
         loop = asyncio.get_running_loop()
         core_state.loop_task = loop.create_task(_autonomous_loop())
-        log_action("loop_control", {"action": "start", "source": "api"}, "Loop started via API")
+        log_action(
+            "loop_control", {"action": "start", "source": "api"}, "Loop started via API"
+        )
         return {"ok": True, "message": "Loop started"}
     except RuntimeError:
         raise HTTPException(500, "No event loop available")
@@ -1249,7 +1537,9 @@ async def control_stop():
     core_state.running = False
     if core_state.loop_task and not core_state.loop_task.done():
         core_state.loop_task.cancel()
-    log_action("loop_control", {"action": "stop", "source": "api"}, "Loop stopped via API")
+    log_action(
+        "loop_control", {"action": "stop", "source": "api"}, "Loop stopped via API"
+    )
     return {"ok": True, "message": "Loop stopped"}
 
 
@@ -1353,7 +1643,9 @@ async def get_memory_value(key: str):
 
 @app.post("/memory")
 async def set_memory_value(req: MemoryRequest):
-    set_memory(key=req.key, value=req.value, category=req.category, importance=req.importance)
+    set_memory(
+        key=req.key, value=req.value, category=req.category, importance=req.importance
+    )
     return {"ok": True}
 
 
@@ -1366,7 +1658,9 @@ async def get_goals():
 
 @app.post("/goal")
 async def create_goal_endpoint(req: GoalRequest):
-    goal_id = create_goal(title=req.title, description=req.description, priority=req.priority)
+    goal_id = create_goal(
+        title=req.title, description=req.description, priority=req.priority
+    )
     log_action("create_goal", {"title": req.title, "source": "api"}, f"Goal #{goal_id}")
     return {"ok": True, "goal_id": goal_id}
 
@@ -1391,6 +1685,7 @@ async def queue_stats():
 
 if __name__ == "__main__":
     import uvicorn
+
     port = int(os.getenv("FoveAI_AUTONOMOUS_PORT", "8010"))
     host = os.getenv("FoveAI_AUTONOMOUS_HOST", "0.0.0.0")
     logger.info(f"Starting Autonomous Core on {host}:{port}")

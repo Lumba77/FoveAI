@@ -1,15 +1,14 @@
-import os
-import sys
-import logging
 import base64
+import logging
+import os
 import tempfile
 import threading
-from typing import List, Dict, Optional, Any, Literal
-from fastapi import FastAPI, HTTPException, Request, Response
-from pydantic import BaseModel, ConfigDict
-import httpx
+from typing import Literal
 
+import httpx
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, ConfigDict
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO)
@@ -27,7 +26,7 @@ app.add_middleware(
 )
 
 # Environment State
-MODE = os.getenv("MODE", "EARS") # Default to EARS if not set
+MODE = os.getenv("MODE", "EARS")  # Default to EARS if not set
 logger.info("BodyInterface process MODE=%s (EARS=STT/whisper, MOUTH=TTS/forward)", MODE)
 
 # Docker DNS names (same compose network). Do not hardcode 172.x — subnet changes per bridge.
@@ -43,24 +42,31 @@ def _turbo_client_timeout() -> httpx.Timeout:
     # httpx 0.28+: Timeout needs a default for all phases or all four set explicitly.
     # Long read for first GPU inference; connect stays short so dead hosts fail fast.
     return httpx.Timeout(_TURBO_READ_TIMEOUT, connect=_TURBO_CONNECT_TIMEOUT)
+
+
 # Extra fallbacks, e.g. host.docker.internal or a LAN IP — comma-separated base URLs without /tts
-def _extra_tts_bases(env_name: str) -> List[str]:
+def _extra_tts_bases(env_name: str) -> list[str]:
     raw = os.getenv(env_name, "").strip()
     if not raw:
         return []
     return [u.rstrip("/") for u in raw.split(",") if u.strip()]
 
+
 # --- Whisper Model Initialization (Only in EARS mode to save VRAM) ---
 whisper_model = None
 if MODE == "EARS":
     import torch
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
     compute_type = "float16" if device == "cuda" else "int8"
-    
+
     logger.info(f"Initializing Faster-Whisper Model on {device.upper()} (base.en)...")
     try:
         from faster_whisper import WhisperModel
-        whisper_model = WhisperModel("base.en", device=device, compute_type=compute_type)
+
+        whisper_model = WhisperModel(
+            "base.en", device=device, compute_type=compute_type
+        )
         logger.info(f"Faster-Whisper Model Ready ({device.upper()}).")
     except Exception as e:
         logger.error(f"Failed to load Faster-Whisper: {e}")
@@ -72,14 +78,19 @@ if MODE == "EARS":
 
 _DEFAULT_TTS_ENGINE = os.getenv("DEFAULT_TTS_ENGINE", os.getenv("TTS_ENGINE", "TURBO"))
 # Maps to turbochat speaker_id (audio_ref/<id>.wav). Override via FoveAI_DEFAULT_TTS_VOICE or FoveAI_TURBO_DEFAULT_SPEAKER.
-_dtv = os.getenv("FoveAI_DEFAULT_TTS_VOICE", os.getenv("FoveAI_TURBO_DEFAULT_SPEAKER", "female_american1-lumba")).strip()
+_dtv = os.getenv(
+    "FoveAI_DEFAULT_TTS_VOICE",
+    os.getenv("FoveAI_TURBO_DEFAULT_SPEAKER", "female_american1-lumba"),
+).strip()
 _DEFAULT_TTS_VOICE = _dtv if _dtv else "female_american1-lumba"
 
 _voice_lock = threading.Lock()
-_runtime_voice_override: Optional[str] = None  # PUT /tts/default_voice; None = use file/env
+_runtime_voice_override: str | None = (
+    None  # PUT /tts/default_voice; None = use file/env
+)
 
 
-def _voice_from_file() -> Optional[str]:
+def _voice_from_file() -> str | None:
     """First non-empty, non-# line from FoveAI_TTS_DEFAULT_VOICE_FILE (optional hot-reload without restart)."""
     path = os.getenv("FoveAI_TTS_DEFAULT_VOICE_FILE", "").strip()
     if not path:
@@ -116,7 +127,7 @@ def _default_voice_source() -> str:
     return "env"
 
 
-def _set_voice_override(v: Optional[str]) -> None:
+def _set_voice_override(v: str | None) -> None:
     global _runtime_voice_override
     with _voice_lock:
         if v is None or not str(v).strip():
@@ -125,7 +136,7 @@ def _set_voice_override(v: Optional[str]) -> None:
             _runtime_voice_override = str(v).strip()
 
 
-def resolve_tts_voice(voice: Optional[str]) -> str:
+def resolve_tts_voice(voice: str | None) -> str:
     """Per-request `voice` wins; omit/null uses runtime default (override / file / env)."""
     if voice is not None and str(voice).strip():
         return str(voice).strip()
@@ -138,7 +149,9 @@ def _resolved_tts_backend() -> str:
     Resemble engine (Original / Multilingual / Turbo) is selected in that server's Web UI or config — not here.
     Hot-switch without container env change: FoveAI_TTS_BACKEND_FILE (first line: turbo | chatterbox).
     """
-    path = os.getenv("FoveAI_TTS_BACKEND_FILE", "/app/Backend/preflight/tts_backend").strip()
+    path = os.getenv(
+        "FoveAI_TTS_BACKEND_FILE", "/app/Backend/preflight/tts_backend"
+    ).strip()
     if path and os.path.isfile(path):
         try:
             with open(path, "r", encoding="utf-8") as f:
@@ -161,33 +174,43 @@ def _chatterbox_openai_voice_filename(foveai_voice: str) -> str:
     v = foveai_voice.strip()
     if v.lower().endswith((".wav", ".mp3", ".flac")):
         return v
-    return (os.getenv("FoveAI_CHATTERBOX_DEFAULT_VOICE", "Emily.wav").strip() or "Emily.wav")
+    return (
+        os.getenv("FoveAI_CHATTERBOX_DEFAULT_VOICE", "Emily.wav").strip() or "Emily.wav"
+    )
 
 
 def _piper_synthesize(text: str) -> Response:
     import subprocess
 
-    model_path = os.getenv("PIPER_MODEL_PATH", "/app/models/Mouth/en_US-amy-medium.onnx")
+    model_path = os.getenv(
+        "PIPER_MODEL_PATH", "/app/models/Mouth/en_US-amy-medium.onnx"
+    )
     if not os.path.exists(model_path):
-        raise HTTPException(status_code=500, detail=f"Piper model missing at {model_path}")
+        raise HTTPException(
+            status_code=500, detail=f"Piper model missing at {model_path}"
+        )
     cmd = ["piper", "--model", model_path, "--output_raw"]
-    process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen(
+        cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    )
     stdout, stderr = process.communicate(input=text.encode("utf-8"))
     if process.returncode != 0:
-        raise HTTPException(status_code=500, detail=f"Piper process error: {stderr.decode()}")
+        raise HTTPException(
+            status_code=500, detail=f"Piper process error: {stderr.decode()}"
+        )
     return Response(content=stdout, media_type="audio/wav")
 
 
 class TTSRequest(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
     text: str
-    voice: Optional[str] = None
+    voice: str | None = None
     engine: str = _DEFAULT_TTS_ENGINE
 
 
 class TTSDefaultVoiceBody(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
-    voice: Optional[str] = None  # null or "" clears in-memory override
+    voice: str | None = None  # null or "" clears in-memory override
 
 
 class TTSBackendBody(BaseModel):
@@ -198,6 +221,7 @@ class TTSBackendBody(BaseModel):
 class STTRequest(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
     audio_base64: str
+
 
 @app.get("/health")
 async def health_check():
@@ -228,7 +252,9 @@ async def put_tts_backend(body: TTSBackendBody):
     """Persist routing preference (FoveAI_TTS_BACKEND_FILE). GPU containers: use Web UI or switch_gpu_tts_stack.ps1."""
     if MODE != "MOUTH":
         raise HTTPException(status_code=400, detail="Node not in MOUTH mode")
-    path = os.getenv("FoveAI_TTS_BACKEND_FILE", "/app/Backend/preflight/tts_backend").strip()
+    path = os.getenv(
+        "FoveAI_TTS_BACKEND_FILE", "/app/Backend/preflight/tts_backend"
+    ).strip()
     if not path:
         raise HTTPException(status_code=500, detail="FoveAI_TTS_BACKEND_FILE not set")
     try:
@@ -250,7 +276,11 @@ async def put_tts_default_voice(body: TTSDefaultVoiceBody):
     if MODE != "MOUTH":
         raise HTTPException(status_code=400, detail="Node not in MOUTH mode")
     _set_voice_override(body.voice)
-    logger.info("TTS default voice: source=%s voice=%r", _default_voice_source(), _resolved_default_voice())
+    logger.info(
+        "TTS default voice: source=%s voice=%r",
+        _default_voice_source(),
+        _resolved_default_voice(),
+    )
     return {
         "voice": _resolved_default_voice(),
         "source": _default_voice_source(),
@@ -312,11 +342,14 @@ async def handle_stt(request: STTRequest):
         logger.error(f"STT Error: {e}")
         return {"text": f"[STT Error: {str(e)[:50]}]"}
 
+
 async def _post_chatterbox_openai_speech(
     client: httpx.AsyncClient, text: str, foveai_voice: str
-) -> Optional[Response]:
+) -> Response | None:
     """Resemble Chatterbox OpenAI-compatible endpoint; uses server's active model (UI / config)."""
-    base = os.getenv("FoveAI_CHATTERBOX_HTTP_URL", "http://foveai_chatterbox_resemble:8004").rstrip("/")
+    base = os.getenv(
+        "FoveAI_CHATTERBOX_HTTP_URL", "http://foveai_chatterbox_resemble:8004"
+    ).rstrip("/")
     model = os.getenv("FoveAI_CHATTERBOX_OPENAI_MODEL", "chatterbox")
     voice_fn = _chatterbox_openai_voice_filename(foveai_voice)
     url = f"{base}/v1/audio/speech"
@@ -359,7 +392,9 @@ async def handle_tts(request: TTSRequest):
     if backend == "chatterbox":
         try:
             async with httpx.AsyncClient() as client:
-                spoken = await _post_chatterbox_openai_speech(client, request.text, voice)
+                spoken = await _post_chatterbox_openai_speech(
+                    client, request.text, voice
+                )
                 if spoken is not None:
                     return spoken
         except Exception as e:
@@ -371,15 +406,17 @@ async def handle_tts(request: TTSRequest):
             raise
         except Exception as e:
             logger.error("Piper synthesis failed: %s", e)
-            raise HTTPException(status_code=500, detail=f"Chatterbox and Piper failed: {e}")
+            raise HTTPException(
+                status_code=500, detail=f"Chatterbox and Piper failed: {e}"
+            )
 
     engine_to_use = request.engine
 
-    def _turbo_tts_targets() -> List[str]:
+    def _turbo_tts_targets() -> list[str]:
         bases = [TURBO_URL] + _extra_tts_bases("TURBO_EXTRA_URLS")
         return [f"{b}/tts" for b in bases if b]
 
-    def _legacy_xtts_targets() -> List[str]:
+    def _legacy_xtts_targets() -> list[str]:
         if not CHATTERBOX_URL:
             return []
         bases = [CHATTERBOX_URL] + _extra_tts_bases("CHATTERBOX_EXTRA_URLS")
@@ -395,29 +432,43 @@ async def handle_tts(request: TTSRequest):
                         logger.info(
                             f"Mouth: Attempting TURBO at {target} (read timeout {_TURBO_READ_TIMEOUT}s)"
                         )
-                        resp = await client.post(target, json=payload, timeout=_turbo_client_timeout())
+                        resp = await client.post(
+                            target, json=payload, timeout=_turbo_client_timeout()
+                        )
                         if resp.status_code == 200:
-                            return Response(content=resp.content, media_type="audio/wav")
+                            return Response(
+                                content=resp.content, media_type="audio/wav"
+                            )
                         body_preview = (resp.text or "")[:200]
                         logger.warning(
                             f"TURBO target {target} returned status {resp.status_code}: {body_preview}"
                         )
                     except Exception as e:
-                        logger.warning(f"Failed to reach TURBO {target}: {type(e).__name__}: {e}")
-                
-                logger.warning("All TURBO attempts failed. Falling back to CHATTERBOX...")
+                        logger.warning(
+                            f"Failed to reach TURBO {target}: {type(e).__name__}: {e}"
+                        )
+
+                logger.warning(
+                    "All TURBO attempts failed. Falling back to CHATTERBOX..."
+                )
                 engine_to_use = "CHATTERBOX"
 
             # CHATTERBOX: try turbo surrogate (fast), then optional legacy XTTS on CHATTERBOX_URL, then Piper
             if engine_to_use == "CHATTERBOX":
-                logger.info("Mouth: CHATTERBOX requested. Attempting TURBO surrogate first...")
+                logger.info(
+                    "Mouth: CHATTERBOX requested. Attempting TURBO surrogate first..."
+                )
                 for target in _turbo_tts_targets():
                     try:
                         payload = {"text": request.text, "speaker_id": voice}
-                        resp = await client.post(target, json=payload, timeout=_turbo_client_timeout())
+                        resp = await client.post(
+                            target, json=payload, timeout=_turbo_client_timeout()
+                        )
                         if resp.status_code == 200:
                             logger.info(f"Mouth: TURBO surrogate OK via {target}.")
-                            return Response(content=resp.content, media_type="audio/wav")
+                            return Response(
+                                content=resp.content, media_type="audio/wav"
+                            )
                         logger.warning(
                             f"Mouth: TURBO surrogate HTTP {resp.status_code} from {target}: {(resp.text or '')[:200]}"
                         )
@@ -425,22 +476,32 @@ async def handle_tts(request: TTSRequest):
                         logger.warning(
                             f"Mouth: TURBO surrogate attempt at {target} failed: {type(te).__name__}: {te}"
                         )
-                
+
                 xtts_targets = _legacy_xtts_targets()
                 if xtts_targets:
                     for target in xtts_targets:
                         try:
-                            payload = {"text": request.text, "speaker_wav": voice, "language": "en"}
+                            payload = {
+                                "text": request.text,
+                                "speaker_wav": voice,
+                                "language": "en",
+                            }
                             logger.info(f"Mouth: Forwarding to legacy XTTS at {target}")
                             resp = await client.post(target, json=payload, timeout=45.0)
                             if resp.status_code == 200:
-                                return Response(content=resp.content, media_type="audio/wav")
-                            logger.warning(f"XTTS target {target} returned status {resp.status_code}")
+                                return Response(
+                                    content=resp.content, media_type="audio/wav"
+                                )
+                            logger.warning(
+                                f"XTTS target {target} returned status {resp.status_code}"
+                            )
                         except Exception as e:
                             logger.warning(f"Failed to reach XTTS {target}: {e}")
                 else:
-                    logger.info("Mouth: CHATTERBOX_URL unset — skipping legacy XTTS container (see docker-compose).")
-                
+                    logger.info(
+                        "Mouth: CHATTERBOX_URL unset — skipping legacy XTTS container (see docker-compose)."
+                    )
+
                 logger.warning("All XTTS attempts failed. Attempting PIPER fallback...")
                 engine_to_use = "PIPER"
 
@@ -452,13 +513,18 @@ async def handle_tts(request: TTSRequest):
                     raise
                 except Exception as e:
                     logger.error(f"Piper synthesis failed: {e}")
-                    raise HTTPException(status_code=500, detail=f"All TTS engines failed. Piper Error: {str(e)}")
-                
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"All TTS engines failed. Piper Error: {e!s}",
+                    )
+
     except Exception as e:
-        logger.error(f"TTS Failure: {str(e)}")
+        logger.error(f"TTS Failure: {e!s}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 if __name__ == "__main__":
     import uvicorn
+
     port = 8001 if MODE == "EARS" else 8002
     uvicorn.run(app, host="0.0.0.0", port=port)

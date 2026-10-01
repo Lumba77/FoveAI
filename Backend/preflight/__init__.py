@@ -1,2 +1,1 @@
 """Lumax backend preflight package."""
-

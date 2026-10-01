@@ -17,19 +17,19 @@ Usage:
   report = await probe.run_full_diagnostic()
 """
 
-import os
-import time
-import json
-import psutil
 import asyncio
+import os
 import subprocess
-from typing import Dict, Any, Optional, List
+import time
+from typing import Any
+
+import psutil
 
 # ── Constants ──
 VRAM_THRESHOLD_LOCAL_7B = 6.0  # GB — need at least 6GB VRAM for a 7B model
 VRAM_THRESHOLD_LOCAL_3B = 3.0  # GB — need at least 3GB VRAM for a 3B model
-RAM_THRESHOLD_LOCAL = 8.0      # GB — need at least 8GB system RAM
-CPU_CORES_THRESHOLD = 4        # Minimum CPU cores for local inference
+RAM_THRESHOLD_LOCAL = 8.0  # GB — need at least 8GB system RAM
+CPU_CORES_THRESHOLD = 4  # Minimum CPU cores for local inference
 
 LOCAL_LLM_PORTS = {
     "unsloth": 8888,
@@ -48,7 +48,7 @@ class SystemProbe:
     """Probes system hardware, tests LLM backends, and recommends configuration."""
 
     def __init__(self):
-        self.report: Dict[str, Any] = {
+        self.report: dict[str, Any] = {
             "hardware": {},
             "llm_backends": {},
             "recommendation": {},
@@ -59,7 +59,7 @@ class SystemProbe:
 
     # ── Phase 1: Hardware Detection ──
 
-    def _detect_cpu(self) -> Dict[str, Any]:
+    def _detect_cpu(self) -> dict[str, Any]:
         """Detect CPU capabilities."""
         cpu_info = {
             "cores": psutil.cpu_count(logical=False) or psutil.cpu_count(),
@@ -71,7 +71,7 @@ class SystemProbe:
         cpu_info["sufficient"] = cpu_info["cores"] >= CPU_CORES_THRESHOLD
         return cpu_info
 
-    def _detect_ram(self) -> Dict[str, Any]:
+    def _detect_ram(self) -> dict[str, Any]:
         """Detect system RAM."""
         mem = psutil.virtual_memory()
         ram_info = {
@@ -82,7 +82,7 @@ class SystemProbe:
         }
         return ram_info
 
-    def _detect_gpu(self) -> Dict[str, Any]:
+    def _detect_gpu(self) -> dict[str, Any]:
         """Detect GPU capabilities using multiple methods."""
         gpu_info = {
             "available": False,
@@ -99,20 +99,33 @@ class SystemProbe:
         # Method 1: NVIDIA SMI (most reliable on Windows)
         try:
             result = subprocess.run(
-                ["nvidia-smi", "--query-gpu=name,memory.total,memory.free,driver_version",
-                 "--format=csv,noheader,nounits"],
-                capture_output=True, text=True, timeout=5
+                [
+                    "nvidia-smi",
+                    "--query-gpu=name,memory.total,memory.free,driver_version",
+                    "--format=csv,noheader,nounits",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if result.returncode == 0 and result.stdout.strip():
                 parts = result.stdout.strip().split(", ")
                 if len(parts) >= 3:
                     gpu_info["available"] = True
                     gpu_info["name"] = parts[0]
-                    gpu_info["vram_gb"] = round(float(parts[1]) / 1024, 1) if parts[1] else 0.0
-                    gpu_info["vram_free_gb"] = round(float(parts[2]) / 1024, 1) if parts[2] else 0.0
+                    gpu_info["vram_gb"] = (
+                        round(float(parts[1]) / 1024, 1) if parts[1] else 0.0
+                    )
+                    gpu_info["vram_free_gb"] = (
+                        round(float(parts[2]) / 1024, 1) if parts[2] else 0.0
+                    )
                     gpu_info["driver_version"] = parts[3] if len(parts) > 3 else ""
-                    gpu_info["sufficient_for_7b"] = gpu_info["vram_gb"] >= VRAM_THRESHOLD_LOCAL_7B
-                    gpu_info["sufficient_for_3b"] = gpu_info["vram_gb"] >= VRAM_THRESHOLD_LOCAL_3B
+                    gpu_info["sufficient_for_7b"] = (
+                        gpu_info["vram_gb"] >= VRAM_THRESHOLD_LOCAL_7B
+                    )
+                    gpu_info["sufficient_for_3b"] = (
+                        gpu_info["vram_gb"] >= VRAM_THRESHOLD_LOCAL_3B
+                    )
         except (FileNotFoundError, subprocess.TimeoutExpired, ValueError, IndexError):
             pass
 
@@ -120,14 +133,21 @@ class SystemProbe:
         if not gpu_info["available"]:
             try:
                 import torch
+
                 if torch.cuda.is_available():
                     gpu_info["available"] = True
                     gpu_info["name"] = torch.cuda.get_device_name(0)
-                    gpu_info["vram_gb"] = round(torch.cuda.get_device_properties(0).total_memory / 1e9, 1)
+                    gpu_info["vram_gb"] = round(
+                        torch.cuda.get_device_properties(0).total_memory / 1e9, 1
+                    )
                     gpu_info["cuda_available"] = True
                     gpu_info["cuda_version"] = torch.version.cuda or ""
-                    gpu_info["sufficient_for_7b"] = gpu_info["vram_gb"] >= VRAM_THRESHOLD_LOCAL_7B
-                    gpu_info["sufficient_for_3b"] = gpu_info["vram_gb"] >= VRAM_THRESHOLD_LOCAL_3B
+                    gpu_info["sufficient_for_7b"] = (
+                        gpu_info["vram_gb"] >= VRAM_THRESHOLD_LOCAL_7B
+                    )
+                    gpu_info["sufficient_for_3b"] = (
+                        gpu_info["vram_gb"] >= VRAM_THRESHOLD_LOCAL_3B
+                    )
             except ImportError:
                 pass
 
@@ -136,7 +156,9 @@ class SystemProbe:
             try:
                 result = subprocess.run(
                     ["wmic", "path", "win32_VideoController", "get", "name,adapterram"],
-                    capture_output=True, text=True, timeout=5
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
                 )
                 if result.returncode == 0 and result.stdout.strip():
                     lines = [l.strip() for l in result.stdout.split("\n") if l.strip()]
@@ -146,21 +168,27 @@ class SystemProbe:
                             parts = line.split()
                             if len(parts) >= 1:
                                 gpu_info["available"] = True
-                                gpu_info["name"] = " ".join(parts[:-1]) if len(parts) > 1 else parts[0]
+                                gpu_info["name"] = (
+                                    " ".join(parts[:-1]) if len(parts) > 1 else parts[0]
+                                )
                                 if len(parts) > 1 and parts[-1].isdigit():
                                     vram_bytes = int(parts[-1])
                                     gpu_info["vram_gb"] = round(vram_bytes / 1e9, 1)
-                                    gpu_info["sufficient_for_7b"] = gpu_info["vram_gb"] >= VRAM_THRESHOLD_LOCAL_7B
-                                    gpu_info["sufficient_for_3b"] = gpu_info["vram_gb"] >= VRAM_THRESHOLD_LOCAL_3B
+                                    gpu_info["sufficient_for_7b"] = (
+                                        gpu_info["vram_gb"] >= VRAM_THRESHOLD_LOCAL_7B
+                                    )
+                                    gpu_info["sufficient_for_3b"] = (
+                                        gpu_info["vram_gb"] >= VRAM_THRESHOLD_LOCAL_3B
+                                    )
                                 break
             except (FileNotFoundError, subprocess.TimeoutExpired):
                 pass
 
         return gpu_info
 
-    def _detect_disk(self) -> Dict[str, Any]:
+    def _detect_disk(self) -> dict[str, Any]:
         """Detect disk space."""
-        disk = psutil.disk_usage('/')
+        disk = psutil.disk_usage("/")
         return {
             "total_gb": round(disk.total / 1e9, 1),
             "free_gb": round(disk.free / 1e9, 1),
@@ -169,9 +197,12 @@ class SystemProbe:
 
     # ── Phase 2: LLM Backend Detection ──
 
-    async def _check_llm_backend(self, name: str, port: int, health_url: str) -> Dict[str, Any]:
+    async def _check_llm_backend(
+        self, name: str, port: int, health_url: str
+    ) -> dict[str, Any]:
         """Check if an LLM backend is running and responsive."""
         import httpx
+
         result = {
             "name": name,
             "port": port,
@@ -195,18 +226,22 @@ class SystemProbe:
                     if "data" in data:
                         result["models"] = [m.get("id", str(m)) for m in data["data"]]
                     elif "models" in data:
-                        result["models"] = [m.get("name", str(m)) for m in data["models"]]
+                        result["models"] = [
+                            m.get("name", str(m)) for m in data["models"]
+                        ]
         except Exception as e:
             result["error"] = str(e)
 
         return result
 
-    async def _detect_llm_backends(self) -> Dict[str, Any]:
+    async def _detect_llm_backends(self) -> dict[str, Any]:
         """Detect all available LLM backends."""
         backends = {}
         tasks = []
         for name, port in LOCAL_LLM_PORTS.items():
-            tasks.append(self._check_llm_backend(name, port, LOCAL_LLM_HEALTH_URLS[name]))
+            tasks.append(
+                self._check_llm_backend(name, port, LOCAL_LLM_HEALTH_URLS[name])
+            )
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
         for i, name in enumerate(LOCAL_LLM_PORTS.keys()):
@@ -226,7 +261,9 @@ class SystemProbe:
 
     # ── Phase 3: Recommendation Engine ──
 
-    def _recommend_mode(self, hardware: Dict[str, Any], llm_backends: Dict[str, Any]) -> Dict[str, Any]:
+    def _recommend_mode(
+        self, hardware: dict[str, Any], llm_backends: dict[str, Any]
+    ) -> dict[str, Any]:
         """Recommend the best configuration based on hardware and LLM availability."""
         gpu = hardware.get("gpu", {})
         ram = hardware.get("ram", {})
@@ -247,8 +284,12 @@ class SystemProbe:
         }
 
         # Check if we can run local models
-        can_run_3b = gpu.get("sufficient_for_3b", False) and ram.get("sufficient", False)
-        can_run_7b = gpu.get("sufficient_for_7b", False) and ram.get("sufficient", False)
+        can_run_3b = gpu.get("sufficient_for_3b", False) and ram.get(
+            "sufficient", False
+        )
+        can_run_7b = gpu.get("sufficient_for_7b", False) and ram.get(
+            "sufficient", False
+        )
 
         if any_llm_running:
             # An LLM is already running — use it
@@ -256,7 +297,9 @@ class SystemProbe:
                 if backend.get("running"):
                     recommendation["mode"] = "local"
                     recommendation["provider"] = name
-                    recommendation["local_model"] = backend.get("models", [None])[0] or "default"
+                    recommendation["local_model"] = (
+                        backend.get("models", [None])[0] or "default"
+                    )
                     recommendation["can_run_local"] = True
                     recommendation["reasoning"].append(
                         f"{backend['name']} detected on port {backend['port']} with {len(backend.get('models', []))} model(s)"
@@ -302,12 +345,22 @@ class SystemProbe:
 
         # Add steps for the user
         if recommendation["mode"] == "cloud":
-            recommendation["steps"].append("Configure cloud API keys in Settings > API Keys")
-            recommendation["steps"].append("Select your preferred cloud provider (OpenAI, Anthropic, etc.)")
+            recommendation["steps"].append(
+                "Configure cloud API keys in Settings > API Keys"
+            )
+            recommendation["steps"].append(
+                "Select your preferred cloud provider (OpenAI, Anthropic, etc.)"
+            )
         elif recommendation["mode"] == "hybrid":
-            recommendation["steps"].append("Download a small local model (3B-7B GGUF) for quick responses")
-            recommendation["steps"].append("Configure cloud API keys for complex reasoning tasks")
-            recommendation["steps"].append("The system will automatically route between local and cloud")
+            recommendation["steps"].append(
+                "Download a small local model (3B-7B GGUF) for quick responses"
+            )
+            recommendation["steps"].append(
+                "Configure cloud API keys for complex reasoning tasks"
+            )
+            recommendation["steps"].append(
+                "The system will automatically route between local and cloud"
+            )
         elif recommendation["mode"] == "local":
             recommendation["steps"].append("Your local LLM is ready to use")
             recommendation["steps"].append("Configure additional models in Model Hub")
@@ -316,16 +369,20 @@ class SystemProbe:
 
     # ── Phase 4: Auto-Configure ──
 
-    def _auto_configure(self, recommendation: Dict[str, Any]) -> Dict[str, Any]:
+    def _auto_configure(self, recommendation: dict[str, Any]) -> dict[str, Any]:
         """Auto-configure .env based on recommendation."""
         config_changes = {}
         mode = recommendation.get("mode", "cloud")
 
         if mode == "local":
-            config_changes["FoveAI_CHAT_PROVIDER"] = recommendation.get("provider", "unsloth")
+            config_changes["FoveAI_CHAT_PROVIDER"] = recommendation.get(
+                "provider", "unsloth"
+            )
             config_changes["FoveAI_COGNITIVE_MODE"] = "local"
         elif mode == "hybrid":
-            config_changes["FoveAI_CHAT_PROVIDER"] = recommendation.get("provider", "unsloth")
+            config_changes["FoveAI_CHAT_PROVIDER"] = recommendation.get(
+                "provider", "unsloth"
+            )
             config_changes["FoveAI_COGNITIVE_MODE"] = "hybrid"
             config_changes["FoveAI_CLOUD_SPLICE_PERCENT"] = "20"
         else:  # cloud
@@ -360,11 +417,17 @@ class SystemProbe:
 
     # ── Main Diagnostic Flow ──
 
-    async def run_full_diagnostic(self) -> Dict[str, Any]:
+    async def run_full_diagnostic(self) -> dict[str, Any]:
         """Run the full system diagnostic and return a comprehensive report."""
         self.report["status"] = "scanning"
         self.report["message"] = "Detecting hardware capabilities..."
-        self.report["steps"].append({"phase": "hardware", "status": "running", "message": "Detecting CPU, RAM, GPU..."})
+        self.report["steps"].append(
+            {
+                "phase": "hardware",
+                "status": "running",
+                "message": "Detecting CPU, RAM, GPU...",
+            }
+        )
 
         # Phase 1: Hardware
         self.report["hardware"] = {
@@ -373,25 +436,59 @@ class SystemProbe:
             "gpu": self._detect_gpu(),
             "disk": self._detect_disk(),
         }
-        self.report["steps"].append({"phase": "hardware", "status": "done", "message": "Hardware detection complete"})
+        self.report["steps"].append(
+            {
+                "phase": "hardware",
+                "status": "done",
+                "message": "Hardware detection complete",
+            }
+        )
 
         # Phase 2: LLM Backends
         self.report["message"] = "Scanning for LLM backends..."
-        self.report["steps"].append({"phase": "llm", "status": "running", "message": "Checking Unsloth, LM Studio, Ollama..."})
+        self.report["steps"].append(
+            {
+                "phase": "llm",
+                "status": "running",
+                "message": "Checking Unsloth, LM Studio, Ollama...",
+            }
+        )
         self.report["llm_backends"] = await self._detect_llm_backends()
-        self.report["steps"].append({"phase": "llm", "status": "done", "message": "LLM backend scan complete"})
+        self.report["steps"].append(
+            {"phase": "llm", "status": "done", "message": "LLM backend scan complete"}
+        )
 
         # Phase 3: Recommendation
         self.report["message"] = "Analyzing results and generating recommendation..."
-        self.report["steps"].append({"phase": "recommend", "status": "running", "message": "Generating configuration recommendation..."})
-        self.report["recommendation"] = self._recommend_mode(self.report["hardware"], self.report["llm_backends"])
-        self.report["steps"].append({"phase": "recommend", "status": "done", "message": "Recommendation ready"})
+        self.report["steps"].append(
+            {
+                "phase": "recommend",
+                "status": "running",
+                "message": "Generating configuration recommendation...",
+            }
+        )
+        self.report["recommendation"] = self._recommend_mode(
+            self.report["hardware"], self.report["llm_backends"]
+        )
+        self.report["steps"].append(
+            {"phase": "recommend", "status": "done", "message": "Recommendation ready"}
+        )
 
         # Phase 4: Auto-Configure
         self.report["message"] = "Applying recommended configuration..."
-        self.report["steps"].append({"phase": "config", "status": "running", "message": "Writing configuration..."})
-        self.report["config_applied"] = self._auto_configure(self.report["recommendation"])
-        self.report["steps"].append({"phase": "config", "status": "done", "message": "Configuration applied"})
+        self.report["steps"].append(
+            {
+                "phase": "config",
+                "status": "running",
+                "message": "Writing configuration...",
+            }
+        )
+        self.report["config_applied"] = self._auto_configure(
+            self.report["recommendation"]
+        )
+        self.report["steps"].append(
+            {"phase": "config", "status": "done", "message": "Configuration applied"}
+        )
 
         # Final status
         self.report["status"] = "ready"
@@ -405,7 +502,11 @@ class SystemProbe:
         gpu = self.report.get("hardware", {}).get("gpu", {})
         ram = self.report.get("hardware", {}).get("ram", {})
 
-        gpu_str = f"{gpu.get('name', 'Unknown')} ({gpu.get('vram_gb', 0)}GB VRAM)" if gpu.get("available") else "No GPU detected"
+        gpu_str = (
+            f"{gpu.get('name', 'Unknown')} ({gpu.get('vram_gb', 0)}GB VRAM)"
+            if gpu.get("available")
+            else "No GPU detected"
+        )
         ram_str = f"{ram.get('total_gb', 0)}GB RAM"
 
         if mode == "local":
@@ -418,13 +519,14 @@ class SystemProbe:
 
 # ── Convenience function for soul_core.py ──
 
-async def run_system_probe() -> Dict[str, Any]:
+
+async def run_system_probe() -> dict[str, Any]:
     """Run a full system probe and return the report."""
     probe = SystemProbe()
     return await probe.run_full_diagnostic()
 
 
-def get_system_summary() -> Dict[str, Any]:
+def get_system_summary() -> dict[str, Any]:
     """Get a quick system summary without running the full probe."""
     probe = SystemProbe()
     return {

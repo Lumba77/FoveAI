@@ -1,0 +1,40 @@
+{
+  "include": [
+    "Backend",
+    "Frontend",
+    "Tools",
+    "Forge"
+  ],
+  "exclude": [
+    "**/client_quest/**",
+    "**/Library/**",
+    "**/PackageCache/**",
+    "**/Bee/**",
+    "**/Temp/**",
+    "**/Obj/**",
+    "**/Training/**",
+    "**/outputs/**",
+    "**/Nursery/**",
+    "**/Build/**",
+    "**/Tools/WonderPedal/WonderPedalUnity/**",
+    "**/Frontend/XR_Vessel/public/Animations/**",
+    "**/node_modules/**",
+    "**/.venv/**",
+    "**/venv/**",
+    "**/venv_mouth/**",
+    "**/.aider-venv/**",
+    "**/__pycache__/**",
+    "**/models/**",
+    "**/hf_cache/**",
+    "**/huggingface/**"
+  ],
+  "ignore": [
+    "**/client_quest/**",
+    "**/Training/**",
+    "**/outputs/**",
+    "**/Nursery/**"
+  ],
+  "diagnosticMode": "openFilesOnly",
+  "typeCheckingMode": "basic",
+  "useLibraryCodeForTypes": true
+}

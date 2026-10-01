@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import torch
@@ -12,7 +12,7 @@ from PIL import Image
 
 logger = logging.getLogger("foveai_spandrel")
 
-_SPANDREL_MODEL: Optional[Tuple[str, Any]] = None
+_SPANDREL_MODEL: tuple[str, Any] | None = None
 
 
 def _maybe_register_extra_arches() -> None:

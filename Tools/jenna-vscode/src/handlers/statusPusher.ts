@@ -84,7 +84,7 @@ export class StatusPusher {
       const cfgModel = vscode.workspace.getConfiguration('jenna').get<string>('model') || '';
       const activeModel = (cfgModel && cfgModel !== 'auto' && cfgModel !== 'Auto (Smart Router)')
         ? cfgModel
-        : ((st && st.model && st.model !== 'auto') ? st.model : 'XRLF 9B (Coder)');
+        : ((st && st.model && st.model !== 'auto') ? st.model : 'Quwtpus-9B-XRLF');
 
       const ae = vscode.window.activeTextEditor;
       const af = ae ? path.basename(ae.document.fileName) : '';
@@ -125,6 +125,8 @@ export class StatusPusher {
           importantStatus: 'Core context bridge',
           importantDetail: 'Active Recall Memory',
           model: activeModel,
+          assistantName: st?.assistantName || undefined,
+          userName: st?.userName || undefined,
           modelStatus: (st && st.online) ? ':8400 Connected' : 'Local / Active',
           modelDetail: 'Foveated Proxy Active',
           totalProblems,

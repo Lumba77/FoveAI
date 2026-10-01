@@ -1,0 +1,2 @@
+# Linux containers + POSIX sh: CRLF breaks shebang, set(1), and in-script path arguments.
+*.sh text eol=lf
