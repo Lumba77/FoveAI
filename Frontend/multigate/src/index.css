@@ -2,19 +2,19 @@
   /* Dark UA scheme — makes native form popups (select dropdowns, scrollbars,
      date pickers) render dark instead of inheriting the OS light theme. */
   color-scheme: dark;
-  /* FOVEAI CELESTIAL — astro-instrument × high-tech (see theme/foveai-celestial.css) */
-  --bg-dark: #070b1d;
-  --bg-panel: rgba(20, 26, 52, 0.55);
-  --bg-glass: rgba(200, 214, 255, 0.03);
-  --border-glass: rgba(148, 168, 220, 0.16);
-  --accent-cyan: #5eead4;        /* nebula teal   */
-  --accent-purple: #a78bfa;      /* nebula violet */
-  --accent-magenta: #e8b64c;     /* astrolabe brass */
-  --text-main: #dfe7ff;
-  --text-muted: #8a94b8;
-  --glow-cyan: 0 0 24px rgba(94, 234, 212, 0.35);
-  --glow-purple: 0 0 24px rgba(167, 139, 250, 0.35);
-  --glow-magenta: 0 0 24px rgba(232, 182, 76, 0.35);
+  /* FOVEAI CELESTIAL mapped to Master Webdesigner */
+  --bg-dark: var(--fv-base, #070b1d);
+  --bg-panel: var(--fv-surface, rgba(20, 26, 52, 0.55));
+  --bg-glass: var(--fv-glass-top, rgba(200, 214, 255, 0.03));
+  --border-glass: var(--fv-border, rgba(148, 168, 220, 0.16));
+  --accent-cyan: var(--fv-accent, #5eead4);
+  --accent-purple: var(--fv-accent-2, #a78bfa);
+  --accent-magenta: var(--fv-warn, #e8b64c);
+  --text-main: var(--fv-text, #dfe7ff);
+  --text-muted: var(--fv-muted, #8a94b8);
+  --glow-cyan: 0 0 24px var(--fv-accent-dim, rgba(94, 234, 212, 0.35));
+  --glow-purple: 0 0 24px var(--fv-violet-dim, rgba(167, 139, 250, 0.35));
+  --glow-magenta: 0 0 24px var(--fv-warn, rgba(232, 182, 76, 0.35));
 }
 
 * {

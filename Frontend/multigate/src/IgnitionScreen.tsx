@@ -32,21 +32,6 @@ interface StatusData {
   load_error?: string | null;
 }
 
-interface SessionEntry {
-  session_id?: string;
-  id?: string;
-  title?: string;
-  last_updated?: string;
-  message_count?: number;
-}
-
-interface SettingRow {
-  key: string;
-  label: string;
-  current: string | null;
-  previous: string | null;
-}
-
 const SNAPSHOT_KEYS: Array<{ key: string; label: string }> = [
   { key: 'XRLF_MODEL_LOCAL_ID', label: 'Local model' },
   { key: 'XRLF_COGNITIVE_MODE', label: 'Cognitive mode' },
@@ -180,19 +165,6 @@ function playIgnitionAudio() {
   } catch (_) { /* audio is garnish */ }
 }
 
-function relTime(iso?: string): string {
-  if (!iso) return '—';
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const days = Math.floor(h / 24);
-  if (days < 30) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString();
-}
-
 /* corner screws for metal plates (4-corner, for the big logo plate) */
 const SCREW_BG = [
   'radial-gradient(circle 5px at 14px 14px, #1a1a1a 0 2px, #666 3px, #3a3a3a 4px, #777 5px, transparent 5px)',
@@ -207,37 +179,14 @@ const SCREW_BG_2 = [
   'radial-gradient(circle 4px at calc(100% - 13px) 50%, #141414 0 1.5px, #5a5a5a 2.5px, #333 3.5px, transparent 4px)',
 ].join(',');
 
-/* ── beta charter: the gift ledger shown to signed-in testers ──
-   months accrue from account creation; the rate is the project's
-   working estimate of what this service will cost at launch */
-const GIFT_MONTHLY_SEK = 200;
-
-interface AccountInfo {
-  username: string;
-  displayName?: string;
-  role?: string;
-  created?: string;
-}
-
-function betaMonths(created?: string): number {
-  if (!created) return 1;
-  const from = new Date(created).getTime();
-  if (!isFinite(from)) return 1;
-  const months = Math.floor((Date.now() - from) / (30.44 * 24 * 3600 * 1000));
-  return Math.max(1, months + 1);
-}
+/* ── settings snapshot ("Since Last Visit" drift log — kept in localStorage) ── */
 
 export default function IgnitionScreen({ userName, token, onEnter }: { userName?: string; token?: string; onEnter: () => void }) {
   const [phase, setPhase] = useState<Phase>('boot');
   const [status, setStatus] = useState<StatusData | null>(null);
-  const [account, setAccount] = useState<AccountInfo | null>(null);
-  const [sessions, setSessions] = useState<SessionEntry[]>([]);
-  const [settings, setSettings] = useState<SettingRow[]>([]);
   const [stackUp, setStackUp] = useState(false);
   const [modelReady, setModelReady] = useState(false);
   const [log, setLog] = useState<Array<{ text: string; ok: boolean | null }>>([]);
-  const [editCompression, setEditCompression] = useState<string>('');
-  const [editMode, setEditMode] = useState<string>('');
   const [savedFlash, setSavedFlash] = useState(false);
   const [flicker, setFlicker] = useState(0);
   const tb = useTraits(useCallback(() => {
@@ -245,6 +194,7 @@ export default function IgnitionScreen({ userName, token, onEnter }: { userName?
     setTimeout(() => setSavedFlash(false), 1500);
   }, []));
   const logRef = useRef<HTMLDivElement>(null);
+  const plateWrapRef = useRef<HTMLDivElement>(null);
   const aliveRef = useRef(true);
 
   const pushLog = useCallback((text: string, ok: boolean | null = null) => {
@@ -279,29 +229,16 @@ export default function IgnitionScreen({ userName, token, onEnter }: { userName?
   }, []);
 
   const loadPanelData = useCallback(async () => {
-    try {
-      const r = await fetch('/api/sessions', { signal: AbortSignal.timeout(4000) });
-      if (r.ok) { const j = await r.json(); setSessions((j.sessions || []).slice(0, 5)); }
-    } catch (_) {}
-    const rows: SettingRow[] = [];
-    let prev: Record<string, string> = {};
-    try { prev = JSON.parse(localStorage.getItem(SNAPSHOT_STORE) || '{}'); } catch (_) {}
     const next: Record<string, string> = {};
-    for (const { key, label } of SNAPSHOT_KEYS) {
+    for (const { key } of SNAPSHOT_KEYS) {
       let cur: string | null = null;
       try {
         const r = await fetch(`/api/setting?key=${encodeURIComponent(key)}`, { signal: AbortSignal.timeout(3000) });
         if (r.ok) cur = (await r.json()).value;
       } catch (_) {}
       next[key] = cur ?? '';
-      rows.push({ key, label, current: cur, previous: prev[key] ?? null });
     }
-    setSettings(rows);
     localStorage.setItem(SNAPSHOT_STORE, JSON.stringify(next));
-    const comp = rows.find(r => r.key === 'XRLF_PROXY_AGGRESSION')?.current;
-    if (comp) setEditCompression(comp);
-    const mode = rows.find(r => r.key === 'XRLF_COGNITIVE_MODE')?.current;
-    if (mode) setEditMode(mode);
   }, []);
 
   useEffect(() => {
@@ -316,19 +253,15 @@ export default function IgnitionScreen({ userName, token, onEnter }: { userName?
     return () => { aliveRef.current = false; clearInterval(iv); };
   }, [probe, loadPanelData, pushLog]);
 
-  /* beta charter — who is boarding, and what their access is worth */
+  /* beta charter — who is boarding (kept: auth readiness check only) */
   useEffect(() => {
     if (!token) return;
     (async () => {
       try {
-        const r = await fetch('/api/auth/me', {
+        await fetch('/api/auth/me', {
           headers: { Authorization: `Bearer ${token}` },
           signal: AbortSignal.timeout(4000),
         });
-        if (r.ok && aliveRef.current) {
-          const j = await r.json();
-          if (j.account) setAccount(j.account);
-        }
       } catch (_) {}
     })();
   }, [token]);
@@ -375,21 +308,6 @@ export default function IgnitionScreen({ userName, token, onEnter }: { userName?
     })();
   }, [phase, stackUp, probe, pushLog, userName, onEnter]);
 
-  const saveQuick = useCallback(async (key: string, val: string) => {
-    try {
-      await fetch('/api/setting', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ key, val }), signal: AbortSignal.timeout(5000),
-      });
-      setSavedFlash(true); setTimeout(() => setSavedFlash(false), 1500);
-    } catch (_) {}
-  }, []);
-
-  const changed = settings.filter(s => s.previous !== null && s.previous !== s.current);
   const { armed, armedIdx, finishTint, normTrait, displayVal } = tb;
   const coreColor = phase === 'idle' || phase === 'boot' ? '#ff3524' : '#39ff70';
   const spinning = phase === 'igniting' || phase === 'ready' || phase === 'entering';
@@ -403,10 +321,6 @@ export default function IgnitionScreen({ userName, token, onEnter }: { userName?
     const base = 26 - i * 2.4;
     return spinning ? base / (1.6 + i * 0.35) : base / (0.5 + norm * 2.2);
   };
-
-  const Row = ({ k, v, cls }: { k: string; v: React.ReactNode; cls?: string }) => (
-    <tr><td className="tk">{k}</td><td className={`tv ${cls || ''}`}>{v}</td></tr>
-  );
 
   return (
     <div className={`ign-screen ${phase === 'entering' ? 'ign-exit' : ''}`} style={{ ['--flick' as any]: flicker }}>
@@ -486,16 +400,34 @@ export default function IgnitionScreen({ userName, token, onEnter }: { userName?
         .ign-logo .ai { color:#5dff8f; text-shadow: 0 0 2px #5dff8f, 0 0 20px rgba(90,255,140,.6), 0 2px 0 rgba(0,0,0,.6); }
         .ign-plate-sub { font-size:13px; letter-spacing:5px; color:#9a8757; margin-top:6px; }
 
-        .ign-body { flex:1; display:flex; min-height:0; }
-        .ign-left { flex: 1; padding: 8px 24px 26px 34px; display:flex; flex-direction:column;
-          gap: 10px; overflow-y:auto; min-width:0; }
-        .ign-right { flex: 1; padding: 8px 34px 26px 24px; display:flex; flex-direction:column;
-          gap: 10px; overflow-y:auto; min-width:0; }
-        .ign-center { flex: 1.15; display:flex; flex-direction:column; align-items:center;
-          justify-content:center; gap:22px; position:relative; padding-bottom:30px;
-          min-width:0; overflow:hidden;
-          border-left:1px solid rgba(255,200,90,.14);
-          border-right:1px solid rgba(255,200,90,.14); }
+        .ign-body { flex:1; display:flex; flex-direction:column; min-height:0; align-items:center; justify-content:center; }
+        /* assembled stage — rail tucked under the logo, dial big and overlapping */
+        .ign-stage { position:relative; display:flex; align-items:center; justify-content:center;
+          gap:2vw; min-height:0; flex:0 0 auto; width:100%; padding:0 2vw;
+          max-width:1200px; margin:0 auto; }
+        /* between-panel readout — floats in the gap between dial and table */
+        .ign-between { position:relative; z-index:20; align-self:center; order:1.5;
+          text-align:center; margin-left:-4vw; margin-right:-4vw; }
+        .ign-between .trait-readout { font-size:12px; letter-spacing:1.6px; color:#a9b3d4;
+          text-align:center; font-family:'Share Tech Mono',monospace;
+          background:rgba(10,12,8,.30); backdrop-filter:blur(8px);
+          -webkit-backdrop-filter:blur(8px); border:1px solid rgba(255,200,90,.16);
+          border-radius:10px; padding:8px 14px; }
+        .ign-between .trait-readout b { color:${finishTint}; font-weight:normal; text-shadow:0 0 8px ${finishTint}66; }
+        .ign-between .trait-readout .hint { color:#8a94b8; font-size:11px; }
+        /* caption — the phase label + log, under the whole group */
+        .ign-caption { flex:1 1 100%; display:flex; flex-direction:column; align-items:center;
+          gap:6px; margin-top:0; }
+        /* dial and rail heights — dial full to its rings, rail matches its content */
+        .ign-center { display:flex; flex-direction:column; align-items:center;
+          justify-content:center; gap:10px; position:relative; flex:0 0 auto; order:1;
+          overflow:visible; padding:.2em 0; }
+        .ign-rail { flex:0 0 257px; display:flex; align-items:center; justify-content:flex-start;
+          min-width:0; max-width:257px; order:2; margin-left:-1vw; z-index:10;
+          height:auto; max-height:min(calc(100vh - 160px), 60vh); margin-top:0; }
+        .ign-rail .ign-info { align-self:center; margin-top:0; position:relative;
+          min-width:0; max-width:257px; zoom:0.79; transform-origin:left center; }
+        .ign-rail .ign-info, .ign-info { background:rgba(10,12,8,.30); }  /* ~70% see-through glass */
 
         /* ── LCD consoles: brass bezel, metal header rail, 2-col tables ── */
         .lcd { position:relative; border-radius:10px; padding:0; overflow:hidden;
@@ -546,11 +478,40 @@ export default function IgnitionScreen({ userName, token, onEnter }: { userName?
           transition:width .2s; }
         .dial-row.armed .dial-meter i { background:linear-gradient(90deg, ${finishTint}66, ${finishTint}); }
 
-        /* ── reactor emblem ── */
-        .reactor-wrap { position:relative; width:560px; height:560px; display:flex;
-          align-items:center; justify-content:center; }
-        .reactor-plate { position:relative; width:430px; height:430px; display:flex;
-          align-items:center; justify-content:center; border-radius:50%; overflow:hidden;
+        /* ── hover infopanels — translucent glass sheets floating over the dial ── */
+        .ign-info { position:absolute; z-index:50; min-width:230px; max-width:270px;
+          border-radius:10px; padding:10px 14px;
+          background:rgba(10,12,8,.30);
+          backdrop-filter:blur(8px) saturate(1.15);
+          -webkit-backdrop-filter:blur(8px) saturate(1.15);
+          border:1px solid rgba(255,200,90,.16);
+          box-shadow:0 8px 32px rgba(0,0,0,.30), inset 0 0 40px rgba(120,180,255,.03);
+          color:#c9f0ae; font-size:11.5px; line-height:1.4;
+          pointer-events:none; opacity:0; transform:translateY(6px);
+          transition:opacity .22s ease, transform .22s ease; }
+        .ign-info.on { opacity:1; transform:translateY(0); }
+        .ign-info b { color:#ffd766; letter-spacing:1.2px; font-size:10px;
+          text-transform:uppercase; display:block; margin-bottom:4px;
+          font-family:'Orbitron',monospace; }
+        .ign-info .iv { color:#eaffd0; }
+        .ign-info .im { display:block; height:3px; margin-top:6px; border-radius:2px;
+          background:rgba(140,255,150,.12); overflow:hidden; }
+        .ign-info .im i { display:block; height:100%; border-radius:2px;
+          background:linear-gradient(90deg, ${finishTint}66, ${finishTint}); }
+
+        /* panel anchor zones — invisible hit areas flanking the dial */
+        .ign-hot { position:absolute; cursor:pointer; z-index:40; }
+        .ign-hot:hover ~ .ign-info { opacity:0; }  /* default off until matched */
+
+        /* ── reactor emblem — big hero; outer rings slip behind the rail ── */
+        .reactor-wrap { position:relative;
+          width:min(calc(100vh - 200px), 46vw);
+          height:min(calc(100vh - 200px), 46vw);
+          min-width:320px; min-height:320px;
+          display:flex; align-items:center; justify-content:center; }
+        .reactor-plate { position:relative; width:81%; height:81%; display:flex;
+          align-items:center; justify-content:center; border-radius:50%;
+          overflow:visible;
           background:
             ${SCREW_BG},
             radial-gradient(circle at 50% 32%, rgba(77,70,54,.5), rgba(42,36,21,.65) 55%, rgba(21,17,10,.9) 100%),
@@ -566,8 +527,8 @@ export default function IgnitionScreen({ userName, token, onEnter }: { userName?
           filter: drop-shadow(0 0 8px ${finishTint}88); }
 
         /* the trackball instrument itself lives in trackball/trackball.css */
-        .trait-readout { font-size:14px; letter-spacing:2px; color:#a9b3d4; text-align:center;
-          font-family:'Share Tech Mono',monospace; }
+        .trait-readout { font-size:12px; letter-spacing:1.6px; color:#a9b3d4; text-align:center;
+          font-family:'Share Tech Mono',monospace; max-width:520px; margin:0 auto; }
         .trait-readout b { color:${finishTint}; font-weight:normal; text-shadow:0 0 8px ${finishTint}66; }
         .trait-readout .hint { color:#8a94b8; font-size:12px; }
         .reactor-name { font-family:'Orbitron',monospace; font-size:16px; letter-spacing:4px;
@@ -585,30 +546,11 @@ export default function IgnitionScreen({ userName, token, onEnter }: { userName?
         @keyframes ignBreathe {
           0%,100% { box-shadow:0 0 40px #ff352455, inset 0 0 30px #ff352433; }
           50% { box-shadow:0 0 90px #ff352499, inset 0 0 52px #ff352455; } }
-        /* three columns leave less room for the halo rings — shrink the
-           emblem before it crowds the flanking consoles */
-        @media (max-width: 1500px) {
-          .reactor-wrap { transform:scale(.85); margin:-42px 0; }
-        }
-        @media (max-width: 920px) {
-          .ign-body { flex-direction:column; overflow-y:auto; overflow-x:hidden; }
-          .ign-center { order:-1; border-left:none; border-right:none; overflow:visible;
-            border-bottom:1px solid rgba(255,200,90,.14); padding-bottom:14px; }
-          .reactor-wrap { transform:scale(.72); margin:-60px 0; }
-          .ign-logo { font-size:34px; letter-spacing:8px; }
-        }
-        /* crammed portrait: stack table cells, never let data vanish */
-        @media (max-width: 640px) {
-          .ign-left { padding: 6px 12px 20px; }
-          .ign-right { padding: 6px 12px 20px; }
-          .lcd-body { padding:5px 10px 6px; overflow-x:auto; }
-          .lcd-tbl, .lcd-tbl tbody { display:block; width:100%; }
-          .lcd-tbl tr { display:flex; flex-wrap:wrap; gap:2px 10px; }
-          .lcd-tbl td { flex:1 1 45%; min-width:110px; padding:2px 2px;
-            overflow-wrap:anywhere; word-break:break-word; }
-          .lcd-tbl .tv { text-align:left; }
-          .ign-logo { font-size:26px; letter-spacing:5px; }
-          .reactor-wrap { transform:scale(.55); margin:-110px 0; }
+        @media (max-width: 1100px) {
+          .ign-stage { flex-direction:column; overflow-y:auto; justify-content:center; }
+          .ign-center { order:1; overflow:visible; }
+          .ign-rail { order:2; max-width:480px; width:90%; justify-content:center; margin-left:0; }
+          .reactor-wrap { width:min(64vh, 80vw); height:min(64vh, 80vw); }
         }
       `}</style>
 
@@ -625,148 +567,83 @@ export default function IgnitionScreen({ userName, token, onEnter }: { userName?
         ))}
       </div>
 
-      {/* full-width screwed metal logo plate */}
-      <div className="ign-plate">
-        <div className="ign-logo">FOVE<span className="ai">AI</span></div>
-        <div className="ign-plate-sub">CONCORDIA · INVENTOR'S CONSOLE</div>
+      {/* brand top-center-left — the rail aligns beneath it */}
+      <div className="ign-brand" style={{ position:'absolute', left:'50%', top:'14px', transform:'translateX(-50%)', textAlign:'center', zIndex:60 }}>
+        <div className="ign-logo" style={{ fontSize:'26px', letterSpacing:'7px' }}>FOVE<span className="ai">AI</span></div>
+        <div className="ign-plate-sub" style={{ fontSize:'8px', letterSpacing:'3px', marginTop:'1px' }}>CONCORDIA · INVENTOR'S CONSOLE</div>
       </div>
 
       <div className="ign-body">
-        {/* ── left console stack — machine status & trail ── */}
-        <div className="ign-left">
-          <div className="lcd">
-            <div className="lcd-head">Machine Memory</div>
-            <div className="lcd-body"><table className="lcd-tbl"><tbody>
-              <Row k="memories" v={status?.total_memories ?? '—'} />
-              <Row k="themes" v={status?.total_themes ?? '—'} />
-              <Row k="sessions" v={status?.total_sessions ?? '—'} />
-              <Row k="core" v={<>{status?.model || '—'}{status?.is_hybrid ? ' ⬡hybrid' : ''}</>} />
-              <Row k="state" v={stackUp ? (modelReady ? 'warm — model loaded' : 'warm — model loading') : 'cold — core offline'}
-                   cls={stackUp ? 'ok' : 'warn'} />
-            </tbody></table></div>
+        {/* ── split stage: info column left (under the brand), dial right ── */}
+        <div className="ign-stage">
+
+          {/* the reactor emblem — left half, fills viewport height */}
+          <div className="ign-center">
+            <div className="reactor-wrap">
+              {/* 7 halo rings — alluding to the foveated rings; dotted LED borders */}
+              {Array.from({ length: 7 }).map((_, i) => {
+                const size = 80 + i * 3;   /* percent of the wrap — top ring tips stay clear of the logo */
+                const isArmedRing = armedIdx % 7 === i;
+                return (
+                  <div key={i} className={`halo ${isArmedRing ? 'armed-ring' : ''}`} style={{
+                    width: `${size}%`, height: `${size}%`,
+                    animation: `ignSpin ${ringPeriod(i)}s linear infinite ${i % 2 ? 'reverse' : ''}`,
+                  }} />
+                );
+              })}
+              <div className="reactor-plate" ref={plateWrapRef}>
+                {/* the trackball instrument — sweep ring to arm, roll to turn,
+                    clean press to ignite, flick for momentum */}
+                <Trackball store={tb} sizeParentRef={plateWrapRef} ballScale={0.5}
+                  health={stackUp ? (modelReady ? 'ok' : 'warn') : 'down'}
+                  onPress={ignite}
+                  pressHint="press to ignite — roll to turn the armed dial" />
+              </div>
+            </div>
+          </div>
+          {/* ── between-panel readout — the armed dial value, floating in the gap ── */}
+          <div className="ign-between">
+            <div className="trait-readout">
+              <b>{armed.label}</b> = <b>{armedVal}</b>
+              <div className="hint">
+                {armedBool
+                  ? `▲ ${fmtVal(armedBool.up)} · ▼ ${fmtVal(armedBool.down)}`
+                  : armed.options
+                    ? `▲▼ ${armed.options.length} detents`
+                    : `▲ +${armed.step} · ▼ −${armed.step}`}
+              </div>
+            </div>
           </div>
 
-          <div className="lcd">
-            <div className="lcd-head">Since Last Visit</div>
-            <div className="lcd-body"><table className="lcd-tbl"><tbody>
-              {changed.length === 0 && <Row k="settings drift" v={<span style={{color:'#7d8a5e'}}>none detected</span>} />}
-              {changed.map(s => <Row key={s.key} k={s.label} v={`${s.previous || '∅'} → ${s.current || '∅'}`} cls="chg" />)}
-              {settings.filter(s => s.previous === null && s.current !== null)
-                       .map(s => <Row key={s.key} k={s.label} v={s.current} />)}
-            </tbody></table></div>
+          {/* ── shared caption — phase label + log, centered under the whole group ── */}
+          <div className="ign-caption">
+            <div className="reactor-label">
+              {armed.label} = {armedVal} · {phase === 'idle' ? (stackUp ? 'core warm — press to board' : 'press to ignite') :
+               phase === 'igniting' ? 'reactor spinning up…' : 'containment stable'}
+            </div>
           </div>
 
-          <div className="lcd">
-            <div className="lcd-head">Trail of Work</div>
-            <div className="lcd-body">
-              {sessions.length === 0 && <div style={{color:'#7d8a5e', fontSize:14}}>{stackUp ? 'no prior sessions found' : 'awaiting core…'}</div>}
-              {sessions.map((s, i) => (
-                <div className="sess-item" key={s.session_id || s.id || i}>
-                  <div className="sess-t">{s.title || s.session_id || s.id || 'untitled session'}</div>
-                  <div className="sess-d">{relTime(s.last_updated)}{s.message_count != null ? ` · ${s.message_count} msgs` : ''}</div>
+          {/* ── right rail: the standing info table, vertically centered
+              against the dial ── */}
+          <div className="ign-rail">
+            <div className="ign-info on" style={{ position:'relative', pointerEvents:'auto' }}>
+              <b>Machine Memory</b>
+              <div className="iv">memories <span style={{float:'right'}}>{status?.total_memories ?? '—'}</span></div>
+              <div className="iv">themes <span style={{float:'right'}}>{status?.total_themes ?? '—'}</span></div>
+              <div className="iv">sessions <span style={{float:'right'}}>{status?.total_sessions ?? '—'}</span></div>
+              <div className="iv">core <span style={{float:'right'}}>{status?.model || '—'}{status?.is_hybrid ? ' ⬡hybrid' : ''}</span></div>
+              <div className="iv">state <span style={{float:'right', color: stackUp ? (modelReady ? '#5dff8f' : '#ff9a6a') : '#ff9a6a'}}>
+                {stackUp ? (modelReady ? 'warm — loaded' : 'warm — loading') : 'cold — offline'}</span></div>
+              <div style={{height:12}} />
+              <b>Dial Matrix {savedFlash && <span style={{color:'#5dff8f', letterSpacing:1}}>· saved</span>}</b>
+              {TRAITS.map(t => (
+                <div key={t.id} style={{marginBottom:4, cursor:'default'}}
+                     className={t.id === armed.id ? 'iv' : ''}
+                     onClick={() => tb.setArmedId(t.id)}>
+                  {t.label} <span style={{float:'right'}}>{displayVal(t)}</span>
+                  <span className="im"><i style={{ width: `${Math.round(normTrait(t) * 100)}%` }} /></span>
                 </div>
               ))}
-            </div>
-          </div>
-        </div>
-
-        {/* ── center: reactor emblem — trackball flanked by the consoles ── */}
-        <div className="ign-center">
-          <div className="reactor-name">CONCORDIA THORIUM CORE</div>
-          <div className="reactor-wrap">
-            {/* 7 halo rings — alluding to the foveated rings; dotted LED borders */}
-            {Array.from({ length: 7 }).map((_, i) => {
-              const size = 462 + i * 24;
-              const isArmedRing = armedIdx % 7 === i;
-              return (
-                <div key={i} className={`halo ${isArmedRing ? 'armed-ring' : ''}`} style={{
-                  width: size, height: size,
-                  animation: `ignSpin ${ringPeriod(i)}s linear infinite ${i % 2 ? 'reverse' : ''}`,
-                }} />
-              );
-            })}
-            <div className="reactor-plate">
-              {/* the trackball instrument — sweep ring to arm, roll to turn,
-                  clean press to ignite, flick for momentum */}
-              <Trackball store={tb} size={430} ballScale={0.5}
-                health={stackUp ? (modelReady ? 'ok' : 'warn') : 'down'}
-                onPress={ignite}
-                pressHint="press to ignite — roll to turn the armed dial" />
-            </div>
-          </div>
-          <div className="trait-readout">
-            <b>{armed.label}</b> = <b>{armedVal}</b>
-            <div className="hint">
-              {armedBool
-                ? `▲ push up = ${fmtVal(armedBool.up)}  ·  ▼ pull down = ${fmtVal(armedBool.down)}`
-                : armed.options
-                  ? `▲▼ roll through ${armed.options.length} detents`
-                  : `▲ +${armed.step}  ·  ▼ −${armed.step}`}
-              {' '}· sweep dial to arm · press to board
-            </div>
-          </div>
-          <div className="reactor-label">
-            {phase === 'idle' ? (stackUp ? 'core warm — press to board' : 'press to ignite') :
-             phase === 'igniting' ? 'reactor spinning up…' : 'containment stable'}
-          </div>
-          <div className="ign-log" ref={logRef}>
-            {log.length === 0 && <div style={{ color: '#5d6b48' }}>reactor log idle…</div>}
-            {log.map((l, i) => (
-              <div key={i} className={l.ok === false ? 'bad' : l.ok === true ? 'good' : ''}>{l.text}</div>
-            ))}
-          </div>
-        </div>
-
-        {/* ── right console stack — the dial matrix mirrors the ball's ten
-            positions live, so every setting stays readable mid-roll ── */}
-        <div className="ign-right">
-          {account && (
-            <div className="lcd">
-              <div className="lcd-head">Beta Charter</div>
-              <div className="lcd-body"><table className="lcd-tbl"><tbody>
-                <Row k="account" v={account.displayName || account.username} />
-                <Row k="standing" v={<span className="tv ok">FoveAI Beta Tester</span>} />
-                <Row k="since" v={account.created ? new Date(account.created).toLocaleDateString() : '—'} />
-                <Row k="provisioned gift"
-                     v={`${betaMonths(account.created)} mo access ≈ ${(betaMonths(account.created) * GIFT_MONTHLY_SEK).toLocaleString('sv-SE')} kr`}
-                     cls="chg" />
-                <Row k="" v={<a href="/beta.html" style={{ color: '#ffd766', textDecoration: 'none' }}>about the beta program →</a>} />
-              </tbody></table></div>
-            </div>
-          )}
-
-          <div className="lcd">
-            <div className="lcd-head">Dial Matrix {savedFlash && <span className="saved">· saved</span>}</div>
-            <div className="lcd-body"><table className="lcd-tbl"><tbody>
-              {TRAITS.map(t => (
-                <tr key={t.id}
-                    className={`dial-row ${t.id === armed.id ? 'armed' : ''}`}
-                    onClick={() => tb.setArmedId(t.id)}
-                    title={t.key ? `${t.key} — click to arm` : 'local finish — click to arm'}>
-                  <td className="tk">{t.label}</td>
-                  <td className="tv">{displayVal(t)}
-                    <span className="dial-meter"><i style={{ width: `${Math.round(normTrait(t) * 100)}%` }} /></span>
-                  </td>
-                </tr>
-              ))}
-            </tbody></table></div>
-          </div>
-
-          <div className="lcd">
-            <div className="lcd-head">Quick Dials</div>
-            <div className="lcd-body">
-              <div className="quick-row">
-                <span className="tk">compression</span>
-                <select value={editCompression} onChange={e => { setEditCompression(e.target.value); saveQuick('XRLF_PROXY_AGGRESSION', e.target.value); }}>
-                  {['1','2','3','4','5'].map(v => <option key={v} value={v}>{v}</option>)}
-                </select>
-                <span className="tk">mode</span>
-                <select value={editMode} onChange={e => { setEditMode(e.target.value); saveQuick('XRLF_COGNITIVE_MODE', e.target.value); }}>
-                  <option value="local">local</option>
-                  <option value="cloud">cloud</option>
-                  <option value="hybrid">hybrid</option>
-                </select>
-              </div>
             </div>
           </div>
         </div>

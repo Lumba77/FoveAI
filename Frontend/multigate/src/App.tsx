@@ -1,11 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
+import './components/ChatLayout.css';
 import AvatarOverlay from './AvatarOverlay';
 import IgnitionScreen from './IgnitionScreen';
 import { useBackendStatus } from './useBackendStatus';
 import Trackball from './trackball/Trackball';
 import { useTraits } from './trackball/useTraits';
 import { CanvasTab } from './components/tabs/CanvasTab';
+import { ImageEditorTab } from './components/tabs/ImageEditorTab';
+import { DNATab } from './components/tabs/DNATab';
+import { ImageGalleryTab } from './components/tabs/ImageGalleryTab';
+import ThemeMachineTab from './components/tabs/ThemeMachineTab';
 import { DiagnosticsTab } from './components/tabs/DiagnosticsTab';
 import { AgencyTab } from './components/tabs/AgencyTab';
 import { MonetizationTab } from './components/tabs/MonetizationTab';
@@ -18,6 +23,10 @@ import { DevKioskTab } from './components/tabs/DevKioskTab';
 import { MindTab } from './components/tabs/MindTab';
 import { SystemsTab } from './components/tabs/SystemsTab';
 import { NEWS } from './news';
+import { SettingsOverlay } from './components/SettingsOverlay';
+import { AvatarView } from './components/AvatarView';
+import { useAuralAwareness } from './hooks/useAuralAwareness';
+import { useSoftLayer } from './hooks/useSoftLayer';
 
 // Vibe IDE — lazy: pulls monaco-editor (~4MB chunk), only paid when the tab opens
 const CodeEditorTab = React.lazy(() =>
@@ -78,6 +87,77 @@ function renderAssistantContent(text: string): React.ReactNode {
   return parts;
 }
 
+function formatModelName(id: string): string {
+  if (!id) return id;
+  let s = id.replace(/-(multimodal|instruct|chat|v\d+\.\d+)/gi, '');
+  let ext = '';
+  if (/\.xrlf$/i.test(s)) ext = ' xrlf';
+  if (/\.gguf$/i.test(s)) ext = ' gguf';
+  s = s.replace(/\.(xrlf|gguf)$/i, '');
+  const parts = s.split('-');
+  s = parts.slice(0, 3).join(' ');
+  return s.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') + ext;
+}
+
+// Transient subtitles for when chat is hidden but conversation continues
+function TransientSubtitles({ messages, visible }: { messages: Message[], visible: boolean }) {
+  const [activeMsg, setActiveMsg] = useState<{ role: string, content: string, id: number } | null>(null);
+  const [fade, setFade] = useState(false);
+  const [pos, setPos] = useState({ top: 85, left: 50 });
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      const { clientX, clientY, view } = e;
+      if (!view) return;
+      const w = view.innerWidth;
+      const h = view.innerHeight;
+      
+      const isMouseBottom = clientY > h * 0.55;
+      const isMouseTop = clientY < h * 0.45;
+      const isMouseLeft = clientX < w * 0.35;
+      const isMouseRight = clientX > w * 0.65;
+      const isMouseCenter = !isMouseLeft && !isMouseRight;
+
+      if (isMouseLeft && isMouseBottom) setPos({ top: 85, left: 80 }); // Dodge menu area -> right
+      else if (isMouseRight && isMouseBottom) setPos({ top: 85, left: 35 }); // Dodge bottom right -> mid-left
+      else if (isMouseCenter && isMouseBottom) setPos({ top: 15, left: 50 }); // Dodge bottom center -> top center
+      else if (isMouseCenter && isMouseTop) setPos({ top: 85, left: 50 }); // Dodge top center -> bottom center
+      else setPos({ top: 85, left: 50 }); // Default
+    };
+    
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
+  useEffect(() => {
+    if (!visible) return;
+    const last = messages[messages.length - 1];
+    if (last && !last.divider) {
+      setActiveMsg({ role: last.role, content: displayText(last.content), id: messages.length });
+      setFade(false);
+      
+      const fadeTimer = setTimeout(() => setFade(true), 4000);
+      const hideTimer = setTimeout(() => setActiveMsg(null), 5000);
+      
+      return () => {
+        clearTimeout(fadeTimer);
+        clearTimeout(hideTimer);
+      };
+    }
+  }, [messages, visible]);
+
+  if (!visible || !activeMsg || !activeMsg.content.trim()) return null;
+
+  return (
+    <div 
+      className={`transient-subtitles ${activeMsg.role} ${fade ? 'fade-out' : ''}`}
+      style={{ top: `${pos.top}%`, left: `${pos.left}%` }}
+    >
+      {activeMsg.content}
+    </div>
+  );
+}
+
 function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
@@ -97,7 +177,7 @@ function App() {
 
   // Persona setup shows when an authenticated user hasn't named their AI yet.
   // Derived from currentUser — no separate flag to drift out of sync.
-  const showSetup = !!currentUser && !currentUser.aiName;
+  const showSetup = !!currentUser && !currentUser?.aiName;
   const [ignited, setIgnited] = useState(false);
   const backend = useBackendStatus();
   const backendDown = backend.state === 'down' || backend.state === 'offline' || backend.state === 'starting';
@@ -125,6 +205,23 @@ function App() {
   const [sessionId] = useState(() => `sess-${Date.now().toString(36)}`);
   const [sessionTitles, setSessionTitles] = useState<Record<string, string>>({});
   const [editingSession, setEditingSession] = useState<string | null>(null);
+
+  const [clockTime, setClockTime] = useState('--:--');
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const d = new Date();
+      setClockTime(d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0'));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  function classifyByTheme(title: string): string {
+    const text = (title || '').toLowerCase();
+    if (/ui|theme|icon|button|design|watermark|aesthetic|gradient|style|color|layout/.test(text)) return 'theme_ui';
+    if (/architect|system|server|proxy|memory|matrix|sleipnir|backend|database|nedb|foveated/.test(text)) return 'theme_arch';
+    if (/code|fix|bug|feature|script|deploy|html|css|js|ts|function|api|endpoint/.test(text)) return 'theme_code';
+    return 'theme_gen';
+  }
   const [editTitle, setEditTitle] = useState('');
   const titledOnce = useRef(false);
   const historyLoaded = useRef(false);
@@ -240,6 +337,30 @@ function App() {
   const [activeTab, setActiveTab] = useState('Copilot');
   const [newsOverlay, setNewsOverlay] = useState<number | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  useAuralAwareness();
+  useSoftLayer();
+  
+  useEffect(() => {
+    // Expose for Quest 3 controller bindings (Unity WebView bridge)
+    (window as any).XRLFSettings = {
+      show: () => setShowSettings(true),
+      hide: () => setShowSettings(false),
+      toggle: () => setShowSettings(prev => !prev)
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.shiftKey && (e.key === 'M' || e.key === 'm')) {
+        setShowSettings(prev => !prev);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      delete (window as any).XRLFSettings;
+    };
+  }, []);
+
   const [showAvatar, setShowAvatar] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -258,13 +379,30 @@ function App() {
   const MODEL_FLEETS: Record<string, { id: string; label: string }[]> = {
     // xrlf_proxy has no static fleet — its picker is populated live from
     // /xrlf/v1/packages (the loadable .xrlf files the runtime can hot-swap).
-    xrlf_proxy: [],
+    xrlf_proxy: [
+      { id: 'local-3b', label: '💻 3B' },
+      { id: 'local-4b', label: '💻 4B' },
+      { id: 'local-7b', label: '💻 7B' },
+      { id: 'local-8b', label: '💻 8B' },
+      { id: 'local-9b', label: '💻 9B' },
+      { id: 'local-12b', label: '💻 12B' },
+    ],
     lmstudio: [
-      { id: 'qwopus3.5-9b-coder-mtp-moq',           label: '💻 QwOpus 3.5 9B Coder' },
-      { id: 'qwen3.5-4b-moq',                       label: '💻 Qwen MoQ 4B (32K ctx)' },
+      { id: 'local-3b', label: '💻 3B' },
+      { id: 'local-4b', label: '💻 4B' },
+      { id: 'local-7b', label: '💻 7B' },
+      { id: 'local-8b', label: '💻 8B' },
+      { id: 'local-9b', label: '💻 9B' },
+      { id: 'local-12b', label: '💻 12B' },
     ],
     cloud: [
       { id: 'auto',          label: '☁️ Cloud Auto-Route (requires API key)' },
+      { id: 'cloud-20b',     label: '☁️ 20B' },
+      { id: 'cloud-34b',     label: '☁️ 34B' },
+      { id: 'cloud-64b',     label: '☁️ 64B' },
+      { id: 'cloud-70b',     label: '☁️ 70B' },
+      { id: 'cloud-96b',     label: '☁️ 96B' },
+      { id: 'cloud-129b',    label: '☁️ 129B' },
     ],
   };
   const [deepThink, setDeepThink] = useState(true);
@@ -278,6 +416,55 @@ function App() {
   });
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessingAudio, setIsProcessingAudio] = useState(false);
+
+  const [jenPinned, setJenPinned] = useState(false);
+  const [activeMode, setActiveMode] = useState<'TEXT' | 'DICTATE' | 'Vocal PTT' | 'Vocal VAD' | 'Video PTT' | 'Video VAD'>('TEXT');
+  const [pendingMode, setPendingMode] = useState<'TEXT' | 'DICTATE' | 'Vocal PTT' | 'Vocal VAD' | 'Video PTT' | 'Video VAD' | null>(null);
+  
+  const interactionModes: ('TEXT' | 'DICTATE' | 'Vocal PTT' | 'Vocal VAD' | 'Video PTT' | 'Video VAD')[] = [
+    'TEXT', 'DICTATE', 'Vocal PTT', 'Vocal VAD', 'Video PTT', 'Video VAD'
+  ];
+
+  const getModeExplanation = (m: string | null) => {
+    switch (m) {
+      case 'TEXT': return "TEXT MODE: Type messages with your keyboard";
+      case 'DICTATE': return "DICTATE MODE: Speak and let AI transcribe to text";
+      case 'Vocal PTT': return "VOCAL PTT: Hold ball to record audio, release to send";
+      case 'Vocal VAD': return "VOCAL VAD: Hands-free continuous audio chat";
+      case 'Video PTT': return "VIDEO PTT: Hold ball to record video, release to send";
+      case 'Video VAD': return "VIDEO VAD: Hands-free continuous video chat";
+      default: return `Ask ${currentUser?.aiName || 'your AI'} to build something...`;
+    }
+  };
+
+  const lastRollRef = useRef<number>(0);
+  const handleRollStep = (dir: number) => {
+    if (inputValue.trim()) return;
+    const now = Date.now();
+    if (now - lastRollRef.current < 500) return; // Throttle mode change to once every 0.5 second
+    lastRollRef.current = now;
+    
+    setPendingMode(prev => {
+       const current = prev || activeMode;
+       let idx = interactionModes.indexOf(current as any) + dir;
+       if (idx < 0) idx = interactionModes.length - 1;
+       if (idx >= interactionModes.length) idx = 0;
+       return interactionModes[idx];
+    });
+  };
+
+  const handleModeConfirm = () => {
+    if (pendingMode) {
+      setActiveMode(pendingMode);
+      setPendingMode(null);
+      if (pendingMode === 'TEXT' || pendingMode === 'DICTATE') setInputMode('TXT');
+      else if (pendingMode === 'Vocal PTT' || pendingMode === 'Video PTT') setInputMode('PTT');
+      else setInputMode('VAD');
+    } else {
+      handleSendMessage();
+    }
+  };
+
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
@@ -974,6 +1161,16 @@ function App() {
       ]
     },
     {
+      title: 'TOOLS',
+      icon: '🧰',
+      items: [
+        { id: 'ImageEditor', label: 'Image Editor', icon: '🖼️' },
+        { id: 'ImageGallery', label: 'Image Gallery', icon: '🖼️' },
+        { id: 'ThemeMachine', label: 'Theme Machine', icon: '🎨' },
+        { id: 'DNA', label: 'DNA Analysis', icon: '🧬' }
+      ]
+    },
+    {
       title: 'SENSES & REVENUE',
       icon: '📊',
       items: [
@@ -1032,6 +1229,22 @@ function App() {
   // ----------------------------------------------------
   return (
     <div className="app-container">
+      {(jenPinned || activeTab === 'Copilot') && (
+        <>
+          <div className={`ai-avatar-window ${jenPinned ? 'pinned' : ''}`}>
+            <span className="ai-avatar-name">
+              {currentUser?.aiName || 'JEN'}
+              <span style={{ float: 'right', cursor: 'pointer', opacity: 0.6 }} onClick={() => setJenPinned(!jenPinned)} title={jenPinned ? "Unpin avatars" : "Pin avatars to all screens"}>📌</span>
+            </span>
+            <AvatarView mode={activeMode.startsWith('Video') ? 'video' : 'still'} />
+          </div>
+          <div className={`user-avatar-window ${jenPinned ? 'pinned' : ''}`}>
+            <span className="user-avatar-name">{currentUser?.firstName?.toUpperCase() || 'USER'}</span>
+            <img src="/avatars/user_fallback.png" alt="User" className="user-avatar-image" onError={(e) => (e.currentTarget.src = '/avatars/fallback.png')} />
+          </div>
+          <TransientSubtitles messages={messages} visible={activeTab !== 'Copilot'} />
+        </>
+      )}
       {/* Sidebar Navigation */}
       <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
         <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1167,12 +1380,19 @@ function App() {
       {/* Main Content Area */}
       <main className="main-content">
         {/* Top Bar with Server Metrics & Quick Actions */}
-        <header className="chat-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(0, 240, 255, 0.2)', padding: '12px 20px' }}>
+        <header className="chat-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 120px 8px 16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {/* Hamburger — only visible under the mobile media query */}
             <button className="icon-btn menu-toggle" title="Menu" onClick={() => setSidebarOpen(!sidebarOpen)}>☰</button>
             {/* Quick Action Toolbar */}
             <div className="topbar-actions" style={{ display: 'flex', gap: '10px' }}>
+              <button
+                className="icon-btn clock-btn"
+                title="Local Time"
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', fontSize: '0.8rem', padding: '0 8px', borderRadius: '4px', fontFamily: 'Share Tech Mono', color: 'var(--text-light)', minWidth: '60px' }}
+              >
+                {clockTime}
+              </button>
               <button
                 className={`icon-btn ${showAvatar ? 'active' : ''}`}
                 title="Toggle Video / 3D Avatar"
@@ -1254,6 +1474,14 @@ function App() {
           </div>
         ) : activeTab === 'Canvas' ? (
           <CanvasTab />
+        ) : activeTab === 'ImageEditor' ? (
+          <ImageEditorTab />
+        ) : activeTab === 'ImageGallery' ? (
+          <ImageGalleryTab />
+        ) : activeTab === 'DNA' ? (
+          <DNATab />
+        ) : activeTab === 'ThemeMachine' ? (
+          <ThemeMachineTab />
         ) : activeTab === 'Roleplay' ? (
           <RoleplayTab 
             onApplyRole={(role, mode) => handleAssimilateDisorder({ Disorder: role.title, Cluster: 'Roleplay Scenario', systemPrompt: role.systemPrompt }, mode)}
@@ -1316,7 +1544,7 @@ function App() {
             {/* Model/provider bar — sits above the chat area, not in the composer */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: '10px',
-              padding: '6px 16px', fontFamily: 'Share Tech Mono',
+              padding: '6px 160px 6px 16px', fontFamily: 'Share Tech Mono',
               borderBottom: '1px solid rgba(255,255,255,0.06)',
               flexShrink: 0
             }}>
@@ -1372,13 +1600,13 @@ function App() {
                   <option key={m.id} value={m.id}>{m.label}</option>
                 ))}
                 {chatProvider === 'xrlf_proxy' && availableModels.map((m: any) => (
-                  <option key={m.id} value={m.id}>{m.active ? '● ' : '○ '}{m.id} ({m.size_mb} MB)</option>
+                  <option key={m.id} value={m.id}>{m.active ? '● ' : '○ '}{formatModelName(m.id)}</option>
                 ))}
                 {chatProvider === 'lmstudio' && availableModels.map((m: any) => (
-                  <option key={m.id} value={m.id}>{m.id}</option>
+                  <option key={m.id} value={m.id}>{formatModelName(m.id)}</option>
                 ))}
                 {chatProvider === 'cloud' && availableModels.map((m: any) => (
-                  <option key={m.id} value={m.id}>{m.id}</option>
+                  <option key={m.id} value={m.id}>{formatModelName(m.id)}</option>
                 ))}
               </select>
 
@@ -1426,7 +1654,12 @@ function App() {
               </button>
             </div>
 
-            <div className="chat-messages">
+            
+            <div className="chat-content-wrapper">
+
+
+              <div className="chat-messages-container">
+
               {messages.length === 0 && NEWS.length > 0 && (
                 <div style={{ margin: '20px auto', maxWidth: '560px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   <div style={{ fontSize: '0.65rem', letterSpacing: '2px', color: 'var(--accent-cyan)', fontFamily: 'Share Tech Mono', padding: '0 4px' }}>
@@ -1457,7 +1690,7 @@ function App() {
                 </div>
               )}
               {messages.map((msg, idx) => msg.divider ? (
-                <div key={idx} className="session-divider">
+                <div key={idx} className={`session-divider ${classifyByTheme(sessionTitles[msg.divider.sessionId] || msg.divider.title)}`}>
                   <div className="session-divider-line" />
                   {editingSession === msg.divider.sessionId ? (
                     <input
@@ -1483,13 +1716,13 @@ function App() {
                   <div className="session-divider-line" />
                 </div>
               ) : (
-                <div key={idx} className={`message ${msg.role}`}>
-                  <div className="message-avatar" title={msg.role === 'user' ? `${currentUser.firstName} ${currentUser.lastName}` : (currentUser.aiName || 'AI')}>
-                    {msg.role === 'user' ? currentUser.firstName?.charAt(0).toUpperCase() || 'U' : (currentUser.aiName?.charAt(0).toUpperCase() || 'A')}
+                <div key={idx} className={`chat-bubble-row ${msg.role}`}>
+                  <div className="message-avatar" title={msg.role === 'user' ? `${currentUser?.firstName} ${currentUser.lastName}` : (currentUser?.aiName || 'AI')}>
+                    {msg.role === 'user' ? currentUser?.firstName?.charAt(0).toUpperCase() || 'U' : (currentUser?.aiName?.charAt(0).toUpperCase() || 'A')}
                   </div>
-                  <div className="message-content">
+                  <div className={`chat-bubble ${msg.role}`}>
                     <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                      {msg.role === 'user' ? `${currentUser.firstName} ${currentUser.lastName}` : (currentUser.aiName || 'AI')}
+                      {msg.role === 'user' ? `${currentUser?.firstName} ${currentUser.lastName}` : (currentUser?.aiName || 'AI')}
                     </div>
                     {msg.reasoning && <div className="thought-block">{msg.reasoning}</div>}
                     {msg.role === 'assistant' ? renderAssistantContent(msg.content) : displayText(msg.content)}
@@ -1499,8 +1732,8 @@ function App() {
               
               {isTyping && (
                 <div className="message assistant">
-                  <div className="message-avatar" title={currentUser.aiName || 'AI'}>
-                    {currentUser.aiName?.charAt(0).toUpperCase() || 'A'}
+                  <div className="message-avatar" title={currentUser?.aiName || 'AI'}>
+                    {currentUser?.aiName?.charAt(0).toUpperCase() || 'A'}
                   </div>
                   <div className="message-content" style={{ padding: '20px 24px' }}>
                     <div className="typing-indicator">
@@ -1512,6 +1745,7 @@ function App() {
                 </div>
               )}
               <div ref={chatEndRef} />
+            </div>
             </div>
 
             <AvatarOverlay show={showAvatar} talking={isTyping} />
@@ -1564,35 +1798,76 @@ function App() {
               </div>
             )}
 
-            <div className="input-area">
-              <div className="input-wrapper" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <div className="chat-input-area">
+              <div className="input-wrapper" style={{ display: 'flex', gap: '8px', alignItems: 'center', flex: 1, position: 'relative' }}>
                 {isProcessingAudio && (
                   <span style={{ fontFamily: 'Share Tech Mono', fontSize: '0.7rem', color: 'var(--accent-cyan)', whiteSpace: 'nowrap' }}>
                     ⚙️ TRANSCRIBING...
                   </span>
                 )}
+                
                 <input 
                   type="text" 
                   className="chat-input"
-                  placeholder={`Ask ${currentUser.aiName || 'your AI'} to build something...`}
-                  value={inputValue}
-                  onChange={e => setInputValue(e.target.value)}
+                  placeholder={pendingMode ? "" : getModeExplanation(activeMode)}
+                  value={pendingMode ? "" : inputValue}
+                  onChange={e => { setInputValue(e.target.value); setPendingMode(null); }}
                   onKeyDown={handleKeyDown}
-                  disabled={isTyping}
-                  style={{ flex: 1 }}
+                  disabled={isTyping || !!pendingMode}
+                  style={{ 
+                    flex: 1, 
+                    transition: 'all 0.3s',
+                    borderColor: pendingMode ? 'var(--accent-cyan)' : undefined,
+                    boxShadow: pendingMode ? '0 0 15px rgba(0, 243, 255, 0.3) inset' : undefined,
+                    background: pendingMode ? 'rgba(0, 243, 255, 0.05)' : undefined
+                  }}
                 />
-                {/* the send-ball — socketed into the bar's right end.
-                    press seats it deep and fires the message;
-                    press-and-hold records voice (PTT) */}
+                
+                {pendingMode && (
+                  <div style={{ position: 'absolute', bottom: '75px', right: '10px', pointerEvents: 'none', color: 'var(--accent-cyan)', fontFamily: 'Share Tech Mono', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(11, 15, 26, 0.8)', padding: '8px 16px', borderRadius: '12px', border: '1px solid rgba(0, 243, 255, 0.3)', backdropFilter: 'blur(8px)', boxShadow: '0 4px 15px rgba(0,0,0,0.5)', zIndex: 50 }}>
+                    <span className="blinking">▶</span>
+                    {getModeExplanation(pendingMode)}
+                    <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.75rem', marginLeft: '10px' }}>(press ball to lock)</span>
+                  </div>
+                )}
+
                 <div
                   className={`send-socket ${backendDown ? 'down' : ''} ${!inputValue.trim() || isTyping ? 'idle' : ''} ${isRecording ? 'rec' : ''}`}
-                  title={backendDown ? 'backend is down — press to ignite' : 'press the ball to send · hold to talk'}
+                  title={backendDown ? 'backend is down — press to ignite' : 'spin to select mode · press to lock/send'}
+                  style={{ zIndex: 100, position: 'relative' }}
+                  onWheel={(e) => {
+                    if (Math.abs(e.deltaY) > 10) handleRollStep(e.deltaY > 0 ? 1 : -1);
+                  }}
                 >
-                  <SendBall onSend={backend.state === 'down' ? backend.ignite : handleSendMessage}
+                  <SendBall onSend={inputValue.trim() ? backend.state === 'down' ? backend.ignite : handleSendMessage : handleModeConfirm} 
                     health={backend.state === 'up' ? 'ok' : backend.state === 'offline' ? 'off' : backend.state === 'down' ? 'down' : 'warn'}
                     onHoldStart={!backendDown && inputMode === 'PTT' ? startRecording : undefined}
                     onHoldEnd={!backendDown && inputMode === 'PTT' ? stopRecording : undefined}
-                    pressHint={backendDown ? 'backend down — press to ignite' : 'press to send · hold to talk'} />
+                    pressHint={backendDown ? 'backend down — press to ignite' : 'press to send · hold to talk'}  onRollStep={handleRollStep} />
+                  
+                  {(!backendDown || backend.state !== 'starting') && (
+                    <div style={{
+                      position: 'absolute', inset: 0, 
+                      pointerEvents: 'none', 
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '1.6rem',
+                      opacity: pendingMode ? 0.9 : 0.4,
+                      transition: 'opacity 0.3s, transform 0.3s',
+                      transform: pendingMode ? 'scale(1.1)' : 'scale(1)',
+                      textShadow: pendingMode ? '0 0 15px rgba(0, 243, 255, 1)' : 'none',
+                      zIndex: 10
+                    }}
+                    key={pendingMode || activeMode} // Forces re-render for potential CSS animations
+                    >
+                      {(() => {
+                        const m = pendingMode || activeMode;
+                        return m === 'TEXT' ? '✏️' : 
+                               m === 'DICTATE' ? '🗣️' : 
+                               m.includes('Vocal') ? '📞' : '🎥';
+                      })()}
+                    </div>
+                  )}
+
                   {backendDown && (
                     <span className="send-boot">{backend.state === 'starting' ? 'STARTING' : 'STARTUP'}</span>
                   )}
@@ -1620,18 +1895,20 @@ function App() {
       </nav>
 
       {!ignited && currentUser && (
-        <IgnitionScreen userName={currentUser.firstName} token={currentUser.apiKey} onEnter={() => setIgnited(true)} />
+        <IgnitionScreen userName={currentUser?.firstName} token={currentUser.apiKey} onEnter={() => setIgnited(true)} />
       )}
-    </div>
+      
+      <SettingsOverlay isVisible={showSettings} onClose={() => setShowSettings(false)} />
+          </div>
   );
 }
 
 /* Composer send-ball — the bare trackball seated in a bezel at the right
    end of the input bar. Press = send, press-and-hold = PTT. Rolls for
    the feel of it, but turns no dial (bare mode). */
-function SendBall({ onSend, onHoldStart, onHoldEnd, health, pressHint }: { onSend: () => void; onHoldStart?: () => void; onHoldEnd?: () => void; health?: 'ok' | 'warn' | 'down' | 'off' | null; pressHint?: string }) {
+function SendBall({ onSend, onHoldStart, onHoldEnd, health, pressHint, onRollStep }: { onSend: () => void; onHoldStart?: () => void; onHoldEnd?: () => void; onRollStep?: (dir: number) => void; health?: 'ok' | 'warn' | 'down' | 'off' | null; pressHint?: string }) {
   const tb = useTraits();
-  return <Trackball store={tb} size={56} bare health={health} onPress={onSend} onHoldStart={onHoldStart} onHoldEnd={onHoldEnd} pressHint={pressHint || 'press to send · hold to talk'} />;
+  return <Trackball store={tb} size={56} bare health={health} onPress={onSend} onHoldStart={onHoldStart} onHoldEnd={onHoldEnd} onRollStep={onRollStep} pressHint={pressHint || 'press to send · hold to talk'} />;
 }
 
 export default App;

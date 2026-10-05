@@ -1,0 +1,251 @@
+                title="Select AI Model — XRLF choices hot-swap the runtime"
+              >
+                {chatProvider === 'cloud' && <option value="auto">auto (Cloud Auto-Route)</option>}
+                {chatProvider === 'xrlf_proxy' && <option value="auto">auto (Active XRLF Model)</option>}
+                {chatProvider === 'lmstudio' && <option value="auto">auto (Active LM Studio Model)</option>}
+                {(MODEL_FLEETS[chatProvider] || []).map(m => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+                {chatProvider === 'xrlf_proxy' && availableModels.map((m: any) => (
+                  <option key={m.id} value={m.id}>{m.active ? '● ' : '○ '}{m.id} ({m.size_mb} MB)</option>
+                ))}
+                {chatProvider === 'lmstudio' && availableModels.map((m: any) => (
+                  <option key={m.id} value={m.id}>{m.id}</option>
+                ))}
+                {chatProvider === 'cloud' && availableModels.map((m: any) => (
+                  <option key={m.id} value={m.id}>{m.id}</option>
+                ))}
+              </select>
+
+              {swappingModel && (
+                <span style={{ fontSize: '0.7rem', color: 'var(--accent-cyan)' }}>
+                  ⏳ loading {swappingModel}…
+                </span>
+              )}
+
+              <span style={{ flex: 1 }} />
+
+              <button
+                onClick={() => {
+                  const next = inputMode === 'TXT' ? 'PTT' : inputMode === 'PTT' ? 'VAD' : 'TXT';
+                  setInputMode(next);
+                  localStorage.setItem('foveai_input_mode', next);
+                  if (next !== 'PTT') stopRecording();
+                }}
+                style={{
+                  padding: '5px 12px',
+                  fontFamily: 'Share Tech Mono',
+                  fontSize: '0.75rem',
+                  letterSpacing: '0.08em',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  border: '1px solid',
+                  transition: 'all 0.2s',
+                  ...(inputMode === 'TXT' ? {
+                    color: 'var(--text-muted)',
+                    background: 'rgba(255,255,255,0.05)',
+                    borderColor: 'rgba(255,255,255,0.12)'
+                  } : inputMode === 'PTT' ? {
+                    color: '#39ff14',
+                    background: 'rgba(57,255,20,0.12)',
+                    borderColor: 'rgba(57,255,20,0.4)'
+                  } : {
+                    color: '#ff6b6b',
+                    background: 'rgba(255,107,107,0.15)',
+                    borderColor: 'rgba(255,107,107,0.5)'
+                  })
+                }}
+                title="Cycle input mode — TXT: text only · PTT: hold ball to talk · VAD: hands-free continuous"
+              >
+                {inputMode}
+              </button>
+            </div>
+
+            <div className="chat-messages">
+              {messages.length === 0 && NEWS.length > 0 && (
+                <div style={{ margin: '20px auto', maxWidth: '560px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ fontSize: '0.65rem', letterSpacing: '2px', color: 'var(--accent-cyan)', fontFamily: 'Share Tech Mono', padding: '0 4px' }}>
+                    📰 LATEST NEWS
+                  </div>
+                  {NEWS.slice(0, 3).map((n, i) => (
+                    <div
+                      key={i}
+                      onClick={() => setNewsOverlay(i)}
+                      style={{
+                        cursor: 'pointer', padding: '10px 14px', borderRadius: '6px',
+                        background: 'rgba(0,243,255,0.05)', border: '1px solid rgba(0,243,255,0.25)',
+                        fontFamily: 'Share Tech Mono',
+                      }}
+                    >
+                      <div style={{ fontSize: '0.82rem', color: '#fff', fontWeight: 600 }}>{n.title}</div>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                        {n.date} — click to read
+                      </div>
+                    </div>
+                  ))}
+                  <div
+                    onClick={() => setActiveTab('News')}
+                    style={{ fontSize: '0.65rem', color: 'var(--accent-cyan)', fontFamily: 'Share Tech Mono', cursor: 'pointer', padding: '0 4px' }}
+                  >
+                    all {NEWS.length} updates →
+                  </div>
+                </div>
+              )}
+              {messages.map((msg, idx) => msg.divider ? (
+                <div key={idx} className={`session-divider ${classifyByTheme(sessionTitles[msg.divider.sessionId] || msg.divider.title)}`}>
+                  <div className="session-divider-line" />
+                  {editingSession === msg.divider.sessionId ? (
+                    <input
+                      className="session-divider-input"
+                      value={editTitle}
+                      autoFocus
+                      onChange={e => setEditTitle(e.target.value)}
+                      onBlur={() => commitRename(msg.divider!.sessionId)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') commitRename(msg.divider!.sessionId);
+                        if (e.key === 'Escape') setEditingSession(null);
+                      }}
+                    />
+                  ) : (
+                    <div
+                      className="session-divider-title"
+                      title="click to rename this session"
+                      onClick={() => { setEditingSession(msg.divider!.sessionId); setEditTitle(sessionTitles[msg.divider!.sessionId] || msg.divider!.title); }}
+                    >
+                      {sessionTitles[msg.divider.sessionId] || msg.divider.title} ✎
+                    </div>
+                  )}
+                  <div className="session-divider-line" />
+                </div>
+              ) : (
+                <div key={idx} className={`message ${msg.role}`}>
+                  <div className="message-avatar" title={msg.role === 'user' ? `${currentUser.firstName} ${currentUser.lastName}` : (currentUser.aiName || 'AI')}>
+                    {msg.role === 'user' ? currentUser.firstName?.charAt(0).toUpperCase() || 'U' : (currentUser.aiName?.charAt(0).toUpperCase() || 'A')}
+                  </div>
+                  <div className="message-content">
+                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      {msg.role === 'user' ? `${currentUser.firstName} ${currentUser.lastName}` : (currentUser.aiName || 'AI')}
+                    </div>
+                    {msg.reasoning && <div className="thought-block">{msg.reasoning}</div>}
+                    {msg.role === 'assistant' ? renderAssistantContent(msg.content) : displayText(msg.content)}
+                  </div>
+                </div>
+              ))}
+              
+              {isTyping && (
+                <div className="message assistant">
+                  <div className="message-avatar" title={currentUser.aiName || 'AI'}>
+                    {currentUser.aiName?.charAt(0).toUpperCase() || 'A'}
+                  </div>
+                  <div className="message-content" style={{ padding: '20px 24px' }}>
+                    <div className="typing-indicator">
+                      <div className="typing-dot" />
+                      <div className="typing-dot" />
+                      <div className="typing-dot" />
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            <AvatarOverlay show={showAvatar} talking={isTyping} />
+
+            {/* Floating news reader — temporary, closes on backdrop or ✕ */}
+            {newsOverlay !== null && NEWS[newsOverlay] && (
+              <div
+                onClick={() => setNewsOverlay(null)}
+                style={{
+                  position: 'fixed', inset: 0, zIndex: 1200,
+                  background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <div
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    width: 'min(640px, 90vw)', maxHeight: '75vh', overflowY: 'auto',
+                    background: '#0b0f1a', border: '1px solid rgba(0,243,255,0.35)',
+                    borderRadius: '8px', padding: '22px 24px',
+                    boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
+                    fontFamily: 'Share Tech Mono', position: 'relative',
+                  }}
+                >
+                  <button
+                    onClick={() => setNewsOverlay(null)}
+                    style={{
+                      position: 'absolute', top: '10px', right: '12px',
+                      background: 'none', border: 'none', color: 'var(--text-muted)',
+                      fontSize: '1.1rem', cursor: 'pointer',
+                    }}
+                    title="Close"
+                  >✕</button>
+                  <div style={{ fontSize: '0.62rem', letterSpacing: '2px', color: 'var(--accent-cyan)', marginBottom: '8px' }}>
+                    📰 {NEWS[newsOverlay].date} · {NEWS[newsOverlay].tag.toUpperCase()}
+                  </div>
+                  <div style={{ fontSize: '1rem', color: '#fff', fontWeight: 600, marginBottom: '12px' }}>
+                    {NEWS[newsOverlay].title}
+                  </div>
+                  <div style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.8)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                    {NEWS[newsOverlay].detail || NEWS[newsOverlay].body}
+                  </div>
+                  <div
+                    onClick={() => { setNewsOverlay(null); setActiveTab('News'); }}
+                    style={{ fontSize: '0.65rem', color: 'var(--accent-cyan)', cursor: 'pointer', marginTop: '16px' }}
+                  >
+                    see all news →
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="input-area">
+              <div className="input-wrapper" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {isProcessingAudio && (
+                  <span style={{ fontFamily: 'Share Tech Mono', fontSize: '0.7rem', color: 'var(--accent-cyan)', whiteSpace: 'nowrap' }}>
+                    ⚙️ TRANSCRIBING...
+                  </span>
+                )}
+                <input 
+                  type="text" 
+                  className="chat-input"
+                  placeholder={`Ask ${currentUser.aiName || 'your AI'} to build something...`}
+                  value={inputValue}
+                  onChange={e => setInputValue(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={isTyping}
+                  style={{ flex: 1 }}
+                />
+                {/* the send-ball — socketed into the bar's right end.
+                    press seats it deep and fires the message;
+                    press-and-hold records voice (PTT) */}
+                <div
+                  className={`send-socket ${backendDown ? 'down' : ''} ${!inputValue.trim() || isTyping ? 'idle' : ''} ${isRecording ? 'rec' : ''}`}
+                  title={backendDown ? 'backend is down — press to ignite' : 'press the ball to send · hold to talk'}
+                >
+                  <SendBall onSend={backend.state === 'down' ? backend.ignite : handleSendMessage}
+                    health={backend.state === 'up' ? 'ok' : backend.state === 'offline' ? 'off' : backend.state === 'down' ? 'down' : 'warn'}
+                    onHoldStart={!backendDown && inputMode === 'PTT' ? startRecording : undefined}
+                    onHoldEnd={!backendDown && inputMode === 'PTT' ? stopRecording : undefined}
+                    pressHint={backendDown ? 'backend down — press to ignite' : 'press to send · hold to talk'} />
+                  {backendDown && (
+                    <span className="send-boot">{backend.state === 'starting' ? 'STARTING' : 'STARTUP'}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </main>
+
+      {/* Mobile Bottom Navigation Bar */}
+      <nav className="bottom-nav">
+        <button className={`nav-item ${activeTab === 'Copilot' ? 'active' : ''}`} onClick={() => setActiveTab('Copilot')}>
+          <span className="icon">💬</span><span className="label">Copilot</span>
+        </button>
+        <button className={`nav-item ${activeTab === 'Memory' ? 'active' : ''}`} onClick={() => setActiveTab('Memory')}>
+          <span className="icon">🧠</span><span className="label">Memory</span>
+        </button>
+        <button className={`nav-item ${activeTab === 'News' ? 'active' : ''}`} onClick={() => setActiveTab('News')}>
+          <span className="icon">📰</span><span className="label">News</span>
+        </button>

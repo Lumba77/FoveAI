@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { boolDirs, dialAngle, TRAITS } from './useTraits';
 import type { Trait, TraitStore } from './useTraits';
 import './trackball.css';
@@ -20,6 +20,7 @@ import './trackball.css';
 interface Props {
   store: TraitStore;
   size?: number;        // dial plate diameter, px (360 = ignition size)
+  sizeParentRef?: React.RefObject<HTMLDivElement | null>;  // when set, size tracks this container's square diameter
   ballScale?: number;   // ball diameter as fraction of `size` (default 0.596)
   compact?: boolean;    // sidebar mode — tighter pips, no pip values
   bare?: boolean;       // socketed ball only — no dial, no pips (the clicker)
@@ -27,6 +28,7 @@ interface Props {
   onPress?: () => void; // clean press on the ball
   onHoldStart?: () => void; // press-and-hold begins (after holdMs, without rolling)
   onHoldEnd?: () => void;   // held ball released — replaces onPress for that gesture
+  onRollStep?: (dir: number) => void; // ball rolled a step (1 or -1)
   holdMs?: number;      // press duration that counts as a hold (default 280ms)
   pressHint?: string;   // tooltip for the press action
 }
@@ -107,13 +109,52 @@ interface Drag {
   vx: number; vy: number; lastT: number; latch: number;
 }
 
-export default function Trackball({ store, size = 360, ballScale = 0.596, compact = false, bare = false, health = null, onPress, onHoldStart, onHoldEnd, holdMs = 280, pressHint }: Props) {
+export default function Trackball({ store, size: sizeProp = 360, sizeParentRef, ballScale = 0.596, compact = false, bare = false, health = null, onPress, onHoldStart, onHoldEnd, onRollStep, holdMs = 280, pressHint }: Props) {
+  const [parentSize, setParentSize] = useState<number | null>(null);
+  useEffect(() => {
+    if (!sizeParentRef?.current) return;
+    const el = sizeParentRef.current;
+    const ro = new ResizeObserver(() => {
+      const r = el.getBoundingClientRect();
+      setParentSize(Math.min(r.width, r.height));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [sizeParentRef]);
+  const size = sizeParentRef ? (parentSize ?? 0) || sizeProp : sizeProp;
+
+  /* browser zoom (or CSS zoom on an ancestor) scales rect widths but not the
+     px values we compute, so mixing getBoundingClientRect-derived sizes with
+     unzoomed px math misaligns the circular geometry. Normalise by the
+     document's effective zoom so all radius math uses real screen px. */
+  const zoomRef = useRef(1);
+  useEffect(() => {
+    const measure = () => {
+      // rect of a 1px probe: its width = effective zoom (browser × CSS zoom)
+      const probe = document.createElement('div');
+      probe.style.cssText = 'position:absolute;visibility:hidden;width:1px;';
+      document.body.appendChild(probe);
+      const z = probe.getBoundingClientRect().width || 1;
+      probe.remove();
+      zoomRef.current = z;
+      // re-derive size in *real* px from the zoomed rect
+      if (sizeParentRef?.current) {
+        const r = sizeParentRef.current.getBoundingClientRect();
+        setParentSize(Math.min(r.width, r.height) / z);
+      }
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (sizeParentRef?.current) ro.observe(sizeParentRef.current);
+    window.addEventListener('resize', measure);
+    return () => { ro.disconnect(); window.removeEventListener('resize', measure); };
+  }, [sizeParentRef]);
   const s = size / 360;
   const em = bare ? size / 15.4 : 16 * s;     // root font scale — ring/pip/label size
   const ballDia = bare ? size * 0.87 : size * ballScale;    // ball px — independent of plate
   const socketDia = bare ? size : ballDia * 15.4 / 13.4;
   const ballR = ballDia / 2;
-  const pipR = 152 * s;                       // pip orbit radius
+  const pipR = 132 * s;                       // pip orbit radius — inside the ring so pips never clip
   const detent = bare ? Math.max(8, size * 0.16) : 34 * s;  // px of roll per step — faceted, not slippery
   /* press tolerance — physical trackballs drift a few px while the ball is
      pressed; net displacement (not travelled path) decides press vs roll,
@@ -145,12 +186,17 @@ export default function Trackball({ store, size = 360, ballScale = 0.596, compac
   const locked = useRef(false);                   // pole plunger — freezes the ball
   const lockRef = useRef<HTMLDivElement>(null);
 
+  /* imperative px offsets (dots/seam/drag deltas) are computed from real
+     screen px; under browser/CSS zoom multiply by the measured zoom so the
+     DOM px they land in render at the same physical scale. */
+  const px = useCallback((n: number) => n * zoomRef.current, []);
+
   const paintDots = useCallback(() => {
     const paint = (v: Vec3, el: HTMLDivElement | null, rad: number) => {
       if (!el) return;
       const z = v[2];
       const vis = Math.min(1, Math.max(0, (z - 0.02) / 0.3));
-      el.style.transform = `translate(-50%,-50%) translate(${(v[0] * rad).toFixed(1)}px, ${(v[1] * rad).toFixed(1)}px) scale(${(0.65 + 0.35 * Math.max(0, z)).toFixed(2)})`;
+      el.style.transform = `translate(-50%,-50%) translate(${px(v[0] * rad).toFixed(1)}px, ${px(v[1] * rad).toFixed(1)}px) scale(${(0.65 + 0.35 * Math.max(0, z)).toFixed(2)})`;
       el.style.opacity = vis.toFixed(2);
     };
     paint(dotV.current, dotRef.current, ballR * 0.72);
@@ -164,7 +210,7 @@ export default function Trackball({ store, size = 360, ballScale = 0.596, compac
         `translate(-50%,-50%) rotate(${angle.toFixed(3)}rad) scaleY(${Math.max(squash, 0.04).toFixed(3)})`;
       seamRef.current.style.opacity = (0.25 + 0.75 * (1 - squash)).toFixed(2);
     }
-  }, [ballR]);
+  }, [ballR, px]);
 
   const rotateBall = useCallback((dx: number, dy: number) => {
     const k = 1 / ballR;                        // arc length → radians
@@ -186,7 +232,18 @@ export default function Trackball({ store, size = 360, ballScale = 0.596, compac
     const frac = (((st.acc % detent) + detent) % detent) / detent;
     const grip = 1 - 0.55 * Math.cos(2 * Math.PI * frac);   // 0.45 in wells, 1.55 on crests
     st.acc -= dy * grip;
-    if (bare || !armedTrait) return;
+    
+    if (bare) {
+      while (Math.abs(st.acc) >= detent) {
+        const dir = Math.sign(st.acc);
+        st.acc -= dir * detent;
+        if (onRollStep) onRollStep(dir);
+        rollTick();
+      }
+      return;
+    }
+    if (!armedTrait) return;
+    
     if (bd) {
       const TH = detent * 1.15;
       // acc grows positive on upward roll — up = the "up" value
@@ -201,7 +258,7 @@ export default function Trackball({ store, size = 360, ballScale = 0.596, compac
         rollTick();
       }
     }
-  }, [bare, detent, armedTrait, bd, setTrait, bumpTrait]);
+  }, [bare, detent, armedTrait, bd, setTrait, bumpTrait, onRollStep]);
 
   /* flick momentum — the ball keeps rolling, but the net grips it:
      faster spin-down, and once slow it snaps into the nearest well */

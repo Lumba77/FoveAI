@@ -392,6 +392,10 @@ export default defineConfig(({ mode }) => {
           ? false
           : undefined,
       proxy: {
+        '/api/theme': {
+          target: 'http://127.0.0.1:8415',
+          changeOrigin: true,
+        },
         ...(env.FOVEAI_IGNITION_URL ? {
           '/ignition': {
             target: env.FOVEAI_IGNITION_URL,
@@ -438,6 +442,11 @@ export default defineConfig(({ mode }) => {
         // /webvm is served by the webvmStatic plugin (configureServer
         // middleware) — a proxy entry here never reaches the proxy layer.
         '/api/tts': {
+          target: proxyUrl,
+          changeOrigin: true
+        },
+        // Tools: personal gallery + image editor surfaces (server.js :8400)
+        '/api/tools': {
           target: proxyUrl,
           changeOrigin: true
         },
