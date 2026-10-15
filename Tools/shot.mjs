@@ -1,0 +1,11 @@
+import { chromium } from 'playwright';
+const url = process.argv[2] || 'http://192.168.8.100:5177/';
+const out = process.argv[3] || '/tmp/opencode/ign.png';
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+page.on('console', m => { if (m.type()==='error') console.log('[console.error]', m.text().slice(0,200)); });
+await page.goto(url, { waitUntil: 'networkidle', timeout: 20000 }).catch(e=>console.log('nav:', e.message.slice(0,120)));
+await page.waitForTimeout(2500);
+await page.screenshot({ path: out });
+console.log('shot saved', out, '| url:', page.url());
+await browser.close();

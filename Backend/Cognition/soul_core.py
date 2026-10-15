@@ -1511,7 +1511,7 @@ async def status_overview():
     for name, port in [
         ("soul_core", SOUL_PORT),
         ("proxy", 8400),
-        ("dashboard", 8401),
+        ("dashboard", 8414),
         ("ws_ipc", 8403),
         ("nexus_proxy", 8080),
         ("creative", 8003),
@@ -1713,7 +1713,10 @@ async def websocket_endpoint(ws: WebSocket):
                 try:
                     body = json.dumps(
                         {
-                            "model": "no.2-smart-router_gguf",
+                            "model": os.environ.get("FOVEAI_MODEL_MCP_ID")
+                                     or os.environ.get("FoveAI_MODEL_MCP_ID")
+                                     or os.environ.get("XRLF_MODEL_LOCAL_ID")
+                                     or "smart_router_gguf",
                             "messages": [
                                 {
                                     "role": "system",

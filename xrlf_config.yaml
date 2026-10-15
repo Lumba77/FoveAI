@@ -1,16 +1,16 @@
 api:
   host: 0.0.0.0
   port: 8402
-  dashboard_port: 8401
+  dashboard_port: 8414
 gguf_source: lumax-summarizer-draft.gguf
 gpu_layers: -1
 memory:
   tfidf_top_k: 5
   token_budget: 2048
 memory_db_source: ''
-model: xrl_encoded/gemma-4-e2b-multimodal-v1.0.xrlf
+model: xrl_encoded/smolvlm2-500m-multimodal-v1.0.xrlf
 models:
-  primary: xrl_encoded/gemma-4-e2b-multimodal-v1.0.xrlf
+  primary: xrl_encoded/smolvlm2-500m-multimodal-v1.0.xrlf
   secondary: xrl_encoded/qwopus3.5-9b-coder-mtp-moq.xrlf
 summarizer:
   enabled: true

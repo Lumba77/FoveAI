@@ -50,11 +50,11 @@ namespace FoveAI.SoftLayer
     public class SoftLayerEngine : MonoBehaviour
     {
         [Header("Backend")]
-        [Tooltip("Base URL for fetching soft modules (e.g. http://192.168.8.100:8402)")]
-        [SerializeField] private string backendUrl = "http://192.168.8.100:8402";
+        [Tooltip("Base URL for fetching soft modules (e.g. http://192.168.8.109:8402)")]
+        [SerializeField] private string backendUrl = "http://192.168.8.109:8402";
 
         [Tooltip("WebSocket URL for hot-reload pushes")]
-        [SerializeField] private string wsUrl = "ws://192.168.8.100:8403/ws";
+        [SerializeField] private string wsUrl = "ws://192.168.8.109:8403/ws";
 
         [Header("Modules")]
         [Tooltip("Module names to load on startup (without .js extension)")]

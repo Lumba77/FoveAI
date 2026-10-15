@@ -6,6 +6,12 @@ import * as ThreeMeshUI from 'three-mesh-ui';
 
 // Browser Cleanse Resilience: Memory auto-restore + periodic backup
 import './memoryBridge';
+// Jen's virtual gamepad (hands/motor, 8410). Inert unless enabled with
+// ?gamepad=1, localStorage 'foveai_gamepad'=1, or FoveAI.gamepad.enable().
+import { gamepadBridge } from './senses/GameControllerBridge';
+(window as any).FoveAI = (window as any).FoveAI || {};
+(window as any).FoveAI.gamepadEnable = () => gamepadBridge.enable();
+
 
 // Director Voice Engine — spooky pitch-down narrator + Avalanche dark ambient music
 import { directorVoice } from './senses/DirectorVoiceEngine';
@@ -184,7 +190,7 @@ if (agyAvatar) (window as any).agyAvatar = agyAvatar;
 // Fetches configs and modules from the XRLF API and executes them in a
 // sandboxed FoveAI context. This enables changing lighting, particles,
 // clothing, sky, avatar behavior, etc. without rebuilding the APK.
-const softLayer = new SoftLayerLoader('http://127.0.0.1:8402');
+const softLayer = new SoftLayerLoader(window.location.origin);
 (window as any).foveaiSoftLayer = softLayer;
 if (shouldInit3D) {
     softLayer.init().then(() => {

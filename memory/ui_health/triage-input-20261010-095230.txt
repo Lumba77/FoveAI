@@ -1,0 +1,75 @@
+FoveAI UI health triage — 2026-10-10T09:53:49+02:00
+
+Port linter (dead references: 145):
+  ── DEAD REFERENCES (these break pages when the service is down)
+    :5173  Backend/Cognition/soul_core.py:102  http
+            "http://127.0.0.1:5173",
+    :5173  Backend/Cognition/soul_core.py:103  http
+            "http://localhost:5173",
+    :7272  Backend/Cognition/soul_core.py:178  http
+            r = httpx.get("http://127.0.0.1:7272/v1/models", timeout=2.0)
+    :7272  Backend/Cognition/soul_core.py:1143  http
+            r = httpx.get("http://127.0.0.1:7272/v1/models", timeout=2.0)
+    :7272  Backend/Cognition/system_probe.py:42  http
+            "lmstudio": "http://127.0.0.1:7272/v1/models",
+    :7272  foveated-memory/bin/foveated-memory.js:25  http
+            .option('-u, --upstream <url>',   'Upstream LLM base URL (e.g. http://127.0.0.1:7272/v1)', 'http://127.0.0.1:7272/v1')
+    :7272  foveated-memory/bin/foveated-memory.js:25  http
+            .option('-u, --upstream <url>',   'Upstream LLM base URL (e.g. http://127.0.0.1:7272/v1)', 'http://127.0.0.1:7272/v1')
+    :8000  Backend/autonomous_sentry.py:81  http
+            running the sentry on the host (http://127.0.0.1:8000/...). Long /compagent work can block the Soul
+    :8000  Frontend/multigate/src/components/SettingsOverlay.tsx:18  http
+            const [wsUrl, setWsUrl] = useState('ws://127.0.0.1:8000');
+    :8000  Frontend/multigate/src/components/SettingsOverlay.tsx:18  ws
+            const [wsUrl, setWsUrl] = useState('ws://127.0.0.1:8000');
+    :8001  Frontend/XR_Vessel/src/components/SettingsTab.ts:16  http
+            { id: 'ears',     label: 'Ears (STT)',             emoji: '👂', healthUrl: 'http://localhost:8001/health', restartUrl: nu
+    :8002  Backend/Cognition/tokenslayer_proxy_server.py:306  http
+            "http://127.0.0.1:8002/v1/chat/completions",
+    :8002  Frontend/XR_Vessel/src/components/COMAX.ts:245  http
+            wrapper.querySelector('#db-health')?.addEventListener('click', async () => { dbOut.textContent = 'HEALTH: Checking...'; 
+    :8003  Backend/Cognition/generate_high_fidelity_map.py:8  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/generate_master_blueprint.py:7  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/generate_tiled_map.py:8  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/generate_weaver_map.py:7  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/visualize_architecture.py:8  http
+            url = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/visualize_relay.py:7  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Creativity/start_creative_with_env.py:80  http
+
+UI smoke report:
+file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/common/CallbackRegistry.js:99
+    #error = new ProtocolError();
+             ^
+
+ProtocolError: Protocol error (browsingContext.navigate): unknown error Error: NS_ERROR_CONNECTION_REFUSED #onNavigationCommitted@chrome://remote/content/shared/Navigate.sys.mjs:387:28
+emit@resource://gre/modules/EventEmitter.sys.mjs:156:19
+#forwardEvent@chrome://remote/content/shared/listeners/NavigationListener.sys.mjs:91:10
+emit@resource://gre/modules/EventEmitter.sys.mjs:156:19
+#onNavigationEvent@chrome://remote/content/shared/NavigationManager.sys.mjs:1038:10
+emit@resource://gre/modules/EventEmitter.sys.mjs:156:19
+notifyNavigationCommitted@chrome://remote/content/shared/NavigationManager.sys.mjs:386:10
+notifyNavigationCommitted@chrome://remote/content/shared/NavigationManager.sys.mjs:936:29
+receiveMessage@chrome://remote/content/shared/js-process-actors/WebDriverDocumentInsertedParent.sys.mjs:25:16
+ at http://127.0.0.1:5177/
+    at <instance_members_initializer> (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/common/CallbackRegistry.js:99:14)
+    at new Callback (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/common/CallbackRegistry.js:103:16)
+    at CallbackRegistry.create (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/common/CallbackRegistry.js:22:26)
+    at BidiConnection.send (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/bidi/Connection.js:70:32)
+    at Session.send (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/bidi/core/Session.js:134:42)
+    at Session.<anonymous> (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/util/decorators.js:101:27)
+    at BrowsingContext.navigate (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/bidi/core/BrowsingContext.js:340:33)
+    at BrowsingContext.<anonymous> (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/util/decorators.js:101:27)
+    at BidiFrame.goto (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/bidi/Frame.js:318:22)
+    at BidiFrame.<anonymous> (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/util/decorators.js:101:27)
+
+Node.js v24.21.0
+
+List the distinct root causes above. For each: (1) one-line cause, (2) the exact
+file:line to change, (3) the minimal fix. Prefer same-origin paths and existing
+services over new ones. Do not invent new subsystems. Be brief and concrete.

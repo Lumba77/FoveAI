@@ -34,7 +34,7 @@ with native multimodal capabilities (vision, STT, TTS) on GPU.
                     │  transparent mode — passthrough      │
                     │  + STT/TTS routing to runtime        │
                     │  + companion.html (voice UI)         │
-                    │  + dashboard (:8401)                 │
+                    │  + dashboard (:8414)                 │
                     └──────┬────────────┬────────────┬─────┘
                            │            │            │
               ┌────────────┘            │            └────────────┐

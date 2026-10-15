@@ -38,7 +38,7 @@
 // ║  5. Add the tag syntax to VR_CODE_AGENCY_INSTRUCTIONS in MindCore.py ║
 // ╚══════════════════════════════════════════════════════════════════════╝
 export interface BracketToken {
-    type: 'audio' | 'emotion' | 'micro' | 'flavour' | 'request' | 'dev' | 'action' | 'movement' | 'mode' | 'code' | 'animation';
+    type: 'audio' | 'emotion' | 'micro' | 'flavour' | 'request' | 'dev' | 'action' | 'movement' | 'mode' | 'code' | 'animation' | 'pad';
     tag: string;
     fullMatch: string;
     params: Record<string, string>;
@@ -52,7 +52,7 @@ export interface ParsedText {
 
 export class BracketParser {
     // ── BRACKET TAG REGEX (The Sovereign Parser) ──
-    private static readonly BRACKET_REGEX = /<(audio|emotion|micro|flavour|request|dev|action|movement|mode|code|animation|gesture):([^>]+)>/g;
+    private static readonly BRACKET_REGEX = /<(audio|emotion|micro|flavour|request|dev|action|movement|mode|code|animation|gesture|pad):([^>]+)>/g;
     // Movement-specific regex: parses <movement:walk_forward 2m>, <movement:move_to x=0 y=-0.8 z=1>, etc.
     private static readonly MOVEMENT_PARAM_REGEX = /(\w+)\s*(?:(\d+(?:\.\d+)?)m?|x=(-?\d+(?:\.\d+)?)\s*y=(-?\d+(?:\.\d+)?)\s*z=(-?\d+(?:\.\d+)?))?/;
     // Known movement commands
@@ -276,6 +276,21 @@ export class BracketParser {
                 window.dispatchEvent(new CustomEvent('foveai_animation_trigger', {
                     detail: { name: token.tag, params: token.params }
                 }));
+            } else if (token.type === 'pad') {
+                // VIRTUAL GAMEPAD BRIDGE: <pad:action> → Send to python gamepad UDP/WS 8403
+                window.dispatchEvent(new CustomEvent('foveai_pad_action', {
+                    detail: { action: token.tag, params: token.params }
+                }));
+                try {
+                    const ws = new WebSocket(`ws://${location.host}/ws/xrl`);
+                    ws.onopen = () => {
+                        ws.send(JSON.stringify({ event: 'gamepad', action: token.tag }));
+                        ws.close();
+                    };
+                    ws.onerror = (e) => console.error("Gamepad WS connection failed on port 8403", e);
+                } catch (e) {
+                    console.error("Failed to construct Gamepad WebSocket", e);
+                }
             }
         }
 

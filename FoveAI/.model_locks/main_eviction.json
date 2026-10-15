@@ -1,8 +1,0 @@
-{
-  "role": "main",
-  "evicted_pid": 34092,
-  "evicted_model": "MoQ-3.5.gguf",
-  "new_model": "core.gguf",
-  "timestamp": 1788441017.4060092,
-  "silent": true
-}

@@ -422,7 +422,73 @@ def create_app(runtime: XRLFRuntime) -> "FastAPI":
                     "active": os.path.abspath(path) == active,
                 }
             )
+
+        # Open XRL Micro-Workers & Nursery Models
+        try:
+            from Forge.nursery.model_registry import get_registry
+            reg = get_registry()
+            for vid, vdata in reg.variants.items():
+                if vid in ["tier_a_light", "tier_b_flagship"]:
+                    continue
+                size_mb = int(vdata.training_config.get("size_gb", 0.5) * 1024)
+                pkgs.append({
+                    "id": f"micro_{vid}",
+                    "name": vdata.name,
+                    "object": "micro_worker",
+                    "path": vdata.training_config.get("file", vid),
+                    "size_mb": size_mb,
+                    "active": False,
+                    "is_micro": True,
+                })
+        except Exception:
+            pass
+
         return {"object": "list", "data": pkgs}
+
+    # ── Forge Nursery Micro-Tools & UI Automation ─────────────────────────────
+    @app.get("/v1/tools")
+    async def list_micro_tools():
+        """Expose Forge Nursery micro-tools to Multigate and UI clients."""
+        try:
+            from Forge.nursery.micro_tools import get_micro_tool_engine
+            engine = get_micro_tool_engine()
+            return {"object": "list", "data": engine.list_tools()}
+        except Exception as e:
+            return {"object": "list", "data": [], "error": str(e)}
+
+    @app.post("/v1/tools/execute")
+    async def execute_micro_tool(request: Request):
+        """Execute a micro-tool on the fast adopted model."""
+        try:
+            body = await request.json()
+            tool_id = body.get("tool_id", "ui_action_router")
+            user_input = body.get("input", "")
+            model_variant = body.get("variant")
+            from Forge.nursery.micro_tools import get_micro_tool_engine
+            engine = get_micro_tool_engine()
+            res = await asyncio.to_thread(engine.execute_tool, tool_id, user_input, model_variant)
+            return res
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    @app.post("/v1/tools/register")
+    async def register_micro_tool(request: Request):
+        """Dynamically create and register a new custom automated tool."""
+        try:
+            body = await request.json()
+            from Forge.nursery.micro_tools import get_micro_tool_engine
+            engine = get_micro_tool_engine()
+            tool = engine.register_tool(
+                tool_id=body["id"],
+                name=body["name"],
+                description=body.get("description", ""),
+                system_prompt=body["system_prompt"],
+                preferred_variant=body.get("preferred_variant", "qwen25_coder_05b"),
+                output_type=body.get("output_type", "json"),
+            )
+            return {"ok": True, "tool": tool.to_dict()}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
 
     @app.get("/v1/context")
     async def get_context_info():
@@ -848,30 +914,65 @@ def create_app(runtime: XRLFRuntime) -> "FastAPI":
     async def _stream_chat(
         runtime, messages, req, has_image, has_audio, has_video, completion_id, model_id
     ) -> AsyncGenerator[str, None]:
-        """SSE streaming generator. The inference lock is held for the whole
-        decode — the generator must finish before the next caller's decode
-        begins, or llama.cpp's CUDA pool asserts."""
+        """SSE streaming generator.
+
+        The blocking sync decode runs in a worker thread and feeds an
+        asyncio.Queue, so the uvicorn event loop (and /health) stays responsive
+        while tokens stream. The inference lock is held for the whole decode and
+        released in this generator's finally — a client disconnect can no longer
+        strand the lock (llama.cpp's CUDA pool asserts if two decodes overlap).
+        """
         t_queue = time.time()
         await asyncio.to_thread(_inference_lock.acquire)
         queue_ms = int((time.time() - t_queue) * 1000)
         t_decode = time.time()
         out_chars = 0
+        loop = asyncio.get_running_loop()
+        chunks: asyncio.Queue = asyncio.Queue()
+        err: str | None = None
+
+        def _pump():
+            gen = None
+            try:
+                gen = runtime.chat(
+                    messages=messages,
+                    max_tokens=req.max_tokens,
+                    temperature=req.temperature,
+                    stream=True,
+                    has_image=has_image,
+                    has_audio=has_audio,
+                    has_video=has_video,
+                    force_profile=req.xrlf_force_profile,
+                    headless=bool(req.xrlf_headless),
+                    thinking=req.xrlf_thinking if req.xrlf_thinking is not None else True,
+                    utility=bool(req.xrlf_utility),
+                )
+                for chunk in gen:
+                    loop.call_soon_threadsafe(chunks.put_nowait, ("chunk", chunk))
+            except Exception as e:  # surface to the SSE client, never the loop
+                loop.call_soon_threadsafe(chunks.put_nowait, ("error", str(e)[:200]))
+            finally:
+                if gen is not None and hasattr(gen, "close"):
+                    try:
+                        gen.close()
+                    except Exception:
+                        pass
+                try:
+                    loop.call_soon_threadsafe(chunks.put_nowait, ("done", None))
+                except RuntimeError:
+                    pass  # event loop already gone — nothing left to feed
+
+        threading.Thread(target=_pump, name="xrlf-stream", daemon=True).start()
+
         try:
-            gen = runtime.chat(
-                messages=messages,
-                max_tokens=req.max_tokens,
-                temperature=req.temperature,
-                stream=True,
-                has_image=has_image,
-                has_audio=has_audio,
-                has_video=has_video,
-                force_profile=req.xrlf_force_profile,
-                headless=bool(req.xrlf_headless),
-                thinking=req.xrlf_thinking if req.xrlf_thinking is not None else True,
-                utility=bool(req.xrlf_utility),
-            )
-            for chunk in gen:
-                out_chars += len(chunk)
+            while True:
+                kind, val = await chunks.get()
+                if kind == "done":
+                    break
+                if kind == "error":
+                    err = val
+                    break
+                out_chars += len(val)
                 data = {
                     "id": completion_id,
                     "object": "chat.completion.chunk",
@@ -880,25 +981,23 @@ def create_app(runtime: XRLFRuntime) -> "FastAPI":
                     "choices": [
                         {
                             "index": 0,
-                            "delta": {"content": chunk},
+                            "delta": {"content": val},
                             "finish_reason": None,
                         }
                     ],
                 }
                 yield f"data: {json.dumps(data)}\n\n"
-                await asyncio.sleep(0)
-        except Exception as e:
-            _reqlog(
-                {
-                    "layer": "runtime",
-                    "event": "inference",
-                    "model": model_id,
-                    "stream": True,
-                    "queue_ms": queue_ms,
-                    "error": str(e)[:200],
-                }
-            )
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            if err:
+                yield f"data: {json.dumps({'error': err})}\n\n"
+            done = {
+                "id": completion_id,
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": model_id,
+                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+            }
+            yield f"data: {json.dumps(done)}\n\n"
+            yield "data: [DONE]\n\n"
         finally:
             _inference_lock.release()
             _reqlog(
@@ -911,17 +1010,9 @@ def create_app(runtime: XRLFRuntime) -> "FastAPI":
                     "decode_ms": int((time.time() - t_decode) * 1000),
                     "chars": out_chars,
                     "headless": bool(req.xrlf_headless),
+                    "error": err,
                 }
             )
-            done = {
-                "id": completion_id,
-                "object": "chat.completion.chunk",
-                "created": int(time.time()),
-                "model": model_id,
-                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
-            }
-            yield f"data: {json.dumps(done)}\n\n"
-            yield "data: [DONE]\n\n"
 
     # ── Raw completions ───────────────────────────────────────────────────────
 

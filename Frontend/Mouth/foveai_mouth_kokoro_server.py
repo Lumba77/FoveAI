@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HTTP bridge for Kokoro TTS — primary MOUTH service for FoveAI (port 8406).
+HTTP bridge for Kokoro TTS — primary MOUTH service for FoveAI (port 8411).
 
 Kokoro provides high-quality, emotionally expressive TTS with minimal VRAM
 footprint, making it ideal for the 8GB RTX 4060 constraint.
@@ -12,7 +12,7 @@ Voice selection: explicit `voice` param > emotion-mapped > FoveAI_KOKORO_VOICE e
 
 Env vars:
   FoveAI_KOKORO_BIND         — host (default 0.0.0.0)
-  FoveAI_KOKORO_PORT         — port (default FOVEAI_TTS_PORT or 8406)
+  FoveAI_KOKORO_PORT         — port (default FOVEAI_TTS_PORT or 8411)
   FoveAI_KOKORO_LANG_CODE    — language code (default "a" = American English)
   FoveAI_KOKORO_VOICE        — default voice when no emotion mapping (default "af_bella")
   FoveAI_KOKORO_SPEED         — default speed multiplier (default 1.0)
@@ -190,7 +190,14 @@ _EMOTION_VOICE_MAP: dict[str, str] = {
 
 # Strip bracket tokens (e.g. <audio:gasp_subtle>) and thought/action tags (*...*)
 # These are handled by the frontend UI, not the speech engine.
-_STRIP_THINK_BLOCK = re.compile(r"<think>.*?</think>", re.IGNORECASE | re.DOTALL)
+_STRIP_THINK_BLOCK = re.compile(
+    r"<\s*(?:h\s*:\s*)?(?:thought|think)\b[^>]*>.*?<\s*/\s*(?:h\s*:\s*)?(?:thought|think)\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
+_STRIP_COLON_THOUGHT = re.compile(
+    r"<\s*(?:h\s*:\s*)?thought\s*:[^<]*?<\s*/\s*(?:h\s*:\s*)?thought\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
 _STRIP_BRACKETS = re.compile(r"<[^>]+>")
 _STRIP_THOUGHTS = re.compile(r"\*[^*]+\*")
 
@@ -223,10 +230,11 @@ def tts(body: TTSBody) -> Response:
         .strip()
     )
 
-    # Strip think blocks, bracket tokens, thought actions, and normalise whitespace
-    text = _STRIP_THINK_BLOCK.sub("", body.text.strip())
-    text = _STRIP_BRACKETS.sub("", text)
-    text = _STRIP_THOUGHTS.sub("", text)
+    # Strip think/thought blocks, colon-thoughts, bracket tokens, thought actions, and normalise whitespace
+    text = _STRIP_THINK_BLOCK.sub(" ", body.text.strip())
+    text = _STRIP_COLON_THOUGHT.sub(" ", text)
+    text = _STRIP_BRACKETS.sub(" ", text)
+    text = _STRIP_THOUGHTS.sub(" ", text)
     text = re.sub(r"\s+", " ", text).strip()
     if not text:
         raise HTTPException(status_code=400, detail="empty_text_after_strip")
@@ -263,7 +271,7 @@ def tts(body: TTSBody) -> Response:
                 "FishSpeech port 8005 unavailable, falling back to Kokoro: %s", e
             )
 
-    # Kokoro / QwenTTS ONNX Provider (Port 8406 default)
+    # Kokoro / QwenTTS ONNX Provider (Port 8411 default)
     if _pipeline is None:
         raise HTTPException(status_code=503, detail=_load_error or "model_not_loaded")
 
@@ -363,7 +371,7 @@ def main() -> None:
         format="%(levelname)s %(name)s %(message)s",
     )
     host = os.getenv("FoveAI_KOKORO_BIND", "0.0.0.0").strip()
-    port = _env_int("FoveAI_KOKORO_PORT", _env_int("FOVEAI_TTS_PORT", 8406))
+    port = _env_int("FoveAI_KOKORO_PORT", _env_int("FOVEAI_TTS_PORT", 8411))
     _log.info("Starting Kokoro TTS on %s:%d", host, port)
     uvicorn.run(app, host=host, port=port, log_level=uvi_level)
 

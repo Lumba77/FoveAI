@@ -298,7 +298,7 @@ def handle_command(cmd):
             # on all known FoveAI ports instead.
             foveai_ports = [
                 8400,
-                8401,
+                8414,
                 8402,
                 8403,
                 8300,
@@ -370,7 +370,7 @@ def handle_command(cmd):
         for name, port in [
             ("soul", 8402),
             ("proxy", 8400),
-            ("dashboard", 8401),
+            ("dashboard", 8414),
             ("ws_ipc", 8403),
             ("ears", 8001),
             ("memory", 8002),

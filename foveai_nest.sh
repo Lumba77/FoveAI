@@ -205,7 +205,7 @@ b3=$(sp "$B_BOT" xrlf   -h -l "$W4")
 NCOL_L=$(( NCOL / 2 ))
 NCOL_R=$(( NCOL - NCOL_L ))
 LEFTFNS=(procs2 sensors)
-RIGHTFNS=(log netstat)
+RIGHTFNS=(${NEST_RIGHT_FNS:-spotify log})
 
 REM="$A"
 for (( _i = 0; _i < NCOL_L; _i++ )); do
@@ -269,6 +269,15 @@ tmux set-option -t "$SESSION" -g history-limit 100000 >/dev/null 2>&1 || true
 tmux set-window-option -t "$SESSION:0" -g history-limit 100000 >/dev/null 2>&1 || true
 tmux set-option -t "$SESSION" -g alternate-screen on >/dev/null 2>&1 || true
 ISCONSOLE="tmux compare-versions 3.2 >= 3.2;"        # no-op guard, readability only
+# Draggable dividers ARE the "measured work desk":
+# mouse drag on any pane border resizes live (mouse on). The keyboard
+# equivalents below give the same power from the VR terminal where mouse
+# drag is unavailable — Ctrl-b hold-arrow nudges the border, the repeat
+# (-r) makes long presses walk it smoothly.
+tmux bind-key -r -T prefix Left  resize-pane -L 4 >/dev/null 2>&1 || true
+tmux bind-key -r -T prefix Right resize-pane -R 4 >/dev/null 2>&1 || true
+tmux bind-key -r -T prefix Up    resize-pane -U 4 >/dev/null 2>&1 || true
+tmux bind-key -r -T prefix Down  resize-pane -D 4 >/dev/null 2>&1 || true
 tmux bind-key -T root WheelUpPane   "if -Ft= '#{&&:#{==:#{pane_id},$CONSOLE},#{mouse_any_flag}}' 'send-keys -M' 'if -Ft= '#{==:#{pane_id},$CONSOLE}' 'copy-mode -e; send-keys -U 3' 'send-keys -M''" >/dev/null 2>&1 || true
 tmux bind-key -T root WheelDownPane "if -Ft= '#{&&:#{==:#{pane_id},$CONSOLE},#{mouse_any_flag}}' 'send-keys -M' 'if -Ft= '#{==:#{pane_id},$CONSOLE}' 'send-keys -D 3' 'send-keys -M''" >/dev/null 2>&1 || true
 tmux bind-key -T root PageUp        "if -Ft= '#{==:#{pane_id},$CONSOLE}' 'copy-mode -e' 'send-keys PageUp'" >/dev/null 2>&1 || true

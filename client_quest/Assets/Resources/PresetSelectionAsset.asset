@@ -12,5 +12,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 34cb1c0ab587a8a4796270e06b0f6f16, type: 3}
   m_Name: PresetSelectionAsset
   m_EditorClassIdentifier: Oculus.AvatarSDK2::PresetSelectionInfo
-  qualitySelection: 0101
-  avatarSelection: 010101010101010101010101010101010101010101010101010101010101010101
+  qualitySelection: 0101y
+  avatarSelection: 010101010101010101010101010101010101010101010101010101010101010101y

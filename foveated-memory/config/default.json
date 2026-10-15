@@ -1,11 +1,11 @@
 {
   "proxy_port": 8400,
-  "dashboard_port": 8401,
-  "upstream_url": "http://127.0.0.1:8402/v1",
+  "dashboard_port": 8414,
+  "upstream_url": "http://127.0.0.1:8408/v1",
   "workspace_id": "default",
   "workspace_mode": "personal",
-  "identity_name": "Jenna (Jennifer Forbee)",
-  "user_name": "Daniel",
+  "identity_name": "Companion",
+  "user_name": "User",
   "persist_path": "./memory_data",
   "ring_token_budget": 400,
   "fovea_message_count": 4,
@@ -190,5 +190,6 @@
         "crucial": true
       }
     ]
-  }
+  },
+  "default_model": "qwopus3.5-9b-moq-eagle"
 }

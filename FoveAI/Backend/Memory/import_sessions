@@ -1,8 +1,0 @@
-#!/bin/bash
-# LUMAX Session Importer Wrapper
-# Runs in sentry venv with all dependencies available
-
-LUMAX_ROOT="/home/lumba/LUMAX-lite"
-SENTRY_PYTHON="$LUMAX_ROOT/.venv/sentry/bin/python"
-
-exec "$SENTRY_PYTHON" "$LUMAX_ROOT/Mind/Memory/session_importer.py" "$@"

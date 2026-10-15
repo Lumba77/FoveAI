@@ -9,11 +9,13 @@ EditorBuildSettings:
     path: Assets/Scenes/FoveAI.unity
     guid: b03d1d60058f6ed4493cf7f63dda2fea
   m_configObjects:
+    UnityEditor.XR.ARCore.ARCoreSettings: {fileID: 11400000, guid: cd4fe2ccfeb11e6b4baa0c2d4154913e, type: 2}
     com.unity.adaptivePerformance.basic.provider_settings: {fileID: 11400000, guid: e2dea29db88dd7443be373c765013311, type: 2}
+    com.unity.adaptiveperformance.google.android.provider_settings: {fileID: 11400000, guid: 68f5de2dc684f64a0a5e195be845984d, type: 2}
     com.unity.adaptiveperformance.loader_settings: {fileID: 11400000, guid: 20190ac2b85ccb7418ab89232a88e5a0, type: 2}
     com.unity.adaptiveperformance.simulator.provider_settings: {fileID: 11400000, guid: 9c530ee4e44a7dd4f9e9ce923a9b7a81, type: 2}
     com.unity.input.settings: {fileID: 11400000, guid: eeb112f621dc4824a8ee121152647867, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 9dc8642ef30fd924980529cbe0283bc6, type: 3}
-    com.unity.xr.arfoundation.simulation_settings: {fileID: 11400000, guid: ebe6bde0bf118b84db17a12dca115239, type: 2}
+    com.unity.xr.arfoundation.simulation_settings: {fileID: 11400000, guid: b3b44424a99d857da97e23959b5d3418, type: 2}
     com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 362549bfb445dfb4fad335ac95ec896b, type: 2}
     com.unity.xr.openxr.settings4: {fileID: 11400000, guid: 93a1da966e70cb74db3f933f6856b57f, type: 2}

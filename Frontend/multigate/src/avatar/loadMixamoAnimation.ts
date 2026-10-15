@@ -91,14 +91,7 @@ export async function loadMixamoAnimation(url: string, vrm: VRM): Promise<THREE.
         const parentRestWorldRotation = new THREE.Quaternion();
         const _quatA = new THREE.Quaternion();
 
-        // Dynamically compute hips scale (Mixamo is usually in CM, VRM in Meters)
-        let hipsPositionScale = 0.01;
-        const mixamoHips = asset.getObjectByName('mixamorigHips') || asset.getObjectByName('Hips');
-        if (mixamoHips && vrm.humanoid?.normalizedRestPose?.hips) {
-            const motionHipsHeight = mixamoHips.position.y;
-            const vrmHipsHeight = vrm.humanoid.normalizedRestPose.hips.position?.[1] ?? 1.0;
-            if (motionHipsHeight > 0) hipsPositionScale = vrmHipsHeight / motionHipsHeight;
-        }
+        // (hips height auto-mapping removed — computed scale was never applied)
 
         clip.tracks.forEach((track) => {
             const trackSplitted = track.name.split('.');

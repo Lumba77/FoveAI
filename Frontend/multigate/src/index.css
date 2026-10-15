@@ -1,4 +1,8 @@
 :root {
+  /* UI scale system — from browser-zoom comfort testing (200–250%):
+     all UI sizes (spacing, dimensions, radii, images, form controls) ×2,
+     content font sizes (chat text, menus, body text) ×1.5 only.
+     Applied as literal doubled/halved values in the stylesheets. */
   /* Dark UA scheme — makes native form popups (select dropdowns, scrollbars,
      date pickers) render dark instead of inheriting the OS light theme. */
   color-scheme: dark;
@@ -22,6 +26,15 @@
   margin: 0;
   padding: 0;
 }
+
+/* ══ RESPONSIVE ROOT SCALE (2026-10-08) ════════════════════════════════
+   One absolute-size build (×1.45 cozy) can't fit both a Quest's wide
+   viewport and a desktop Firefox at 100%: on the PC everything overflowed
+   (portrait dislodged, model-bar over the header) and the user had to
+   zoom to 60-70%. Root font now scales with the viewport so the whole
+   rem-based layout breathes: ~1366px PC → ~0.85×, 1920+ TV → 1×, and
+   everything stays proportional — no zooming needed. */
+html { font-size: clamp(13px, 0.636vw + 5.3px, 23.2px); }
 
 body {
   font-family: "Inter", system-ui, -apple-system, sans-serif;
@@ -64,15 +77,15 @@ input {
   -webkit-backdrop-filter: blur(24px) saturate(150%);
   backdrop-filter: blur(24px) saturate(150%);
   border: 1px solid var(--border-glass);
-  border-radius: 16px;
+  border-radius: 32px;
   box-shadow: 
     inset 0 1px 1px rgba(255, 255, 255, 0.08), 
     0 16px 32px rgba(0, 0, 0, 0.6);
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 20px;
+  height: 20px;
 }
 ::-webkit-scrollbar-track {
   background: rgba(0, 0, 0, 0.2);
@@ -80,7 +93,7 @@ input {
 }
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 5px;
+  border-radius: 10px;
   border: 2px solid transparent;
   background-clip: content-box;
 }

@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-    FoveAI Unified Startup — launches proxy (8400) + multigate (5177) + dashboard (8401)
+    FoveAI Unified Startup — launches proxy (8414) + multigate (8414) + dashboard (8414)
 .DESCRIPTION
     Starts all FoveAI services in a single window:
       1. Foveated Memory Proxy  →  http://127.0.0.1:8400
-      2. Monitor Dashboard      →  http://127.0.0.1:8401
+      2. Monitor Dashboard      →  http://127.0.0.1:8414
       3. Multigate (FoveAI Copilot) →  http://127.0.0.1:5177
     Prerequisite: LM Studio must already be running on port 7272.
 .EXAMPLE
@@ -24,7 +24,7 @@ $MultigateDir  = Join-Path $LumaxRoot 'Frontend' 'multigate'
 
 # ── Ports ────────────────────────────────────────────────────────────
 $ProxyPort      = 8400
-$DashboardPort  = 8401
+$DashboardPort  = 8414
 $MultigatePort  = 5177
 $LMStudioPort   = 7272
 

@@ -62,6 +62,10 @@ export interface TraitStore {
   setTrait: (t: Trait, v: string) => void;
   displayVal: (t: Trait) => string;
   reload: () => Promise<void>;
+  listPatterns: () => Record<string, Record<string, string>>;
+  savePattern: (name: string) => boolean;
+  loadPattern: (name: string) => boolean;
+  deletePattern: (name: string) => void;
 }
 
 export function useTraits(onSaved?: () => void): TraitStore {
@@ -147,5 +151,35 @@ export function useTraits(onSaved?: () => void): TraitStore {
   const finishName = FINISHES.includes(values['finish']) ? values['finish'] : FINISHES[0];
   const finishTint = FINISH_TINT[finishName];
 
-  return { values, armedId, setArmedId, armed, armedIdx, finishTint, normTrait, bumpTrait, setTrait, displayVal, reload };
+  /* ── Pattern presets — named interference signatures ─────────────────
+     A "pattern" = the full snapshot of all trait values at save time. The
+     LIVE settings persist in .env via /api/setting; presets are named
+     snapshots kept in localStorage so the user can flip between familiar
+     interference signatures ("the spin I left it in"). */
+  const PRESETS_KEY = 'foveai_ignition_patterns';
+  const listPatterns = useCallback((): Record<string, Record<string, string>> => {
+    try { return JSON.parse(localStorage.getItem(PRESETS_KEY) || '{}'); } catch { return {}; }
+  }, []);
+  const savePattern = useCallback((name: string): boolean => {
+    const clean = name.trim(); if (!clean) return false;
+    const all = listPatterns();
+    all[clean] = { ...values };
+    try { localStorage.setItem(PRESETS_KEY, JSON.stringify(all)); onSaved?.(); return true; } catch { return false; }
+  }, [values, listPatterns, onSaved]);
+  const loadPattern = useCallback((name: string): boolean => {
+    const snap = listPatterns()[name]; if (!snap) return false;
+    for (const t of TRAITS) {
+      const v = snap[t.id]; if (v === undefined) continue;
+      setValues(p => ({ ...p, [t.id]: v }));
+      saveTrait(t, v);                       // also writes .env — live settings match pattern
+    }
+    return true;
+  }, [listPatterns, saveTrait]);
+  const deletePattern = useCallback((name: string) => {
+    const all = listPatterns(); delete all[name];
+    try { localStorage.setItem(PRESETS_KEY, JSON.stringify(all)); } catch { /* private mode */ }
+  }, [listPatterns]);
+
+  return { values, armedId, setArmedId, armed, armedIdx, finishTint, normTrait, bumpTrait, setTrait, displayVal, reload,
+           listPatterns, savePattern, loadPattern, deletePattern };
 }

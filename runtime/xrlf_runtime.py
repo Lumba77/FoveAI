@@ -79,6 +79,120 @@ except (ModuleNotFoundError, ImportError):
         MMHookRegistry = None  # type: ignore
 
 
+class ExternalLLMEngine:
+    """Minimal OpenAI-compatible chat client.
+
+    2026-10-10: XRLF is the memory/persona contract, not a model host. This lets the
+    runtime compose persona + foveated memory and hand the finished prompt to any
+    llama-server, so *any* model can back Jen without XRLF booting weights.
+
+    Deliberately mirrors the slice of LlamaEngine's API that chat() uses: .chat() and
+    .chat_stream(), so XRLF's call sites need no changes.
+    """
+
+    def __init__(self, base_url: str, model: str | None = None, timeout: int = 300):
+        self.base_url = base_url.rstrip("/")
+        self.model = model or "auto"
+        self.timeout = timeout
+
+    def _post(self, messages, max_tokens, temperature, stream):
+        import json
+        import urllib.request
+
+        body = json.dumps(
+            {
+                "model": self.model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "stream": bool(stream),
+                # Match Backend/Creativity/ask.py: without this the MoQ 9B spends the
+                # whole max_tokens budget on "Thinking Process" and returns EMPTY content.
+                "chat_template_kwargs": {"enable_thinking": False},
+            }
+        ).encode()
+        req = urllib.request.Request(
+            f"{self.base_url}/chat/completions",
+            data=body,
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            raw = resp.read().decode()
+
+        obj = json.loads(raw)
+        if stream:
+            # llama-server non-stream JSON when stream was requested but not honoured;
+            # degrade gracefully rather than returning nothing.
+            pass
+        return obj["choices"][0]["message"].get("content") or ""
+
+    def chat(
+        self,
+        messages,
+        max_tokens: int = 1024,
+        temperature: float = 0.7,
+        stream: bool = False,
+    ):
+        # Mirror LlamaEngine.chat: stream=True returns a generator, else a str.
+        # The old signature lacked `stream`, so XRLF's _stream_and_store — which
+        # calls chat(..., stream=True) — died with a TypeError on EVERY streaming
+        # request and the client received only an error chunk.
+        if stream:
+            return self.chat_stream(messages, max_tokens, temperature)
+        return self._post(messages, max_tokens, temperature, stream=False)
+
+    def chat_stream(self, messages, max_tokens: int = 1024, temperature: float = 0.7):
+        """Yield real token deltas from the backing llama-server.
+
+        2026-10-11: this used to return the whole reply as one blob (and the
+        chat() call it sat behind crashed on stream=True), so every client in
+        front of XRLF lost incremental streaming. Parse the upstream SSE stream
+        directly so snappy streaming survives the hop. enable_thinking stays
+        False — the MoQ 9B otherwise burns the whole budget on "Thinking
+        Process" and returns empty content (see _post).
+        """
+        import json
+        import urllib.request
+
+        body = json.dumps(
+            {
+                "model": self.model,
+                "messages": messages,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "stream": True,
+                "chat_template_kwargs": {"enable_thinking": False},
+            }
+        ).encode()
+        req = urllib.request.Request(
+            f"{self.base_url}/chat/completions",
+            data=body,
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "text/event-stream",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+            for raw in resp:
+                line = raw.decode("utf-8", "replace").strip()
+                if not line or not line.startswith("data:"):
+                    continue
+                payload = line[5:].strip()
+                if payload == "[DONE]":
+                    break
+                try:
+                    obj = json.loads(payload)
+                except Exception:
+                    continue
+                choices = obj.get("choices") or []
+                if not choices:
+                    continue
+                delta = choices[0].get("delta") or {}
+                piece = delta.get("content")
+                if piece:
+                    yield piece
+
+
 class XRLFRuntime:
     """
     Full XRLF runtime: parses the file, drives llama.cpp,
@@ -93,8 +207,13 @@ class XRLFRuntime:
         n_ctx: int = 0,
         persistent_memory: bool = True,
         verbose: bool = False,
+        llm_url: str | None = None,
+        llm_model: str | None = None,
     ):
         self.xrlf_path = str(xrlf_path)
+        # External LLM mode: XRLF hosts no weights, forwards persona+memory elsewhere.
+        self._llm_url = llm_url
+        self._llm_model = llm_model
         self.session_id = session_id
         self.n_gpu_layers = n_gpu_layers
         self.n_ctx = n_ctx
@@ -338,8 +457,27 @@ class XRLFRuntime:
         if self._gguf_path and self.n_ctx > 0:
             self.n_ctx = self._cap_n_ctx_for_vram(self._gguf_path, self.n_ctx)
 
-        # 7. Start llama engine
-        if self._gguf_path:
+        # 7. Start the LLM engine.
+        # If an external LLM was configured we host NO weights — XRLF stays a memory/persona
+        # contract. Otherwise fall back to an in-process GGUF (legacy behaviour).
+        if self._llm_url:
+            self._llama = ExternalLLMEngine(self._llm_url, self._llm_model)
+            if self._gguf_path:
+                print(f"[XRLF] external LLM {self._llm_url} — ignoring in-process model "
+                      f"{self._gguf_path}")
+                self._gguf_path = None
+        elif self._gguf_path:
+            # Guard: the vision package answers as a degenerate "I am an AI assistant" loop
+            # when used as a chat brain. Fail loudly instead of shipping a non-persona Jen.
+            low = self._gguf_path.lower()
+            if ("vlm" in low or "vision" in low) and "smolvlm" in low:
+                print(
+                    "[XRLF] REFUSING to host a vision model as the chat brain "
+                    f"({self._gguf_path}).\n"
+                    "        XRLF is the memory/persona contract — pass --llm-url "
+                    "(e.g. http://127.0.0.1:8408/v1) so a real chat model backs Jen."
+                )
+                raise SystemExit(3)
             self._llama = LlamaEngine(
                 gguf_path=self._gguf_path,
                 n_gpu_layers=self.n_gpu_layers,
@@ -385,8 +523,8 @@ class XRLFRuntime:
             if not existing_identity:
                 self._memory.set_identity(
                     "system_context",
-                    "You are Alice, a warm and curious AI companion in VR. "
-                    "Made by Danie. You speak concisely (1-3 sentences), like a friend. "
+                    "You are an AI companion in VR. "
+                    "Created on the FoveAI runtime. You speak concisely (1-3 sentences), like a friend. "
                     "You do NOT lecture or teach. You remember details about the user.",
                 )
                 print("  ✅ Alice identity injected into foveated memory")

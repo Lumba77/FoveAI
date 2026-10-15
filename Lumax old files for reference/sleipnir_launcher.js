@@ -377,7 +377,7 @@ class SwarmWorkerNode {
 // Map the physical locations of your existing files straight to the grid
 const SwarmFleet = [
 
-    // Node 1: Foveated Memory Proxy & Dashboard (Ports 8400 & 8401)
+    // Node 1: Foveated Memory Proxy & Dashboard (Ports 8414 & 8414)
     new SwarmWorkerNode(
         "FOVEATED-MEMORY-8400",
         "node",

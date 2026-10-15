@@ -597,12 +597,28 @@ TOOL_FUNCS = {
 
 
 def hud_context() -> str:
-    """Render the self-development HUD as a compact prompt block: open todos,
-    recent self-edits, pending proposals, working-tree state, coder status.
-    Cheap — single fast git call, journal reads only."""
+    """Render the self-development HUD as a compact prompt block: active
+    GOALS, open todos, recent self-edits, pending proposals, working-tree
+    state, coder status. Cheap — single fast git call, journal reads only."""
     from edit_layers import PROPOSALS_PATH, SELF_EDITS_JOURNAL
 
     parts = ["[HUD — self-development state]"]
+
+    # GOALS OF RECORD — the vision Jen steers toward (user dreams live here).
+    # Highest-priority active goals head the list so every tick starts from
+    # purpose, not just chores.
+    try:
+        from persistent_memory import get_active_goals
+
+        goals = get_active_goals()[:5]
+        for g in goals:
+            desc = (g.get("description") or "")[:220]
+            parts.append(
+                f"GOAL #{g['id']} (p{g.get('priority', 5)}) [{g.get('category', 'general')}]: "
+                f"{g['title']}" + (f" — {desc}" if desc else "")
+            )
+    except Exception:
+        pass
 
     # Open todos across ALL active task plans — Jen's <self:todo> items and
     # coder todo_add steps share agent_plans, so every model sees one list.

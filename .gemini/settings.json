@@ -1,5 +1,33 @@
 {
   "mcpServers": {
+    "foveai-memory": {
+      "command": "/home/lumba/FoveAI/.venv/bin/python",
+      "args": [
+        "-B",
+        "/home/lumba/FoveAI/Backend/Memory/foveai_mcp_server.py"
+      ],
+      "env": {
+        "FoveAI_REPO_ROOT": "/home/lumba/FoveAI",
+        "FOVEAI_MCP_CONTEXT": "0",
+        "FOVEAI_MCP_MAX_CONTEXT_TOKENS": "800"
+      }
+    },
+    "foveated-memory": {
+      "command": "node",
+      "args": [
+        "/home/lumba/FoveAI/foveated-memory/mcp-server.js"
+      ],
+      "env": {
+        "FM_PROXY_URL": "http://127.0.0.1:8400"
+      }
+    },
+    "nvidia-nim": {
+      "command": "/home/lumba/FoveAI/.venv/bin/python",
+      "args": [
+        "-B",
+        "/home/lumba/FoveAI/Tools/nvidia-mcp/server.py"
+      ]
+    },
     "chrome-devtools": {
       "command": "npx",
       "args": [

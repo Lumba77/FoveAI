@@ -76,15 +76,15 @@ https://lumax.1um6a.se
 | Port | Service | Description |
 |------|---------|----------------------------------------------------------------|
 | 8400 | Memory Proxy | Foveated Memory Proxy & XRLation Active Recall Proxy (`:8400/v1`) |
-| 8401 | Dashboard | Memory Dashboard, Prompts Kiosk & Desktop Settings UI |
+| 8414 | Dashboard | Memory Dashboard, Prompts Kiosk & Desktop Settings UI |
 | 8402 | XRLF Runtime | Local Model Inference Server (`llama-server`) |
 | 8403 | Multimodal IPC| Real-Time Multimodal WebSocket IPC (Vision/Audio streams) |
 | 8404 | Soul Core | Cognition & Sovereign Core Authority (`compagent.py`) |
 | 8405 | Ears STT | Speech-to-Text Engine (Faster-Whisper / Web VAD) |
-| 8406 | Mouth Kokoro | Text-to-Speech Engine (Kokoro Emotional Mouth) |
-| 8407 | Stardust | Vector DB / 33M parameter Semantic Resonance Matching |
-| 8408 | Motor Cortex | Physical Agency (Avatar Animation & Gesture Daemon) |
-| 8409 | Core Solver | Lumax Error Observer & Auto-Fix Knowledge Base |
+| 8411 | Mouth Kokoro | Text-to-Speech Engine (Kokoro Emotional Mouth) |
+| 8413 | Stardust | Vector DB / 33M parameter Semantic Resonance Matching |
+| 8412 | Motor Cortex | Physical Agency (Avatar Animation & Gesture Daemon) |
+| 8401 | Core Solver | Lumax Error Observer & Auto-Fix Knowledge Base |
 | 5176 | WebXR Vessel | WebXR Spatial Frontend UI (Vite/TypeScript) |
 
 <!-- AICB:BEGIN {"version":1,"target":"GEMINI.md","generatedAt":"2026-08-29T12:34:05.536Z","hash":"sha256:464c62424b20a5547ded5439d3872347fd35c6c5ae0c175af1090e8f0dc8ce18"} -->

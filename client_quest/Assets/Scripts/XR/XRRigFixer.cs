@@ -1,6 +1,8 @@
 using UnityEngine;
 using UnityEngine.XR;
 using UnityEngine.XR.ARFoundation;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.XR;
 using FoveAI.DebugOverlay;
 
 namespace FoveAI.XR
@@ -49,16 +51,47 @@ namespace FoveAI.XR
 
         private void LogXRStatus()
         {
-            QuestDebugOverlay.Log($"[XRRigFixer] XR active: {XRSettings.isDeviceActive}");
-            QuestDebugOverlay.Log($"[XRRigFixer] XR device: {XRSettings.loadedDeviceName}");
-
-            // List all XR input devices
-            var inputDevices = new System.Collections.Generic.List<InputDevice>();
-            InputDevices.GetDevices(inputDevices);
-            QuestDebugOverlay.Log($"[XRRigFixer] Found {inputDevices.Count} XR input devices:");
-            foreach (var dev in inputDevices)
+            // 2026-10-09: XRSettings and InputDevices are legacy (UnityEngine.InputLegacyModule,
+            // not installed in this project) — replaced with XRGeneralSettings + InputSystem.
+            bool xrActive = false;
+            string loaderName = "(none)";
+            try
             {
-                QuestDebugOverlay.Log($"  - {dev.name} [{dev.characteristics}]");
+                var managerType = System.Type.GetType(
+                    "UnityEngine.XR.Management.XRGeneralSettings, Unity.XR.Management");
+                if (managerType != null)
+                {
+                    var instanceProp = managerType.GetProperty("Instance",
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                    var instance = instanceProp?.GetValue(null);
+                    var mgrField = managerType.GetField("Manager");
+                    var mgr = mgrField?.GetValue(instance);
+                    if (mgr != null)
+                    {
+                        var loaderProp = mgr.GetType().GetProperty("activeLoader");
+                        var loader = loaderProp?.GetValue(mgr);
+                        if (loader != null)
+                        {
+                            xrActive = true;
+                            loaderName = loader.GetType().GetProperty("name")?.GetValue(loader)?.ToString() ?? "(unnamed)";
+                        }
+                    }
+                }
+            }
+            catch (System.Exception e) { QuestDebugOverlay.Log($"[XRRigFixer] XR status probe failed: {e.Message}"); }
+            QuestDebugOverlay.Log($"[XRRigFixer] XR active: {xrActive}");
+            QuestDebugOverlay.Log($"[XRRigFixer] XR loader: {loaderName}");
+
+            // List all XR controllers via the new Input System
+            var controllers = new System.Collections.Generic.List<UnityEngine.InputSystem.XR.XRController>();
+            foreach (var d in UnityEngine.InputSystem.InputSystem.devices)
+            {
+                if (d is UnityEngine.InputSystem.XR.XRController c) controllers.Add(c);
+            }
+            QuestDebugOverlay.Log($"[XRRigFixer] Found {controllers.Count} XR controllers:");
+            foreach (var ctrl in controllers)
+            {
+                QuestDebugOverlay.Log($"  - {ctrl.name}");
             }
         }
 
@@ -101,14 +134,13 @@ namespace FoveAI.XR
 
         private void FixControllers()
         {
-            // Get controller devices
-            var leftControllers = new System.Collections.Generic.List<InputDevice>();
-            var rightControllers = new System.Collections.Generic.List<InputDevice>();
-            InputDevices.GetDevicesWithCharacteristics(InputDeviceCharacteristics.Left | InputDeviceCharacteristics.Controller, leftControllers);
-            InputDevices.GetDevicesWithCharacteristics(InputDeviceCharacteristics.Right | InputDeviceCharacteristics.Controller, rightControllers);
-
-            QuestDebugOverlay.Log($"[XRRigFixer] Left controllers: {leftControllers.Count}");
-            QuestDebugOverlay.Log($"[XRRigFixer] Right controllers: {rightControllers.Count}");
+            // 2026-10-09: the legacy InputDevices/InputDeviceCharacteristics API was dead here —
+            // this project runs the NEW Input System (and UnityEngine.InputLegacyModule is not
+            // installed), so GetDevicesWithCharacteristics always returned an empty list, the
+            // anchors were never driven by controller poses, and XRRayInteractorSetup received
+            // static objects: no hands, no rays, nothing clickable. Switched to InputAction-based
+            // pose binding, matching AutoSceneBuilder's TrackedPoseDriver setup.
+            QuestDebugOverlay.Log("[XRRigFixer] Controllers: using new Input System pose actions");
 
             // Create controller anchors (tracked transforms only — no cube visuals)
             CreateControllerAnchor("LeftController", InputDeviceCharacteristics.Left);
@@ -133,8 +165,6 @@ namespace FoveAI.XR
 
         private GameObject _leftControllerObj;
         private GameObject _rightControllerObj;
-        private InputDevice _leftDevice;
-        private InputDevice _rightDevice;
 
         private void FindChatPanel()
         {
@@ -164,15 +194,33 @@ namespace FoveAI.XR
             var obj = new GameObject(name);
             obj.transform.SetParent(transform, false);
 
-            if (characteristics.HasFlag(InputDeviceCharacteristics.Left))
+            bool isLeft = characteristics.HasFlag(InputDeviceCharacteristics.Left);
+
+            // New Input System pose binding — this is what actually moves the anchor.
+            var posAction = new InputAction(
+                name: isLeft ? "LeftControllerPose" : "RightControllerPose",
+                type: InputActionType.Value,
+                binding: isLeft ? "<XRController>{LeftHand}/devicePosition" : "<XRController>{RightHand}/devicePosition");
+            var rotAction = new InputAction(
+                name: isLeft ? "LeftControllerRot" : "RightControllerRot",
+                type: InputActionType.Value,
+                binding: isLeft ? "<XRController>{LeftHand}/deviceRotation" : "<XRController>{RightHand}/deviceRotation");
+            posAction.Enable();
+            rotAction.Enable();
+
+            if (isLeft)
             {
                 _leftControllerObj = obj;
+                _leftPoseAction = posAction;
+                _leftRotAction = rotAction;
                 var wand = obj.AddComponent<XRHapticWand>();
                 wand.hand = XRHapticWand.WandHand.Left;
             }
             else
             {
                 _rightControllerObj = obj;
+                _rightPoseAction = posAction;
+                _rightRotAction = rotAction;
                 var wand = obj.AddComponent<XRHapticWand>();
                 wand.hand = XRHapticWand.WandHand.Right;
             }
@@ -183,7 +231,7 @@ namespace FoveAI.XR
             if (rayPointer == null)
             {
                 rayPointer = obj.AddComponent<XRControllerRayPointer>();
-                rayPointer.hand = characteristics.HasFlag(InputDeviceCharacteristics.Left)
+                rayPointer.hand = isLeft
                     ? XRControllerRayPointer.ControllerHand.Left
                     : XRControllerRayPointer.ControllerHand.Right;
             }
@@ -200,38 +248,33 @@ namespace FoveAI.XR
 
         private void Update()
         {
-            // Refresh controller / hand devices if not connected
-            if (!_leftDevice.isValid)
-            {
-                var leftDevs = new System.Collections.Generic.List<InputDevice>();
-                InputDevices.GetDevicesWithCharacteristics(InputDeviceCharacteristics.Left, leftDevs);
-                if (leftDevs.Count > 0) _leftDevice = leftDevs[0];
-            }
-            if (!_rightDevice.isValid)
-            {
-                var rightDevs = new System.Collections.Generic.List<InputDevice>();
-                InputDevices.GetDevicesWithCharacteristics(InputDeviceCharacteristics.Right, rightDevs);
-                if (rightDevs.Count > 0) _rightDevice = rightDevs[0];
-            }
-
-            // Update controller positions
-            UpdateControllerPose(_leftDevice, _leftControllerObj);
-            UpdateControllerPose(_rightDevice, _rightControllerObj);
+            // New Input System: read the bound pose actions and drive the anchors directly.
+            // Referencing <XRController>{LeftHand}/{RightHand}/devicePosition|deviceRotation is what
+            // makes the anchors actually track the headset's controllers.
+            UpdateControllerPose(_leftPoseAction, _rightPoseAction, _leftRotAction, _rightRotAction,
+                                 _leftControllerObj, _rightControllerObj);
         }
 
-        private void UpdateControllerPose(InputDevice device, GameObject controllerObj)
+        private InputAction _leftPoseAction;
+        private InputAction _rightPoseAction;
+        private InputAction _leftRotAction;
+        private InputAction _rightRotAction;
+
+        private static void UpdateControllerPose(
+            InputAction leftPos, InputAction rightPos, InputAction leftRot, InputAction rightRot,
+            GameObject leftObj, GameObject rightObj)
         {
-            if (controllerObj == null || !device.isValid) return;
+            ApplyPose(leftObj, leftPos, leftRot);
+            ApplyPose(rightObj, rightPos, rightRot);
+        }
 
-            if (device.TryGetFeatureValue(CommonUsages.devicePosition, out Vector3 pos))
-            {
-                controllerObj.transform.localPosition = pos;
-            }
+        private static void ApplyPose(GameObject target, InputAction posAction, InputAction rotAction)
+        {
+            if (target == null || posAction == null || rotAction == null) return;
+            if (!posAction.enabled || !rotAction.enabled) return;
 
-            if (device.TryGetFeatureValue(CommonUsages.deviceRotation, out Quaternion rot))
-            {
-                controllerObj.transform.localRotation = rot;
-            }
+            if (posAction.ReadValue<Vector3>() is Vector3 pos) target.transform.localPosition = pos;
+            if (rotAction.ReadValue<Quaternion>() is Quaternion rot) target.transform.localRotation = rot;
         }
     }
 }

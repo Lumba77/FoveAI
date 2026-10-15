@@ -1,9 +1,0 @@
-{
-    "path":  "C:\\Users\\danie\\program\\LUMAX\\Frontend\\ChromeExtension\\native\\lumax_host.bat",
-    "description":  "LUMAX Native Messaging Host — system control from browser",
-    "name":  "com.lumax.lumax_host",
-    "allowed_origins":  [
-                            "chrome-extension://laegoneiebmaheagojfdmikeldjnkfam/"
-                        ],
-    "type":  "stdio"
-}

@@ -1,0 +1,317 @@
+
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Share+Tech+Mono&display=swap');
+
+        .ign-screen { position: fixed; inset: 0; z-index: 100000; display: flex; flex-direction: column;
+          overflow-y: auto; overflow-x: hidden;
+          font-family: 'Share Tech Mono', monospace; color: #dfe7ff; font-size: 15px;
+          background:
+            radial-gradient(1px 1px at 12% 22%, rgba(255,255,255,.85), transparent 60%),
+            radial-gradient(1px 1px at 68% 8%, rgba(255,255,255,.65), transparent 60%),
+            radial-gradient(1.5px 1.5px at 84% 44%, rgba(200,220,255,.75), transparent 60%),
+            radial-gradient(1px 1px at 34% 66%, rgba(255,255,255,.55), transparent 60%),
+            radial-gradient(1px 1px at 52% 88%, rgba(255,240,210,.65), transparent 60%),
+            radial-gradient(1.5px 1.5px at 8% 78%, rgba(255,255,255,.5), transparent 60%),
+            radial-gradient(1px 1px at 91% 81%, rgba(255,255,255,.65), transparent 60%),
+            radial-gradient(1px 1px at 44% 34%, rgba(180,200,255,.45), transparent 60%),
+            radial-gradient(900px 500px at 78% -10%, rgba(167,139,250,.14), transparent 60%),
+            radial-gradient(1100px 600px at 15% 110%, rgba(94,234,212,.08), transparent 60%),
+            radial-gradient(1400px 500px at 50% -15%, rgba(255,190,70,.08), transparent 60%),
+            linear-gradient(165deg, rgba(12,16,40,.86) 0%, rgba(9,11,28,.90) 40%, rgba(5,7,18,.95) 100%),
+            url('/garage/backdrop.png') center / cover no-repeat,
+            linear-gradient(165deg, #0c1028 0%, #090b1c 40%, #050712 100%);
+          transition: opacity .7s ease, transform .7s ease; }
+        .ign-exit { opacity: 0; transform: scale(1.05); pointer-events: none; }
+
+        /* ══ countdown overlay ══ */
+        /* ORANGE advisory glow — settings offset, fire unsafe */
+        .reactor-plate.ign-warn { border-color: rgba(255,150,40,.65);
+          box-shadow: inset 0 3px 2px rgba(255,210,160,.18), inset 0 -10px 30px rgba(0,0,0,.75),
+                      0 0 0 2px rgba(255,150,40,.35), 0 0 30px rgba(255,150,40,.45);
+          animation: warn-pulse 1.4s ease-in-out infinite; }
+        @keyframes warn-pulse {
+          0%,100% { box-shadow: inset 0 3px 2px rgba(255,210,160,.18), 0 0 0 2px rgba(255,150,40,.3), 0 0 22px rgba(255,150,40,.35); }
+          50%     { box-shadow: inset 0 3px 2px rgba(255,210,160,.22), 0 0 0 3px rgba(255,150,40,.5), 0 0 40px rgba(255,150,40,.6); } }
+        .ign-advisory { max-width:460px; margin:22px auto 0; font-size:12px; line-height:1.5;
+          color:#ffcf99; font-family:'Share Tech Mono',monospace; text-align:center;
+          background:rgba(40,20,6,.5); border:1px solid rgba(255,150,40,.35);
+          border-radius:9px; padding:8px 14px; }
+        .ign-advisory div + div { margin-top:4px; }
+
+        .ign-count { position:fixed; inset:0; z-index:200000; cursor:pointer;
+          display:flex; flex-direction:column; align-items:center; justify-content:center;
+          background:radial-gradient(ellipse at 50% 46%, rgba(8,10,24,.55), rgba(4,5,14,.88));
+          backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); }
+        .ign-count-num { font-family:'Orbitron',monospace; font-size:190px; font-weight:900;
+          line-height:1; color:#39ff70;
+          text-shadow:0 0 44px rgba(57,255,112,.55), 0 0 8px rgba(57,255,112,.9), 0 4px 0 rgba(0,0,0,.6);
+          animation: count-in .9s cubic-bezier(.2,1.4,.4,1) infinite; }
+        @keyframes count-in {
+          0%   { transform:scale(.72); opacity:.25; filter:brightness(2.2); }
+          28%  { transform:scale(1); opacity:1; filter:brightness(1); }
+          100% { transform:scale(1.06); opacity:.82; } }
+        .ign-count-sub { margin-top:18px; font-size:13px; letter-spacing:5px;
+          text-transform:uppercase; color:#8a94b8; text-shadow:0 1px 2px #000; }
+        .ign-screen::before { content:''; position:absolute; inset:0; pointer-events:none;
+          background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(0,0,0,.10) 3px 4px); }
+        .ign-screen::after { content:''; position:absolute; inset:0; pointer-events:none;
+          box-shadow: inset 0 0 200px rgba(0,0,0,.8); }
+
+        /* diode work-lights: cone beams directed down from the top edge */
+        .ign-lights { position:absolute; top:0; left:0; right:0; height:60vh; pointer-events:none;
+          background:
+            conic-gradient(from 168deg at 22% 0%, transparent 0, rgba(255,205,90,.10) 6deg, rgba(255,205,90,.02) 11deg, transparent 13deg),
+            conic-gradient(from 168deg at 50% 0%, transparent 0, rgba(255,205,90,.09) 6deg, rgba(255,205,90,.02) 11deg, transparent 13deg),
+            conic-gradient(from 168deg at 78% 0%, transparent 0, rgba(140,255,160,.08) 6deg, rgba(140,255,160,.02) 11deg, transparent 13deg),
+            radial-gradient(240px 200px at 22% -30px, rgba(255,215,110,.28), transparent 70%),
+            radial-gradient(240px 200px at 50% -30px, rgba(255,215,110,.22), transparent 70%),
+            radial-gradient(240px 200px at 78% -30px, rgba(140,255,160,.18), transparent 70%);
+          opacity: var(--flick, 1); }
+        .ign-diodes { position:absolute; top:0; left:0; right:0; height:8px; pointer-events:none;
+          background:
+            radial-gradient(circle 4px at 22% 4px, #ffe9a8 0 2px, rgba(255,205,90,.9) 3px, transparent 4px),
+            radial-gradient(circle 4px at 50% 4px, #ffe9a8 0 2px, rgba(255,205,90,.9) 3px, transparent 4px),
+            radial-gradient(circle 4px at 78% 4px, #b8ffc0 0 2px, rgba(140,255,160,.9) 3px, transparent 4px); }
+        .ign-dust { position:absolute; inset:0; pointer-events:none; overflow:hidden; }
+        .mote { position:absolute; width:2px; height:2px; border-radius:50%;
+          background: rgba(255,220,140,.35); animation: mote-drift linear infinite; }
+        @keyframes mote-drift {
+          from { transform: translateY(-10px); opacity:0; }
+          15% { opacity:.8; } 85% { opacity:.6; }
+          to { transform: translateY(105vh); opacity:0; } }
+
+        /* ── full-width screwed metal logo plate ── */
+        .ign-plate { position:relative; flex-shrink:0; margin: 22px 26px 18px;
+          padding: 20px 30px; text-align:center;
+          border-radius: 14px;
+          background:
+            ${SCREW_BG},
+            linear-gradient(90deg, transparent 0, rgba(255,255,255,.06) 8%, transparent 16%, rgba(255,255,255,.05) 55%, transparent 70%),
+            linear-gradient(180deg, rgba(74,68,56,.55) 0%, rgba(51,45,34,.6) 12%, rgba(36,31,22,.72) 55%, rgba(25,21,16,.85) 100%),
+            url('/garage/plate.png') center / cover no-repeat;
+          box-shadow:
+            inset 0 2px 0 rgba(255,235,180,.18), inset 0 -3px 8px rgba(0,0,0,.7),
+            0 6px 24px rgba(0,0,0,.6);
+          border: 1px solid rgba(255,210,110,.28);
+          opacity: var(--flick, 1); }
+        .ign-plate::after { content:''; position:absolute; left:30px; right:30px; bottom:6px; height:2px;
+          background: linear-gradient(90deg, transparent, rgba(255,200,90,.5), transparent); }
+        .ign-logo { font-family:'Orbitron',monospace; font-weight:900; font-size:52px;
+          letter-spacing:14px; color:#ffcf3f;
+          text-shadow:
+            0 0 2px #ffcf3f, 0 0 18px rgba(255,190,60,.55),
+            0 2px 0 rgba(0,0,0,.6), 2px 0 1px rgba(255,150,30,.35), -2px 0 1px rgba(255,150,30,.35);
+          font-variant: small-caps; transform: rotate(-.4deg); }
+        .ign-logo .ai { color:#5dff8f; text-shadow: 0 0 2px #5dff8f, 0 0 20px rgba(90,255,140,.6), 0 2px 0 rgba(0,0,0,.6); }
+        .ign-plate-sub { font-size:13px; letter-spacing:5px; color:#9a8757; margin-top:6px; }
+
+        .ign-body { flex:1; display:flex; flex-direction:column; min-height:0; align-items:center; justify-content:center; }
+        /* assembled stage — DIAL ONLY (user rule): no side tables, no rail.
+           The instrument explains itself; pips carry name+value. */
+        .ign-stage { position:relative; display:flex; align-items:center; justify-content:center;
+          min-height:0; flex:0 0 auto; width:100%; padding:0 2vw; margin:0 auto; }
+        /* caption — the phase label + log, under the whole group */
+        .ign-caption { flex:1 1 100%; display:flex; flex-direction:column; align-items:center;
+          gap:6px; margin-top:0; }
+        /* dial and rail heights — dial full to its rings, rail matches its content */
+        .ign-center { display:flex; flex-direction:column; align-items:center;
+          justify-content:center; gap:10px; position:relative; flex:0 0 auto; order:1;
+
+          overflow:visible; padding:.2em 0; }
+
+
+
+  /* ~70% see-through glass */
+
+        /* ── LCD consoles: brass bezel, metal header rail, 2-col tables ── */
+        .lcd { position:relative; border-radius:10px; padding:0; overflow:hidden;
+          background: linear-gradient(180deg, rgba(24,30,16,.85), rgba(13,16,8,.88));
+          border:1px solid rgba(255,200,90,.26);
+          box-shadow: inset 0 0 0 3px #0a0c06, inset 0 0 0 4px rgba(195,155,60,.4),
+                      inset 0 2px 18px rgba(0,0,0,.6), 0 4px 14px rgba(0,0,0,.5); }
+        .lcd::before { content:''; position:absolute; inset:4px; border-radius:6px; pointer-events:none;
+          background: repeating-linear-gradient(0deg, transparent 0 2px, rgba(130,255,140,.025) 2px 3px); }
+        .lcd-head { position:relative; padding:4px 30px; font-size:11px; letter-spacing:2.5px;
+          color:#ffd766; text-transform:uppercase; font-family:'Orbitron',monospace; font-weight:700;
+          background:
+            ${SCREW_BG_2},
+            linear-gradient(180deg, #4d4636, #2e2918 60%, #221d10);
+          border-bottom:2px solid rgba(255,200,90,.35);
+          box-shadow: inset 0 1px 0 rgba(255,235,180,.15), 0 2px 6px rgba(0,0,0,.5);
+          text-shadow:0 0 12px rgba(255,200,90,.45); }
+        .lcd-body { padding:7px 14px 9px; overflow:hidden; }
+        table.lcd-tbl { width:100%; border-collapse:collapse; font-size:14px; table-layout:fixed; }
+        .lcd-tbl td { padding:3px 5px; border-bottom:1px dashed rgba(140,255,150,.12);
+          overflow-wrap:anywhere; word-break:break-word; }
+        .lcd-tbl tr:last-child td { border-bottom:none; }
+        .tk { color:#8f9a6a; letter-spacing:1px; width:38%; }
+        .tv { color:#c9f0ae; text-align:right; }
+        .tv.warn { color:#ff9a6a; } .tv.ok { color:#5dff8f; } .tv.chg { color:#ffd766; }
+
+        .sess-item { padding:4px 4px; border-bottom:1px dashed rgba(140,255,150,.12); font-size:14px; }
+        .sess-item:last-child { border-bottom:none; }
+        .sess-t { color:#d4efb2; overflow-wrap:anywhere; word-break:break-word; }
+        .sess-d { color:#7d8a5e; font-size:12px; margin-top:2px; }
+        .quick-row { display:flex; align-items:center; gap:12px; padding:4px 2px; font-size:14px; flex-wrap:wrap; }
+        .quick-row select { background:#0d1108; color:#c9f0ae; border:1px solid rgba(255,200,90,.35);
+          font-family:inherit; font-size:14px; padding:5px 10px; border-radius:5px; }
+        .saved { color:#5dff8f; font-size:12px; letter-spacing:1px; }
+
+        /* dial matrix rows — live mirror of the ball's ten positions;
+           click a row to arm that dial on the instrument */
+        .dial-row { cursor:pointer; }
+        .dial-row td { transition:color .15s, text-shadow .15s; }
+        .dial-row:hover .tk, .dial-row:hover .tv { color:#eaffd0; }
+        .dial-row.armed .tk, .dial-row.armed .tv { color:${finishTint};
+          text-shadow:0 0 8px ${finishTint}66; }
+        .dial-row.armed .tk::before { content:'◈ '; }
+        .dial-meter { display:block; height:3px; margin-top:2px; border-radius:2px;
+          background:rgba(140,255,150,.10); overflow:hidden; }
+        .dial-meter i { display:block; height:100%; border-radius:2px;
+          background:linear-gradient(90deg, rgba(140,255,150,.35), #c9f0ae);
+          transition:width .2s; }
+        .dial-row.armed .dial-meter i { background:linear-gradient(90deg, ${finishTint}66, ${finishTint}); }
+
+        /* ── hover infopanels — translucent glass sheets floating over the dial ── */
+        .ign-info { position:absolute; z-index:50; min-width:230px; max-width:270px;
+          border-radius:10px; padding:10px 14px;
+          background:rgba(10,12,8,.30);
+          backdrop-filter:blur(8px) saturate(1.15);
+          -webkit-backdrop-filter:blur(8px) saturate(1.15);
+          border:1px solid rgba(255,200,90,.16);
+          box-shadow:0 8px 32px rgba(0,0,0,.30), inset 0 0 40px rgba(120,180,255,.03);
+          color:#c9f0ae; font-size:11.5px; line-height:1.4;
+          pointer-events:none; opacity:0; transform:translateY(6px);
+          transition:opacity .22s ease, transform .22s ease; }
+        .ign-info.on { opacity:1; transform:translateY(0); }
+        .ign-info b { color:#ffd766; letter-spacing:1.2px; font-size:10px;
+          text-transform:uppercase; display:block; margin-bottom:4px;
+          font-family:'Orbitron',monospace; }
+        .ign-info .iv { color:#eaffd0; }
+        .ign-info .im { display:block; height:3px; margin-top:6px; border-radius:2px;
+          background:rgba(140,255,150,.12); overflow:hidden; }
+        .ign-info .im i { display:block; height:100%; border-radius:2px;
+          background:linear-gradient(90deg, ${finishTint}66, ${finishTint}); }
+
+        /* panel anchor zones — invisible hit areas flanking the dial */
+        .ign-hot { position:absolute; cursor:pointer; z-index:40; }
+        .ign-hot:hover ~ .ign-info { opacity:0; }  /* default off until matched */
+
+        /* ── reactor emblem — THE hero, dial-only design (no rails, no tables).
+           REST = oversized: min(155vh,158vw,2000px) — deliberately larger than
+           the viewport, so the instrument is partly off-screen; you see the
+           lower part of the dial and the outer rings run past the edges (the
+           atomic-interference look). The whole unit is one concentric circle
+           (halos = % of wrap, plate = % of wrap, trackball measures the plate),
+           so zoom never disaligns the rings from the dial. */
+        .reactor-wrap { position:relative;
+          width:min(155vh, 158vw, 2000px);
+          height:min(155vh, 158vw, 2000px);
+          min-width:320px; min-height:320px;
+          display:flex; align-items:center; justify-content:center;
+          transition: transform .5s cubic-bezier(.3,1.15,.5,1);
+          transform-origin: 50% 58%;   /* keep the ball (low center) in view */
+          will-change: transform;
+          /* INTERFERENCE BAND: halos are clipped to the instrument's own
+             circular bounds + small margin — the wobble stays a local
+             pattern hugging the dial; nothing ever wanders off to space. */
+          overflow: visible; }
+        /* halos orbit around the DIAL CENTRE — always concentric-within-the-band */
+                .halo { position:absolute; left:50%; top:50%; z-index:4;
+          transform-box: border-box; transform-origin: 50% 50%;
+          border-radius:50%; pointer-events:none;
+          /* solid 3px border, NO drop-shadow filter: filters on huge rotating
+             rings caused GPU tile patches ("black shadows circling") in the
+             Quest WebView. Plain borders composite cheap and never drop tiles. */
+          /* SOLID hairline rings (dotted borders read as broken circles with
+             black gaps on low-DPI WebViews); ring identity comes from the
+             armed highlight + spin speed, not from dot texture */
+          border:2px solid ${coreColor};
+          opacity: .55;
+          will-change: transform; }
+        /* HOVER = contract the UNIT so the whole instrument fits the viewport
+           and every silver pip is visible & adjustable. transform scale only —
+           NEVER width/height animation (that caused the flicker/relayout
+           storm). 1/1.55 ≈ 0.645 brings 155vh fully inside. */
+        .ign-center.lens-on .reactor-wrap { transform: scale(0.645); }
+        /* STAGE 2 — core console: zoom IN toward the ball so the glass + LCD
+           dominate; bigger ball = readable settings, and the horizontal
+           ◀▶ axis hints stand out. Ball grows on a transform-origin that
+           keeps the ball centered in the viewport. */
+        .ign-center.stage2 .reactor-wrap { transform: scale(1.2); transform-origin: 50% 56%; }
+        .ign-center.stage2 .tb-lcd { font-size: 1.15em; }
+        /* STAGE 3 — armed: ZOOM OUT to the whole atom — the 12 rings' warm
+           interference spins fully visible while you decide to fire.
+           Gentle scale breathing so it feels alive. */
+        .ign-center.stage3 .reactor-wrap { transform: scale(0.545); animation: armed-pulse 2.8s ease-in-out infinite; }
+        @keyframes armed-pulse {
+          0%,100% { transform: scale(0.545); }
+          50%     { transform: scale(0.553); } }
+        /* preset chips stay clickable in every stage (pattern-bar z above pulse) */
+        .pattern-bar { position: relative; z-index: 30; }
+        .reactor-plate { position:relative; width:81%; height:81%; display:flex;
+          align-items:center; justify-content:center; border-radius:50%;
+          overflow:visible;
+          background:
+            ${SCREW_BG},
+            radial-gradient(circle at 50% 32%, rgba(77,70,54,.5), rgba(42,36,21,.65) 55%, rgba(21,17,10,.9) 100%),
+            url('/garage/emblem.png') center / cover no-repeat,
+            radial-gradient(circle at 50% 32%, #4d4636, #2a2415 55%, #15110a 100%);
+          border:3px solid rgba(200,160,70,.5);
+          box-shadow: inset 0 3px 2px rgba(255,235,180,.15), inset 0 -10px 30px rgba(0,0,0,.75),
+                      0 14px 44px rgba(0,0,0,.65); }
+
+        .halo.armed-ring { border-color:${finishTint}; }
+
+        /* the trackball instrument itself lives in trackball/trackball.css */
+        .trait-readout { font-size:12px; letter-spacing:1.6px; color:#a9b3d4; text-align:center;
+          font-family:'Share Tech Mono',monospace; max-width:520px; margin:0 auto; }
+        .trait-readout b { color:${finishTint}; font-weight:normal; text-shadow:0 0 8px ${finishTint}66; }
+        .trait-readout .hint { color:#8a94b8; font-size:12px; }
+        .reactor-name { font-family:'Orbitron',monospace; font-size:16px; letter-spacing:4px;
+          color:${coreColor}; text-shadow:0 0 14px ${coreColor}99; }
+        .reactor-label { font-size:13px; letter-spacing:4px; color:#8a94b8; text-transform:uppercase; }
+
+        .ign-log { width:90%; max-width:440px; height:140px; overflow-y:auto;
+          font-size:13px; line-height:1.75; color:#a8d68f;
+          background:rgba(9,13,6,.8); border:1px solid rgba(120,220,130,.2);
+          border-radius:8px; padding:10px 16px;
+          box-shadow: inset 0 2px 10px rgba(0,0,0,.6); }
+        .ign-log .bad { color:#ff9a6a; } .ign-log .good { color:#5dff8f; }
+
+        /* each ring orbits its own warm-shifted centre; rotation rides on top */
+        /* registered custom properties so --dx/--dy can smoothly transition */
+        /* ── pattern bar (below the dial) — absolute sizes, no zoom ── */
+        .pattern-bar { display:flex; align-items:center; flex-wrap:wrap; gap:8px;
+          margin:14px auto 0; max-width:520px; justify-content:center;
+          font-family:'Share Tech Mono',monospace; }
+        .pattern-bar input { font:inherit; font-size:13px; color:#dfe7ff;
+          background:rgba(10,12,8,.45); border:1px solid rgba(255,200,90,.28);
+          border-radius:7px; padding:6px 10px; width:170px; outline:none; }
+        .pattern-bar input:focus { border-color:rgba(255,200,90,.6); }
+        .pattern-bar button { font:inherit; font-size:12px; color:#c9f0ae;
+          background:rgba(10,12,8,.45); border:1px solid rgba(255,200,90,.28);
+          border-radius:7px; padding:6px 10px; cursor:pointer; transition:border-color .2s, color .2s; }
+        .pattern-bar button:hover { color:#eaffd0; border-color:rgba(255,200,90,.6); }
+        .pattern-chip { display:inline-flex; align-items:center;
+          border:1px solid rgba(255,200,90,.22); border-radius:7px; overflow:hidden; }
+        .pattern-chip button { border:none; border-radius:0; }
+        .pattern-chip .del { color:#ff9a6a; padding:6px 7px; }
+        .pattern-chip .del:hover { color:#ffc4a8; }
+        .pattern-msg { font-size:11px; color:#8a94b8; letter-spacing:.6px; }
+        .pattern-msg.armed { color:#5dff8f; }
+
+                /* whole-transform animation — centering rides inside every frame;
+           mixing rotate/scale individual properties with transform misordered
+           the composition and let ring centers drift (the galaxy-orbit bug) */
+        @keyframes ignSpin {
+          from { transform: translate(-50%, -50%) rotate(0deg); }
+          to   { transform: translate(-50%, -50%) rotate(360deg); } }
+        @keyframes ignBreathe {
+          0%,100% { box-shadow:0 0 40px #ff352455, inset 0 0 30px #ff352433; }
+          50% { box-shadow:0 0 90px #ff352499, inset 0 0 52px #ff352455; } }
+        @media (max-width: 1100px) {
+          .ign-stage { flex-direction:column; overflow-y:auto; justify-content:center; }
+          .ign-center { order:1; overflow:visible; }
+          .reactor-wrap { width:min(130vh, 135vw, 1700px); height:min(130vh, 135vw, 1700px); }
+        }
+      

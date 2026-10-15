@@ -30,7 +30,7 @@ export interface KeyboardState {
     keysDown: string[];  // Current keys being pressed
 }
 
-const WS = 'ws://localhost:8005/controller'; // Controller WebSocket endpoint
+const WS = 'ws://localhost:8410/controller'; // hands/motor — virtual gamepad service
 const VIGEM = '/api/controller/vigem';
 
 export class GameController {

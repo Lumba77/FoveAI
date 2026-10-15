@@ -1,9 +1,9 @@
-set(CMAKE_HOST_SYSTEM "Linux-7.2.3-200.nobara.fc44.x86_64")
+set(CMAKE_HOST_SYSTEM "Linux-7.0.0-38-generic")
 set(CMAKE_HOST_SYSTEM_NAME "Linux")
-set(CMAKE_HOST_SYSTEM_VERSION "7.2.3-200.nobara.fc44.x86_64")
+set(CMAKE_HOST_SYSTEM_VERSION "7.0.0-38-generic")
 set(CMAKE_HOST_SYSTEM_PROCESSOR "x86_64")
 
-include("/home/lumba/Unity/Hub/Editor/6000.4.9f1/Editor/Data/PlaybackEngines/AndroidPlayer/NDK/build/cmake/android.toolchain.cmake")
+include("/opt/android-sdk/Sdk/ndk/27.2.12479018/build/cmake/android.toolchain.cmake")
 
 set(CMAKE_SYSTEM "Android-1")
 set(CMAKE_SYSTEM_NAME "Android")

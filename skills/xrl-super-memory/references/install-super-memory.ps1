@@ -5,7 +5,7 @@
 param(
     [string]$RepoRoot = 'C:\Users\danie\program\LUMAX',
     [string]$ProxyPort = '8400',
-    [string]$DashboardPort = '8401',
+    [string]$DashboardPort = '8414',
     [switch]$SkipProxyCheck,
     [switch]$SkipWTProfile
 )

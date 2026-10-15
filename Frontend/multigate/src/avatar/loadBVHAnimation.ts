@@ -83,18 +83,8 @@ export async function loadBVHAnimation(url: string, vrm: VRM): Promise<THREE.Ani
         const tracks: THREE.KeyframeTrack[] = [];
         let mappedCount = 0;
 
-        const restRotationInverse = new THREE.Quaternion();
-        const parentRestWorldRotation = new THREE.Quaternion();
-        const _quatA = new THREE.Quaternion();
 
-        // Calculate hips position scale dynamically
-        let hipsPositionScale = 0.01;
-        const bvhHips = result.skeleton.bones.find((b: any) => b.name.toLowerCase().includes('hip') || b.name === 'joint_Root');
-        if (bvhHips && vrm.humanoid?.normalizedRestPose?.hips) {
-            const motionHipsHeight = bvhHips.position.y;
-            const vrmHipsHeight = vrm.humanoid.normalizedRestPose.hips.position?.[1] ?? 1.0;
-            if (motionHipsHeight > 0) hipsPositionScale = vrmHipsHeight / motionHipsHeight;
-        }
+        // (hips height auto-mapping removed — computed scale was never applied)
 
         clip.tracks.forEach((track) => {
             const trackSplitted = track.name.split('.');

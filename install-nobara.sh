@@ -513,7 +513,7 @@ fi
 step 3 "Firewall configuration"
 
 if command_exists "firewall-cmd"; then
-    TCP_PORTS="22 3389 47989 47990 48010 5177 5901 8400 8401 8402 8403 8409 8888"
+    TCP_PORTS="22 3389 47989 47990 48010 5177 5901 8400 8408 8402 8403 8414 8888"
     UDP_PORTS="47998 47999 48000 48010"
 
     OPENED_TCP=0
@@ -662,10 +662,10 @@ check_port() {
 }
 
 check_port 8400 "Foveated Memory Proxy"
-check_port 8401 "Memory Dashboard"
+check_port 8414 "Memory Dashboard"
 check_port 8402 "XRLF Runtime"
 check_port 8403 "WebSocket IPC"
-check_port 8409 "Ignition Server"
+check_port 8416 "Ignition Server"
 check_port 8888 "APK Server"
 
 log "Backend stack checked."
@@ -757,7 +757,7 @@ ingress:
   # Memory Dashboard
   - hostname: xarel.net
     path: /dashboard/*
-    service: http://localhost:8401
+    service: http://localhost:8414
 
   # Foveated Memory Proxy
   - hostname: xarel.net
@@ -767,7 +767,7 @@ ingress:
   # Ignition control
   - hostname: xarel.net
     path: /ignition/*
-    service: http://localhost:8409
+    service: http://localhost:8401
 
   # APK download
   - hostname: xarel.net
@@ -1025,8 +1025,8 @@ echo "  FoveAI Stack:"
 echo "    Foveated Memory  :8400  $(port_open 8400 && echo -e "${GREEN}✓${NC}" || echo -e "${RED}✗${NC}")"
 echo "    XRLF Runtime     :8402  $(port_open 8402 && echo -e "${GREEN}✓${NC}" || echo -e "${RED}✗${NC}")"
 echo "    WebSocket IPC    :8403  $(port_open 8403 && echo -e "${GREEN}✓${NC}" || echo -e "${RED}✗${NC}")"
-echo "    Dashboard        :8401  $(port_open 8401 && echo -e "${GREEN}✓${NC}" || echo -e "${RED}✗${NC}")"
-echo "    Ignition         :8409  $(port_open 8409 && echo -e "${GREEN}✓${NC}" || echo -e "${RED}✗${NC}")"
+echo "    Dashboard        :8414  $(port_open 8414 && echo -e "${GREEN}✓${NC}" || echo -e "${RED}✗${NC}")"
+echo "    Ignition         :8416  $(port_open 8416 && echo -e "${GREEN}✓${NC}" || echo -e "${RED}✗${NC}")"
 echo "    Multigate        :5177  $(port_open 5177 && echo -e "${GREEN}✓${NC}" || echo -e "${RED}✗${NC}")"
 echo "    APK Server       :8888  $(port_open 8888 && echo -e "${GREEN}✓${NC}" || echo -e "${RED}✗${NC}")"
 echo "    Cloudflare       xarel  $(process_running cloudflared && echo -e "${GREEN}✓${NC}" || echo -e "${RED}✗${NC}")"

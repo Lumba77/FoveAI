@@ -328,3 +328,9 @@ AGENT.md
 .ssh/
 .env.bak*
 client_quest/Packages/com.meta.xr.sdk.interaction-205.0.0.tgz
+
+# checkpoint-commit hygiene (2026-10-01)
+Nursery/
+*.env.pre-*bak
+*.env.*bak
+cloudflare-gateway-ca.pem

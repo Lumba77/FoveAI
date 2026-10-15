@@ -712,7 +712,10 @@ SELF_AGENCY_PATTERN = re.compile(
     r"<self:speak\s*>(.*?)</self:speak>|"
     r'<self:task_done\s+id="(\d+)"\s*>(.*?)</self:task_done>|'
     r'<self:todo\s+id="(\d+)"\s*>(.*?)</self:todo>|'
-    r'<self:step_done\s+plan="(\d+)"\s+step="(\d+)"\s*>(.*?)</self:step_done>',
+    r'<self:step_done\s+plan="(\d+)"\s+step="(\d+)"\s*>(.*?)</self:step_done>|'
+    # filesystem eyes appended LAST so existing positional groups keep their numbers
+    r'<self:ls(?:\s+"?(?P<ls_path>[^"]*)"?)?\s*>|'
+    r'<self:read\s+"?(?P<read_path>[^"]+)"?(?:\s+"?(?P<read_start>\d+)"?)?\s*>',
     re.IGNORECASE | re.DOTALL,
 )
 
@@ -1255,6 +1258,60 @@ def parse_and_execute_self_agency(text: str) -> list[dict[str, Any]]:
                         "error": f"plan {plan_id} step {step_idx} not found",
                     }
                 )
+            continue
+
+        # Named groups (appended last): filesystem eyes — ls / read
+        if match.group(0).lower().lstrip().startswith("<self:ls"):
+            ls_path = (match.groupdict().get("ls_path") or ".").strip() or "."
+            try:
+                from coder_tools import repo_list_dir
+
+                res = repo_list_dir(ls_path)
+                if "error" in res:
+                    results.append({"type": "ls", "path": ls_path, "error": res["error"]})
+                else:
+                    results.append(
+                        {
+                            "type": "ls",
+                            "path": res["dir"],
+                            "entries": res["entries"][:120],
+                        }
+                    )
+                    log_action(
+                        "fs_ls", {"path": res["dir"]}, "Jen listed a directory"
+                    )
+            except Exception as ls_err:
+                results.append({"type": "ls", "path": ls_path, "error": str(ls_err)})
+            continue
+
+        g = match.groupdict()
+        if g.get("read_path"):
+            read_path = g["read_path"].strip()
+            read_start = int(g.get("read_start") or 1)
+            read_end = read_start + 199
+            try:
+                from coder_tools import repo_read_file
+
+                res = repo_read_file(read_path, start=read_start, end=read_end)
+                if "error" in res:
+                    results.append({"type": "read", "path": read_path, "error": res["error"]})
+                else:
+                    results.append(
+                        {
+                            "type": "read",
+                            "path": res["file"],
+                            "total_lines": res["total_lines"],
+                            "from_line": read_start,
+                            "content": res["content"],
+                        }
+                    )
+                    log_action(
+                        "fs_read",
+                        {"path": res["file"], "from_line": read_start},
+                        "Jen read a file window",
+                    )
+            except Exception as r_err:
+                results.append({"type": "read", "path": read_path, "error": str(r_err)})
             continue
 
     return results

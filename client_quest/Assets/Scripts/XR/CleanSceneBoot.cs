@@ -54,7 +54,7 @@ namespace FoveAI.XR
         [SerializeField] private float pinchThreshold = 0.8f;
 
         [Header("Web UI Panel")]
-        [SerializeField] private string webUiBase = "http://192.168.8.100:5177";
+        [SerializeField] private string webUiBase = "http://192.168.8.109:5177";
 
         private FoveAI.UI.WebViewPanel webPanel;
         private string ChatUrl => webUiBase + "/chat";

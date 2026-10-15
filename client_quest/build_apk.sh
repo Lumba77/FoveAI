@@ -10,15 +10,38 @@
 set -euo pipefail
 
 PROJECT_DIR="/home/lumba/FoveAI/client_quest"
-# Auto-detect the newest installed Unity 6000.x editor (Hub installs to ~/Unity/Hub/Editor/<ver>/Editor/Unity)
-UNITY_EDITOR="$(ls -d /home/lumba/Unity/Hub/Editor/*/Editor/Unity 2>/dev/null | sort -V | tail -1)"
+# Auto-detect the newest installed Unity 6000.x editor (Hub installs to /opt/Unity or ~/Unity/Hub/Editor/<ver>/Editor/Unity)
+UNITY_EDITOR="$(ls -d /opt/Unity/Unity-*/Editor/Unity 2>/dev/null | sort -V | tail -1)"
+if [ -z "$UNITY_EDITOR" ]; then
+    UNITY_EDITOR="$(ls -d /home/lumba/Unity/Hub/Editor/*/Editor/Unity 2>/dev/null | sort -V | tail -1)"
+fi
 if [ -z "$UNITY_EDITOR" ] || [ ! -x "$UNITY_EDITOR" ]; then
-    echo "ERROR: No Unity editor found under /home/lumba/Unity/Hub/Editor/"
+    echo "ERROR: No Unity editor found under /opt/Unity/ or /home/lumba/Unity/Hub/Editor/"
     echo "Install Unity 6000.x via Unity Hub first (with Android Build Support)."
     exit 1
 fi
-ANDROID_SDK_ROOT="$(dirname "$UNITY_EDITOR")/Data/PlaybackEngines/AndroidPlayer/SDK"
-ANDROID_NDK_ROOT="$(dirname "$UNITY_EDITOR")/Data/PlaybackEngines/AndroidPlayer/NDK"
+# 2026-10-09: the Hub-internal Android SDK was wiped in the migration — the SDK now lives
+# here (installed via cmdline-tools; see unity-quest-bridge skill):
+# NOTE: these MUST be exported, not just shell-assigned. Unity 6 reads ANDROID_SDK_ROOT from the
+# environment during its startup InitializeOnLoad; without export it reported "Android SDK: ''"
+# and -androidSdkPath alone was discarded, failing with "Invalid SDK directory path".
+export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-/home/lumba/Android/Sdk}"
+export ANDROID_HOME="$ANDROID_SDK_ROOT"
+# 2026-10-09: Unity 6000.4 rejects NDK r27 ("Android NDK not found or invalid") — it requires
+# r28. Installed via sdkmanager alongside the SDK (which now lives on sda2 via /opt symlink).
+export ANDROID_NDK_ROOT="${ANDROID_NDK_ROOT:-/home/lumba/Android/Sdk/ndk/27.2.12479018}"
+# The Unity AndroidPlayer module on this machine is EMPTY (no bundled OpenJDK),
+# so Unity has no JDK to fall back on and the preferences typed into the Editor
+# are not on disk (no EditorPrefs). Without JAVA_HOME the batch build dies with
+# "No Java Development Kit found" halfway through.
+export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}"
+# Unity's IL post-processor socket lives in /tmp, and systemd-tmpfiles-clean is
+# active on this box. A vanished /tmp/ilpp.sock-* kills the compiler backend with
+# "Can't find file ...ilpp.sock" — which looks like a compile failure but is not
+# one. Point TMPDIR at a persistent, user-owned directory instead.
+export TMPDIR="${TMPDIR:-$PROJECT_DIR/Temp/unitytmp}"
+mkdir -p "$TMPDIR"
+export PATH="$JAVA_HOME/bin:$PATH"
 # Parse arguments
 CORES=6
 OUTPUT_APK="$PROJECT_DIR/AliceVR.apk"
@@ -60,8 +83,31 @@ else
     EXTRA_UNITY_ARGS=()
 fi
 # Unity 6 aborts even in -batchmode without an X display on this machine (Xwayland on tty2)
-export DISPLAY="${DISPLAY:-:0}"
+# 2026-10-09: on this machine the working X display is :20 (chrome-remote-desktop's Xwayland);
+# :0 is the dead Budgie tty. Unity batchmode aborts without a live X.
+if ! xdpyinfo -display "${DISPLAY:-:20}" >/dev/null 2>&1; then
+  for d in :20 :0 :1; do
+    if xdpyinfo -display "$d" >/dev/null 2>&1; then export DISPLAY="$d"; break; fi
+  done
+else
+  export DISPLAY="${DISPLAY:-:20}"
+fi
+echo "Using DISPLAY=$DISPLAY"
 echo ""
+
+# ── preflight ────────────────────────────────────────────────────────────────
+# Every one of these has silently produced a confusing failure at least once.
+PRE_FAIL=0
+[ -x "$UNITY_EDITOR" ]              || { echo "PREFLIGHT: editor missing: $UNITY_EDITOR"; PRE_FAIL=1; }
+[ -d "$ANDROID_SDK_ROOT" ]          || { echo "PREFLIGHT: SDK missing: $ANDROID_SDK_ROOT"; PRE_FAIL=1; }
+[ -d "$ANDROID_NDK_ROOT" ]          || { echo "PREFLIGHT: NDK missing: $ANDROID_NDK_ROOT"; PRE_FAIL=1; }
+[ -x "$JAVA_HOME/bin/java" ]        || { echo "PREFLIGHT: JDK missing: $JAVA_HOME/bin/java"; PRE_FAIL=1; }
+[ -f "$PROJECT_DIR/Assets/Scripts/Editor/BuildAPKBatch.cs" ] \
+                                    || { echo "PREFLIGHT: BuildAPKBatch.cs missing — nothing to execute"; PRE_FAIL=1; }
+ls "$HOME/.local/share/unity3d/Unity/Unity_lic.ulf" >/dev/null 2>&1 \
+                                    || echo "PREFLIGHT WARNING: no standalone Unity licence — the build will prompt or fail"
+[ $PRE_FAIL -eq 0 ] && echo "preflight OK: editor + SDK + NDK + JDK + build method all present"
+[ $PRE_FAIL -ne 0 ] && { echo "preflight FAILED — fix the above before building"; exit 1; }
 
 # Clean old build artifacts (but keep Library for caching)
 rm -f "$PROJECT_DIR/build/outputs/apk/android/AliceVR.apk" 2>/dev/null || true
@@ -77,8 +123,10 @@ rm -f "$PROJECT_DIR/build/outputs/apk/android/AliceVR.apk" 2>/dev/null || true
     -buildTarget Android \
     -androidSdkPath "$ANDROID_SDK_ROOT" \
     -androidNdkPath "$ANDROID_NDK_ROOT" \
-    -keystore "" \
-    -keyalias "" \
+    -jdkPath "$JAVA_HOME" \
+    # NOTE: must NOT pass empty -keystore/-keyalias here — Unity treats those as explicit
+    # overrides and silently falls back to debug signing, which caused the install conflict.
+    # BuildAPKBatch.cs wires keystore/alicevr.keystore itself; leave it to do the work.
     2>&1 | tail -50
 
 BUILD_EXIT=$?

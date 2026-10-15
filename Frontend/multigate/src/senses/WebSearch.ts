@@ -18,7 +18,7 @@ export class WebSearch {
 
     constructor(braveApiKey?: string, logFn?: (m: string, c: string) => void) {
         this.braveKey = braveApiKey || null;
-        this.log = logFn || ((m, c) => console.log('[WebSearch] ' + m));
+        this.log = logFn || ((m, _c) => console.log('[WebSearch] ' + m));
     }
 
     /** DuckDuckGo search (free, no key needed). */

@@ -1,0 +1,15 @@
+[Unit]
+Description=FoveAI Nerve — presence cells, resonance bus (CPU-only, ~0 VRAM)
+After=network.target
+
+[Service]
+Type=simple
+User=lumba
+WorkingDirectory=/home/lumba/FoveAI
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/lumba/FoveAI/.venv/bin/python -m runtime.nerve run
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

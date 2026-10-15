@@ -1,44 +1,30 @@
-# .tokenslayer-ignore
-# Files and directories to EXCLUDE from repo-skeleton.md generation.
-# Pattern format: glob-style paths relative to repo root.
-# Lines starting with # are comments. Empty lines are ignored.
+# .xrl-ignore — files/dirs EXCLUDED from repo-principia.md (XRL scan)
+# Aligned with the Linux-era live architecture (2026-10-06):
+# scan COVERS the live stack (multigate, foveated-memory, theme, XR_Vessel,
+# Copilot, Mouth, run_xrlf, server_config) and skips Windows-era artifacts,
+# archives, heavy binaries and third-party trees.
 
-# === SCRIPTS: Old/one-time/unused ===
+# === Windows-era / one-time scripts ===
 Scripts/AUTOTEST_*.ps1
-Scripts/backup_lumax_transplant_worktree.ps1
 Scripts/bootstrap_lumax.ps1
 Scripts/clean_inventory.py
 Scripts/compare_lumax_trees.ps1
-Scripts/convert_llama_hf_to_gguf.ps1
 Scripts/cron_librarian_map.ps1
 Scripts/dedup_memory.py
 Scripts/disaster_backup.ps1
 Scripts/fix_home_permissions.ps1
 Scripts/generate_soundboard_defaults.py
-Scripts/generate-repo-skeleton.cmd
-Scripts/generate-repo-skeleton.ps1
-Scripts/index_forge_findings.py
-Scripts/lumax_soundboard_server.py
-Scripts/optimus_prime.md
-Scripts/post-analysis*.ps1
+Scripts/*.cmd
+Scripts/*.ps1
+Scripts/windows/
+Scripts/lumax_*.py
 Scripts/pull_ollama_backup_models.ps1
-Scripts/refresh_and_start_lumax.ps1
-Scripts/requirements.mouth.txt
-Scripts/requirements.soundboard.txt
+Scripts/post-analysis*.ps1
 Scripts/safe_backup.ps1
 Scripts/sync_newer_from_lumax.ps1
-Scripts/unity_errors.*
-Scripts/automation/agent_router.ps1
-Scripts/automation/godot_guardian_sync.ps1
-Scripts/automation/preflight.ps1
-Scripts/automation/q.*
-Scripts/automation/solver_runner.py
-Scripts/automation/watchdog_*
-Scripts/windows/Bootstrap-LUMAX.ps1
-Scripts/windows/PreUpgrade-Backup.ps1
-Scripts/windows/swap_vhdx.ps1
+Scripts/automation/
 
-# === TOOLS: Non-core utilities, experiments, noise ===
+# === Tools: dormant / Windows-era ===
 Tools/crypt_manager.py
 Tools/deadsure_watchdog.py
 Tools/dormant_egg.py
@@ -50,81 +36,43 @@ Tools/json_to_vrma.py
 Tools/library-indexer.py
 Tools/npu_bridge.py
 Tools/repair_hf_symlinks.py
-Tools/start-solver-service.ps1
-Tools/test_soul_local.ps1
+Tools/shortcuts/
 Tools/div/
 Tools/invokeai_models_mount_stub/
 Tools/ludo/
-Tools/lumax_stress_meter/
-Tools/lumax_top_bar/
-Tools/lumax_tray/
-Tools/lumax-solver/
-Tools/lumax-xrl/
+Tools/lumax_*/
 Tools/playbooks/
 Tools/WebVM/
 
-# === FRONTEND: Non-core subprojects ===
+# === Frontend: dormant/superseded (multigate, XR_Vessel, Copilot, Mouth STAY IN) ===
 Frontend/3D_Avatar_Chatbot/
 Frontend/Agency/
 Frontend/audio_ref/
 Frontend/ChromeExtension/
 Frontend/ConsentBridge/
 Frontend/Desktop/
-Frontend/Mouth/
 Frontend/Phone_Wrapper/
 Frontend/Physical_Interface/
 Frontend/Tools/
-Frontend/XR_Vessel/
+Frontend/Web/
+Frontend/Webui/
+Frontend/*.html
+Frontend/app.js
+Frontend/check-avatars.py
 
-# === FORGE: Non-core scratch experiments ===
-Forge/scratch/TokenSlayer/standalone/tokenslayer-batch.js
-Forge/scratch/TokenSlayer/standalone/tokenslayer_wrapper.py
+# === Archive / lineage / scratch ===
+Archive/
+Forge/scratch/
 Forge/Cloud/
-Forge/Quest_Vessel/
-Forge/tools/
-Forge/ui/
-Forge/config/
-Forge/data/
-Forge/logs/
-
-# === BACKEND: Non-core services (keep core Cognition/Memory/Creativity/Monetizing) ===
-Backend/HomeAssistant/
-Backend/SpatialMachines/
-# Keep excluded: one-time migrations, tests, visualization tools, startup scripts
-Backend/Monetizing/test_real_trading.py
-Backend/Monetizing/migrate_to_sqlite.py
-Backend/Monetizing/paper_trading_engine.py
-Backend/Cognition/visualize_architecture.py
-Backend/Cognition/visualize_relay.py
-Backend/Creativity/start_creative_with_env.py
-Backend/Memory/import_lumax_sessions.py
-Backend/Memory/session_importer.py
-
-# === OTHER NOISE ===
-Body/
-Build/
-Data/datasets/
-Data/lists/
-Data/stocks/
-Data/xr_snapshots/
-db/
-Dev/
-div/
-LumaxAI/
-ops/
-projects/
+Lumax old files for reference/
+backups/
 scratch/
-Service/
+selfcoder/
+sessions/
+_old_*/
+*_archive_v1.py
 
-# === BACKUP / CACHE / LOGS ===
-.backups/
-.backup_fixes/
-.SafeSave/
-.SafeSaves/
-.pytest_cache/
-logs/
-_agent/
-.agent/
+# === Dotdirs / agents / caches ===
 .agent-doc/
 .agents/
 .ai/
@@ -137,24 +85,44 @@ _agent/
 .lean_ai/
 .lumax/
 .roo/
-sessions/
 skills/
 Training/
 unsloth_compiled_cache/
 user_data/
-backups/
-Archive/
+outputs/
+Nursery/
+ops/
 
-# === BUILD ARTIFACTS / DEPENDENCIES ===
+# === Heavy / binary / third-party ===
+client_quest/          # Unity editor cache (thousands of C# files)
+client_desktop/
+Builds/
+Build/
+media/
+models/
+Models/
+xrl_encoded/
+*.xrlf
+*.xrlf.cache
+*.apk
+*.onnx
+*.bin
+db/
+memory/
+memory_data/
+chroma_db/
+Body/
+Data/
+
+# === Dev / runtime ===
 node_modules/
 __pycache__/
 .venv/
 .vscode/
+.code-workspace
 *.egg-info/
 *.pyc
 .DS_Store
 thumbs.db
-
-# === TEST DATA (non-core) ===
 tests/test_data/
-tests/fixtures/
+dist/

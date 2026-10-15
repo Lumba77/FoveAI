@@ -6,8 +6,8 @@
 #   1. Foveated Memory Proxy  (:8400)  — Node.js proxy (Jenna, Quest, WebXR)
 #   2. XRLF Runtime + API     (:8402)  — Gemma 4 E2B model (local LLM)
 #   3. WebSocket IPC          (:8403)  — Real-time avatar/soul bridge
-#   4. Memory Dashboard       (:8401)  — Web UI for memory inspection
-#   5. Ignition Server        (:8409)  — Lightweight HTTP trigger for the button
+#   4. Memory Dashboard       (:8414)  — Web UI for memory inspection
+#   5. Ignition Server        (:8416)  — Lightweight HTTP trigger for the button
 #   6. APK Download Server    (:8888)  — Serves AliceVR.apk to Quest browser
 #   7. Multigate Frontend     (:5177)  — React dashboard (xarel.net)
 #   8. XR Vessel Frontend     (:5176)  — WebXR Three.js avatar scene
@@ -51,8 +51,13 @@ VENV_PYTHON="$FOVEAI_DIR/.venv/bin/python"
 BACKEND_PORT=8400
 XRLF_PORT=8402
 WS_PORT=8403
-DASHBOARD_PORT=8401
-IGNITION_PORT=8409
+DASHBOARD_PORT=8414
+SOUL_PORT=8405
+TTS_PORT=8401
+RELAY_PORT=8413
+CREATIVE_PORT=8412
+STT_PORT=8408
+IGNITION_PORT=8416
 APK_PORT=8888
 MULTIGATE_PORT=5177
 VESSEL_PORT=5176
@@ -138,7 +143,7 @@ start_frontends() {
     local lan_ip
     lan_ip="$(hostname -I | awk '{print $1}')"
 
-    # Multigate (React dashboard — port 5177)
+    # Multigate (React dashboard — port 8414)
     if port_alive "$MULTIGATE_PORT"; then
         log "Multigate already running (:$MULTIGATE_PORT)"
     elif [ -f "$MULTIGATE_DIR/package.json" ] && command -v npm &>/dev/null; then
@@ -196,6 +201,11 @@ cmd_status() {
         "XRLF Runtime:$XRLF_PORT" \
         "WS-IPC:$WS_PORT" \
         "Dashboard:$DASHBOARD_PORT" \
+        "Soul:$SOUL_PORT" \
+        "TTS:$TTS_PORT" \
+        "Relay:$RELAY_PORT" \
+        "Creative:$CREATIVE_PORT" \
+        "STT:$STT_PORT" \
         "Ignition:$IGNITION_PORT" \
         "Multigate:$MULTIGATE_PORT" \
         "XR Vessel:$VESSEL_PORT" \
@@ -228,11 +238,38 @@ cmd_status() {
 
 # ─── Stop ───────────────────────────────────────────────────────────
 
+# systemd fleet units (installed from /tmp/opencode/units — see
+# sleipnir_launcher.sh). When present, stop/start/status all wrap systemctl
+# across the entire stack: 8400/8412/8402/8403/8405/8401/8413/8413/8409.
+have_fleet_unit() {
+    command -v systemctl &>/dev/null && systemctl cat "$1" &>/dev/null
+}
+
+FLEET_UNITS=(
+    foveai-nerve.service
+    foveai-residency.service
+    foveai-backend.service
+    foveai-xrlf.service
+    foveai-soul.service
+    foveai-tts.service
+    foveai-relay.service
+    foveai-creative.service
+    foveai-stt.service
+)
+
 cmd_stop() {
     log "Stopping FoveAI fleet..."
     stop_frontends
     stop_apk_server
     stop_ignition
+    local units=()
+    for u in "${FLEET_UNITS[@]}"; do
+        have_fleet_unit "$u" && units+=("$u")
+    done
+    if [ ${#units[@]} -gt 0 ]; then
+        sudo systemctl stop "${units[@]}" 2>/dev/null || \
+            systemctl stop "${units[@]}" 2>/dev/null || true
+    fi
     if [ -f "$SLEIPNIR" ]; then
         bash "$SLEIPNIR" --stop 2>/dev/null || true
     fi
@@ -305,8 +342,8 @@ Services started:
   :8400  Foveated Memory Proxy (Node.js — Jenna, Quest, WebXR)
   :8402  XRLF Runtime (Gemma 4 E2B local LLM)
   :8403  WebSocket IPC (real-time avatar/soul bridge)
-  :8401  Memory Dashboard (web UI)
-  :8409  Ignition Server (HTTP trigger for multigate button)
+  :8414  Memory Dashboard (web UI)
+  :8401  Ignition Server (HTTP trigger for multigate button)
   :8888  APK Download Server (serves AliceVR.apk to Quest)
   :5177  Multigate Frontend (React dashboard)
   :5176  XR Vessel Frontend (WebXR Three.js avatar scene)

@@ -3,7 +3,7 @@
  *
  * Manages the Python-based audio recorder subprocess for voice input.
  * Provides push-to-talk and continuous voice recording modes.
- * Audio is transcribed via the foveated memory proxy (port 8400, /api/soul/stt).
+ * Audio is transcribed via the foveated memory proxy (port 8401, /api/soul/stt).
  */
 
 import * as vscode from 'vscode';

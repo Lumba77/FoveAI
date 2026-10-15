@@ -33,11 +33,12 @@ logger = logging.getLogger("stt_server")
 import os
 
 HOST = os.getenv("STT_HOST", "0.0.0.0")
-PORT = int(os.getenv("STT_PORT", "8409"))
+PORT = int(os.getenv("STT_PORT", "8401"))
+HTTP_PORT = int(os.getenv("STT_HTTP_PORT", "8430"))  # POST /stt for browsers (webm→whisper)
 SAMPLE_RATE = 16000
 WHISPER_MODEL = os.getenv(
     "STT_MODEL",
-    r"C:\Users\danie\.cache\huggingface\hub\models--Systran--faster-whisper-base.en\snapshots\3d3d5dee26484f91867d81cb899cfcf72b96be6c",
+    "Systran/faster-whisper-small.en",   # repo id — resolved from HF cache
 )
 DEVICE = os.getenv("STT_DEVICE", "cpu")
 COMPUTE_TYPE = os.getenv("STT_COMPUTE_TYPE", "int8" if DEVICE == "cpu" else "float16")
@@ -250,10 +251,64 @@ async def handle_client(websocket, path=None):
         audio_buffer.clear()
 
 
+async def handle_http(reader, writer):
+    """Minimal HTTP: POST /stt {audio_base64, format} → {text}.
+    Browser MediaRecorder produces webm/opus; ffmpeg decodes to 16k PCM
+    and the same whisper pipeline as the WS path runs. (2026-10-08: the
+    frontend posted /api/soul/stt — the route never existed; 'listening'
+    ate words. Now the browser path is real.)"""
+    import base64 as _b64, subprocess as _sp, tempfile as _tf, os as _os, json as _json
+    try:
+        raw = await asyncio.wait_for(reader.read(64 * 1024 * 1024), timeout=60)
+        head, _, body = raw.partition(b"\r\n\r\n")
+        # keep reading if content-length says more (simple robustness for big chunks)
+        cl = 0
+        for line in head.split(b"\r\n"):
+            if line.lower().startswith(b"content-length:"):
+                cl = int(line.split(b":")[1].strip())
+        while len(body) < cl:
+            body += await asyncio.wait_for(reader.read(64 * 1024 * 1024), timeout=30)
+        if b"POST /stt" not in head.split(b"\r\n")[0]:
+            writer.write(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n")
+            await writer.drain(); writer.close(); return
+        payload = _json.loads(body or b"{}")
+        audio = _b64.b64decode(payload.get("audio_base64", "") or "")
+        # PyAV decode (ffmpeg binary absent on this host): webm/opus → 16k mono float32
+        import io as _io
+        import av as _av
+        container = _av.open(_io.BytesIO(audio))
+        frames = []
+        resampler = _av.AudioResampler(format='s16', layout='mono', rate=16000)
+        for frame in container.decode(audio=0):
+            for rf in resampler.resample(frame):
+                frames.append(rf.to_ndarray().tobytes())
+        pcm = b"".join(frames)
+        np_pcm = WhisperSTTServer.pcm_to_numpy(pcm)
+        result = _get_stt().transcribe(np_pcm)
+        out = _json.dumps(result).encode()
+        writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                     b"Access-Control-Allow-Origin: *\r\nContent-Length: "
+                     + str(len(out)).encode() + b"\r\n\r\n" + out)
+        await writer.drain()
+    except Exception as e:
+        logger.error(f"HTTP STT error: {e}")
+        try:
+            writer.write(b'HTTP/1.1 500\r\nContent-Type: application/json\r\n\r\n{"text":"","error":"stt failed"}')
+            await writer.drain()
+        except Exception:
+            pass
+    finally:
+        try: writer.close()
+        except Exception: pass
+
+
 async def main():
-    logger.info(f"Starting STT WebSocket server on {HOST}:{PORT} (path=/ws)")
+    logger.info(f"Starting STT WebSocket server on {HOST}:{PORT} (path=/ws, POST /stt)")
     _get_stt()  # warm the model before the port opens
-    async with websockets.serve(handle_client, HOST, PORT, max_size=2**20):
+    # HTTP bridge shares the port via a starter protocol split: HTTP on same
+    # socket is complex — use a dedicated port + vite proxy instead.
+    http_srv = await asyncio.start_server(handle_http, HOST, HTTP_PORT)
+    async with websockets.serve(handle_client, HOST, PORT, max_size=2**20), http_srv:
         await asyncio.Future()  # run forever
 
 

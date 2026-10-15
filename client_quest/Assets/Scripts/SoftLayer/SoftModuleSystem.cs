@@ -32,8 +32,8 @@ namespace FoveAI.SoftLayer
     public class SoftModuleSystem : MonoBehaviour
     {
         [Header("Backend")]
-        [SerializeField] private string backendUrl = "http://192.168.8.100:8402";
-        [SerializeField] private string wsUrl = "ws://192.168.8.100:8403/ws";
+        [SerializeField] private string backendUrl = "http://192.168.8.109:8402";
+        [SerializeField] private string wsUrl = "ws://192.168.8.109:8403/ws";
 
         [Header("Default Modules")]
         [SerializeField] private string[] defaultModules = {

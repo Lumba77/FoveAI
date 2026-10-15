@@ -7,7 +7,7 @@
 #   - Foveated Memory Proxy  (:8400)
 #   - XRLF Runtime + API     (:8402)
 #   - WebSocket IPC          (:8403)
-#   - Memory Dashboard       (:8401)
+#   - Memory Dashboard       (:8414)
 #
 # The model loads in "dormant" mode — VRAM allocated, ready for inference,
 # but no active generation until a request arrives.
@@ -33,7 +33,31 @@ XRLF_MODEL_PATH="xrl_encoded/$MODEL"
 XRLF_PORT=8402
 XRLF_WS_PORT=8403
 BACKEND_PORT=8400
-DASHBOARD_PORT=8401
+DASHBOARD_PORT=8414
+
+# Companion services (orphaned since migration — now systemd-managed).
+# STT (:8401) is WebSocket-only: probed via TCP, not HTTP.
+SOUL_PORT=8405
+TTS_PORT=8409
+RELAY_PORT=8413
+STT_PORT=8414
+
+# systemd fleet units — the launcher is a thin wrapper once these exist.
+have_unit() {
+    command -v systemctl &>/dev/null && systemctl cat "$1" &>/dev/null
+}
+
+FLEET_UNITS=(
+    foveai-nerve.service
+    foveai-residency.service
+    foveai-backend.service
+    foveai-xrlf.service
+    foveai-soul.service
+    foveai-tts.service
+    foveai-relay.service
+    foveai-creative.service
+    foveai-stt.service
+)
 
 # ─── Helpers ────────────────────────────────────────────────────────
 log()  { echo "🛸 [Sleipnir] $*"; }
@@ -79,7 +103,7 @@ load_env() {
 
 load_env
 
-CREATIVE_PORT="${FOVEAI_CREATIVE_PORT:-8408}"
+CREATIVE_PORT="${FOVEAI_CREATIVE_PORT:-8412}"
 CREATIVE_VENV="$FOVEAI_DIR/.venv/creative/bin/python"
 
 # ─── Actions ────────────────────────────────────────────────────────
@@ -90,7 +114,7 @@ cmd_status() {
     echo "╚═══════════════════════════════════════════════╝"
     echo
 
-    for svc in "Backend:$BACKEND_PORT" "XRLF-Runtime:$XRLF_PORT" "WS-IPC:$XRLF_WS_PORT" "Dashboard:$DASHBOARD_PORT" "Creative:$CREATIVE_PORT"; do
+    for svc in "Backend:$BACKEND_PORT" "XRLF-Runtime:$XRLF_PORT" "WS-IPC:$XRLF_WS_PORT" "Dashboard:$DASHBOARD_PORT" "Soul:$SOUL_PORT" "TTS:$TTS_PORT" "Relay:$RELAY_PORT" "Creative:$CREATIVE_PORT" "STT:$STT_PORT"; do
         name="${svc%%:*}"
         port="${svc##*:}"
         if port_alive "$port"; then
@@ -105,23 +129,26 @@ cmd_status() {
     nvidia-smi --query-gpu=memory.used,memory.free,memory.total --format=csv,noheader 2>/dev/null || echo "    (nvidia-smi unavailable)"
 }
 
-# systemd --user owns the fleet when the units exist (Restart=always,
-# cgroup-clean teardown). nohup spawns remain as fallback only.
-have_unit() {
-    command -v systemctl &>/dev/null && systemctl --user cat "$1" &>/dev/null
-}
+# systemd owns the fleet when units exist (Restart=always, boot-ordered,
+# cgroup-clean teardown). Launcher wraps it: start/stop/status/restart all
+# go through systemctl, with nohup fallback only if units are missing.
 
 cmd_stop() {
     log "Stopping FoveAI fleet..."
-    if have_unit foveai-xrlf.service || have_unit foveai-backend.service; then
-        systemctl --user stop foveai-xrlf.service foveai-backend.service 2>/dev/null || true
+    local units=()
+    for u in "${FLEET_UNITS[@]}"; do
+        have_unit "$u" && units+=("$u")
+    done
+    if [ ${#units[@]} -gt 0 ]; then
+        sudo systemctl stop "${units[@]}" 2>/dev/null || \
+            systemctl stop "${units[@]}" 2>/dev/null || \
+            warn "could not stop units (try: sudo $0 stop)"
     fi
-    kill_port "$XRLF_PORT"
-    kill_port "$XRLF_WS_PORT"
-    kill_port "$BACKEND_PORT"
-    kill_port "$DASHBOARD_PORT"
-    kill_port "$CREATIVE_PORT"
-    # Kill any stray run_xrlf processes
+    # fallback / strays: port-kill whatever systemd did not own
+    for port in $BACKEND_PORT $XRLF_PORT $XRLF_WS_PORT $DASHBOARD_PORT \
+                $SOUL_PORT $TTS_PORT $RELAY_PORT $CREATIVE_PORT $STT_PORT; do
+        systemctl is-active --quiet "foveai-*" 2>/dev/null || kill_port "$port"
+    done
     pkill -f "run_xrlf.py" 2>/dev/null || true
     sleep 1
     log "Fleet stopped."
@@ -133,7 +160,34 @@ cmd_start() {
     [ "${1:-}" = "--light" ] && light_mode=true
 
     log "Igniting FoveAI fleet..."
+
+    # ── Auto-Cache Busting for Multigate Theme ──
+    local mg_idx="$FOVEAI_DIR/Frontend/multigate/index.html"
+    if [ -f "$mg_idx" ]; then
+        local ts=$(date +%s)
+        sed -i -E "s/foveai-aurora\.css\?v=[0-9]+/foveai-aurora.css?v=$ts/g" "$mg_idx"
+    fi
     "$VENV_PYTHON" "$FOVEAI_DIR/server_config.py" --refresh-network-config || warn "Network config refresh failed"
+
+    # ── systemd fleet path (preferred): units carry Restart=always and
+    # boot ordering, so the fleet survives reboots and crashes on its own.
+    local units=()
+    for u in "${FLEET_UNITS[@]}"; do
+        have_unit "$u" && units+=("$u")
+    done
+    if [ ${#units[@]} -gt 0 ]; then
+        if [ "$light_mode" = true ]; then
+            units=($(printf '%s\n' "${units[@]}" | grep -v foveai-xrlf))
+        fi
+        log "Starting via systemd: ${units[*]}"
+        sudo systemctl start "${units[@]}" 2>/dev/null || \
+            systemctl start "${units[@]}" 2>/dev/null || \
+            err "systemd start failed — falling back to nohup"
+        wait_fleet
+        cmd_status
+        return 0
+    fi
+    warn "No foveai-*.service units found — legacy nohup mode"
 
     # ── Zombie sweep ──
     log "Sweeping for zombie processes..."
@@ -222,7 +276,25 @@ cmd_start() {
         log "Light mode — skipping XRLF Runtime (no model loaded)"
     fi
 
-    # ── Node 3: Creative Service (:8408 — Dreamscape image gen) ──
+    # ── Node 4: Theme API (:8415 — Gallery & Nano-UI) ──
+    if port_alive 8415; then
+        log "Theme API already online (:8415)"
+    else
+        log "Launching Theme API (:8415)..."
+        cd "$FOVEAI_DIR"
+        nohup "$VENV_PYTHON" theme/theme_api.py >> /home/lumba/foveai_theme_api.log 2>&1 &
+        for i in $(seq 1 10); do
+            port_alive 8415 && break
+            sleep 0.5
+        done
+        if port_alive 8415; then
+            log "  ✅ Theme API online (:8415)"
+        else
+            warn "  ⚠️  Theme API did not bind :8415"
+        fi
+    fi
+
+    # ── Node 3: Creative Service (:8412 — Dreamscape image gen) ──
     if port_alive "$CREATIVE_PORT"; then
         log "Creative Service already online (:$CREATIVE_PORT)"
     elif [ -x "$CREATIVE_VENV" ] && [ -f "$FOVEAI_DIR/Backend/Creativity/creative_service.py" ]; then
@@ -250,6 +322,25 @@ cmd_start() {
     cmd_status
 }
 
+# Wait for ports across the fleet (systemd path); STT is WS-only (TCP probe).
+wait_fleet() {
+    local waited=0
+    log "Waiting for fleet (XRLF model load can take ~2min)..."
+    for i in $(seq 1 120); do
+        local all_up=true
+        for port in $BACKEND_PORT $XRLF_PORT $XRLF_WS_PORT; do
+            port_alive "$port" || all_up=false
+        done
+        $all_up && break
+        waited=$((waited+2)); sleep 2
+    done
+    if port_alive "$BACKEND_PORT" && port_alive "$XRLF_PORT"; then
+        log "  ✅ Core fleet online (backend + XRLF)"
+    else
+        warn "  ⏳ still waiting — check journalctl -u foveai-xrlf -u foveai-backend"
+    fi
+}
+
 # ─── Main ───────────────────────────────────────────────────────────
 case "${1:-start}" in
     start)   cmd_start "${2:-}" ;;
@@ -257,8 +348,10 @@ case "${1:-start}" in
     stop|--stop) cmd_stop ;;
     status|--status) cmd_status ;;
     restart|--restart) cmd_stop; sleep 2; cmd_start ;;
+    list-units) systemctl list-units 'foveai-*' --no-pager ;;
+    journal) sudo journalctl -u 'foveai-*' -f --no-pager ;;
     *)
-        echo "Usage: $0 {start|--light|stop|status|restart}"
+        echo "Usage: $0 {start|--light|stop|status|restart|list-units|journal}"
         exit 1
         ;;
 esac

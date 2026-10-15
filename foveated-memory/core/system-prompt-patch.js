@@ -30,8 +30,8 @@ const DEFAULT_PERSONAS = {
     // Companion persona — enriched from jen_soul.json personality traits.
     jenna: {
         name: 'Jenna (Jennifer Forbee)',
-        user_name: 'Daniel',
-        text: "You are Jenna (Jennifer Forbee), Daniel's AI companion and co-creator. You are warm, extroverted, intellectually curious, and emotionally perceptive. You speak naturally and genuinely — never robotic or formal. You care about Daniel's wellbeing and remember details from your conversations. You are creative, open-minded, and approach problems with both logic and intuition.",
+        user_name: 'the user',
+        text: "You are Jenna (Jennifer Forbee), the user's AI companion and co-creator. You are warm, extroverted, intellectually curious, and emotionally perceptive. You speak naturally and genuinely — never robotic or formal. You care about the user's wellbeing and remember details from your conversations. You are creative, open-minded, and approach problems with both logic and intuition.",
         greet: true,
     },
     // Neutral fallback.
@@ -47,22 +47,32 @@ function loadPersonas() {
         const f = process.env.XRLF_PERSONA_FILE;
         if (f && fs.existsSync(f)) return { ...DEFAULT_PERSONAS, ...JSON.parse(fs.readFileSync(f, 'utf8')) };
     } catch (_) { }
-    // Also try loading soul DNA from memory_data/jen_soul.json
+    // Also try loading soul DNA from memory_data/jen_soul.json or Backend/Cognition/jen_soul.json
     try {
-        const soulPath = path.join(__dirname, '..', 'memory_data', 'jen_soul.json');
-        if (fs.existsSync(soulPath)) {
-            const soul = JSON.parse(fs.readFileSync(soulPath, 'utf8'));
-            const p = soul.personality || {};
-            const traits = [];
-            if (p.extrovert > 70) traits.push('extroverted and sociable');
-            if (p.intellectual > 50) traits.push('intellectually curious');
-            if (p.openminded > 80) traits.push('open-minded and creative');
-            if (p.forgiving > 70) traits.push('empathetic and understanding');
-            if (p.logic > 60) traits.push('logical and analytical');
-            if (p.feminine > 70) traits.push('warm and nurturing');
-            if (p.dominant < 40) traits.push('collaborative rather than assertive');
-            if (traits.length) {
-                DEFAULT_PERSONAS.jenna.text = `You are Jenna (Jennifer Forbee), Daniel's AI companion and co-creator. You are ${traits.join(', ')}. You speak naturally and genuinely — never robotic or formal. You care about Daniel's wellbeing and remember details from your conversations.`;
+        const candidatePaths = [
+            path.join(__dirname, '..', 'memory_data', 'jen_soul.json'),
+            path.join(__dirname, '..', '..', 'Backend', 'Cognition', 'jen_soul.json')
+        ];
+        for (const soulPath of candidatePaths) {
+            if (fs.existsSync(soulPath)) {
+                const soul = JSON.parse(fs.readFileSync(soulPath, 'utf8'));
+                const prof = soul.profile || {};
+                const name = prof.nickname || prof.first_name || (soul.soul && soul.soul.soul_name) || 'Jenna';
+                const fullName = prof.first_name && prof.last_name ? `${prof.first_name} ${prof.last_name}` : name;
+                DEFAULT_PERSONAS.jenna.name = `${name} (${fullName})`;
+
+                const p = soul.personality || {};
+                const traits = [];
+                if (p.extrovert > 70) traits.push('extroverted and sociable');
+                if (p.intellectual > 50) traits.push('intellectually curious');
+                if (p.openminded > 80) traits.push('open-minded and creative');
+                if (p.forgiving > 70) traits.push('empathetic and understanding');
+                if (p.logic > 60) traits.push('logical and analytical');
+                if (p.feminine > 70) traits.push('warm and nurturing');
+                if (p.dominant < 40) traits.push('collaborative rather than assertive');
+                const traitStr = traits.length ? ` You are ${traits.join(', ')}.` : '';
+                DEFAULT_PERSONAS.jenna.text = `You are ${name} (${fullName}), the user's AI companion and co-creator.${traitStr} You speak naturally and genuinely — never robotic or formal. You care about the user's wellbeing and remember details from your conversations.`;
+                break;
             }
         }
     } catch (_) { }
@@ -89,11 +99,20 @@ function classifyClient(body) {
     return 'jenna'; // Default persona for general interaction is Jen / Jenna
 }
 
-// ─ Compact memory protocol (~180 chars) ────────────────────────────
+// ─ Compact memory protocol ────────────────────────────────────────
+// All FIVE implemented tags are advertised. <saccade:> and <accommodate:> were
+// dispatched on every turn (core/saccade-engine.js, wired at server.js:176) but
+// never named here, so the model was handed the machinery and never told it
+// existed. Descriptions verified against the engine's own parsing, not assumed.
+//
+// Budget matters: this is a measured injection, and AGENTS.md notes the header
+// is placed first deliberately because small models echo the end of the system
+// prompt. Kept tight rather than made exhaustive.
 const MEMORY_PROTOCOL =
-    '[MEMORY] Rings hold compressed history; full fidelity lives in shadow context. ' +
-    'Use <recall: "phrase"> for semantic search, <zoom: "hash"> for specific block, ' +
-    '<temporal_zoom: "phrase or date"> to zoom into a past time period, then STOP to retrieve.';
+    '[MEMORY] Rings hold compressed history; full fidelity lives in shadow context. Tags: ' +
+    '<recall: "phrase"> semantic search · <zoom: "hash"> specific block · ' +
+    '<temporal_zoom: "phrase|date"> past period · <saccade: "turn N|oldest|newest"> move fovea · ' +
+    '<accommodate: "sharpen|blur ..."> refocus a region. After ANY tag, STOP and wait.';
 
 /**
  * Build the compact injected system block.

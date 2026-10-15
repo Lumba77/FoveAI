@@ -64,7 +64,7 @@ User Input (text/voice/spatial)
      ▼                       ▼                       ▼
 ┌──────────────┐    ┌─────────────────┐    ┌──────────────────┐
 │ Voice/Body   │    │  Subconscious   │    │  Chat Relay      │
-│:8406/:8409   │    │:8411            │    │:8407             │
+│:8411/:8401   │    │:8409            │    │:8413             │
 │Motor :8410   │    │                 │    │                  │
 └──────────────┘    └─────────────────┘    └──────────────────┘
 ```
@@ -77,13 +77,13 @@ User Input (text/voice/spatial)
 sleipnir_launcher.sh / foveai-autostart.sh
     │
     ├── systemctl --user services:
-    │   ├── foveai-backend.service     → Foveated Memory Proxy (:8400) + Dashboard (:8401)
+    │   ├── foveai-backend.service     → Foveated Memory Proxy (:8400) + Dashboard (:8414)
     │   ├── foveai-xrlf.service        → XRLF runtime (:8402 HTTP, :8403 WS IPC)
-    │   ├── foveai-tts.service         → Kokoro TTS (:8406)
-    │   ├── foveai-chat-relay.service  → Chat Relay (:8407)
-    │   ├── foveai-stt.service         → Whisper STT (:8409, WebSocket-only)
+    │   ├── foveai-tts.service         → Kokoro TTS (:8411)
+    │   ├── foveai-chat-relay.service  → Chat Relay (:8413)
+    │   ├── foveai-stt.service         → Whisper STT (:8401, WebSocket-only)
     │   ├── foveai-motor.service       → Motor daemon (:8410)
-    │   ├── foveai-subconscious.service→ Subconscious daemon (:8411)
+    │   ├── foveai-subconscious.service→ Subconscious daemon (:8409)
     │   └── foveai-multigate.service   → Multigate WebUI (:5177, Vite, Node ≥20)
     │
     └── server_config.refresh_network_config() — rewrites foveai_network_config.json
@@ -159,21 +159,21 @@ All files in `Frontend/3D_Avatar_Chatbot/`:
 
 | Port | Service | File | Purpose |
 |------|---------|------|---------|
-| 8400 | Foveated Memory Proxy | `foveated-memory/server.js` | OpenAI-compatible LLM gateway + memory rings + voice routing. `/api/tts` (native :8402 → Kokoro :8406 fallback), `/api/soul/stt`, `/api/tts/voices`, `/api/voice/status`, `/api/subsystems`. |
-| 8401 | Dashboard | `foveated-memory/public/` | Settings panel (`settings.html`), subsystem health check. |
+| 8400 | Foveated Memory Proxy | `foveated-memory/server.js` | OpenAI-compatible LLM gateway + memory rings + voice routing. `/api/tts` (native :8411 → Kokoro :8411 fallback), `/api/soul/stt`, `/api/tts/voices`, `/api/voice/status`, `/api/subsystems`. |
+| 8414 | Dashboard | `foveated-memory/public/` | Settings panel (`settings.html`), subsystem health check. |
 | 8402 | XRLF Runtime / Sovereign Core | `runtime/xrlf_runtime.py`, `api/server.py`, `Backend/Cognition/compagent.py` | Main cognitive core (Gemma-4-E2B). `/health` exposes `loaded`/`load_state`. Native `/v1/audio/speech` (Kokoro) and `/v1/audio/transcriptions` (Whisper). |
 | 8403 | WS IPC | `Backend/app/IPC/websocket_server.py` | Persistent client-to-runtime WebSocket conduit. **WS/TCP only — no HTTP health route.** |
-| 8406 | Mouth Kokoro TTS | `Frontend/Mouth/foveai_mouth_kokoro_server.py` | Text-to-speech. POST `/tts`, `/say`, `/voices`, `/health`. audio/wav at 24kHz. Voice via `voice` param or `FoveAI_KOKORO_VOICE` env var (note: mixed-case key). `foveai-tts.service`. |
-| 8407 | Chat Relay | `Backend/chat_relay_server.py` | Cross-client chat relay. `foveai-chat-relay.service`. |
-| 8408 | Creative Service | — | Assigned; optional. |
-| 8409 | Ears STT | `Backend/stt_whisper_server.py` | Whisper streaming speech-to-text. **WebSocket-only** — probe TCP, not HTTP. `foveai-stt.service`. |
+| 8411 | Mouth Kokoro TTS | `Frontend/Mouth/foveai_mouth_kokoro_server.py` | Text-to-speech. POST `/tts`, `/say`, `/voices`, `/health`. audio/wav at 24kHz. Voice via `voice` param or `FoveAI_KOKORO_VOICE` env var (note: mixed-case key). `foveai-tts.service`. |
+| 8413 | Chat Relay | `Backend/chat_relay_server.py` | Cross-client chat relay. `foveai-chat-relay.service`. |
+| 8412 | Creative Service | — | Assigned; optional. |
+| 8401 | Ears STT | `Backend/stt_whisper_server.py` | Whisper streaming speech-to-text. **WebSocket-only** — probe TCP, not HTTP. `foveai-stt.service`. |
 | 8410 | Motor / Autonomous | `Backend/Cognition/motor_daemon.py` | Native avatar agency: walk, gesture, emotion rendering. `foveai-motor.service`. |
-| 8411 | Subconscious | `Backend/Cognition/subconscious_daemon.py` | Telemetry evaluation + dispatch (`POST /telemetry`, `/health`). `foveai-subconscious.service`. |
+| 8409 | Subconscious | `Backend/Cognition/subconscious_daemon.py` | Telemetry evaluation + dispatch (`POST /telemetry`, `/health`). `foveai-subconscious.service`. |
 | 5177 | Multigate WebUI | `Frontend/multigate/` | Browser UI (Vite dev, Node ≥20). Same-origin `/api/*` proxied to :8400; `/api/lmstudio` proxied to LM Studio. `foveai-multigate.service`. |
 | 5176 | WebXR Vessel UI | `Frontend/XR_Vessel/` | Spatial frontend. Optional/deprecated — normally offline. |
 | 1234 | LM Studio | — | Optional legacy GGUF gateway. Normally offline. |
 | 3389 | xrdp | — | Remote desktop access. |
-| ~~8000/8001/8004~~ | Legacy voice/soul | — | **Retired.** TTS→8406, STT→8409, Soul→8402. Do not revive. |
+| ~~8000/8001/8004~~ | Legacy voice/soul | — | **Retired.** TTS→8411, STT→8411, Soul→8402. Do not revive. |
 | ~~8101-8112/8200/8888~~ | Legacy stack | — | **Retired.** XR Vessel API, TokenSlayer, Stardust, old proxy/motor ports, Unsloth — all purged. |
 
 ---
@@ -200,7 +200,7 @@ All files in `Frontend/3D_Avatar_Chatbot/`:
 ### 4.2 Voice Input (STT)
 
 **How it works:**
-- Uses Web Speech API (`SpeechRecognition`) or backend Ears service (:8409, WebSocket-only; native HTTP path on :8402 `/v1/audio/transcriptions`)
+- Uses Web Speech API (`SpeechRecognition`) or backend Ears service (:8401, WebSocket-only; native HTTP path on :8402 `/v1/audio/transcriptions`)
 - `initSpeechRecognition()` in [`main.js:3646`](Frontend/3D_Avatar_Chatbot/src/main.js:3646) sets up recognition
 - Continuous listening mode via VAD pin toggle
 - Auto-send option submits recognized text automatically
@@ -214,7 +214,7 @@ All files in `Frontend/3D_Avatar_Chatbot/`:
 
 **How it works:**
 - `speakText()` in [`main.js:3478`](Frontend/3D_Avatar_Chatbot/src/main.js:3478) checks `window.TTSProvider.isActive()` to decide which TTS engine to use
-- **Kokoro TTS (primary):** If `LUMAX_TTS_ENABLED=true` in localStorage, uses the pluggable `window.TTSProvider` which POSTs to `/api/tts?text=...` (proxied through the Foveated Memory proxy on :8400 → native :8402 `/v1/audio/speech`, falling back to Kokoro on :8406). Returns audio/wav blob played via `AudioContext`.
+- **Kokoro TTS (primary):** If `LUMAX_TTS_ENABLED=true` in localStorage, uses the pluggable `window.TTSProvider` which POSTs to `/api/tts?text=...` (proxied through the Foveated Memory proxy on :8411 → native :8411 `/v1/audio/speech`, falling back to Kokoro on :8411). Returns audio/wav blob played via `AudioContext`.
 - **Web Speech API (fallback):** If Kokoro is disabled, uses browser's built-in SpeechSynthesis. Voice selection with language filtering, gender preference (Any/Male/Female), rate and pitch controls.
 - Bracket tokens (`<type:value>`) are stripped before TTS via `stripBracketTokens()` to prevent AI thought markers from being read aloud.
 - Voice and speed are configurable via `.env` variables `LUMAX_KOKORO_VOICE` and `LUMAX_KOKORO_SPEED`, read by `_fetchEnvConfig()` and stored in localStorage.
@@ -909,14 +909,14 @@ XRL serves as the unified, single-source engine for both **conversational memory
 After a hard-drive crash and server migration, the stack was healed **without duplicating existing implementations**:
 
 ### Voice reassigned to the 840x series
-- **TTS:** native `:8402/v1/audio/speech` (Kokoro preloaded in the XRLF runtime) → fallback Kokoro service `:8406` (`foveai-tts.service`). Legacy `:8004` retired.
-- **STT:** native `:8402/v1/audio/transcriptions` → Whisper WebSocket service `:8409` (`foveai-stt.service`). Legacy `:8001` retired. `:8409` has no HTTP `/health` — probe TCP.
+- **TTS:** native `:8411/v1/audio/speech` (Kokoro preloaded in the XRLF runtime) → fallback Kokoro service `:8411` (`foveai-tts.service`). Legacy `:8004` retired.
+- **STT:** native `:8401/v1/audio/transcriptions` → Whisper WebSocket service `:8401` (`foveai-stt.service`). Legacy `:8001` retired. `:8401` has no HTTP `/health` — probe TCP.
 - Proxy `server.js` routes via `TTS_URL`/`STT_URL` env vars; `/api/tts/voices` feeds client voice pickers; `/api/voice/status` reports live backends.
 
 ### Restored services (existing code, new systemd units)
 - `foveai-motor.service` → `motor_daemon.py` :8410
-- `foveai-subconscious.service` → `subconscious_daemon.py` :8411 (`/health` added)
-- `foveai-chat-relay.service` → `chat_relay_server.py` :8407
+- `foveai-subconscious.service` → `subconscious_daemon.py` :8409 (`/health` added)
+- `foveai-chat-relay.service` → `chat_relay_server.py` :8413
 - `foveai-multigate.service` → `Frontend/multigate` Vite dev :5177 (requires Node ≥20; Node 24 installed at `~/.local`)
 
 ### Migration repairs
@@ -957,10 +957,10 @@ Coder models' `todo_add/todo_list/todo_done` (coder_tools) were a parallel `code
 ### Cycle states, curiosity, senses, voice
 - `_cycle_state()` in autonomous_agent: `CO_PRESENT` (active <5min) / `IDLE_REFLECTIVE` (night, high CPU, or short idle) / `IDLE_ACTIVE` (daytime + away >1h — the self-tutoring window). `VR_EXPLORATION` intentionally omitted until a headset-activity bridge exists.
 - `JEN_INTERESTS` + `_suggest_topics()` rotate ten declared domains (science, philosophy, cosmology, current affairs, fringe research…), deduped via `curiosity_log.json`.
-- `<self:brief topic="…">` → priority-3 chat briefing + curiosity log. `<self:speak>` → Kokoro `:8406` → `paplay` — she can announce, comment, tutor aloud.
+- `<self:brief topic="…">` → priority-3 chat briefing + curiosity log. `<self:speak>` → Kokoro `:8411` → `paplay` — she can announce, comment, tutor aloud.
 - `web_agent_bridge.py` — persistent headless Chromium (own asyncio thread): `read`/`click`/`type`/`scroll`/`back`/`shot`/`look`, cookies in `Backend/data/web_session/`, screenshots to `web_screenshots/`; `set_vision_callable` is the mmproj seam. Guardrails: http(s) only, financial/checkout paths refused, env whitelists.
 - Dream cycle now folds recent research topics + thoughts into reflective insight/intention — dreaming = consolidation, not idle filler.
-- `TTS_SERVICE_URL` default fixed `:8004→:8406`.
+- `TTS_SERVICE_URL` default fixed `:8004→:8411`.
 
 ### Cloud repertoire & the Director
 - Slot order: **nvidia** (`moonshotai/kimi-k3`, existing `FOVEAI_NVIDIA_API_KEY`) → ollama_cloud → gemini → openrouter (scaffold in `.env`; default `deepseek/deepseek-chat-v3.1:free`).

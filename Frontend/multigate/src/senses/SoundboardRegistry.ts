@@ -307,13 +307,13 @@ class SoundboardRegistryClass {
     }
 
     /** Synthesise a windchime — multiple staggered sine tones with long decay */
-    private synthesiseWindchime(volume: number = 0.07) {  // Lowered — was too loud/harsh
+    private synthesiseWindchime(_volume: number = 0.07) {
         // Synthesis completely disabled to prevent robotic 'R2D2' sounds.
         return;
     }
 
     /** Synthesise a placeholder tone using Web Audio API — dreamy, blended with TTS reverb space */
-    private synthesise(entry: SoundboardEntry, volume: number = 0.06) {  // Lowered — must blend with TTS, not compete
+    private synthesise(_entry: SoundboardEntry, _volume: number = 0.06) {
         // Synthesis completely disabled to prevent robotic 'R2D2' sounds.
         // If an audio file is not available, she will remain silent.
         return;

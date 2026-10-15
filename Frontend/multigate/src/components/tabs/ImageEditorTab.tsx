@@ -11,9 +11,14 @@ import { useTraits, TRAITS } from '../../trackball/useTraits';
 // and left edges of the image.
 //
 // Backend: /api/tools/images (gallery, live on proxy :8400). AI ops
-// (upscale / outpaint) POST to the same service family as CanvasTab
-// (/api/dream with model_type enhance), kept as follow-up once the
-// manual core works.
+// (outpaint / enhance) POST to the LOCAL FoveAI creative engine
+// (/api/dream on :8412 — SD1.5 img2img for outpaint, upscaler chain
+// for enhance). No web readymades: every generated pixel stays local.
+//
+// The desk is decoupled: the white frame is a viewport window onto the
+// image. The image has its own deskZoom (0.05x..5x, css px per image
+// px) and imgPan offset, so it can be scaled BIGGER than the frame
+// (pan + crop to frame) or SMALLER (empty margins to outpaint into).
 
 const API = '/api/tools/images';
 
@@ -26,11 +31,12 @@ interface GalleryItem {
 }
 
 type Tool =
-  | 'select' | 'crop' | 'resize' | 'rotate'
+  | 'pan' | 'select' | 'crop' | 'resize' | 'rotate'
   | 'light' | 'sharpen' | 'undo'
   | 'save' | 'saveAs' | 'share' | 'copy' | 'export';
 
 const TOOLS: { id: Tool; label: string; icon: string; hint: string }[] = [
+  { id: 'pan', label: 'Pan', icon: '✋', hint: 'drag the image on the desk · wheel = zoom · image may overflow the frame' },
   { id: 'select', label: 'Select', icon: '▯', hint: 'marquee-select a region' },
   { id: 'crop', label: 'Crop', icon: '⌗', hint: 'crop to current selection' },
   { id: 'resize', label: 'Resize', icon: '⤢', hint: 'width/height in px — proportions locked unless unlocked' },
@@ -59,7 +65,13 @@ export const ImageEditorTab: React.FC = () => {
   const [lockRatio, setLockRatio] = useState(true);
   const [frameW, setFrameW] = useState(0);             // desk frame (css px)
   const [frameH, setFrameH] = useState(0);
-  const [zoom, setZoom] = useState(1);
+  // desk composition: the image has its OWN scale and position, wholly
+  // decoupled from the white frame. deskZoom = css px per image px;
+  // imgPan = image top-left offset relative to the frame top-left.
+  // deskZoom > frame fit → image bigger than frame (crop by framing);
+  // deskZoom < fit → empty margins inside the frame (outpaint territory).
+  const [deskZoom, setDeskZoom] = useState(1);
+  const [imgPan, setImgPan] = useState({ x: 0, y: 0 });
 
   // worktable: physical-unit measuring, checked surface, touch gestures
   const PPI = 96;                                    // display px per (nominal) inch
@@ -281,10 +293,10 @@ export const ImageEditorTab: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const frameRef = useRef<HTMLDivElement | null>(null);
 
-  // AI ops: outpaint (fill outside image to desk size) and enhance
-  // (hi-res detail in selection). Provider: /api/tools/ai/edit —
-  // Pollinations cloud now, local Qwen-Image GGUF later. The text the
-  // user types steers the pass ("toenail" → detailed toenail).
+  // AI ops: outpaint and enhance. Provider: the LOCAL FoveAI creative
+  // engine /api/dream (:8412). No web readymades — every generated
+  // pixel comes from the local SD pipeline. The text the user types
+  // steers the pass ("toenail" → detailed toenail).
   const [aiBusy, setAiBusy] = useState(false);
   // magical tour: when the pass fires, a FLASH (lightning)...
   // ...and ~1.8s later the THUNDER arrives — a soft room shake that
@@ -292,9 +304,54 @@ export const ImageEditorTab: React.FC = () => {
   const [flashOn, setFlashOn] = useState(false);
   const [shakeOn, setShakeOn] = useState(false);
   const [aiText, setAiText] = useState('');
-  const [aiPromptOpen, setAiPromptOpen] = useState<null | 'outpaint' | 'detail'>(null);
+  const [aiPromptOpen, setAiPromptOpen] = useState<null | 'paint' | 'outpaint' | 'detail'>(null);
+  // generation engine: turbo = LOCAL SD1.5 img2img/txt2img (~2.5G fp16,
+  // always fits the shared card next to the resident LLM). zimage_gguf =
+  // LOCAL Z-Image-Turbo (12G quantized trio) — opt-in; the service
+  // preflights RAM and refuses fast when the LLM is resident.
+  const [aiEngine, setAiEngine] = useState<'turbo' | 'zimage_gguf'>('turbo');
 
-  const runAI = async (kind: 'outpaint' | 'detail') => {
+  // POST to the local creative engine; returns a data URL of the result.
+  const dream = async (payload: Record<string, unknown>) => {
+    const res = await fetch('/api/dream', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok || j.status !== 'success' || !j.image_b64) {
+      throw new Error(j.detail || `HTTP ${res.status}`);
+    }
+    return `data:image/png;base64,${j.image_b64}`;
+  };
+
+  // feather-blend: paste src at (x,y,w,h) over ctx with soft alpha edges
+  // (f px) so restored pixels melt into generated margins, no hard seam.
+  const featherPaste = (ctx: CanvasRenderingContext2D, src: CanvasImageSource, x: number, y: number, w: number, h: number, f = 14) => {
+    const mw = Math.max(1, Math.round(w)), mh = Math.max(1, Math.round(h));
+    const mm = Math.min(f, Math.floor(Math.min(mw, mh) / 3));
+    const mask = document.createElement('canvas');
+    mask.width = mw; mask.height = mh;
+    const m = mask.getContext('2d')!;
+    m.drawImage(src, x, y, w, h);
+    m.globalCompositeOperation = 'destination-out';
+    const featherEdge = (gx: number | null, gy: number | null) => {
+      const grad = gx !== null
+        ? m.createLinearGradient(gx === 0 ? 0 : mw, 0, gx === 0 ? mm : mw - mm, 0)
+        : m.createLinearGradient(0, gy === 0 ? 0 : mh, 0, gy === 0 ? mm : mh - mm);
+      grad.addColorStop(0, 'rgba(0,0,0,1)');
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      m.fillStyle = grad;
+      if (gx === 0) m.fillRect(0, 0, mm, mh);
+      else if (gx !== null) m.fillRect(mw - mm, 0, mm, mh);
+      else if (gy === 0) m.fillRect(0, 0, mw, mm);
+      else m.fillRect(0, mh - mm, mw, mm);
+    };
+    featherEdge(0, null);   featherEdge(mw, null);   // left, right
+    featherEdge(null, 0);   featherEdge(null, mh);   // top, bottom
+    ctx.drawImage(mask, Math.round(x), Math.round(y));
+  };
+
+  const runAI = async (kind: 'paint' | 'outpaint' | 'detail') => {
     const canvas = canvasRef.current;
     if (!canvas || aiBusy) return;
     setAiPromptOpen(null);
@@ -307,11 +364,105 @@ export const ImageEditorTab: React.FC = () => {
     setTimeout(() => setShakeOn(true), 1400);
     setTimeout(() => setShakeOn(false), 3800);
     setNotice(`${kind} running…`);
+    const div8 = (v: number) => Math.max(64, Math.round(v / 8) * 8);
     try {
-      // source image = current canvas; for outpaint, ask the provider to
-      // extend to the desk aspect; for detail, enhance the selection crop
-      let srcCanvas = canvas;
-      if (kind === 'detail' && selRect && selRect.w > 8) {
+      if (kind === 'paint') {
+        // fresh LOCAL generation — the frame's proportions are the
+        // composition; engine switchable: Z-Image-Turbo (4 steps) or SD1.5
+        const cap = Math.min(1, 1024 / Math.max(frameW, frameH));
+        const w = div8(frameW * cap), h = div8(frameH * cap);
+        const z = aiEngine === 'zimage_gguf';
+        const url = await dream({
+          prompt: aiText.trim() || 'highly detailed',
+          model_type: aiEngine,
+          num_inference_steps: z ? 4 : 14,
+          guidance_scale: z ? 0.0 : 7.5,
+          width: w, height: h,
+        });
+        playDoorbell();   // someone rings the doorbell — your image is finished
+        typeCheek();      // …and the AI teases: "Look what I did…"
+        const out = new Image();
+        out.onload = () => {
+          const bmp = createImageBitmap(canvas);
+          undoStack.current.push(bmp as unknown as ImageBitmap);
+          // the painted sheet becomes the working image, fit into frame
+          canvas.width = out.width; canvas.height = out.height;
+          canvas.getContext('2d')!.drawImage(out, 0, 0);
+          setResizeW(out.width); setResizeH(out.height);
+          const fz = Math.min(frameW / out.width, frameH / out.height);
+          setDeskZoom(fz);
+          setImgPan({ x: (frameW - out.width * fz) / 2, y: (frameH - out.height * fz) / 2 });
+          const cloned = new Image();
+          cloned.src = canvas.toDataURL();
+          cloned.onload = () => { imgRef.current = cloned; drawImage(); setAiBusy(false); };
+        };
+        out.onerror = () => { setNotice('paint failed: bad model output'); setAiBusy(false); };
+        out.src = url;
+      } else if (kind === 'outpaint') {
+        // composition = exactly what the frame shows: the image at
+        // deskZoom/imgPan, with empty margins out to the frame rim.
+        // Target resolution: cap the long edge at 1024 for the model.
+        const compWc = frameW, compHc = frameH;
+        const cap = Math.min(1, 1024 / Math.max(compWc, compHc));
+        const compW = div8(compWc * cap), compH = div8(compHc * cap);
+        const comp = document.createElement('canvas');
+        comp.width = compW; comp.height = compH;
+        const cc = comp.getContext('2d')!;
+        cc.fillStyle = '#808080';
+        cc.fillRect(0, 0, compW, compH);
+        cc.drawImage(imgRef.current!,
+          0, 0, imgRef.current!.width, imgRef.current!.height,
+          imgPan.x * cap, imgPan.y * cap,
+          (resizeW || imgRef.current!.width) * deskZoom * cap,
+          (resizeH || imgRef.current!.height) * deskZoom * cap);
+        const b64 = comp.toDataURL('image/png').split(',')[1];
+        const url = await dream({
+          prompt: `${aiText.trim() || 'natural continuation of the scene'} — seamless outpainting, extend beyond the edges naturally, coherent lighting and perspective`,
+          model_type: 'turbo',
+          reference_image_b64: b64,   // legacy img2img path in creative_service
+          strength: 0.72,
+          num_inference_steps: 24,
+          guidance_scale: 6.5,
+          width: compW, height: compH,
+        });
+        playDoorbell();   // someone rings the doorbell — your image is finished
+        typeCheek();      // …and the AI teases: "Look what I did…"
+        const out = new Image();
+        out.onload = () => {
+          const bmp = createImageBitmap(canvas);
+          undoStack.current.push(bmp as unknown as ImageBitmap);
+          // keep the interior honest: re-paste the original pixels over
+          // the generated sheet with feathered edges (only true margins
+          // stay generative).
+          const fin = document.createElement('canvas');
+          fin.width = compW; fin.height = compH;
+          const fc = fin.getContext('2d')!;
+          const px = imgPan.x * cap, py = imgPan.y * cap;
+          const pw = (resizeW || imgRef.current!.width) * deskZoom * cap;
+          const ph = (resizeH || imgRef.current!.height) * deskZoom * cap;
+          // AI everywhere first (margins + interior), then the original
+          // interior (pixel-fidelity), then the AI's interior melted on
+          // top with feathered edges — only the true margins stay
+          // fully generative
+          fc.drawImage(out, 0, 0, compW, compH);
+          fc.drawImage(imgRef.current!, 0, 0, imgRef.current!.width, imgRef.current!.height, px, py, pw, ph);
+          featherPaste(fc, out, px, py, pw, ph);
+          canvas.width = compW; canvas.height = compH;
+          canvas.getContext('2d')!.drawImage(fin, 0, 0);
+          setResizeW(compW); setResizeH(compH);
+          // the composition is now frame-exact: recentre to fit
+          setDeskZoom(Math.min(frameW / compW, frameH / compH));
+          setImgPan({ x: (frameW - compW * Math.min(frameW / compW, frameH / compH)) / 2, y: (frameH - compH * Math.min(frameW / compW, frameH / compH)) / 2 });
+          const cloned = new Image();
+          cloned.src = canvas.toDataURL();
+          cloned.onload = () => { imgRef.current = cloned; drawImage(); setAiBusy(false); };
+        };
+        out.onerror = () => { setNotice('outpaint failed: bad model output'); setAiBusy(false); };
+        out.src = url;
+      } else {
+        // detail: upscale the selection crop with the local enhancer
+        let srcCanvas = canvas;
+        if (!selRect || selRect.w < 8 || selRect.h < 8) throw new Error('drag a selection first');
         const off = document.createElement('canvas');
         off.width = Math.round(selRect.w);
         off.height = Math.round(selRect.h);
@@ -321,54 +472,36 @@ export const ImageEditorTab: React.FC = () => {
           0, 0, off.width, off.height
         );
         srcCanvas = off;
-      }
-      const b64 = srcCanvas.toDataURL('image/png').split(',')[1];
-      // submit to the curing bath; the print develops one at a time,
-      // paced, so the hardware never spikes. We poll until fixed.
-      const submit = await fetch('/api/tools/ai/edit', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          kind,
-          prompt: `${aiText.trim() || 'highly detailed, sharp'} — ${kind === 'outpaint' ? 'extend scene beyond edges naturally' : 'enhance this detail, sharp focus'}`,
-          image_b64: b64,
-        }),
-      });
-      const sub = await submit.json();
-      if (!submit.ok || !sub.ok) throw new Error(sub.error || `HTTP ${submit.status}`);
-      // poll the bath (darkroom patience — up to 5 min)
-      let data: { state?: string; url?: string; error?: string } = {};
-      for (let i = 0; i < 100; i++) {
-        await new Promise(r => setTimeout(r, 3000));
-        const st = await fetch(sub.poll);
-        data = await st.json();
-        if (data.state === 'fixed' || data.state === 'ruined') break;
-      }
-      if (data.state === 'ruined') throw new Error(data.error || 'print ruined');
-      if (data.state !== 'fixed' || !data.url) throw new Error('curing timed out');
-      playDoorbell();   // someone rings the doorbell — your image is finished
-      typeCheek();      // …and the AI teases: "Look what I did…"
-      const out = new Image();
-      out.onload = () => {
-        const bmp = createImageBitmap(canvas);
-        undoStack.current.push(bmp as unknown as ImageBitmap);
-        let ctx = canvas.getContext('2d')!;
-        if (kind === 'outpaint') {
-          // paste AI result as the new full canvas
-          canvas.width = out.width; canvas.height = out.height;
-          ctx = canvas.getContext('2d')!;
-          ctx.drawImage(out, 0, 0);
-        } else if (selRect) {
-          // paste enhanced detail back into the selection
+        const b64 = srcCanvas.toDataURL('image/png').split(',')[1];
+        const url = await dream({
+          prompt: aiText.trim() || 'highly detailed, sharp focus',
+          model_type: 'enhance',
+          control_image_b64: b64,
+        });
+        playDoorbell();   // someone rings the doorbell — your image is finished
+        typeCheek();      // …and the AI teases: "Look what I did…"
+        const out = new Image();
+        out.onload = () => {
+          const bmp = createImageBitmap(canvas);
+          undoStack.current.push(bmp as unknown as ImageBitmap);
+          const ctx = canvas.getContext('2d')!;
+          // paste the enhanced detail back, scaled to the selection
           ctx.drawImage(out, selRect.x, selRect.y, selRect.w, selRect.h);
-        }
-        setResizeW(canvas.width); setResizeH(canvas.height);
-        const cloned = new Image();
-        cloned.src = canvas.toDataURL();
-        cloned.onload = () => { imgRef.current = cloned; drawImage(); setAiBusy(false); };
-      };
-      out.src = data.url;
+          const cloned = new Image();
+          cloned.src = canvas.toDataURL();
+          cloned.onload = () => { imgRef.current = cloned; drawImage(); setAiBusy(false); };
+        };
+        out.onerror = () => { setNotice('detail failed: bad model output'); setAiBusy(false); };
+        out.src = url;
+      }
     } catch (e) {
-      setNotice(`${kind} failed: ${e instanceof Error ? e.message : e}`);
+      const msg = e instanceof Error ? e.message : String(e);
+      // full-GPU policy: an OOM while loading means the resident LLM holds
+      // the card — surface it as a switchable, honest error (no silent CPU crawl)
+      const friendly = /out of memory|CUDA|allocat/i.test(msg)
+        ? 'GPU card is busy (LLM resident) — switch to SD1.5 or free the card first'
+        : msg;
+      setNotice(`${kind} failed: ${friendly}`);
       setAiBusy(false);
     }
   };
@@ -510,17 +643,21 @@ export const ImageEditorTab: React.FC = () => {
       imgRef.current = img;
       setActiveItem(item);
       setEditing(true);
-      setZoom(1);
       setBrightness(100);
       setContrast(100);
       setSharpenAmt(0);
       setSelRect(null);
-      // fit image inside the content window minus desk margins
+      // start from the image's native ratio: the frame is sized to the
+      // window, the image fits inside its current desk zoom, centred
       const availW = Math.max(320, window.innerWidth - 480);
       const availH = Math.max(240, window.innerHeight - 300);
       const fit = Math.min(1, availW / img.width, availH / img.height);
-      setFrameW(Math.round(img.width * fit));
-      setFrameH(Math.round(img.height * fit));
+      const fw = Math.round(img.width * fit);
+      const fh = Math.round(img.height * fit);
+      setFrameW(fw); setFrameH(fh);
+      const dz = Math.min(fw / img.width, fh / img.height);
+      setDeskZoom(dz);
+      setImgPan({ x: (fw - img.width * dz) / 2, y: (fh - img.height * dz) / 2 });
       setResizeW(img.width);
       setResizeH(img.height);
       undoStack.current = [];
@@ -529,10 +666,49 @@ export const ImageEditorTab: React.FC = () => {
     img.src = item.url;
   };
 
-  // px→unit formatting: 1in nominal = PPI css px; image px scale to desk css
+  // desk view helpers — fit / fill / 1:1, all centred in the frame
+  const fitImage = (mode: 'fit' | 'fill' | '1:1') => {
+    const img = imgRef.current;
+    if (!img || !frameW || !frameH) return;
+    const w = resizeW || img.width, h = resizeH || img.height;
+    const z = mode === 'fit' ? Math.min(frameW / w, frameH / h)
+      : mode === 'fill' ? Math.max(frameW / w, frameH / h)
+      : 1;
+    setDeskZoom(z);
+    setImgPan({ x: (frameW - w * z) / 2, y: (frameH - h * z) / 2 });
+  };
+
+  // crop to frame: cut exactly the image region the frame currently
+  // shows (image bigger than frame → the framing decides the crop).
+  const cropToFrame = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const z = deskZoom || 1;
+    const rx0 = -imgPan.x / z, ry0 = -imgPan.y / z;
+    const x0 = Math.max(0, rx0), y0 = Math.max(0, ry0);
+    const x1 = Math.min(canvas.width, rx0 + frameW / z);
+    const y1 = Math.min(canvas.height, ry0 + frameH / z);
+    const nw = Math.round(x1 - x0), nh = Math.round(y1 - y0);
+    if (nw < 8 || nh < 8) { setNotice('frame is outside the image — pan or fit first'); return; }
+    (async () => {
+      const ctx = canvas.getContext('2d')!;
+      const bmp = await createImageBitmap(canvas);
+      undoStack.current.push(bmp);
+      const region = ctx.getImageData(x0, y0, nw, nh);
+      canvas.width = nw; canvas.height = nh;
+      canvas.getContext('2d')!.putImageData(region, 0, 0);
+      setResizeW(nw); setResizeH(nh);
+      const cloned = new Image();
+      cloned.src = canvas.toDataURL();
+      cloned.onload = () => { imgRef.current = cloned; drawImage(); };
+      setNotice(`cropped to frame: ${nw}×${nh}`);
+    })();
+  };
+
+  // px→unit formatting: 1in nominal = PPI css px; measured at the CURRENT
+// zoom (what you actually see on the desk)
 const fmt = (imagePx: number) => {
-  const wImg = imgRef.current?.width || resizeW;
-  const cssPerPx = frameW / wImg;
+  const cssPerPx = deskZoom || 1;
   const vPx = imagePx * cssPerPx;
   if (unit === 'px') return `${Math.round(imagePx)}px`;
   if (unit === 'in') return `${(vPx / PPI).toFixed(1)}″`;
@@ -650,7 +826,7 @@ const rulerMid = () => {
     window.addEventListener('pointerup', onUp);
   };
 
-  // ── worktable gestures: pinch-zoom, two-finger spin ──
+  // ── worktable gestures: pinch-zoom (anchored), two-finger spin ──
   const deskPointer = (e: React.PointerEvent<HTMLDivElement>) => {
     const pinch = pinchRef.current;
     if (pinch.size === 0 && e.buttons === 0 && e.pointerType !== 'touch') return;  // ignore hover
@@ -661,7 +837,7 @@ const rulerMid = () => {
         pinchBase.current = deskCentre();
         pinchStart.current = {
           dist: Math.hypot(b.x - a.x, b.y - a.y),
-          zoom,
+          zoom: deskZoom,
           angle: Math.atan2(b.y - a.y, b.x - a.x),
           spin,
         };
@@ -672,7 +848,18 @@ const rulerMid = () => {
       const now = Math.hypot(b.x - a.x, b.y - a.y);
       const ang = Math.atan2(b.y - a.y, b.x - a.x);
       const st = pinchStart.current;
-      setZoom(Math.max(0.2, Math.min(4, st.zoom * (now / st.dist))));
+      const nz = Math.max(0.05, Math.min(5, st.zoom * (now / st.dist)));
+      // anchored: the desk centre point stays put while zooming
+      const frame = frameRef.current;
+      if (frame && pinchBase.current) {
+        const r = frame.getBoundingClientRect();
+        const bx = pinchBase.current.x - r.left, by = pinchBase.current.y - r.top;
+        const k = nz / deskZoom;
+        setDeskZoom(nz);
+        setImgPan({ x: bx - (bx - imgPan.x) * k, y: by - (by - imgPan.y) * k });
+      } else {
+        setDeskZoom(nz);
+      }
       let deltaSpin = ((ang - st.angle) * 180) / Math.PI;
       setSpin(st.spin + deltaSpin);
     } else if (e.type === 'pointerup' || e.type === 'pointercancel') {
@@ -681,16 +868,55 @@ const rulerMid = () => {
     }
   };
 
-  // ── marquee select on the canvas ──
+  // wheel zoom — anchored at the cursor, 5%..500%
+  const frameWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const frame = frameRef.current;
+    if (!frame) return;
+    const r = frame.getBoundingClientRect();
+    const cx = e.clientX - r.left, cy = e.clientY - r.top;
+    const nz = Math.max(0.05, Math.min(5, deskZoom * Math.exp(-e.deltaY * 0.0016)));
+    const k = nz / deskZoom;
+    setDeskZoom(nz);
+    setImgPan({ x: cx - (cx - imgPan.x) * k, y: cy - (cy - imgPan.y) * k });
+  };
+
+  // ── pan / marquee on the canvas ──
+  // Pan tool (✋) or middle mouse drags the image around the desk
+  // (independent of the frame); Select/Crop drag a marquee.
+  const panDrag = useRef<{ sx: number; sy: number; px: number; py: number } | null>(null);
   const canvasPointer = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (tool !== 'select' && tool !== 'crop') return;
+    if (e.type === 'pointerdown') {
+      const wantPan = tool === 'pan' || e.button === 1;
+      if (wantPan) {
+        e.preventDefault();
+        panDrag.current = { sx: e.clientX, sy: e.clientY, px: imgPan.x, py: imgPan.y };
+      } else if (tool === 'select' || tool === 'crop') {
+        const canvas = canvasRef.current!;
+        const rect = canvas.getBoundingClientRect();
+        const sx = (e.clientX - rect.left) * (canvas.width / rect.width);
+        const sy = (e.clientY - rect.top) * (canvas.height / rect.height);
+        dragState.current = { startX: sx, startY: sy, mode: 'marquee' };
+      }
+      return;
+    }
+    if (panDrag.current && e.type === 'pointermove') {
+      setImgPan({
+        x: panDrag.current.px + (e.clientX - panDrag.current.sx),
+        y: panDrag.current.py + (e.clientY - panDrag.current.sy),
+      });
+      return;
+    }
+    if (panDrag.current && (e.type === 'pointerup' || e.type === 'pointercancel')) {
+      panDrag.current = null;
+      return;
+    }
+    if (!dragState.current) return;
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
     const sx = (e.clientX - rect.left) * (canvas.width / rect.width);
     const sy = (e.clientY - rect.top) * (canvas.height / rect.height);
-    if (e.type === 'pointerdown') {
-      dragState.current = { startX: sx, startY: sy, mode: 'marquee' };
-    } else if (e.type === 'pointermove' && dragState.current?.mode === 'marquee') {
+    if (e.type === 'pointermove' && dragState.current.mode === 'marquee') {
       setSelRect({
         x: Math.min(sx, dragState.current.startX),
         y: Math.min(sy, dragState.current.startY),
@@ -1021,7 +1247,7 @@ const rulerMid = () => {
               border: '1px solid var(--border)', borderRadius: '4px', color: '#fff',
               cursor: 'pointer', fontSize: '0.7rem', fontFamily: 'Share Tech Mono', whiteSpace: 'nowrap'
             }}>▦ desk</button>
-            <button onClick={() => { setSpin(0); setZoom(1); }} title="reset desk spin/zoom" style={{
+            <button onClick={() => { setSpin(0); fitImage('fit'); }} title="reset desk spin + fit image in frame" style={{
               padding: '6px 12px', background: 'transparent',
               border: '1px solid var(--border)', borderRadius: '4px', color: '#fff',
               cursor: 'pointer', fontSize: '0.7rem', fontFamily: 'Share Tech Mono', whiteSpace: 'nowrap'
@@ -1106,8 +1332,8 @@ const rulerMid = () => {
               {/* top drag line */}
               <div
                 onPointerDown={startFrameDrag('top')}
-                style={{ height: '6px', background: '#fff', cursor: 'ns-resize', borderRadius: '2px', opacity: zoom >= 1 ? 0.9 : 0.6 }}
-                title="pull to resize (proportions locked)"
+                style={{ height: '6px', background: '#fff', cursor: 'ns-resize', borderRadius: '2px', opacity: 0.9 }}
+                title="pull to resize the frame — the image keeps its own zoom & placement"
               />
               <div style={{ display: 'flex', alignItems: 'stretch' }}>
                 {/* left ruler */}
@@ -1124,20 +1350,25 @@ const rulerMid = () => {
                   style={{ width: '6px', background: '#fff', cursor: 'ew-resize', borderRadius: '2px', opacity: 0.9 }}
                   title="pull to resize"
                 />
-                {/* canvas in its measured cell */}
-                <div ref={frameRef} style={{
+                {/* the frame is a WINDOW onto the image: the canvas is
+                    absolutely placed at imgPan, scaled to deskZoom —
+                    bigger, smaller, or offset at will */}
+                <div ref={frameRef} onWheel={frameWheel} style={{
                   width: frameW - 24, height: frameH,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: 'rgba(255,255,255,0.02)', overflow: 'hidden', margin: '6px 0'
+                  position: 'relative', overflow: 'hidden',
+                  background: 'rgba(255,255,255,0.02)', margin: '6px 0'
                 }}>
                   <canvas
                     ref={canvasRef}
                     onPointerDown={canvasPointer}
                     onPointerMove={canvasPointer}
                     onPointerUp={canvasPointer}
+                    onPointerCancel={canvasPointer}
                     style={{
-                      maxWidth: '100%', maxHeight: '100%', objectFit: 'contain',
-                      cursor: tool === 'select' || tool === 'crop' ? 'crosshair' : 'default'
+                      position: 'absolute', left: imgPan.x, top: imgPan.y,
+                      width: (resizeW || 1) * deskZoom, height: (resizeH || 1) * deskZoom,
+                      cursor: (tool === 'pan') ? 'grab'
+                        : (tool === 'select' || tool === 'crop') ? 'crosshair' : 'default'
                     }}
                   />
                 </div>
@@ -1157,6 +1388,49 @@ const rulerMid = () => {
               {/* contextual AI chips — appear when they make sense */}
               {(selRect || true) && (
                 <div style={{ display: 'flex', gap: '8px', padding: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    onClick={() => fitImage('fit')}
+                    title="fit the whole image inside the frame"
+                    style={{
+                      padding: '7px 14px', background: 'transparent',
+                      border: '1px solid var(--border)', borderRadius: '14px', color: '#fff',
+                      cursor: 'pointer', fontSize: '0.68rem', fontFamily: 'Share Tech Mono', whiteSpace: 'nowrap',
+                    }}>⤡ fit</button>
+                  <button
+                    onClick={() => fitImage('fill')}
+                    title="fill the frame — image overflows, crop by framing"
+                    style={{
+                      padding: '7px 14px', background: 'transparent',
+                      border: '1px solid var(--border)', borderRadius: '14px', color: '#fff',
+                      cursor: 'pointer', fontSize: '0.68rem', fontFamily: 'Share Tech Mono', whiteSpace: 'nowrap',
+                    }}>⊞ fill</button>
+                  <button
+                    onClick={() => fitImage('1:1')}
+                    title="zoom to 100% — one image pixel per desk pixel"
+                    style={{
+                      padding: '7px 14px', background: 'transparent',
+                      border: '1px solid var(--border)', borderRadius: '14px', color: '#fff',
+                      cursor: 'pointer', fontSize: '0.68rem', fontFamily: 'Share Tech Mono', whiteSpace: 'nowrap',
+                    }}>1:1</button>
+                  <button
+                    onClick={cropToFrame}
+                    title="cut exactly what the frame shows — image may be bigger than the frame"
+                    style={{
+                      padding: '7px 14px', background: 'transparent',
+                      border: '1px solid var(--border)', borderRadius: '14px', color: '#fff',
+                      cursor: 'pointer', fontSize: '0.68rem', fontFamily: 'Share Tech Mono', whiteSpace: 'nowrap',
+                    }}>⛶ crop to frame</button>
+                  <button
+                    onClick={() => { setAiText(''); setAiPromptOpen('paint'); }}
+                    disabled={aiBusy}
+                    title="paint a fresh image with the local engine (Z-Image-Turbo / SD1.5)"
+                    style={{
+                      padding: '7px 14px',
+                      background: aiPromptOpen === 'paint' ? 'rgba(160,90,255,0.25)' : 'rgba(160,90,255,0.12)',
+                      border: '1px solid #a05aff', borderRadius: '14px', color: '#fff',
+                      cursor: aiBusy ? 'wait' : 'pointer', fontSize: '0.68rem', fontFamily: 'Share Tech Mono', whiteSpace: 'nowrap',
+                      opacity: aiBusy ? 0.5 : 1,
+                    }}>✦ AI Paint</button>
                   <button
                     onClick={() => { setAiText(''); setAiPromptOpen('outpaint'); }}
                     disabled={aiBusy}
@@ -1191,8 +1465,19 @@ const rulerMid = () => {
                   borderRadius: '10px', padding: '18px', boxShadow: '0 12px 60px rgba(0,0,0,0.7)'
                 }}>
                   <div style={{ fontFamily: 'Orbitron', fontSize: '0.7rem', color: 'var(--neon-pink)', marginBottom: '10px', letterSpacing: '1px' }}>
-                    {aiPromptOpen === 'outpaint' ? 'EXTEND THE SCENE' : 'WHAT DEPICTS THIS DETAIL?'}
+                    {aiPromptOpen === 'paint' ? 'PAINT THE SCENE' : aiPromptOpen === 'outpaint' ? 'EXTEND THE SCENE' : 'WHAT DEPICTS THIS DETAIL?'}
                   </div>
+                  {aiPromptOpen === 'paint' && (
+                    <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', alignItems: 'center' }}>
+                      {([['turbo', '◈ SD1.5 (edge, always fits)'], ['zimage_gguf', '⚡ Z-Turbo (4 steps — needs free card)']] as const).map(([id, label]) => (
+                        <button key={id} onClick={() => setAiEngine(id)} style={{
+                          padding: '5px 10px', borderRadius: '12px', cursor: 'pointer', fontSize: '0.65rem', fontFamily: 'Share Tech Mono',
+                          background: aiEngine === id ? 'rgba(160,90,255,0.25)' : 'transparent',
+                          border: '1px solid ' + (aiEngine === id ? '#a05aff' : 'var(--border)'), color: '#fff',
+                        }}>{label}</button>
+                      ))}
+                    </div>
+                  )}
                   <textarea
                     autoFocus
                     rows={2}
@@ -1201,6 +1486,8 @@ const rulerMid = () => {
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runAI(aiPromptOpen); } }}
                     placeholder={aiPromptOpen === 'outpaint'
                       ? 'a queen in a ballroom, candlelight continues…'
+                      : aiPromptOpen === 'paint'
+                      ? 'a greenhouse at dawn, glass panes breathing gold…'
                       : 'a detailed toenail, painterly like an oil portrait…'}
                     style={{
                       width: '100%', background: 'rgba(0,0,0,0.5)', border: '1px solid var(--border)',
@@ -1224,13 +1511,16 @@ const rulerMid = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px', color: 'var(--text-muted)', fontFamily: 'Share Tech Mono', fontSize: '0.6rem' }}>
                 <span>{fmt(resizeW)} × {fmt(resizeH)}</span>
                 {selRect && <span>sel: {fmt(selRect.w)} × {fmt(selRect.h)} @ {Math.round(selRect.x)},{Math.round(selRect.y)}</span>}
-                <span>desk: {rulerLabel()}</span>
+                <span>zoom {Math.round(deskZoom * 100)}% · desk: {rulerLabel()}</span>
               </div>
             </div>
           </div>
           </div>
 
-            {/* ── Dial Matrix column (right, beside the desk) ── */}
+            {/* ── Dial Matrix column (right, beside the desk) ──
+                toggled by the ◉ Dials button → frees the whole desk
+                width when you want room to work */}
+            {dialMenu && (
             <div style={{
               width: '340px', minWidth: '300px', borderLeft: '1px solid var(--border)',
               padding: '14px', overflowY: 'auto', background: 'rgba(0,0,0,0.15)',
@@ -1366,6 +1656,7 @@ const rulerMid = () => {
                 )}
               </div>
             </div>
+            )}
           </div>
         </div>
       )}

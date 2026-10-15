@@ -19,6 +19,8 @@
 FOVEAI_DIR="${FOVEAI_DIR:-/home/lumba/FoveAI}"
 PROXY_URL="http://127.0.0.1:8400/api/status"
 REFRESH="${NEST_REFRESH:-3}"
+VENV_PY="${VENV_PY:-$FOVEAI_DIR/.venv/bin/python}"
+[ -x "$VENV_PY" ] || VENV_PY="$(command -v python3)"
 
 C=$'\033[0m'
 H=$'\033[2;36m'      # dim cyan — header only
@@ -188,7 +190,7 @@ k_queue() {
 pane_queue() { pane_loop d_queue k_queue; }
 
 # ── 5. FLEET ────────────────────────────────────────────────────────
-PORTS="8400:proxy 8401:dash 8402:xrlf 8403:ws-ipc 8405:soul 8406:tts 8407:relay 8408:creative 8409:ignite 5177:multigate 5176:xr-vessel 8888:apk"
+PORTS="8400:proxy 8414:dash 8402:xrlf 8403:ws-ipc 8405:soul 8411:tts 8413:relay 8412:creative 8416:ignite 8401:stt 8406:dormant 8408:eagle 8409:subconscious 5177:multigate 5176:xr-vessel 8888:apk"
 d_ports() {
   hdr FLEET
   for spec in $PORTS; do
@@ -340,7 +342,61 @@ k_sensors() {
 }
 pane_sensors() { pane_loop d_sensors k_sensors; }
 
-# ── 13. BORDER ──────────────────────────────────────────────────────
+# ── 13. SPOTIFY ─────────────────────────────────────────────────────
+d_spotify() {
+  hdr SPOTIFY
+  local info
+  info=$("$VENV_PY" "$FOVEAI_DIR/scripts/spotify_ctl.py" status 2>/dev/null)
+  if [ -z "$info" ]; then
+    kvo "status" "offline" "$WARN"
+    kvl "hint" "s to launch"
+  else
+    local run st tit art alb
+    run=$(printf '%s' "$info" | jq -r '.running // false' 2>/dev/null)
+    st=$(printf '%s' "$info" | jq -r '.status // "offline"' 2>/dev/null)
+    if [ "$run" != "true" ] || [ "$st" = "offline" ]; then
+      kvo "status" "offline" "$WARN"
+      kvl "hint" "s to launch"
+    else
+      tit=$(printf '%s' "$info" | jq -r '.title // "-"' 2>/dev/null)
+      art=$(printf '%s' "$info" | jq -r '.artist // "-"' 2>/dev/null)
+      alb=$(printf '%s' "$info" | jq -r '.album // "-"' 2>/dev/null)
+      case "$st" in
+        Playing) kvo "state" "▶ Playing" "$OK" ;;
+        Paused)  kvo "state" "⏸ Paused" "$WARN" ;;
+        *)       kv "state" "$st" ;;
+      esac
+      [ -n "$tit" ] && [ "$tit" != "-" ] && kv "track" "$tit"
+      [ -n "$art" ] && [ "$art" != "-" ] && kv "artist" "$art"
+      [ -n "$alb" ] && [ "$alb" != "-" ] && kv "album" "$alb"
+    fi
+  fi
+  keys "space play · n next · p prev · s start"
+  say
+}
+k_spotify() {
+  case "$1" in
+    " "|c|C)
+      "$VENV_PY" "$FOVEAI_DIR/scripts/spotify_ctl.py" play-pause >/dev/null 2>&1
+      MSG="toggled play/pause"
+      ;;
+    n|N)
+      "$VENV_PY" "$FOVEAI_DIR/scripts/spotify_ctl.py" next >/dev/null 2>&1
+      MSG="next track"
+      ;;
+    p|P)
+      "$VENV_PY" "$FOVEAI_DIR/scripts/spotify_ctl.py" prev >/dev/null 2>&1
+      MSG="prev track"
+      ;;
+    s|S)
+      "$VENV_PY" "$FOVEAI_DIR/scripts/spotify_ctl.py" launch >/dev/null 2>&1
+      MSG="launching spotify…"
+      ;;
+  esac
+}
+pane_spotify() { pane_loop d_spotify k_spotify; }
+
+# ── 14. BORDER ──────────────────────────────────────────────────────
 # Blank. It must not clear the screen or it flickers.
 pane_frame() {
   printf '  \033[2m·\033[0m\n'

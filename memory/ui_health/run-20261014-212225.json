@@ -1,0 +1,83 @@
+{
+  "generated_at": "2026-10-14T19:23:01.437Z",
+  "url": "http://127.0.0.1:5177/",
+  "verdict": "FAIL",
+  "steps": [
+    {
+      "name": "page loads",
+      "ok": true,
+      "ms": 4,
+      "detail": "FoveAI"
+    },
+    {
+      "name": "no error boundary",
+      "ok": true,
+      "ms": 2,
+      "detail": "clean"
+    },
+    {
+      "name": "authenticate",
+      "ok": true,
+      "ms": 4310,
+      "detail": "session token accepted"
+    },
+    {
+      "name": "persona setup",
+      "ok": false,
+      "ms": 5272,
+      "detail": "Error: Attempted to use detached Frame '3d1d3b85-c586-4760-be3f-309bfb308932'."
+    },
+    {
+      "name": "ignition present",
+      "ok": false,
+      "ms": 0,
+      "detail": "Error: Attempted to use detached Frame '3d1d3b85-c586-4760-be3f-309bfb308932'."
+    },
+    {
+      "name": "press start",
+      "ok": false,
+      "ms": 0,
+      "detail": "Error: Browsing context already closed: User context was closed: Browser process exited."
+    },
+    {
+      "name": "reaches app shell",
+      "ok": false,
+      "ms": 4004,
+      "detail": "Error: Attempted to use detached Frame '3d1d3b85-c586-4760-be3f-309bfb308932'."
+    },
+    {
+      "name": "mic diagnostics visible",
+      "ok": false,
+      "ms": 0,
+      "detail": "Error: Attempted to use detached Frame '3d1d3b85-c586-4760-be3f-309bfb308932'."
+    },
+    {
+      "name": "lightweight boot",
+      "ok": false,
+      "ms": 0,
+      "detail": "Error: Attempted to use detached Frame '3d1d3b85-c586-4760-be3f-309bfb308932'."
+    },
+    {
+      "name": "images render",
+      "ok": false,
+      "ms": 1,
+      "detail": "Error: Attempted to use detached Frame '3d1d3b85-c586-4760-be3f-309bfb308932'."
+    },
+    {
+      "name": "avatar asset reachable",
+      "ok": false,
+      "ms": 0,
+      "detail": "Error: Attempted to use detached Frame '3d1d3b85-c586-4760-be3f-309bfb308932'."
+    },
+    {
+      "name": "softlayer modules served as JS",
+      "ok": false,
+      "ms": 0,
+      "detail": "Error: Attempted to use detached Frame '3d1d3b85-c586-4760-be3f-309bfb308932'."
+    }
+  ],
+  "error_count": 0,
+  "errors": [],
+  "warnings": [],
+  "failed_requests": []
+}

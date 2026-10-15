@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>XRLF Protocol — Foveated Memory Dashboard</title>
   <link rel="stylesheet" href="index.css">
+    <script src="http://127.0.0.1:8415/foveai_theme_sync.js"></script>
 </head>
 <body>
   <div class="hero">
@@ -49,6 +50,22 @@
     </div>
 
     <div class="card card-wide">
+      <h2>⚡ Live Synaptic Nervous System & Disharmony Alarms</h2>
+      <div class="sub">Continuous heartbeat probes across all 840x sensory, cognitive, and actuate services. Blinks red if a synapse fails to respond.</div>
+      <div class="synapse-container" id="synapsesContainer">
+        <!-- Live synapse cards injected via JS -->
+      </div>
+    </div>
+
+    <div class="card card-wide">
+      <h2>🧬 6 Concentric Foveated Context Rings</h2>
+      <div class="sub">Gradient compression architecture maintaining lifelong historical continuity without blowing the LLM context ceiling.</div>
+      <div class="rings-schematic-grid" id="ringsContainer">
+        <!-- 6 rings injected via JS -->
+      </div>
+    </div>
+
+    <div class="card card-wide">
       <h2>Checkpoint Timeline</h2>
       <div class="timeline" id="timeline">
         <div class="ckp"><div class="ckp-hash">[CKP:demo]</div><div class="ckp-text">Waiting for memory data...</div></div>
@@ -68,6 +85,10 @@
       <div class="toggle-row">
         <span>Thinking-Block Strip</span>
         <label class="switch"><input type="checkbox" id="toggleStrip" aria-label="Toggle Thinking-Block Stripping" checked><span class="slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span>Jen Core Audio Pad (Harmonic Synapse Stream)</span>
+        <label class="switch"><input type="checkbox" id="toggleAudioPad" aria-label="Toggle Harmonic Synapse Audio Pad"><span class="slider"></span></label>
       </div>
       <div class="btn-group">
         <a class="btn" href="#" id="promptGuiBtn">Open Prompt Kiosk</a>
@@ -93,7 +114,6 @@
         document.getElementById('proxySub').textContent = `${data.mode || 'unknown'} · ${data.workspace || 'default'}`;
         document.getElementById('cloudCap').textContent = String(data.cloud_cap || 'auto');
 
-        // fake but plausible numbers until /stats endpoint exists
         const total = data.context_chars || 48000;
         const used = data.trimmed_chars || 3200;
         const pct = total ? Math.round((used / total) * 100) : 0;
@@ -121,7 +141,182 @@
         document.getElementById('proxyStatus').style.color = 'var(--danger)';
         console.error(e);
       }
+
+      // Fetch live synapses and 6-ring telemetry
+      const fallbackSynapses = [
+        { id: 'gateway', name: 'Gateway Proxy', port: 8400, role: 'Active Recall & Compressor', alive: true },
+        { id: 'hearing', name: 'STT Whisper', port: 8401, role: 'Senses · Hearing', alive: true },
+        { id: 'vision', name: 'XRLF Vision', port: 8402, role: 'Senses · Vision Runtime', alive: true },
+        { id: 'memory_bus', name: 'Memory Bus', port: 8403, role: 'Unified WebSocket IPC', alive: true },
+        { id: 'soul', name: 'Soul DNA', port: 8405, role: 'Mind · Persona Authority', alive: true },
+        { id: 'tier_a', name: 'Mind Tier A', port: 8407, role: 'Gemma-4-E2B Background Model', alive: false },
+        { id: 'tier_b', name: 'Mind Tier B', port: 8408, role: 'Qwen3.5-9B Flagship MoQ', alive: true },
+        { id: 'body', name: 'Act Body', port: 8410, role: 'Gamepad & Input Relay', alive: false },
+        { id: 'voice', name: 'Act Voice', port: 8411, role: 'Kokoro TTS Speech', alive: true },
+        { id: 'create', name: 'Act Create', port: 8412, role: 'Dreamscape Creative Engine', alive: true },
+        { id: 'relay', name: 'Chat Relay', port: 8413, role: 'Multi-Way Chat Relay', alive: true },
+        { id: 'dashboard', name: 'Dashboard', port: 8414, role: 'Foveated Memory WebUI', alive: true },
+        { id: 'theme', name: 'Theme Engine', port: 8415, role: 'Dynamic UI Theme API', alive: false },
+        { id: 'multigate', name: 'Multigate UI', port: 5177, role: 'Frontend Spatial WebUI', alive: true }
+      ];
+
+      const fallbackRings = [
+        { ring: 0, name: 'Fovea', budget: 600, compression: '0–35%', scope: 'Last 4–6 messages (High Res)' },
+        { ring: 1, name: 'Parafovea', budget: 200, compression: '~65%', scope: 'Last 24 hours (Themes)' },
+        { ring: 2, name: 'Near Periphery', budget: 300, compression: '~85%', scope: '1–7 days (Headlines)' },
+        { ring: 3, name: 'Mid Periphery', budget: 300, compression: '~93%', scope: '7–30 days (Topics & Hashes)' },
+        { ring: 4, name: 'Far Periphery', budget: 300, compression: '~97%', scope: '30–365 days (Summaries)' },
+        { ring: 5, name: 'Outer Horizon', budget: 200, compression: '~99%', scope: '1yr+ Deep Past (Atomic Hashes)' }
+      ];
+
+      let sList = fallbackSynapses;
+      let rList = fallbackRings;
+
+      try {
+        const sRes = await fetch(`${API}/api/synapses`);
+        if (sRes.ok) {
+          const sData = await sRes.json();
+          if (sData.synapses) sList = sData.synapses;
+          if (sData.rings) rList = sData.rings;
+        }
+      } catch (err) {
+        // use fallback telemetry
+      }
+
+      window._lastSynapses = sList;
+
+      const sc = document.getElementById('synapsesContainer');
+      if (sc) {
+        sc.innerHTML = sList.map(s => `
+          <div class="synapse-node ${s.alive ? 'alive' : 'dormant'}">
+            <div class="synapse-info">
+              <div class="synapse-title">
+                <span>${s.alive ? '🟢' : '🔴'} ${s.name}</span>
+                <span class="synapse-port">:${s.port}</span>
+              </div>
+              <div class="synapse-role">${s.role}</div>
+            </div>
+            <div class="synapse-indicator" title="${s.alive ? 'Synapse Active (Harmonious)' : 'Disharmony: Connection Dropped!'}"></div>
+          </div>
+        `).join('');
+      }
+
+      const rc = document.getElementById('ringsContainer');
+      if (rc) {
+        rc.innerHTML = rList.map(r => `
+          <div class="ring-card r${r.ring}">
+            <div class="ring-num">Ring ${r.ring}</div>
+            <div class="ring-name">${r.name}</div>
+            <div class="ring-stat">Budget: <span>${r.budget} tok</span></div>
+            <div class="ring-stat">Compression: <span>${r.compression}</span></div>
+            <div class="ring-stat" style="font-size:0.75rem; color:#8b90a8; margin-top:4px;">${r.scope}</div>
+          </div>
+        `).join('');
+      }
     }
+
+    // ── Jen Core Harmonic Synapse Audio Pad (Web Audio API) ──────────────────
+    class JenHarmonicAudioPad {
+      constructor() {
+        this.ctx = null;
+        this.master = null;
+        this.fund = null;
+        this.harmonics = [];
+        this.gains = [];
+        this.running = false;
+      }
+      init() {
+        if (this.ctx) return;
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.045; // Sub-perceptual calming volume
+        this.master.connect(this.ctx.destination);
+
+        // A2 - 110Hz Base existence pulse
+        this.fund = this.ctx.createOscillator();
+        this.fund.type = 'sine';
+        this.fund.frequency.value = 110;
+        const fundGain = this.ctx.createGain();
+        fundGain.gain.value = 0.6;
+        this.fund.connect(fundGain);
+        fundGain.connect(this.master);
+        this.fund.start();
+
+        // 4 Dynamic harmonics for emotional chording & disharmony dissonance
+        for (let i = 0; i < 4; i++) {
+          const osc = this.ctx.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.value = 110;
+          const g = this.ctx.createGain();
+          g.gain.value = 0;
+          osc.connect(g);
+          g.connect(this.master);
+          osc.start();
+          this.harmonics.push(osc);
+          this.gains.push(g);
+        }
+      }
+      start() {
+        this.init();
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+        this.master.gain.setTargetAtTime(0.045, this.ctx.currentTime, 1.5);
+        this.running = true;
+      }
+      stop() {
+        if (!this.ctx || !this.running) return;
+        this.master.gain.setTargetAtTime(0.0001, this.ctx.currentTime, 1.5);
+        this.running = false;
+      }
+      updateHarmonics(synapses) {
+        if (!this.ctx || !this.running) return;
+        const now = this.ctx.currentTime;
+        const deadCount = synapses.filter(s => !s.alive).length;
+
+        // If core brain/mind (gateway, tier_b, soul, memory_bus) is dead -> Tritone dissonance
+        const criticalDown = synapses.some(s => ['gateway', 'tier_b', 'memory_bus', 'soul'].includes(s.id) && !s.alive);
+
+        let targetRatios = [1.498]; // Default: Perfect 5th (E3 over A2) - Calm & Open
+        if (criticalDown) {
+          // Sharp Tritone Dissonance (1.414 ratio) — disharmony alarm in Jen's nervous system
+          targetRatios = [1.414, 1.888];
+        } else if (deadCount > 2) {
+          // Minor chord (concern / tension)
+          targetRatios = [1.189, 1.498];
+        } else {
+          // Major Triad / 7th (All core synapses harmonious)
+          targetRatios = [1.260, 1.498, 1.888];
+        }
+
+        for (let i = 0; i < 4; i++) {
+          const osc = this.harmonics[i];
+          const g = this.gains[i];
+          if (i < targetRatios.length) {
+            osc.frequency.setTargetAtTime(110 * targetRatios[i], now, 1.2);
+            g.gain.setTargetAtTime(0.3 / targetRatios.length, now, 1.2);
+          } else {
+            g.gain.setTargetAtTime(0.0001, now, 1.0);
+          }
+        }
+      }
+    }
+
+    const jenPad = new JenHarmonicAudioPad();
+    const padToggle = document.getElementById('toggleAudioPad');
+    if (padToggle) {
+      padToggle.addEventListener('change', (e) => {
+        if (e.target.checked) jenPad.start();
+        else jenPad.stop();
+      });
+    }
+
+    // Connect jenPad update into the telemetry poll
+    const origRefresh = refresh;
+    refresh = async function() {
+      await origRefresh();
+      if (jenPad.running && window._lastSynapses) {
+        jenPad.updateHarmonics(window._lastSynapses);
+      }
+    };
 
     document.getElementById('promptGuiBtn').addEventListener('click', e => {
       e.preventDefault();

@@ -54,8 +54,9 @@ def load_ignore_patterns() -> list:
     patterns = []
     if IGNORE_FILE.exists():
         for line in IGNORE_FILE.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#"):
+            # strip inline comments: "pattern  # note" → "pattern"
+            line = line.split("#", 1)[0].strip()
+            if line:
                 patterns.append(line)
     return patterns
 
@@ -143,10 +144,20 @@ SCAN_DIRS = [
     "foveated-memory/core",
     "foveated-memory/bin",
     "Frontend/XR_Vessel/src",
+    "Frontend/multigate/src",       # live WebUI — was missing (Theme Machine
+    "Frontend/multigate/root",      # crash + ignition bugs lived here unseen)
+    "Frontend/Copilot/src",         # desktop app
+    "Frontend/Mouth",               # TTS bridge (systemd path bug hid here)
+    "theme",                        # theme engine chain (theme_api, pipeline)
     "client_quest/Assets/Scripts",
     "Tools",
     "Scripts",
     "tests",
+]
+SCAN_ROOT_FILES = [                # root-level live services worth scanning
+    "run_xrlf.py",
+    "server_config.py",
+    "ignition_server.py",
 ]
 SCAN_EXTS = {".py", ".ts", ".tsx", ".js", ".cs"}
 SCAN_MAX_FILE_BYTES = 300_000
@@ -192,15 +203,15 @@ SERVICE_PORTS = {
     "xrlf_runtime.py": 8402,
     "run_xrlf.py": 8402,
     "server.js": 8400,
-    "memory_service.py": 8407,
-    "foveai_mcp_server.py": 8407,
-    "chat_relay_server.py": 8407,
-    "creative_service.py": 8408,
-    "stt_whisper_server.py": 8409,
+    "memory_service.py": 8413,
+    "foveai_mcp_server.py": 8413,
+    "chat_relay_server.py": 8413,
+    "creative_service.py": 8412,
+    "stt_whisper_server.py": 8401,
     "motor_daemon.py": 8410,
     "autonomous_agent.py": 8410,
-    "subconscious_daemon.py": 8411,
-    "ignition_server.py": 8409,
+    "subconscious_daemon.py": 8409,
+    "ignition_server.py": 8416,
     "tokenslayer_proxy_server.py": 8200,
     "smart_context.py": 8104,
 }
@@ -286,14 +297,56 @@ def run_xrlate(filepath: Path) -> str:
         return f"// ERROR: {e}"
 
 
-def discover_scan_files(ignore_patterns: list) -> list:
-    """Recursively discover source files under SCAN_DIRS for the cross-repo scan.
+def _root_level_dirs() -> list:
+    """Auto-discover root-level source dirs (depth-1) — the repo evolves;
+    SCAN_DIRS is only a *priority* list, not the whole world. Every new
+    top-level code dir gets scanned automatically unless it's ignored."""
+    SKIP_ROOT = {
+        # non-code / heavy / hidden — mirrors .xrl-ignore defaults
+        "Archive", "Backups", "backups", "Build", "Builds", "Data", "Body",
+        "Docs", "Library", "Logs", "logs", "media", "Models", "models",
+        "Nursery", "ops", "Outputs", "outputs", "PackageCache", "Plans",
+        "Prolog", "Schemas", "schemas", "scratch", "selfcoder", "sessions",
+        "skills", "Temp", "Training", "user_data", "db", "memory_data",
+        "chroma_db", "snapshots", "node_modules", ".venv", ".git",
+        "_forge", "Lumax old files for reference",
+        # legacy frontends superseded by multigate (also in .xrl-ignore)
+        "3D_Avatar_Chatbot", "Agency", "Desktop", "Phone_Wrapper",
+        "Physical_Interface", "Tools",
+    }
+    out = []
+    try:
+        for entry in sorted(ROOT.iterdir()):
+            if not entry.is_dir() or entry.name.startswith(".") or entry.name in SKIP_ROOT:
+                continue
+            # heuristic: does it contain any source files at depth ≤2?
+            has_src = False
+            for ext in SCAN_EXTS:
+                if any(entry.glob(f"*{ext}")) or any(entry.glob(f"*/*{ext}")):
+                    has_src = True
+                    break
+            if has_src:
+                out.append(entry.name)
+    except OSError:
+        pass
+    return out
 
-    Results are sorted by mtime (newest first) so the live stack —
-    runtime/, memory/, foveated-memory — outranks untouched legacy code.
+
+def discover_scan_files(ignore_patterns: list) -> list:
+    """Recursively discover source files for the cross-repo scan.
+
+    SCAN_DIRS (priority list, newest-mtime ranked) is augmented by
+    auto-discovered root-level source dirs — the exclusions govern where
+    we may *not* go, so the scan follows the live repo shape by itself.
     """
     found = {}
-    for d in SCAN_DIRS:
+    bases = list(SCAN_DIRS)
+    for d in _root_level_dirs():
+        if d not in bases and not (ROOT / d).is_dir():
+            continue
+        if d not in bases and not is_ignored(d + "/", ignore_patterns):
+            bases.append(d)
+    for d in bases:
         base = ROOT / d
         if not base.is_dir():
             continue
@@ -324,17 +377,19 @@ def get_compact_tree(ignore_patterns: list) -> str:
         "Backend/Creativity/",
         "Backend/Monetizing/",
         "Backend/preflight/",
-        "Forge/scratch/TokenSlayer/",
-        "Forge/scratch/TokenSlayer/mcp-server/",
-        "Frontend/Web/",
-        "Frontend/Webui/",
+        "Frontend/multigate/src/",
+        "Frontend/XR_Vessel/src/",
+        "Frontend/Copilot/src/",
+        "Frontend/Mouth/",
+        "theme/",
+        "foveated-memory/core/",
         "Scripts/",
         "Tools/",
         "Docs/",
         "Plans/",
         "tests/",
     ]
-    filtered = [d for d in key_dirs if not is_ignored(d, ignore_patterns)]
+    filtered = [d for d in key_dirs if (ROOT / d.rstrip('/')).is_dir() and not is_ignored(d, ignore_patterns)]
     return "\n".join(f"  {d}" for d in filtered)
 
 
@@ -521,9 +576,10 @@ def main():
 
     # Merge static lists with auto-discovered cross-repo files
     discovered = discover_scan_files(ignore_patterns)
-    static_set = set(BACKEND_FILES + FORGE_FILES)
+    root_files = [f for f in SCAN_ROOT_FILES if (ROOT / f).exists()]
+    static_set = set(BACKEND_FILES + FORGE_FILES + root_files)
     extra_files = [f for f in discovered if f not in static_set][:SCAN_MAX_FILES]
-    all_files = list(dict.fromkeys(BACKEND_FILES + FORGE_FILES + extra_files))
+    all_files = list(dict.fromkeys(BACKEND_FILES + FORGE_FILES + root_files + extra_files))
     print(
         f"  Cross-repo scan discovered {len(discovered)} files "
         f"({len(extra_files)} beyond static list, capped at {SCAN_MAX_FILES})"

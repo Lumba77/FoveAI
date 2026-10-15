@@ -56,7 +56,13 @@
 			"**/db": true,
 			"**/div": true,
 			"**/projects": true,
-			"**/unsloth_compiled_cache": true
+			"**/unsloth_compiled_cache": true,
+			"**/client_quest": true,
+			"**/Library": true,
+			"**/PackageCache": true,
+			"**/Bee": true,
+			"**/Temp": true,
+			"**/Obj": true
 		},
 		"search.exclude": {
 			"**/node_modules": true,
@@ -126,7 +132,13 @@
 			"**/*.blend": true,
 			"**/*.meta": true,
 			"**/*.unity": true,
-			"**/*.asset": true
+			"**/*.asset": true,
+			"**/client_quest": true,
+			"**/Library": true,
+			"**/PackageCache": true,
+			"**/Bee": true,
+			"**/Temp": true,
+			"**/Obj": true
 		},
 		"files.watcherExclude": {
 			"**/.git/objects/**": true,
@@ -150,7 +162,13 @@
 			"**/Data/**": true,
 			"**/db/**": true,
 			"**/projects/**": true,
-			"**/unsloth_compiled_cache/**": true
+			"**/unsloth_compiled_cache/**": true,
+			"**/client_quest/**": true,
+			"**/Library/**": true,
+			"**/PackageCache/**": true,
+			"**/Bee/**": true,
+			"**/Temp/**": true,
+			"**/Obj/**": true
 		},
 		"jenna.model": "qwopus3.5-9b-coder-mtp-moq",
 		"python.defaultInterpreterPath": "python",
@@ -160,6 +178,27 @@
 		"Codegeex.Comment.LanguagePreference": "English",
 		"Codegeex.CommitMessage.LanguagePreference": "English",
 		"Codegeex.RepoIndex": true,
-		"git.autofetch": true
+		"git.autofetch": true,
+		"python.analysis.exclude": [
+			"**/client_quest/**",
+			"**/Library/**",
+			"**/PackageCache/**",
+			"**/node_modules/**",
+			"**/.venv/**",
+			"**/venv/**"
+		],
+		"python.analysis.ignore": [
+			"**/client_quest/**",
+			"**/Library/**",
+			"**/PackageCache/**",
+			"**/node_modules/**",
+			"**/.venv/**",
+			"**/venv/**"
+		],
+		"python.analysis.diagnosticMode": "openFilesOnly",
+		"python.pyrefly.diagnosticMode": "openFilesOnly",
+		"python.languageServer": "None",
+		"antigravity.enableLanguageServer": false,
+		"Codegeex.EnableLanguageServer": false
 	}
 }

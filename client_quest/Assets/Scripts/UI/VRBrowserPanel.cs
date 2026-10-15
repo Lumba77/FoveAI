@@ -291,9 +291,11 @@ namespace FoveAI.UI
         private void CreateContentArea()
         {
             // Content container
-            var contentGo = new GameObject("ContentArea");
+            // Must be constructed WITH a RectTransform — a bare GameObject gets a plain
+            // Transform, so GetComponent<RectTransform>() returned null and anchorMin threw.
+            var contentGo = new GameObject("ContentArea", typeof(RectTransform));
             contentGo.transform.SetParent(transform, false);
-            var contentRt = contentGo.GetComponent<RectTransform>();
+            var contentRt = (RectTransform)contentGo.transform;
             contentRt.anchorMin = new Vector2(0, 0.1f);
             contentRt.anchorMax = new Vector2(1, 0.89f);
             contentRt.offsetMin = Vector2.zero;
@@ -343,7 +345,7 @@ namespace FoveAI.UI
             _webContent.color = textColor;
             _webContent.richText = true;
             _webContent.alignment = TextAlignmentOptions.TopLeft;
-            _webContent.enableWordWrapping = true;
+            _webContent.textWrappingMode = TextWrappingModes.Normal;
             var textRt = _webContent.GetComponent<RectTransform>();
             textRt.anchorMin = new Vector2(0, 1);
             textRt.anchorMax = new Vector2(1, 1);
@@ -379,7 +381,9 @@ namespace FoveAI.UI
             barRt.offsetMax = Vector2.zero;
 
             // Progress bar
-            var progGo = new GameObject("Progress");
+            // Slider derives from Selectable, which (unlike Graphic) does NOT force a
+            // RectTransform into existence — so it must be declared explicitly.
+            var progGo = new GameObject("Progress", typeof(RectTransform));
             progGo.transform.SetParent(barGo.transform, false);
             _progressBar = progGo.AddComponent<Slider>();
             _progressBar.interactable = false;

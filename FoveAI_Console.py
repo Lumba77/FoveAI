@@ -39,8 +39,8 @@ if not os.path.exists(VENV_PYTHON):
 
 SLEIPNIR_SH = os.path.join(FOVEAI_DIR, "sleipnir_launcher.sh")
 SETTINGS_URL = "http://127.0.0.1:5177/settings.html"
-DASHBOARD_URL = "http://127.0.0.1:8401/memory/settings.html"
-KIOSK_URL = "http://127.0.0.1:8401/memory/prompt-kiosk.html"
+DASHBOARD_URL = "http://127.0.0.1:8414/memory/settings.html"
+KIOSK_URL = "http://127.0.0.1:8414/memory/prompt-kiosk.html"
 XRLF_API = "http://127.0.0.1:8402"
 PROXY_API = "http://127.0.0.1:8400"
 WS_IPC_PORT = 8403
@@ -48,15 +48,15 @@ WS_IPC_PORT = 8403
 # ─── Service registry (full .env port scheme) ───────────────────────
 SERVICES = [
     ("Memory Proxy", 8400, "/health"),
-    ("Dashboard", 8401, "/api/status"),
+    ("Dashboard", 8414, "/api/status"),
     ("XRLF Runtime", 8402, "/health"),
     ("WS IPC", 8403, None),
-    ("TTS", 8406, None),
-    ("Memory Service", 8407, None),
-    ("Creative Service", 8408, None),
-    ("STT / Ignition", 8409, None),
+    ("TTS", 8411, None),
+    ("Memory Service", 8413, None),
+    ("Creative Service", 8412, None),
+    ("STT / Ignition", 8401, None),
     ("Motor/Autonomous", 8410, None),
-    ("Subconscious", 8411, None),
+    ("Subconscious", 8409, None),
     ("XR Vessel", 5176, "/"),
     ("Multigate WebUI", 5177, "/"),
 ]
@@ -398,7 +398,7 @@ def print_status() -> None:
         pct = used / total * 100
         print(f"\n  VRAM: {used:.1f}/{total:.0f} GB ({pct:.0f}%)")
     if lan_ip:
-        print(f"  LAN IP (Quest): {lan_ip}   panel: http://{lan_ip}:8401/settings.html")
+        print(f"  LAN IP (Quest): {lan_ip}   panel: http://{lan_ip}:8414/settings.html")
     print(
         f"\n  persona : {env.get('FOVEAI_MODEL_ACTIVE_ID', env.get('FOVEAI_MAIN_MODEL', '-'))}"
     )
@@ -739,19 +739,19 @@ def proxy_menu() -> None:
             stdout=open("/home/lumba/foveated_proxy.log", "a"),
             stderr=subprocess.STDOUT,
         )
-        print("  Proxy starting on :8400/:8401")
+        print("  Proxy starting on :8400/:8414")
 
     menu(
-        "Memory Proxy :8400/:8401",
+        "Memory Proxy :8400/:8414",
         [
             ("Start proxy", start),
             (
                 "Stop proxy",
                 lambda: print(
-                    f"  killed {kill_port_listeners([8400, 8401])} listener(s)"
+                    f"  killed {kill_port_listeners([8400, 8408])} listener(s)"
                 ),
             ),
-            ("Restart proxy", lambda: (kill_port_listeners([8400, 8401]), start())),
+            ("Restart proxy", lambda: (kill_port_listeners([8400, 8408]), start())),
         ],
     )
 
@@ -810,6 +810,40 @@ def router_menu() -> None:
         for k, m in ROUTER_MODELS.items()
     ]
     menu("Router Model", items)
+
+
+def soul_lever_menu() -> None:
+    steps = [
+        ("TOOL      (0.00) [INTJ] Architect / Rational Agent", 0.00, "TOOL", "INTJ"),
+        ("ASSISTANT (0.25) [ISTJ] Steward / Capable Co-Pilot", 0.25, "ASSISTANT", "ISTJ"),
+        ("COMPANION (0.50) [ENFJ] Mentor / Balanced Baseline", 0.50, "COMPANION", "ENFJ"),
+        ("FRIEND    (0.75) [ENFP] Campaigner / Passionate Friend", 0.75, "FRIEND", "ENFP"),
+        ("BELOVED   (1.00) [INFP] Romantic Soul / Intimate Partner", 1.00, "BELOVED", "INFP"),
+    ]
+    def apply_step(val, name, mbti):
+        payload = {"agent_person_balance": val, "mbti_type": mbti, "person_role": name}
+        http_post("http://127.0.0.1:8405/api/soul/update_soul", payload, timeout=1.5)
+        sf = os.path.join(FOVEAI_DIR, "Backend", "Cognition", "jen_soul.json")
+        if os.path.exists(sf):
+            try:
+                with open(sf, "r", encoding="utf-8") as f: d = json.load(f)
+                d.update(payload)
+                with open(sf, "w", encoding="utf-8") as f: json.dump(d, f, indent=2)
+            except Exception: pass
+        mf = os.path.join(FOVEAI_DIR, "Backend", "Cognition", "jen_mind.json")
+        if os.path.exists(mf):
+            try:
+                with open(mf, "r", encoding="utf-8") as f: m = json.load(f)
+                m["lever"] = float(val)
+                with open(mf, "w", encoding="utf-8") as f: json.dump(m, f, indent=2)
+            except Exception: pass
+        print(f"\n✓ Applied: {name} ({val:.2f}) [{mbti}]")
+        input("Press Enter to continue...")
+
+    items = []
+    for lbl, val, name, mbti in steps:
+        items.append((lbl, (lambda v, n, m: lambda: apply_step(v, n, m))(val, name, mbti)))
+    menu("Persona & Agency (5-Step Continuous Lever)", items)
 
 
 def settings_menu() -> None:
@@ -971,9 +1005,9 @@ def tools_menu() -> None:
             ),
             ("Drop caches / free RAM", drop_caches),
             (
-                "Kill zombie port listeners (8400-8411)",
+                "Kill zombie port listeners (8400-8401)",
                 lambda: print(
-                    f"  killed {kill_port_listeners(list(range(8400, 8412)))} listener(s)"
+                    f"  killed {kill_port_listeners(list(range(8400, 8413)))} listener(s)"
                 ),
             ),
         ],
@@ -999,6 +1033,98 @@ def openers_menu() -> None:
     )
 
 
+# ─── Spotify Media Player ───────────────────────────────────────────
+
+
+def spotify_status_display() -> None:
+    try:
+        from scripts.spotify_ctl import get_status
+
+        info = get_status()
+    except Exception as e:
+        print(f"  Spotify query failed: {e}")
+        return
+
+    st = info.get("status", "offline")
+    if not info.get("running") or st == "offline":
+        print("  Status: Offline (Spotify client not running — enter 5 to launch)")
+        return
+
+    mark = "▶ Playing" if st == "Playing" else ("⏸ Paused" if st == "Paused" else st)
+    print(f"  Status: {mark}")
+    if info.get("title"):
+        print(f"  Track : {info.get('title')}")
+    if info.get("artist"):
+        print(f"  Artist: {info.get('artist')}")
+    if info.get("album"):
+        print(f"  Album : {info.get('album')}")
+    if info.get("length"):
+        cur_m, cur_s = divmod(info.get("position", 0), 60)
+        tot_m, tot_s = divmod(info.get("length", 0), 60)
+        print(f"  Time  : {cur_m:02d}:{cur_s:02d} / {tot_m:02d}:{tot_s:02d}")
+
+
+def spotify_toggle() -> None:
+    try:
+        from scripts.spotify_ctl import play_pause
+
+        play_pause()
+        time.sleep(0.2)
+        spotify_status_display()
+    except Exception as e:
+        print(f"  Play/Pause failed: {e}")
+
+
+def spotify_next() -> None:
+    try:
+        from scripts.spotify_ctl import next_track
+
+        next_track()
+        time.sleep(0.3)
+        spotify_status_display()
+    except Exception as e:
+        print(f"  Skip next failed: {e}")
+
+
+def spotify_prev() -> None:
+    try:
+        from scripts.spotify_ctl import prev_track
+
+        prev_track()
+        time.sleep(0.3)
+        spotify_status_display()
+    except Exception as e:
+        print(f"  Skip prev failed: {e}")
+
+
+def spotify_launch() -> None:
+    try:
+        from scripts.spotify_ctl import launch
+
+        launch()
+        print("  Spotify client launching...")
+    except Exception as e:
+        print(f"  Launch failed: {e}")
+
+
+def spotify_menu() -> None:
+    while True:
+        print("\n== Spotify Media Player ==")
+        spotify_status_display()
+        print()
+        menu(
+            "Spotify Controls",
+            [
+                ("Play / Pause toggle", spotify_toggle),
+                ("Next track", spotify_next),
+                ("Previous track", spotify_prev),
+                ("Refresh now playing status", spotify_status_display),
+                ("Launch Spotify desktop app", spotify_launch),
+            ],
+        )
+        break
+
+
 def main_menu() -> None:
     while True:
         print_status()
@@ -1008,8 +1134,9 @@ def main_menu() -> None:
                 ("Stack control (start/stop/light/restart)", stack_menu),
                 ("XRLF runtime :8402 (load/unload/status)", runtime_menu),
                 ("Mode & engine (local/cloud routing)", mode_menu),
-                ("Memory proxy :8400/:8401", proxy_menu),
+                ("Memory proxy :8400/:8414", proxy_menu),
                 ("Persona model select / unload", persona_menu),
+                ("Persona & Agency (5-Step Lever & MBTI)", soul_lever_menu),
                 ("Router model select", router_menu),
                 ("Settings (.env, foveation, panel :5177)", settings_menu),
                 ("Voice / TTS / STT", voice_menu),
@@ -1017,6 +1144,7 @@ def main_menu() -> None:
                 ("Open panels & frontends", openers_menu),
                 ("Diagnostics (system/coherence/context/subsystems)", diagnostics_menu),
                 ("Tools (health, RAM, VRAM, zombies)", tools_menu),
+                ("Spotify media player (play/pause/skip/now playing)", spotify_menu),
             ],
         )
         break
@@ -1059,6 +1187,7 @@ USAGE = """FoveAI Console — command reference
   coherence                 random-question coherence check
   context                   healer budget debugger
   open <panel|dashboard|kiosk|multigate|xr>  open a web surface
+  spotify [status|play|pause|next|prev|launch] Spotify media player
   help                      this text
 
 No arguments → interactive menu.
@@ -1183,6 +1312,46 @@ def cli(args: list) -> int:
             print("  usage: stt whisper|browser")
             return 1
         set_stt(arg)
+    elif cmd in ("agency", "soul", "lever"):
+        steps_map = {
+            "tool": (0.00, "TOOL", "INTJ"),
+            "assistant": (0.25, "ASSISTANT", "ISTJ"),
+            "companion": (0.50, "COMPANION", "ENFJ"),
+            "friend": (0.75, "FRIEND", "ENFP"),
+            "beloved": (1.00, "BELOVED", "INFP"),
+            "partner": (1.00, "BELOVED", "INFP"),
+        }
+        val = None
+        mbti = "ENFJ"
+        name = "COMPANION"
+        if arg.lower() in steps_map:
+            val, name, mbti = steps_map[arg.lower()]
+        else:
+            try:
+                val = float(arg)
+                closest = min(steps_map.values(), key=lambda s: abs(s[0] - val))
+                name, mbti = closest[1], closest[2]
+            except ValueError:
+                print("  usage: agency tool|assistant|companion|friend|beloved|<float 0.0-1.0>")
+                return 1
+        payload = {"agent_person_balance": val, "mbti_type": mbti, "person_role": name}
+        http_post("http://127.0.0.1:8405/api/soul/update_soul", payload, timeout=1.5)
+        sf = os.path.join(FOVEAI_DIR, "Backend", "Cognition", "jen_soul.json")
+        if os.path.exists(sf):
+            try:
+                with open(sf, "r", encoding="utf-8") as f: d = json.load(f)
+                d.update(payload)
+                with open(sf, "w", encoding="utf-8") as f: json.dump(d, f, indent=2)
+            except Exception: pass
+        mf = os.path.join(FOVEAI_DIR, "Backend", "Cognition", "jen_mind.json")
+        if os.path.exists(mf):
+            try:
+                with open(mf, "r", encoding="utf-8") as f: m = json.load(f)
+                m["lever"] = float(val)
+                with open(mf, "w", encoding="utf-8") as f: json.dump(m, f, indent=2)
+            except Exception: pass
+        print(f"  ✓ Soul lever set to {name} ({val:.2f}) [{mbti}]")
+        return 0
     elif cmd == "fovea":
         if not arg:
             print("  usage: fovea 0-6")
@@ -1218,6 +1387,21 @@ def cli(args: list) -> int:
         diag_coherence()
     elif cmd == "context":
         diag_context()
+    elif cmd in ("spotify", "music"):
+        sub = arg.lower()
+        if sub in ("play", "pause", "toggle", "playpause", "space"):
+            spotify_toggle()
+        elif sub in ("next", "skip"):
+            spotify_next()
+        elif sub in ("prev", "previous"):
+            spotify_prev()
+        elif sub in ("launch", "start"):
+            spotify_launch()
+        elif sub in ("status", "now", "info", ""):
+            spotify_status_display()
+        else:
+            print("  usage: spotify status|play|pause|next|prev|launch")
+            return 1
     elif cmd == "open":
         urls = {
             "panel": SETTINGS_URL,

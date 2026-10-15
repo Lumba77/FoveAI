@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 using UnityEngine.XR;
+using FoveAI.DebugOverlay;
 using TMPro;
 
 namespace FoveAI.XR
@@ -81,7 +82,9 @@ namespace FoveAI.XR
 
         private void SetupLaserVisuals()
         {
-            _lineRenderer = gameObject.GetComponent<LineRenderer>() ?? gameObject.AddComponent<LineRenderer>();
+            _lineRenderer = gameObject.GetComponent<LineRenderer>();
+            if (_lineRenderer == null) _lineRenderer = gameObject.AddComponent<LineRenderer>();
+            if (_lineRenderer == null) { QuestDebugOverlay.Log("[XRControllerRayPointer] no LineRenderer — skipping laser visuals"); return; }
             _lineRenderer.positionCount = 2;
             _lineRenderer.startWidth = rayWidth;
             _lineRenderer.endWidth = rayWidth * 0.5f;

@@ -10,9 +10,23 @@ import os
 
 logger = logging.getLogger(__name__)
 
-HF_HUB = os.path.expandvars(
-    os.environ.get("HF_HOME", "C:/Users/danie/.cache/huggingface")
-)
+def _get_hub_dirs() -> list[str]:
+    """Find all potential HuggingFace hub directories on Linux/host."""
+    dirs = []
+    hf_env = os.environ.get("HF_HOME")
+    if hf_env:
+        dirs.append(os.path.join(hf_env, "hub"))
+    dirs.extend([
+        "/opt/foveai-models/hub",
+        "/opt/foveai-models/datasets",
+        os.path.join(os.path.expanduser("~"), ".cache", "huggingface", "hub"),
+        "/home/lumba/Models/hub",
+        os.path.join(os.path.dirname(__file__), "datasets"),
+    ])
+    return [d for d in dirs if os.path.isdir(d)]
+
+
+HF_HUB = os.environ.get("HF_HOME", os.path.join(os.path.expanduser("~"), ".cache", "huggingface"))
 HUB_DIR = os.path.join(HF_HUB, "hub")
 
 
@@ -41,27 +55,36 @@ class DatasetInfo:
 
 
 def scan_local_datasets() -> list[DatasetInfo]:
-    """Scan the HF hub cache for all downloaded datasets."""
+    """Scan HF hub caches and local directories for all downloaded datasets."""
     datasets = []
-    if not os.path.isdir(HUB_DIR):
-        logger.warning(f"HF hub directory not found: {HUB_DIR}")
+    hub_dirs = _get_hub_dirs()
+    if not hub_dirs:
+        logger.warning("No dataset hub directories found.")
         return datasets
 
-    for entry in os.listdir(HUB_DIR):
-        if not entry.startswith("datasets--"):
+    seen = set()
+    for hdir in hub_dirs:
+        if not os.path.isdir(hdir):
             continue
+        for entry in os.listdir(hdir):
+            if not entry.startswith("datasets--"):
+                continue
 
-        # Parse name from directory: datasets--org--repo
-        parts = entry.replace("datasets--", "").split("--")
-        if len(parts) >= 2:
-            name = f"{parts[0]}/{parts[1]}"
-        else:
-            name = parts[0]
+            # Parse name from directory: datasets--org--repo
+            parts = entry.replace("datasets--", "").split("--")
+            if len(parts) >= 2:
+                name = f"{parts[0]}/{parts[1]}"
+            else:
+                name = parts[0]
 
-        local_path = os.path.join(HUB_DIR, entry)
-        ds = DatasetInfo(name=name, local_path=local_path)
-        _analyze_dataset(ds)
-        datasets.append(ds)
+            if name in seen:
+                continue
+            seen.add(name)
+
+            local_path = os.path.join(hdir, entry)
+            ds = DatasetInfo(name=name, local_path=local_path)
+            _analyze_dataset(ds)
+            datasets.append(ds)
 
     return datasets
 

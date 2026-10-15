@@ -1,0 +1,41 @@
+{
+  "variants": {
+    "tier_b_flagship": {
+      "id": "tier_b_flagship",
+      "name": "Qwen 3.5 9B Flagship (Present)",
+      "description": "Active Tier B interactive model on port 8408 with 8192 context",
+      "base_model": "Qwen3.5-9B-MoQ-3.6",
+      "datasets": [],
+      "training_config": {},
+      "quant_type": "moq-3.6",
+      "created_at": "2026-10-14T19:00:00",
+      "status": "active"
+    },
+    "tier_a_light": {
+      "id": "tier_a_light",
+      "name": "Gemma 4 Multimodal (Background)",
+      "description": "Active Tier A background multimodal model on port 8407",
+      "base_model": "gemma-4-e2b-multimodal-v1.0",
+      "datasets": [],
+      "training_config": {},
+      "quant_type": "q4_0",
+      "created_at": "2026-10-14T19:00:00",
+      "status": "active"
+    },
+    "qwen25_coder_05b": {
+      "id": "qwen25_coder_05b",
+      "name": "Qwen 2.5 Coder 0.5B (Test Scout)",
+      "description": "Open XRL Adopted: Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF/qwen2.5-coder-0.5b-instruct-q4_k_m.gguf (0.46 GB)",
+      "base_model": "Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF",
+      "datasets": [],
+      "training_config": {
+        "adopted_from": "Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF",
+        "file": "qwen2.5-coder-0.5b-instruct-q4_k_m.gguf",
+        "size_gb": 0.46
+      },
+      "quant_type": "q4_k_m",
+      "created_at": "2026-10-14T19:53:23.546877",
+      "status": "active"
+    }
+  }
+}

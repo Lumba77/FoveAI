@@ -5,11 +5,12 @@
         "FoveAI.Runtime",
         "UnityEngine.UI",
         "Unity.InputSystem",
-        "Unity.XR.Core.Utils",
         "Unity.XR.Management",
         "Oculus.VR",
         "Unity.XR.ARFoundation",
-        "Unity.TextMeshPro"
+        "Unity.TextMeshPro",
+        "Unity.XR.Interaction.Toolkit",
+        "Unity.XR.CoreUtils"
     ],
     "includePlatforms": [
         "Editor"

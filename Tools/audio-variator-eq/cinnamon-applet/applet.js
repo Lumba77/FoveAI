@@ -95,7 +95,7 @@ const RACK_THEMES = {
 };
 
 let RACK_DIR = GLib.get_home_dir() + "/.local/share/cinnamon/applets/sound@cinnamon.org";
-let RACK_LOGO_BADGE = false;
+let RACK_LOGO_BADGE = true;
 let RACK_WM = "";
 let T = RACK_THEMES["phosphor"];
 // composite skin fragments, rebuilt by _applyRackTheme
@@ -123,7 +123,7 @@ function _applyRackTheme(key) {
     RACK_DEEP  = "background-color: " + T.ddBg + "; border: 1px solid " + T.cardBd + "; border-radius: 10px; box-shadow: " + T.inset + ";";
     RACK_BTN   = "background-color: " + T.btnBg + "; border: 1px solid " + T.cardBd + "; border-radius: 6px;";
     RACK_WM = T.wm
-        ? "background-image: url(\"" + _rackImg("foveai-logo-wm.png") + "\"); background-repeat: no-repeat; background-position: center; background-size: cover;"
+        ? "background-image: url(\"" + _rackImg("foveai-logo-bg.png") + "\"); background-repeat: no-repeat; background-position: top center; background-size: auto 95%;"
         : "";
 }
 _applyRackTheme("phosphor");
@@ -788,17 +788,16 @@ class StudioMixerSection extends PopupMenu.PopupBaseMenuItem {
             vertical: true,
             style: `spacing: 6px; padding: 4px 6px; margin: 1px 0px; min-width: 420px; ${RACK_WM}`
         });
+        container.set_clip_to_allocation(true);
 
         // Always render a header row for the theme switcher
-        let badgeRow = new St.BoxLayout({ vertical: false, style: "spacing: 6px; margin-bottom: 1px;" });
+        let badgeRow = new St.BoxLayout({ vertical: false, style: "margin-bottom: 8px;" });
         if (RACK_LOGO_BADGE || T.wm) {
-            try {
-                let gicon = new Gio.FileIcon({ file: Gio.File.new_for_path(RACK_DIR + "/foveai-logo.png") });
-                badgeRow.add_actor(new St.Icon({ gicon: gicon, icon_size: 18, icon_type: St.IconType.FULLCOLOR }));
-            } catch (e) {}
+            let logoBox = new St.Widget({
+                style: `background-image: url("file://${RACK_DIR}/foveai-logo.png"); background-size: contain; background-repeat: no-repeat; width: 140px; height: 27px;`
+            });
+            badgeRow.add_actor(logoBox);
         }
-        badgeRow.add_actor(new St.Label({ text: "FOVEAI STUDIO FX", y_align: St.Align.MIDDLE,
-            style: `font-size: 8.5px; font-weight: bold; letter-spacing: 2px; color: ${T.acc};` }));
 
         let spacer = new St.Widget({ x_expand: true });
         badgeRow.add_actor(spacer);

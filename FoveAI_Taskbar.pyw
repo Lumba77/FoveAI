@@ -75,7 +75,7 @@ if not _bind_lock_socket():
     # Tray app is already running in background and responsive.
     # Opening another instance launches Settings Panel as a convenience.
     try:
-        url = "http://127.0.0.1:8401/memory/settings.html"
+        url = "http://127.0.0.1:8414/memory/settings.html"
         edge_candidates = [
             r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
             r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
@@ -257,7 +257,7 @@ def start_stack(icon, item):
             cwd=sleipnir_cwd,
             creationflags=0x08000000
         )
-        notify(icon, "FoveAI Stack running in background.\nProxy :8400, Dashboard :8401, XRLF Runtime :8402, WS IPC :8403, MM WS :8300", "FoveAI Stack")
+        notify(icon, "FoveAI Stack running in background.\nProxy :8400, Dashboard :8414, XRLF Runtime :8414, WS IPC :8414, MM WS :8300", "FoveAI Stack")
         icon.icon = ICON_GREEN
     else:
         # Fallback to starting memory proxy
@@ -288,8 +288,8 @@ def stop_stack(icon, item):
     # Kill sleipnir, run_xrlf, and llama-server
     run_ps("Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*run_xrlf*' -or $_.CommandLine -like '*sleipnir_launcher*' -or $_.ProcessName -eq 'llama-server' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }", hidden=True)
 
-    # Cleanly terminate listeners on FoveAI ports: 8400, 8401, 8402, 8403, 8300, 8004, 8109, 8110, 8113
-    for port in [8400, 8401, 8402, 8403, 8300, 8004, 8109, 8110, 8113]:
+    # Cleanly terminate listeners on FoveAI ports: 8400, 8414, 8402, 8403, 8300, 8004, 8109, 8110, 8113
+    for port in [8400, 8414, 8402, 8403, 8300, 8004, 8109, 8110, 8113]:
         try:
             netstat = subprocess.check_output("netstat -ano -p tcp", creationflags=0x08000000).decode(errors="ignore")
             for line in netstat.splitlines():
@@ -419,11 +419,11 @@ def unload_models(icon, item):
 
 # ─── Memory Tools ──────────────────────────────────────────────────
 def start_super_kiosk(icon, item):
-    open_url("http://127.0.0.1:8401/memory/prompt-kiosk.html")
+    open_url("http://127.0.0.1:8414/memory/prompt-kiosk.html")
     notify(icon, "Opening Super Prompt Kiosk", "FoveAI Memory")
 
 def enter_aui(icon, item):
-    open_url("http://127.0.0.1:8401/memory")
+    open_url("http://127.0.0.1:8414/memory")
     notify(icon, "Opening AUI Memory Dashboard", "FoveAI Memory")
 
 def start_foveai_super_terminal(icon, item):
@@ -444,7 +444,7 @@ def open_debug_terminal(icon, item):
         subprocess.Popen([PWSH, "-NoExit", "-WorkingDirectory", LUMAX_DIR, "-Command", "Import-Module LumaxMemory -Force; Show-LumaxDebugLog"], creationflags=0)
 
 def open_settings_panel(icon=None, item=None):
-    url = "http://127.0.0.1:8401/memory/settings.html"
+    url = "http://127.0.0.1:8414/memory/settings.html"
     try:
         # Open as dedicated standalone desktop app window (no browser tabs/address bar)
         edge_candidates = [
@@ -487,7 +487,7 @@ def is_memory_proxy_running():
     except Exception:
         try:
             import urllib.request
-            req = urllib.request.Request("http://127.0.0.1:8401/api/status", headers={"User-Agent": "FoveAI-Tray/1.0"})
+            req = urllib.request.Request("http://127.0.0.1:8414/api/status", headers={"User-Agent": "FoveAI-Tray/1.0"})
             with urllib.request.urlopen(req, timeout=2) as resp:
                 return resp.status == 200
         except Exception:
@@ -523,7 +523,7 @@ def stop_memory_proxy_service(icon, item):
         return
     notify(icon, "Stopping Foveated Memory Proxy service...", "FoveAI Service")
     run_cmd('schtasks /end /tn "FoveAI_Foveated_Memory"')
-    for port in [8400, 8401]:
+    for port in [8400, 8414]:
         try:
             netstat = subprocess.check_output("netstat -ano -p tcp", creationflags=0x08000000).decode(errors='ignore')
             for line in netstat.splitlines():
@@ -549,7 +549,7 @@ def restart_memory_proxy_service(icon, item):
     # Stop
     if is_memory_proxy_running():
         run_cmd('schtasks /end /tn "FoveAI_Foveated_Memory"')
-        for port in [8400, 8401]:
+        for port in [8400, 8414]:
             try:
                 netstat = subprocess.check_output("netstat -ano -p tcp", creationflags=0x08000000).decode(errors='ignore')
                 for line in netstat.splitlines():
@@ -823,7 +823,7 @@ def start_light_voice_stack(icon, item):
         time.sleep(1.0)
         launch_corner_companion(icon, item)
         icon.icon = ICON_GREEN
-        notify(icon, "Light Voice Stack running\nProxy :8400, Runtime :8402", "FoveAI Light Mode")
+        notify(icon, "Light Voice Stack running\nProxy :8411, Runtime :8411", "FoveAI Light Mode")
     except Exception as e:
         notify(icon, f"Light Stack launch failed: {e}", "FoveAI Error")
 
@@ -1210,15 +1210,15 @@ def build_menu():
 
     # Check live ports & states (Concordia 8400+ architecture)
     st_proxy, tag_proxy  = get_service_status(8400, "/health")
-    _, tag_dash          = get_service_status(8401, "/api/status")
+    _, tag_dash          = get_service_status(8414, "/api/status")
     st_xrlf, tag_xrlf    = get_service_status(8402, "/v1/models")
     _, tag_ws            = get_service_status(8403, "/health")
     st_soul, tag_soul    = get_service_status(8404, "/health")
     _, tag_stt           = get_service_status(8405)
-    _, tag_tts           = get_service_status(8406, "/health")
-    _, tag_star          = get_service_status(8407)
-    _, tag_motor         = get_service_status(8408)
-    _, tag_solver        = get_service_status(8409)
+    _, tag_tts           = get_service_status(8411, "/health")
+    _, tag_star          = get_service_status(8413)
+    _, tag_motor         = get_service_status(8412)
+    _, tag_solver        = get_service_status(8401)
     _, tag_ui5176        = get_service_status(5176)
 
     stack_running = st_proxy == 'active' and st_xrlf == 'active'
@@ -1324,15 +1324,15 @@ def build_menu():
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("⚡ Live Process Monitor", pystray.Menu(
             pystray.MenuItem(f"{tag_proxy} Foveated Memory Proxy (:8400)", show_status_info),
-            pystray.MenuItem(f"{tag_dash} Settings & Memory Dashboard (:8401)", show_status_info),
+            pystray.MenuItem(f"{tag_dash} Settings & Memory Dashboard (:8414)", show_status_info),
             pystray.MenuItem(f"{tag_xrlf} XRLF Runtime (:8402)", show_status_info),
             pystray.MenuItem(f"{tag_ws} Multimodal WebSocket IPC (:8403)", show_status_info),
             pystray.MenuItem(f"{tag_soul} Sovereign Core Soul (:8404)", show_status_info),
             pystray.MenuItem(f"{tag_stt} Ears Speech-to-Text (:8405)", show_status_info),
-            pystray.MenuItem(f"{tag_tts} Kokoro Emotional Mouth (:8406)", show_status_info),
-            pystray.MenuItem(f"{tag_star} Stardust Vector Gnists (:8407)", show_status_info),
-            pystray.MenuItem(f"{tag_motor} Motor Cortex (:8408)", show_status_info),
-            pystray.MenuItem(f"{tag_solver} FoveAI Core Solver (:8409)", show_status_info),
+            pystray.MenuItem(f"{tag_tts} Kokoro Emotional Mouth (:8411)", show_status_info),
+            pystray.MenuItem(f"{tag_star} Stardust Vector Gnists (:8413)", show_status_info),
+            pystray.MenuItem(f"{tag_motor} Motor Cortex (:8412)", show_status_info),
+            pystray.MenuItem(f"{tag_solver} FoveAI Core Solver (:8401)", show_status_info),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(f"{tag_ui5176} WebXR Vessel UI (:5176)", show_status_info),
         )),
@@ -1380,13 +1380,13 @@ def build_menu():
             pystray.MenuItem("TTS Engine / Provider", pystray.Menu(
                 pystray.MenuItem(checked("Real-Time WebSocket IPC (ws://127.0.0.1:8403/ws)", tts_provider == "websocket"),
                                  lambda icon, item: switch_tts_provider(icon, item, "websocket")),
-                pystray.MenuItem(checked("Kokoro Emotional Mouth (Port 8406 / Native XRLF :8402)", tts_provider in ["qwen", "kokoro"]),
+                pystray.MenuItem(checked("Kokoro Emotional Mouth (Port 8411 / Native XRLF :8411)", tts_provider in ["qwen", "kokoro"]),
                                  lambda icon, item: switch_tts_provider(icon, item, "kokoro")),
                 pystray.MenuItem(checked("Edge-TTS (Cloud Neural — Fast)", tts_provider == "edgetts"),
                                  lambda icon, item: switch_tts_provider(icon, item, "edgetts")),
             )),
             pystray.MenuItem("STT Engine / Provider", pystray.Menu(
-                pystray.MenuItem(checked("Faster-Whisper Ears (Port 8405 / WebSocket IPC :8403)", stt_provider == "whisper"),
+                pystray.MenuItem(checked("Faster-Whisper Ears (Port 8401 / WebSocket IPC :8401)", stt_provider == "whisper"),
                                  lambda icon, item: switch_stt_provider(icon, item, "whisper")),
                 pystray.MenuItem(checked("Web Speech API / Browser VAD", stt_provider == "browser"),
                                  lambda icon, item: switch_stt_provider(icon, item, "browser")),
@@ -1441,7 +1441,7 @@ def auto_start_stack():
             cwd=sleipnir_cwd,
             creationflags=0x08000000
         )
-        notify(app, "FoveAI Stack auto-started.\nProxy :8400, Dashboard :8401, XRLF :8402, WS IPC :8403", "FoveAI Boot")
+        notify(app, "FoveAI Stack auto-started.\nProxy :8400, Dashboard :8414, XRLF :8414, WS IPC :8414", "FoveAI Boot")
         try:
             app.icon = ICON_GREEN
             app.update_menu()

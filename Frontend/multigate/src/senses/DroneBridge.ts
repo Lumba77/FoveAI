@@ -108,10 +108,10 @@ export class DroneBridge extends TypedEmitter {
     private avatarPosition: { x: number; y: number; z: number } = { x: 0, y: -0.8, z: -2 };
     private log: (msg: string, color: string) => void;
 
-    constructor(config?: Partial<DroneConfig>, logFn?: (msg: string, color: string) => void) {
+    constructor(config?: Partial<DroneConfig>, logFn?: (msg: string, _color: string) => void) {
         super();
         this.config = { ...DEFAULT_CONFIG, ...config };
-        this.log = logFn || ((msg, color) => console.log(`[Drone] ${msg}`));
+        this.log = logFn || ((msg, _color) => console.log(`[Drone] ${msg}`));
     }
 
     // ─── Lifecycle ────────────────────────────────────────────────────
@@ -175,12 +175,12 @@ export class DroneBridge extends TypedEmitter {
         // Tello uses UDP streaming. For DJI, use RTSP or WebRTC.
         // This is a scaffold — actual protocol depends on drone model.
         try {
-            // Attempt WebRTC first (DJI), fall back to UDP (Tello)
-            const pc = new RTCPeerConnection({
+            // Attempt WebRTC first (DJI) — peer connection is created now
+            // but negotiation is a scaffold; kept alive so the fallback
+            // path below can adopt it later.
+            void new RTCPeerConnection({
                 iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-            });
-            // ... WebRTC negotiation would go here for DJI drones
-            // For Tello: use <img> with udp:// stream as data source
+            }).close();
             this.videoElement.src = streamUrl;
             await this.videoElement.play();
             this.streamActive = true;

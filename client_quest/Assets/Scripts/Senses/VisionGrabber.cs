@@ -209,7 +209,7 @@ namespace FoveAI.Senses
 
             // Also POST the image to the soul's plaster endpoint for spatial memory
             var cfg = FoveAI.Config.ConfigLoader.Settings;
-            string plasterUrl = $"http://{(cfg != null ? cfg.serverIp : "192.168.8.100")}:{(cfg != null ? cfg.soulPort : 8405)}/api/environment/plaster_texture";
+            string plasterUrl = $"http://{(cfg != null ? cfg.serverIp : "192.168.8.109")}:{(cfg != null ? cfg.soulPort : 8405)}/api/environment/plaster_texture";
             using (UnityEngine.Networking.UnityWebRequest www = new UnityEngine.Networking.UnityWebRequest(plasterUrl, "POST"))
             {
                 byte[] jsonToSend = new System.Text.UTF8Encoding().GetBytes(json);

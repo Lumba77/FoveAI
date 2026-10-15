@@ -8,6 +8,7 @@ owned by the XRLF runtime itself.
 Routes:
   POST /v1/chat/completions  → proxy to XRLF :8402
   GET  /health               → health check
+  GET  /themes               → theme manifest for GTK tray and multigate
   GET  /soul/status          → proxy to XRLF :8402
   GET  /memory/status        → proxy to XRLF :8402
   GET  /v1/models            → proxy to XRLF :8402
@@ -55,6 +56,7 @@ class HttpProxyServer:
         app = web.Application()
         app.router.add_get("/", self._index)
         app.router.add_get("/health", self._health)
+        app.router.add_get("/themes", self._themes)
         app.router.add_post("/v1/chat/completions", self._chat_completions)
         app.router.add_get("/v1/chat/completions", self._chat_completions_get)
         app.router.add_get("/soul/status", self._proxy_get)
@@ -75,6 +77,7 @@ class HttpProxyServer:
                 "routes": [
                     "POST /v1/chat/completions",
                     "GET  /health",
+                    "GET  /themes",
                     "GET  /soul/status",
                     "GET  /memory/status",
                     "GET  /v1/models",
@@ -100,6 +103,37 @@ class HttpProxyServer:
                 "xrlf_reachable": xrlf_ok,
             }
         )
+
+    async def _themes(self, request: web.Request) -> web.Response:
+        """Serve theme manifest from Backend/themes/manifest.json."""
+        import json
+        from pathlib import Path
+
+        # Try to find themes directory relative to backend
+        backend_dir = Path(__file__).parent.parent.parent
+        manifest_path = backend_dir / "themes" / "manifest.json"
+
+        if not manifest_path.exists():
+            # Fallback to relative from FoveAI root
+            foveai_dir = backend_dir.parent
+            manifest_path = foveai_dir / "Backend" / "themes" / "manifest.json"
+
+        if manifest_path.exists():
+            try:
+                with open(manifest_path, "r", encoding="utf-8") as f:
+                    manifest = json.load(f)
+                return web.json_response(manifest)
+            except Exception as e:
+                logger.error(f"[HTTPProxy] Failed to load theme manifest: {e}")
+                return web.json_response(
+                    {"error": "Failed to load theme manifest", "detail": str(e)},
+                    status=500,
+                )
+        else:
+            # Return empty manifest if file doesn't exist
+            return web.json_response(
+                {"themes": [], "default": "foveai-celestial", "error": "Manifest not found"}
+            )
 
     async def _chat_completions(self, request: web.Request) -> web.StreamResponse:
         """Proxy chat completions to XRLF, with streaming support."""

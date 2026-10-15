@@ -77,6 +77,10 @@ export class AvatarManager {
     }
 
     public vrm: VRM | null = null;
+    /** Animation clips carried by a plain GLB avatar (Ready Player Me etc). */
+    public glbClips: THREE.AnimationClip[] = [];
+    /** When true, an external driver (AvatarPerformance) owns bone posing. */
+    public externalPerformance = false;
     public mixer: THREE.AnimationMixer | null = null;
     private currentAction: THREE.AnimationAction | null = null;
     private idleAction: THREE.AnimationAction | null = null;
@@ -93,7 +97,9 @@ export class AvatarManager {
     private lookAtTarget: THREE.Object3D;
     private tposeWarningSystem: TposeWarningSystem = new TposeWarningSystem();
 
-    private VERSION = (window as any).LINK_REVISION?.replace('OMEGA_', '') || "266";
+    readonly VERSION = (window as any).LINK_REVISION?.replace('OMEGA_', '') || "266";
+    /** exposed so panels can display build version */
+    public getVersion() { return this.VERSION; }
     private isZoomed: boolean = false;
     private zoomLerp: number = 0;
     private originalPos: THREE.Vector3 = new THREE.Vector3(0, -0.8, -2.0);
@@ -115,7 +121,6 @@ export class AvatarManager {
     private activeMicroGesture: string | null = null;
     private microGestureTimer: number = 0;
     private emotionalState: string = 'neutral';
-    private emotionalInfluence: number = 0;
     private curiosityStrength: number = 0.3;
 
     // Bone Cache for Performance & Authority
@@ -159,13 +164,13 @@ export class AvatarManager {
 
         // --- SOUNDBOARD BRIDGE: Listen for blendshape triggers from BracketParser ---
         window.addEventListener('foveai_blendshape_trigger', ((e: CustomEvent) => {
-            const { tag, blendShapes, duration } = e.detail;
+            const { blendShapes, duration } = e.detail;
             this.applySoundboardBlendShapes(blendShapes, duration);
         }) as EventListener);
 
         // --- SOUNDBOARD BRIDGE: Listen for micro-gesture triggers from BracketParser ---
         window.addEventListener('foveai_micro_gesture', ((e: CustomEvent) => {
-            const { gesture, params } = e.detail;
+            const { gesture } = e.detail;
             this.triggerMicroGesture(gesture);
         }) as EventListener);
 
@@ -210,7 +215,7 @@ export class AvatarManager {
         // --- BODY FEEDBACK: Movement execution confirmation sent back to the LLM ---
         // After Jen completes a movement, the memory system is notified so her
         // next turn's sensory context includes a body-awareness update.
-        window.addEventListener('foveai_body_feedback_request', ((e: CustomEvent) => {
+        window.addEventListener('foveai_body_feedback_request', ((_e: CustomEvent) => {
             const status = this.movementEngine.getStatus();
             const feedback = {
                 type: 'body_state',
@@ -274,8 +279,8 @@ export class AvatarManager {
                     }
                     if (obj.texture) obj.texture.dispose?.();
                 });
-            } catch (e) {
-                console.warn('[Avatar] Dispose warning:', e);
+            } catch (disposeErr) {
+                console.warn('[Avatar] Dispose warning:', disposeErr);
             }
             this.vrm = null;
         }
@@ -316,25 +321,11 @@ export class AvatarManager {
                             const modelScene = gltf.scene || (gltf.scenes && gltf.scenes[0]);
                             if (!modelScene) throw new Error("GLTF model scene empty");
                             
-                            vrm = {
-                                scene: modelScene,
-                                humanoid: {
-                                    getRawBoneNode: (boneName: string) => {
-                                        let found: THREE.Object3D | null = null;
-                                        modelScene.traverse((node: THREE.Object3D) => {
-                                            if (!found && node.name.toLowerCase().includes(boneName.toLowerCase())) {
-                                                found = node;
-                                            }
-                                        });
-                                        return found;
-                                    }
-                                },
-                                expressionManager: {
-                                    setValue: () => {},
-                                    update: () => {}
-                                },
-                                update: () => {}
-                            } as any;
+                            vrm = wrapGLBAsVRM(modelScene);
+                            // Keep the model's own clips so it can actually move
+                            if (gltf.animations && gltf.animations.length) {
+                                this.glbClips = gltf.animations;
+                            }
                         }
 
                         this.vrm = vrm;
@@ -651,7 +642,6 @@ export class AvatarManager {
     public setEmotionalState(state: string) {
         const valid = ['neutral', 'happy', 'sad', 'curious', 'concerned', 'excited', 'calm'];
         this.emotionalState = valid.includes(state) ? state : 'neutral';
-        this.emotionalInfluence = 0;
         this.log(`[Avatar] Emotional state: ${this.emotionalState}`, 'var(--neon-blue)');
         // Morph the Harmonic Heartbeat to match
         ambientSoundEngine.setEmotionalChord(this.emotionalState);
@@ -751,7 +741,7 @@ export class AvatarManager {
      * Routes <code:...> bracket tokens to CodeAgency methods.
      * Supported actions: search, read, write, edit, exec, git_status, list_dir
      */
-    private async executeCodeAction(action: string, params: Record<string, string>, fullMatch: string) {
+    private async executeCodeAction(action: string, params: Record<string, string>, _fullMatch: string) {
         this.log(`💻 <code:${action}> → CodeAgency`, 'var(--neon-blue)');
         try {
             switch (action) {
@@ -1525,7 +1515,15 @@ export class AvatarManager {
             // M7: Process micro-gestures each frame
             this.updateMicroGestures(delta);
 
-            if (this.isProceduralIdle || !this.currentAction) {
+            if (this.externalPerformance) {
+                // bones are driven by AvatarPerformance — but a GLB's own idle
+                // clip (if it ships one) still gives natural secondary motion
+                if (!this.currentAction && this.glbClips.length) {
+                    const a = this.mixer!.clipAction(this.glbClips[0]);
+                    if (!a.isRunning()) { a.reset().setLoop(THREE.LoopRepeat, Infinity).play(); this.currentAction = a; }
+                }
+                // bones are driven by AvatarPerformance — stay out of the way
+            } else if (this.isProceduralIdle || !this.currentAction) {
                 this.updateProceduralIdle(delta, camera);
             } else {
                 // Blend procedural breathing with active animation clips
@@ -1649,7 +1647,7 @@ export class AvatarManager {
         }
     }
 
-    private sweepScene() {
+    public sweepScene() {
         if (!this.scene) return;
         const toRemove: THREE.Object3D[] = [];
         this.scene.children.forEach((child) => {
@@ -1689,4 +1687,100 @@ export class AvatarManager {
         }
         (window as any).log?.(msg, color);
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Plain GLB avatars (Ready Player Me, Mixamo exports, Quixel-style rigs)
+// have no VRM metadata but DO carry a humanoid armature, ARKit mouth
+// blendshapes and animation clips. Wrapping them like a VRM lets the same
+// performance driver animate them — no second code path, no standing statue.
+// ═══════════════════════════════════════════════════════════════════════
+const GLB_BONE_ALIASES: Record<string, string[]> = {
+    hips: ['hips', 'hip', 'pelvis', 'root', 'mixamorig:hips'],
+    spine: ['spine', 'mixamorig:spine'],
+    chest: ['chest', 'upperchest', 'spine2', 'mixamorig:spine2'],
+    upperChest: ['upperchest', 'chest', 'spine2'],
+    neck: ['neck', 'neckbone', 'mixamorig:neck'],
+    head: ['head', 'headbone', 'mixamorig:head'],
+    leftShoulder: ['leftshoulder', 'shoulder.l', 'mixamorig:leftshoulder'],
+    rightShoulder: ['rightshoulder', 'shoulder.r', 'mixamorig:rightshoulder'],
+    leftUpperArm: ['leftupperarm', 'upperarm.l', 'mixamorig:leftupperarm'],
+    rightUpperArm: ['rightupperarm', 'upperarm.r', 'mixamorig:rightupperarm'],
+    leftLowerArm: ['leftlowerarm', 'lowerarm.l', 'mixamorig:leftlowerarm'],
+    rightLowerArm: ['rightlowerarm', 'lowerarm.r', 'mixamorig:rightlowerarm'],
+    leftHand: ['lefthand', 'hand.l', 'mixamorig:lefthand'],
+    rightHand: ['righthand', 'hand.r', 'mixamorig:righthand'],
+};
+
+/** Map a VRM expression name onto whatever the rig actually calls it. */
+const GLB_EXPR_ALIASES: Record<string, string[]> = {
+    aa: ['aa', 'jawopen', 'mouthopen'],
+    ih: ['ih', 'mouthstretch', 'mouthsmile'],
+    ou: ['ou', 'mouthpucker', 'mouthfunnel'],
+    ee: ['ee', 'mouthwide', 'mouthstretchleft'],
+    oh: ['oh', 'mouthround', 'mouthlowerdown'],
+    blink: ['blink', 'eyeblink', 'eyeblinkleft', 'eyeblinkright'],
+    blinkLeft: ['blinkleft', 'eyeblinkleft', 'blink'],
+    blinkRight: ['blinkright', 'eyeblinkright', 'blink'],
+};
+
+function wrapGLBAsVRM(modelScene: THREE.Object3D): VRM {
+    // ── bones: fuzzy match by name
+    const nodes: THREE.Object3D[] = [];
+    modelScene.traverse((n) => nodes.push(n));
+    const norm = (s: string) => s.toLowerCase().replace(/[\s\-_]/g, '');
+    const byNorm = new Map<string, THREE.Object3D>();
+    for (const n of nodes) {
+        const k = norm(n.name);
+        if (k && !byNorm.has(k)) byNorm.set(k, n);
+    }
+    const boneCache = new Map<string, THREE.Object3D | null>();
+    const findBone = (bone: string): THREE.Object3D | null => {
+        if (boneCache.has(bone)) return boneCache.get(bone)!;
+        let hit: THREE.Object3D | null = null;
+        for (const alias of GLB_BONE_ALIASES[bone] ?? [bone]) {
+            const direct = byNorm.get(norm(alias));
+            if (direct) { hit = direct; break; }
+            for (const [k, n] of byNorm) {
+                if (k.includes(norm(alias))) { hit = n; break; }
+            }
+            if (hit) break;
+        }
+        boneCache.set(bone, hit);
+        return hit;
+    };
+
+    // ── morph targets: ARKit names (+ VRM names) per mesh
+    type Binding = { mesh: THREE.Mesh; index: number };
+    const morphs = new Map<string, Binding[]>();
+    modelScene.traverse((obj: any) => {
+        const mesh = obj as THREE.Mesh;
+        if (!mesh.isMesh || !mesh.morphTargetDictionary) return;
+        for (const name of Object.keys(mesh.morphTargetDictionary)) {
+            const k = norm(name);
+            const list = morphs.get(k) ?? [];
+            list.push({ mesh, index: mesh.morphTargetDictionary[name] });
+            morphs.set(k, list);
+        }
+    });
+    const setMorph = (target: string, value: number) => {
+        for (const alias of GLB_EXPR_ALIASES[target] ?? [target]) {
+            const hits = morphs.get(norm(alias));
+            if (hits) { for (const b of hits) b.mesh.morphTargetInfluences![b.index] = value; return true; }
+        }
+        return false;
+    };
+
+    return {
+        scene: modelScene,
+        humanoid: {
+            getRawBoneNode: (bone: string) => findBone(bone),
+            getNormalizedBoneNode: (bone: string) => findBone(bone),
+        } as any,
+        expressionManager: {
+            setValue: (name: string, value: number) => { setMorph(name, value); },
+            update: () => {},
+        },
+        update: () => {},
+    } as unknown as VRM;
 }

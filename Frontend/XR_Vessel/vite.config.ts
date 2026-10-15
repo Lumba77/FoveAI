@@ -49,6 +49,10 @@ export default defineConfig({
       'Cross-Origin-Embedder-Policy': 'credentialless',
     },
     proxy: {
+      '/ws/theme': {
+        target: 'ws://127.0.0.1:8403',
+        ws: true,
+      },
       '/ws/soul': {
         target: 'ws://127.0.0.1:8405',
         ws: true,

@@ -1,0 +1,164 @@
+{
+  "generated_at": "2026-10-14T21:29:16.418Z",
+  "url": "http://127.0.0.1:5177/",
+  "verdict": "FAIL",
+  "steps": [
+    {
+      "name": "page loads",
+      "ok": true,
+      "ms": 153,
+      "detail": "FoveAI"
+    },
+    {
+      "name": "no error boundary",
+      "ok": true,
+      "ms": 279,
+      "detail": "clean"
+    },
+    {
+      "name": "authenticate",
+      "ok": true,
+      "ms": 5526,
+      "detail": "session token accepted"
+    },
+    {
+      "name": "persona setup",
+      "ok": true,
+      "ms": 19088,
+      "detail": "configured"
+    },
+    {
+      "name": "ignition present",
+      "ok": false,
+      "ms": 1,
+      "detail": "Error: no ignition/start affordance found"
+    },
+    {
+      "name": "press start",
+      "ok": true,
+      "ms": 11047,
+      "detail": "clicked"
+    },
+    {
+      "name": "reaches app shell",
+      "ok": true,
+      "ms": 7829,
+      "detail": "FoveAI 💬 Copilot Chat 🧠 Memory Vault 📰 Latest News ⚡ AGENCY & INTELLIGENCE ▾ "
+    },
+    {
+      "name": "mic diagnostics visible",
+      "ok": false,
+      "ms": 394,
+      "detail": "Error: mic diagnostics strip missing — mic state is invisible again"
+    },
+    {
+      "name": "lightweight boot",
+      "ok": true,
+      "ms": 4256,
+      "detail": "still-frame mode (no VRM decoded)"
+    },
+    {
+      "name": "images render",
+      "ok": true,
+      "ms": 4256,
+      "detail": "4 images OK"
+    },
+    {
+      "name": "avatar asset reachable",
+      "ok": true,
+      "ms": 93,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "softlayer modules served as JS",
+      "ok": true,
+      "ms": 100,
+      "detail": "5 modules"
+    }
+  ],
+  "error_count": 0,
+  "errors": [],
+  "warnings": [],
+  "failed_requests": [
+    {
+      "url": "http://127.0.0.1:5177/api/foveated/api/status",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/api/status",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/softlayer/modules/chat_relay.js",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/api/status",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/api/status",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/api/setting?key=XRLF_COGNITIVE_MODE",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/xrlf/v1/packages",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/api/foveated/api/status",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/xrlf/v1/packages",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/xrlf/v1/packages",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/api/profile/persona_picture/file/persona_mv08tjxe-f2204e.png",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/api/tools/images/file/profile_mv02i0xj-e65d27.png",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/avatars/user_fallback.png",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/api/status",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/api/soul/vitals",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/api/foveated/api/status",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/api/status",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/api/soul/vitals",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/api/status",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/api/status",
+      "reason": "NS_BINDING_ABORTED"
+    }
+  ]
+}

@@ -305,7 +305,7 @@ export class BodilyReflex {
         this.onPhysiologyUpdate?.(this.getState());
     }
 
-    private smoothPhysiology(delta: number) {
+    private smoothPhysiology(_delta: number) {
         // Continuous interpolation of fast-changing values between ticks
         // (Most values are already being smoothly interpolated in tickReflexes,
         //  this is for any sub-tick smoothing needed)

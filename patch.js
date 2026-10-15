@@ -617,8 +617,8 @@ app.post('/v1/auth/login', (req, res) => {
     res.json(result);
 });
 
-// ── Dashboard static assets on port 8401 ─────────────────────────────────────
-const DASHBOARD_PORT = parseInt(process.env.FM_DASHBOARD_PORT || '8401', 10);
+// ── Dashboard static assets on port 8414 ─────────────────────────────────────
+const DASHBOARD_PORT = parseInt(process.env.FM_DASHBOARD_PORT || '8414', 10);
 const dashboardApp = express();
 const allowCors = (req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');

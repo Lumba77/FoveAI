@@ -19,7 +19,6 @@ export class AmbientSoundEngine {
     private musicGain: GainNode | null = null;
     private echoGain: GainNode | null = null;
     private musicDelay: DelayNode | null = null;
-    private musicFeedback: GainNode | null = null;
 
     private activeAmbients: Map<string, { sources: AudioScheduledSourceNode[]; gains: GainNode[] }> = new Map();
     private musicInterval: ReturnType<typeof setInterval> | null = null;
@@ -59,12 +58,14 @@ export class AmbientSoundEngine {
             let topBarAlive = false;
             try {
                 // Check TopBar first (if running, it handles background audio)
-                const tbResp = await fetch('http://127.0.0.1:19847/status', { signal: AbortSignal.timeout(1500) });
+                // Same-origin backend health (:19847 TopBar is long dead and
+                // only produced cross-origin console errors on every poll).
+                const tbResp = await fetch('/api/status', { signal: AbortSignal.timeout(1500) });
                 if (tbResp.ok) {
                     const tbData = await tbResp.json();
                     topBarAlive = true;
-                    this._backendAlive = tbData.alive !== false;
-                    return; // TopBar is running — let it govern audio
+                    this._backendAlive = tbData.status !== 'ERROR';
+                    return; // backend is up — it governs audio
                 }
             } catch (_) { /* TopBar not running */ }
 
@@ -154,7 +155,6 @@ export class AmbientSoundEngine {
             musicFeedback.connect(musicDelay); // Feedback loop
             musicDelay.connect(musicGain); // Send delay to master music gain
             this.musicDelay = musicDelay;
-            this.musicFeedback = musicFeedback;
 
             const echoGain = ctx.createGain();
             echoGain.gain.value = this.echoVolume;
@@ -198,6 +198,9 @@ export class AmbientSoundEngine {
     /** Stop all ambient layers with 5s fade-out */
     public stop() {
         this.isRunning = false;
+        // Tear down the backend health-check timer too — without this a
+        // full stop leaked one interval per engine lifecycle.
+        if (this._backendCheckInterval) { clearInterval(this._backendCheckInterval); this._backendCheckInterval = null; }
         const ctx = this.ctx;
         // 5s fade-out before actually stopping
         if (ctx && this._fadeGain) {
@@ -205,7 +208,7 @@ export class AmbientSoundEngine {
             this._fadeGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 5);
             // Actually stop sources after fade completes
             setTimeout(() => {
-                for (const [name, layer] of this.activeAmbients) {
+                for (const layer of this.activeAmbients.values()) {
                     for (const src of layer.sources) {
                         try { src.stop(); } catch (_) {}
                     }
@@ -214,7 +217,7 @@ export class AmbientSoundEngine {
             }, 5500);
         } else {
             // No context — stop immediately
-            for (const [name, layer] of this.activeAmbients) {
+            for (const layer of this.activeAmbients.values()) {
                 for (const src of layer.sources) {
                     try { src.stop(); } catch (_) {}
                 }

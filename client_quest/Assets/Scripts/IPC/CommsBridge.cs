@@ -19,7 +19,7 @@ namespace FoveAI.Comms
     public class CommsBridge : MonoBehaviour
     {
         [Header("Backend")]
-        public string baseUrl = "http://192.168.8.100:8402";
+        public string baseUrl = "http://192.168.8.109:8402";
         public string apiPath = "/api/comms";
         public float timeoutSeconds = 10f;
 

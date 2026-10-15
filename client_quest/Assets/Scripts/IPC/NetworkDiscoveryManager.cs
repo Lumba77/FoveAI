@@ -28,7 +28,7 @@ namespace FoveAI.IPC
     public class NetworkDiscoveryManager : MonoBehaviour
     {
         [Header("Backend Detection")]
-        public string BackendHost = "192.168.8.100";
+        public string BackendHost = "192.168.8.109";
         public int    BackendPort = 8403;
         [Tooltip("UDP port that wake_listener.py on the PC listens on")]
         public int    WakePort    = 9999;
@@ -165,7 +165,7 @@ namespace FoveAI.IPC
             tr.offsetMax = new Vector2(-30, -30);
 
             _statusText = txtGo.AddComponent<Text>();
-            _statusText.font                 = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            _statusText.font                 = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             _statusText.fontSize             = 32;
             _statusText.color                = new Color(1f, 0.7f, 0.2f, 1f); // amber warning
             _statusText.alignment            = TextAnchor.MiddleCenter;

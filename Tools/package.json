@@ -1,0 +1,9 @@
+{
+  "name": "foveai-tools",
+  "private": true,
+  "type": "module",
+  "description": "Operational tooling (headless UI probes). Dependencies live here, not in /tmp, so the standing hardening timer survives a reboot.",
+  "dependencies": {
+    "puppeteer-core": "^24.9.0"
+  }
+}

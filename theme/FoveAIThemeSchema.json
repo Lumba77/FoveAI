@@ -1,0 +1,109 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FoveAI Canonical Theme Specification",
+  "description": "The Master Token Contract for the FoveAI Theme Ecosystem (Web, GTK, Unity)",
+  "type": "object",
+  "properties": {
+    "theme_id": {
+      "type": "string",
+      "description": "Unique identifier for this generated theme"
+    },
+    "theme_name": {
+      "type": "string",
+      "description": "Human readable name, e.g. 'Obsidian Glass'"
+    },
+    "background_prompt": {
+      "type": "string",
+      "description": "The original generative AI prompt used for the background"
+    },
+    "background_image_url": {
+      "type": "string",
+      "description": "The URL or base64 path to the generated background image"
+    },
+    "fv_bg_dark": {
+      "type": "string",
+      "description": "Deep background color (HEX) for solid surfaces or Unity fill lights"
+    },
+    "fv_bg_panel": {
+      "type": "string",
+      "description": "Panel surface color (HEX)"
+    },
+    "fv_text_main": {
+      "type": "string",
+      "description": "Primary text color (HEX)"
+    },
+    "fv_text_muted": {
+      "type": "string",
+      "description": "Secondary/muted text color (HEX)"
+    },
+    "fv_accent": {
+      "type": "string",
+      "description": "Primary accent color (HEX) for buttons, Unity key lights"
+    },
+    "fv_accent_2": {
+      "type": "string",
+      "description": "Secondary accent color (HEX) for gradients"
+    },
+    "fv_warn": {
+      "type": "string",
+      "description": "Warning state color (HEX)"
+    },
+    "fv_danger": {
+      "type": "string",
+      "description": "Error state color (HEX)"
+    },
+    "ui_structure": {
+      "type": "object",
+      "description": "Structural math defining how the UI components warp",
+      "properties": {
+        "menu_position": {
+          "type": "string"
+        },
+        "glass_opacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "shadow_intensity": {
+          "type": "string"
+        },
+        "animation_style": {
+          "type": "string"
+        },
+        "css_grid_template_columns": {
+          "type": "string",
+          "description": "Radical CSS Grid columns, e.g. '300px 1fr 1fr' or 'minmax(200px, auto) 1fr'"
+        },
+        "css_grid_template_rows": {
+          "type": "string",
+          "description": "Radical CSS Grid rows, e.g. 'auto 1fr 100px'"
+        },
+        "css_grid_areas": {
+          "type": "string",
+          "description": "Grid template areas defining the layout structure"
+        }
+      },
+      "required": ["menu_position", "glass_opacity"]
+    },
+    "audio_assets": {
+      "type": "object",
+      "properties": {
+        "ui_clicks": {
+          "type": "string",
+          "description": "URL to the generated UI click sound effect"
+        },
+        "ambient_loop": {
+          "type": "string",
+          "description": "URL to the generated ambient background loop"
+        }
+      }
+    }
+  },
+  "required": [
+    "theme_name",
+    "fv_bg_dark",
+    "fv_text_main",
+    "fv_accent",
+    "ui_structure"
+  ]
+}

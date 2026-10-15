@@ -10,8 +10,8 @@ Services:
   8402 — Contemplation / XRLF Runtime (main API, returns `loaded` boolean)
   8403 — Speech Nerve (WebSocket, TCP-only check)
   8404 — Body / Motor Cortex (Animation Stream)
-  8405 — Subconscious IN (Director)
-  8406 — Subconscious OUT (State)
+  8409 — Subconscious IN (Director)
+  8409 — Subconscious OUT (State)
   1234 — LM Studio (optional, external)
   5177 — Multigate (optional, frontend dev server)
 
@@ -42,7 +42,7 @@ SERVICES: list[dict[str, Any]] = [
     },
     {
         "name": "Hearing Nerve",
-        "port": 8401,
+        "port": 8408,
         "path": "/health",
         "type": "http",
         "critical": False,
@@ -78,14 +78,14 @@ SERVICES: list[dict[str, Any]] = [
     },
     {
         "name": "Subconscious OUT",
-        "port": 8406,
+        "port": 8409,
         "path": "/health",
         "type": "http",
         "critical": False,
     },
     {
         "name": "Chat Relay",
-        "port": 8407,
+        "port": 8413,
         "path": "/health",
         "type": "http",
         "critical": False,
@@ -252,7 +252,7 @@ def main() -> int:
         all_ok: bool = print_report(results)
         if not all_ok:
             print("\n  To start services:")
-            print("    python Backend/interactive_cycle.py   # ports 8400-8406")
+            print("    python Backend/interactive_cycle.py   # ports 8400-8409")
             print(
                 "    python api/server.py --port 8402      # XRLF Runtime (if not using interactive_cycle)"
             )

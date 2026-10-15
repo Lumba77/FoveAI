@@ -53,20 +53,10 @@ export interface ParsedText {
 export class BracketParser {
     // ── BRACKET TAG REGEX (The Sovereign Parser) ──
     private static readonly BRACKET_REGEX = /<(audio|emotion|micro|flavour|request|dev|action|movement|mode|code|animation|gesture|pad):([^>]+)>/g;
-    // Movement-specific regex: parses <movement:walk_forward 2m>, <movement:move_to x=0 y=-0.8 z=1>, etc.
-    private static readonly MOVEMENT_PARAM_REGEX = /(\w+)\s*(?:(\d+(?:\.\d+)?)m?|x=(-?\d+(?:\.\d+)?)\s*y=(-?\d+(?:\.\d+)?)\s*z=(-?\d+(?:\.\d+)?))?/;
     // Known movement commands
     private static readonly MOVEMENT_COMMANDS = new Set([
         'walk_forward', 'move_to', 'steer', 'steer_on', 'steer_off', 'stop', 'move_stop',
         'sit', 'stand_up', 'lay_down', 'kneel', 'interact',
-    ]);
-    // Known social mode commands
-    private static readonly MODE_COMMANDS = new Set([
-        'coexist', 'cowork', 'coop', 'rest', 'follow', 'intimate',
-    ]);
-    // Known mode command in <movement:> form
-    private static readonly MOVEMENT_MODE_COMMANDS = new Set([
-        'sit', 'stand_up', 'lay_down', 'kneel', 'follow',
     ]);
     // Fallback: match simple bracket forms like <sigh_content>, <hmm_thoughtful>, <soft_contented_sigh>
     // that models may generate without the type prefix. These default to 'audio' type.
@@ -86,8 +76,8 @@ export class BracketParser {
         // <think> is used by Qwen/DeepSeek models; <thought> is compagent's internal monologue format.
         // Both must be stripped BEFORE TTS — these are internal only and must never be spoken.
         let thinkText = '';
-        const thinkMatch = text.match(/<think>([\s\S]*?)<\/think>/i);
-        const thoughtMatch = !thinkMatch && text.match(/<thought>([\s\S]*?)<\/thought>/i);
+        const thinkMatch = text.match(/<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>/i);
+        const thoughtMatch = !thinkMatch && text.match(/<thought>([\s\S]*?)<\/\s*thought\b[^>]*>?/i);
         const anyThinkMatch = thinkMatch || thoughtMatch;
         if (anyThinkMatch) {
             thinkText = anyThinkMatch[1].trim();
@@ -95,8 +85,10 @@ export class BracketParser {
             window.dispatchEvent(new CustomEvent('foveai_thought_stream', { detail: { thought: thinkText } }));
         }
         const workingTextRaw = text
-            .replace(/<think>[\s\S]*?<\/think>/gi, '')
-            .replace(/<thought>[\s\S]*?<\/thought>/gi, '');
+            .replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')
+            .replace(/<thought>[\s\S]*?<\/\s*thought\b[^>]*>?/gi, '')
+            .replace(/<\/?\s*thought\b[^>]*>?/gi, '')
+            .replace(/<\/\s*thought\b/gi, '');
         // Convert any parenthetical (emotion: x) / (action: y) / (gesture: z) into bracket tags
         const workingText = workingTextRaw.replace(/\((emotion|action|gesture|movement|micro|mode):\s*([^)]+)\)/gi, '<$1:$2>');
         // Strip out direct <edit_file path="...">...</edit_file> blocks from clean text
@@ -282,7 +274,7 @@ export class BracketParser {
                     detail: { action: token.tag, params: token.params }
                 }));
                 try {
-                    const ws = new WebSocket('ws://localhost:8403');
+                    const ws = new WebSocket(`ws://${location.host}/ws/xrl`);
                     ws.onopen = () => {
                         ws.send(JSON.stringify({ event: 'gamepad', action: token.tag }));
                         ws.close();
@@ -327,8 +319,10 @@ export class BracketParser {
         }
         // Pre-strip think and thought blocks (internal monologue — never display to user)
         const noThink = text
-            .replace(/<think>[\s\S]*?<\/think>/gi, '')
-            .replace(/<thought>[\s\S]*?<\/thought>/gi, '');
+            .replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')
+            .replace(/<thought>[\s\S]*?<\/\s*thought\b[^>]*>?/gi, '')
+            .replace(/<\/?\s*thought\b[^>]*>?/gi, '')
+            .replace(/<\/\s*thought\b/gi, '');
         // Strip edit_file blocks completely
         const noEdits = noThink.replace(/<edit_file\s+path=["\']([^"\']+)[\"\\']\s*>[\s\S]*?<\/edit_file>/gi, '');
         // First strip typed tokens, then simple bracket forms

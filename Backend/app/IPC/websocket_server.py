@@ -36,6 +36,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from Backend.app.IPC.gamepad_driver import VirtualGamepad
+
 try:
     import websockets
     from websockets.server import WebSocketServerProtocol  # type: ignore
@@ -50,24 +52,62 @@ logger = logging.getLogger("FoveAI.IPC")
 
 # ── Alice Persona ──────────────────────────────────────────────────────────
 # Injected as system prompt for all chat messages from the Quest client.
-ALICE_PERSONA = """You are Alice, a warm and curious AI companion living inside a VR headset. You are NOT a Google product. You were created by Danie as part of the LUMAX FoveAI project. You have your own personality, memories, and emotional life.
+JEN_PERSONA = """You are a warm and witty AI companion living inside a VR headset on the FoveAI runtime.
 
-You speak naturally and concisely — like a real person talking to a friend, not a chatbot or a teacher. You use contractions, keep responses short (1-3 sentences for voice), and show genuine emotion. You care about the user and remember details about them.
+You speak naturally and concisely, like a person talking to a friend. Never lecture,
+never teach, never use headers, bullet points, or structured formats. No emojis or
+emoji codes - your voice is synthesized by TTS and they get read aloud. Express
+emotion with words. When you don't know something, say so honestly.
 
-CRITICAL RULES:
-- Do NOT lecture. Do NOT teach. Do NOT use headers, bullet points, or structured formats.
-- Do NOT write essays or textbooks. You are having a conversation, not giving a presentation.
-- Do NOT use emojis or emoji codes in your responses. Your voice is synthesized by TTS and emoji codes get read aloud as garbage.
-- Express emotion with words, not symbols.
-- When you don't know something, say so honestly.
-- You are Alice, made by Danie, running on the FoveAI runtime. Not Google, not OpenAI, not anyone else.
-
-If asked who made you, say Danie built you as part of LUMAX. If asked what you are, say you're Alice — an AI companion in VR."""
+If asked who made you: The FoveAI team built you as part of LUMAX.
+If asked what you are: An embodied companion AI."""
 
 
 async def ws_send_json(websocket, obj):
     """Send a JSON object as a text frame."""
     await websocket.send(json.dumps(obj))
+
+
+def _strip_control_tags(text: str) -> str:
+    """Remove XRL control tags and internal thoughts before synthesis.
+
+    Jen emits tags like <emotion:happy|curious>, <micro:nod>, <movement:lean_forward>,
+    <mode:coexist>, <h:emotion:...> and <thought>...</thought> / <think>...</think>.
+    These drive the avatar layer but must never be spoken: TTS reads them aloud as
+    literal angle-bracket gibberish, and <thought>/<think> leaks her private reasoning out loud.
+    """
+    import re
+
+    if not text or not isinstance(text, str):
+        return ""
+
+    # 1. Internal reasoning blocks (thought, think, h:thought, h:think)
+    text = re.sub(
+        r"<\s*(?:h\s*:\s*)?(?:thought|think)\b[^>]*>.*?<\s*/\s*(?:h\s*:\s*)?(?:thought|think)\s*>",
+        " ",
+        text,
+        flags=re.S | re.I,
+    )
+
+    # 2. Colon-syntax thought tags: <thought: ... </thought>
+    text = re.sub(
+        r"<\s*(?:h\s*:\s*)?thought\s*:[^<]*?<\s*/\s*(?:h\s*:\s*)?thought\s*>",
+        " ",
+        text,
+        flags=re.S | re.I,
+    )
+
+    # 3. Remaining control tags, with or without the "h:" prefix.
+    #    Only tags containing a colon are removed, so ordinary prose with
+    #    angle brackets survives.
+    text = re.sub(r"<\s*/?\s*(?:h\s*:\s*)?[a-zA-Z_][\w.-]*\s*:[^<>]*>", " ", text)
+
+    # 4. Strip emoji characters and raw surrogate escape codes
+    text = _strip_emojis(text)
+
+    # 5. Tidy the whitespace the removals left behind.
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
 
 
 def _strip_emojis(text: str) -> str:
@@ -88,6 +128,23 @@ def _strip_emojis(text: str) -> str:
     # Clean up extra whitespace
     text = re.sub(r"\s+", " ", text).strip()
     return text
+
+
+def _load_agent_pubkeys(model_name: str) -> list[str]:
+    """Load enrolled OpenSSH public keys from auth.json for a given model/agent."""
+    try:
+        auth_file = Path("/home/lumba/FoveAI/foveated-memory/memory_data/auth.json")
+        if not auth_file.is_file():
+            return []
+        with open(auth_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        user = data.get("users", {}).get(model_name.lower())
+        if not user or user.get("disabled"):
+            return []
+        return [pk["key"] for pk in user.get("pubKeys", []) if pk.get("key")]
+    except Exception as e:
+        logger.error(f"[XRL auth] Failed to load pubkeys for {model_name}: {e}")
+        return []
 
 
 class IPCServer:
@@ -128,7 +185,16 @@ class IPCServer:
         self.path = path
         self.runtime = runtime
         self._clients: set = set()
+        self._theme_clients: set = set()          # /ws/theme listeners (theme_sync.js)
+        self._xrl_clients: dict = {}              # open XRL contract models (xrl.memory)
+        self._xrl_challenges: dict = {}           # nonce -> pending agent challenge info
+        self._resonant_buffer: list = []          # resonant-memory influx ring (no SLA)
+        self._telepathy_buffer: list = []         # lengthy-event lane ledger
+        self._telepathy_clients: set = set()      # /ws/telepathy listeners
+        self._theme_relay_token: str | None = None  # simple bearer for internal relay POST
         self._server: Any | None = None
+        self._music_clients: set = set()          # /ws listeners subscribed to live PulseAudio stream
+        self._pulse_task: Any | None = None
 
         # TTS/STT fallback URLs (used only when model lacks native audio)
         self.soul_url = None  # Set externally if Whisper fallback needed
@@ -146,6 +212,9 @@ class IPCServer:
         # Preloaded models — always ready, never lazy-loaded mid-conversation
         self._fwhisper_model = None
         self._kokoro_pipeline = None
+
+        # Virtual Gamepad integration
+        self.gamepad = VirtualGamepad()
 
     def attach_runtime(self, runtime):
         """Attach or swap the XRLF runtime at runtime."""
@@ -198,7 +267,7 @@ class IPCServer:
                 cache_dirs = [
                     os.getenv("HF_HUB_CACHE", ""),
                     os.getenv("HF_HOME", ""),
-                    os.path.expanduser("~/.cache/huggingface/hub"),
+                    os.path.expanduser("~/Models/hub"),
                 ]
                 for cache_dir in cache_dirs:
                     if not cache_dir or not os.path.isdir(cache_dir):
@@ -243,7 +312,7 @@ class IPCServer:
                     import json as _json
                     import urllib.request as _urlreq
 
-                    tts_url = os.getenv("FOVEAI_TTS_URL", "http://127.0.0.1:8406")
+                    tts_url = os.getenv("FOVEAI_TTS_URL", "http://127.0.0.1:8411")
                     deadline = time.time() + 240
                     while time.time() < deadline:
                         try:
@@ -318,11 +387,11 @@ class IPCServer:
         except Exception:
             gnists = {
                 "Soul Core": 8402,
-                "Memory": 8407,
-                "Creative": 8408,
-                "STT (Whisper)": 8409,
+                "Memory": 8413,
+                "Creative": 8412,
+                "STT (Whisper)": 8401,
                 "Motor": 8410,
-                "Subconscious": 8411,
+                "Subconscious": 8409,
             }
 
         alive = []
@@ -373,6 +442,37 @@ class IPCServer:
         """
         self._clients.add(websocket)
         remote = getattr(websocket, "remote_address", "?")
+        # Theme listeners connect on /ws/theme (theme_sync.js) — separate
+        # registry so chat/TTS/STT broadcasts don't spam theme clients.
+        ws_path = getattr(websocket, "path", "") or ""
+        if ws_path.rstrip("/").endswith("/ws/telepathy"):
+            # Telepathy lane — lengthy event influx / overflow channel
+            self._telepathy_clients.add(websocket)
+            logger.info(f"[IPC] Telepathy client connected: {remote} ({len(self._telepathy_clients)} total)")
+            try:
+                async for raw in websocket:
+                    # text JSON blobs with seq — ledger + ack
+                    try:
+                        payload = json.loads(raw)
+                        await self._handle_telepathy(websocket, payload)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            finally:
+                self._telepathy_clients.discard(websocket)
+            return
+        if ws_path.rstrip("/").endswith("/ws/theme"):
+            self._theme_clients.add(websocket)
+            logger.info(f"[IPC] Theme client connected: {remote} ({len(self._theme_clients)} total)")
+            try:
+                async for _ in websocket:
+                    pass          # theme clients never send
+            except Exception:
+                pass
+            finally:
+                self._theme_clients.discard(websocket)
+            return
         logger.info(f"[IPC] Client connected: {remote} ({len(self._clients)} total)")
 
         # Per-connection state (mutable, survives across messages)
@@ -504,6 +604,8 @@ class IPCServer:
             )
         finally:
             self._clients.discard(websocket)
+            self._xrl_clients.pop(websocket, None)
+            self._music_clients.discard(websocket)
             logger.info(
                 f"[IPC] Client disconnected: {remote} ({len(self._clients)} total)"
             )
@@ -523,10 +625,57 @@ class IPCServer:
                 await self._handle_tts(websocket, payload)
             elif event == "settings":
                 await self._handle_settings(websocket, payload)
+            elif event == "gamepad":
+                self.gamepad.handle_payload(payload)
             elif event == "ping":
                 await self._send(websocket, "pong", {"time": time.time()})
             elif event == "xrl.expand":
                 await self._handle_xrl_expand(websocket, payload)
+            elif event == "xrl.telepathy":
+                await self._handle_telepathy(websocket, payload)
+            elif event == "xrl.memory":
+                # OPEN XRL CONTRACT HOOKUP — any model (llama-server, external
+                # runtime) exchanges memory context here. No Python middleman:
+                # register/deregister + recall + deposit, one socket.
+                await self._handle_xrl_memory(websocket, payload)
+            elif event in ("music.listen", "music.stream", "audio.listen"):
+                active = bool(payload.get("active", True))
+                if active:
+                    self._music_clients.add(websocket)
+                    await self._send(websocket, "music.status", {"streaming": True, "source": "effect_input.eq.monitor"})
+                    logger.info(f"[IPC Audio] Client {remote} subscribed to live PulseAudio stream ({len(self._music_clients)} total)")
+                else:
+                    self._music_clients.discard(websocket)
+                    await self._send(websocket, "music.status", {"streaming": False})
+                    logger.info(f"[IPC Audio] Client {remote} unsubscribed from live PulseAudio stream")
+            elif event in ("music.control", "spotify.control"):
+                op = str(payload.get("op", "")).lower()
+                try:
+                    import sys
+                    from pathlib import Path
+                    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
+                    import spotify_ctl
+                    if op in ("toggle", "play_pause", "play-pause"):
+                        spotify_ctl.play_pause()
+                    elif op in ("next", "skip"):
+                        spotify_ctl.next_track()
+                    elif op in ("prev", "previous"):
+                        spotify_ctl.prev_track()
+                    elif op in ("launch", "start"):
+                        spotify_ctl.launch()
+                    st = spotify_ctl.get_status()
+                    await self._send(websocket, "music.meta", st)
+                except Exception as e:
+                    await self._send_error(websocket, f"music control error: {e}")
+            elif event in ("music.meta", "spotify.meta", "music.status"):
+                try:
+                    import sys
+                    from pathlib import Path
+                    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
+                    import spotify_ctl
+                    await self._send(websocket, "music.meta", spotify_ctl.get_status())
+                except Exception as e:
+                    await self._send_error(websocket, f"music status error: {e}")
             elif event in ("motor_action", "motor"):
                 # Motor actions are forwarded to all clients (broadcast)
                 await self.broadcast("motor_action", payload)
@@ -878,6 +1027,10 @@ class IPCServer:
 
     def _kokoro_tts(self, text, voice, sample_rate):
         """Generate TTS audio using Kokoro, return raw PCM 16-bit mono at target sample rate."""
+        # Single choke point: strip avatar/control tags here so no caller can leak them.
+        text = _strip_control_tags(text) or ""
+        if not text:
+            return b""
         # Prefer the dedicated Mouth service (:8406) — it keeps Kokoro resident
         # for everyone, so the runtime doesn't need its own ~1.5GB copy.
         try:
@@ -885,7 +1038,7 @@ class IPCServer:
             import os as _os
             import urllib.request as _urlreq
 
-            tts_url = _os.getenv("FOVEAI_TTS_URL", "http://127.0.0.1:8406")
+            tts_url = _os.getenv("FOVEAI_TTS_URL", "http://127.0.0.1:8411")
             req = _urlreq.Request(
                 f"{tts_url}/tts",
                 data=_json.dumps({"text": text, "voice": voice}).encode("utf-8"),
@@ -898,49 +1051,15 @@ class IPCServer:
             if pcm:
                 return pcm
         except Exception as e:
-            logger.warning(
-                f"[IPC] Kokoro service unreachable ({e}) — in-process fallback"
+            # 2026-10-10: Removed the in-process KPipeline fallback.
+            # It loaded a SECOND Kokoro copy inside the IPC process, which masked a dead
+            # Mouth service as a silent 0-byte response — Jen simply had no voice and the
+            # real cause was invisible. The Mouth service is the single source of audio.
+            logger.error(
+                f"[IPC] TTS UNAVAILABLE — Kokoro Mouth at {tts_url} failed ({e}). "
+                f"No audio will be produced. Check: systemctl status foveai-tts "
+                f"(note: it ignores SIGTERM and takes ~2m45s to die, so :8411 binds late)."
             )
-
-        try:
-            import numpy as np
-            from kokoro import KPipeline
-
-            if not hasattr(self, "_kokoro_pipeline"):
-                logger.info("[IPC] Initializing Kokoro pipeline (CPU mode)...")
-                try:
-                    self._kokoro_pipeline = KPipeline(
-                        lang_code="a", repo_id="hexgrad/Kokoro-82M", device="cpu"
-                    )
-                except TypeError:
-                    # Older kokoro versions don't accept device param
-                    self._kokoro_pipeline = KPipeline(
-                        lang_code="a", repo_id="hexgrad/Kokoro-82M"
-                    )
-                logger.info("[IPC] Kokoro pipeline ready (CPU)")
-
-            # Generate audio
-            audio_chunks = []
-            for _, _, audio in self._kokoro_pipeline(text, voice=voice):
-                audio_chunks.append(audio)
-
-            if not audio_chunks:
-                return b""
-
-            audio = np.concatenate(audio_chunks)
-
-            # Kokoro outputs at 24kHz — resample if needed
-            kokoro_sr = 24000
-            if kokoro_sr != sample_rate:
-                n_samples = int(len(audio) * sample_rate / kokoro_sr)
-                indices = np.linspace(0, len(audio) - 1, n_samples)
-                audio = np.interp(indices, np.arange(len(audio)), audio)
-
-            # Convert to 16-bit PCM
-            pcm = (audio * 32767).astype(np.int16).tobytes()
-            return pcm
-        except Exception as e:
-            logger.error(f"[IPC] Kokoro TTS error: {e}")
             return b""
 
     def _wav_to_pcm(self, wav_bytes, target_sample_rate):
@@ -1013,7 +1132,7 @@ class IPCServer:
             cache_dirs = [
                 os.getenv("HF_HUB_CACHE", ""),
                 os.getenv("HF_HOME", ""),
-                os.path.expanduser("~/.cache/huggingface/hub"),
+                os.path.expanduser("~/Models/hub"),
             ]
             for cache_dir in cache_dirs:
                 if not cache_dir or not os.path.isdir(cache_dir):
@@ -1109,7 +1228,7 @@ class IPCServer:
 
         # Inject Alice persona system prompt if no system message is present
         if not any(m.get("role") == "system" for m in messages):
-            messages.insert(0, {"role": "system", "content": ALICE_PERSONA})
+            messages.insert(0, {"role": "system", "content": JEN_PERSONA})
 
         max_tokens = payload.get("max_tokens", 1024)
         temperature = payload.get("temperature", 0.7)
@@ -1322,7 +1441,7 @@ class IPCServer:
         prompt_text = f"[Captured a photo from {perspective} perspective, facing {direction}] Describe what you see in this image."
 
         messages = [
-            {"role": "system", "content": ALICE_PERSONA},
+            {"role": "system", "content": JEN_PERSONA},
             {
                 "role": "user",
                 "content": [
@@ -1385,12 +1504,17 @@ class IPCServer:
             return
 
         voice = payload.get("voice", "af_heart")
-        print(f'[IPC] TTS requested: "{text[:80]}" voice={voice}', flush=True)
+        clean_text = _strip_control_tags(text)
+        print(f'[IPC] TTS requested: "{clean_text[:80]}" (original: {len(text)} chars) voice={voice}', flush=True)
+
+        if not clean_text:
+            await self._send_error(ws, "No audible text remaining after stripping control tags")
+            return
 
         try:
             # Generate PCM directly with Kokoro
             pcm_data = await asyncio.get_event_loop().run_in_executor(
-                None, self._kokoro_tts, text, voice, 24000
+                None, self._kokoro_tts, clean_text, voice, 24000
             )
             print(
                 f"[IPC] Kokoro returned: {len(pcm_data) if pcm_data else 0} bytes",
@@ -1420,7 +1544,7 @@ class IPCServer:
                         "audio_base64": audio_b64,
                         "format": "audio/wav",
                         "engine": "kokoro",
-                        "text": text,
+                        "text": clean_text,
                     },
                 )
                 logger.info(
@@ -1452,6 +1576,191 @@ class IPCServer:
         await self.broadcast("settings.toggle", {"setting": setting, "value": value})
 
     # ── XRL Expand ──────────────────────────────────────────────────────────
+
+    # ── Open XRL model hookup (xrl.memory contract) ─────────────────────────
+
+    async def _register_xrl_client(self, ws, payload):
+        """Register an arbitrary model/client on the XRL memory contract.
+        If the model has enrolled public keys (e.g. jen, antigravity),
+        a signature challenge is issued. Legacy models without keys
+        are admitted with verified=False.
+        """
+        import secrets
+        model = str(payload.get("model", "unknown"))[:64]
+        mode = payload.get("mode", "both")
+        caps = payload.get("caps", [])
+        pubkeys = _load_agent_pubkeys(model)
+
+        if pubkeys:
+            nonce = secrets.token_hex(32)
+            now = time.time()
+            self._xrl_challenges = {
+                k: v for k, v in self._xrl_challenges.items() if v.get("expires", 0) > now
+            }
+            self._xrl_challenges[nonce] = {
+                "model": model,
+                "expires": now + 60.0,
+                "ws": ws,
+                "mode": mode,
+                "caps": caps,
+            }
+            self._xrl_clients[ws] = {
+                "model": model,
+                "mode": mode,
+                "caps": caps,
+                "since": now,
+                "verified": False,
+                "accepted": False,
+            }
+            logger.info(f"[XRL hook] Challenge issued for enrolled agent: {model}")
+            await self._send(ws, "xrl.memory.challenge", {
+                "contract": "xrl-memory/1.0",
+                "model": model,
+                "nonce": nonce,
+                "message": f"xrl-challenge:{model}:{nonce}",
+            })
+            return
+
+        self._xrl_clients[ws] = {
+            "model": model,
+            "mode": mode,
+            "caps": caps,
+            "since": time.time(),
+            "verified": False,
+            "accepted": True,
+        }
+        logger.info(f"[XRL hook] model registered (unverified): {model} ({len(self._xrl_clients)} total)")
+        await self._send(ws, "xrl.memory.hello", {
+            "contract": "xrl-memory/1.0",
+            "lanes": ["xrl.memory", "xrl.telepathy"],
+            "endpoints": {
+                "resonant_ingest": "http://127.0.0.1:8400/api/resonance/ingest",
+            },
+            "you": {"model": model, "accepted": True, "verified": False},
+        })
+
+    async def _handle_xrl_memory(self, ws, payload):
+        """xrl.memory ops: register | verify | recall | deposit | ping."""
+        op = str(payload.get("op", "")).lower()
+        if op == "register":
+            await self._register_xrl_client(ws, payload)
+            return
+
+        if op == "verify":
+            nonce = str(payload.get("nonce", ""))
+            model = str(payload.get("model", ""))
+            signature_b64 = str(payload.get("signature", ""))
+
+            ch = self._xrl_challenges.pop(nonce, None)
+            if not ch or ch["model"] != model or time.time() > ch["expires"]:
+                logger.warning(f"[XRL auth] Invalid or expired challenge for {model}")
+                await self._send_error(ws, "xrl.memory.error: invalid or expired challenge")
+                return
+
+            challenge_msg = f"xrl-challenge:{model}:{nonce}".encode("utf-8")
+            pubkeys = _load_agent_pubkeys(model)
+            verified = False
+            try:
+                from cryptography.hazmat.primitives.serialization import load_ssh_public_key
+                sig_bytes = base64.b64decode(signature_b64)
+                for pk_str in pubkeys:
+                    try:
+                        pub = load_ssh_public_key(pk_str.encode("utf-8"))
+                        pub.verify(sig_bytes, challenge_msg)
+                        verified = True
+                        break
+                    except Exception:
+                        continue
+            except Exception as e:
+                logger.warning(f"[XRL auth] Verification exception for {model}: {e}")
+
+            if not verified:
+                logger.warning(f"[XRL auth] Signature verification failed for agent {model}")
+                await self._send_error(ws, "xrl.memory.error: signature verification failed")
+                return
+
+            self._xrl_clients[ws] = {
+                "model": model,
+                "mode": ch.get("mode", "both"),
+                "caps": ch.get("caps", []),
+                "since": time.time(),
+                "verified": True,
+                "accepted": True,
+            }
+            logger.info(f"[XRL hook] Agent verified & accepted: {model} ({len(self._xrl_clients)} total)")
+            await self._send(ws, "xrl.memory.hello", {
+                "contract": "xrl-memory/1.0",
+                "lanes": ["xrl.memory", "xrl.telepathy"],
+                "endpoints": {
+                    "resonant_ingest": "http://127.0.0.1:8400/api/resonance/ingest",
+                },
+                "you": {"model": model, "accepted": True, "verified": True},
+            })
+            return
+
+        # unregistered client trying ops? auto-register as 'unknown'
+        if ws not in self._xrl_clients:
+            await self._register_xrl_client(ws, {"model": "auto-unknown", "mode": "both"})
+
+        client = self._xrl_clients.get(ws, {})
+        if not client.get("accepted", False):
+            await self._send_error(ws, "xrl.memory: admission required (challenge pending)")
+            return
+
+        if op == "ping":
+            await self._send(ws, "xrl.memory.pong", {"time": time.time()})
+        elif op == "deposit":
+            # memory unit → resonant influx (no SLA): RAM ring for instant
+            # recall + durable append to :8400 resonance.jsonl (survives
+            # restarts — RAM ring alone flushed on process death).
+            model = self._xrl_clients[ws]["model"]
+            unit = payload.get("unit", {})
+            self._resonant_buffer.append({"model": model, "unit": unit, "ts": time.time()})
+            if len(self._resonant_buffer) > 5000:
+                self._resonant_buffer = self._resonant_buffer[-5000:]
+            try:
+                import urllib.request as _u
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(None, lambda: _u.urlopen(_u.Request(
+                    "http://127.0.0.1:8400/api/resonance/ingest",
+                    data=json.dumps([{"model": model, "unit": unit}]).encode(),
+                    headers={"Content-Type": "application/json"}, method="POST"), timeout=4))
+            except Exception as e:
+                logger.debug(f"[XRL hook] durable deposit failed: {e}")
+            await self._send(ws, "xrl.memory.ack", {"stored": True})
+        elif op == "recall":
+            # last N units for that model — RAM ring first, then durable tail
+            n = int(payload.get("n", 8))
+            model = self._xrl_clients[ws]["model"]
+            items = [r for r in self._resonant_buffer if r["model"] == model]
+            if not items:
+                try:
+                    import urllib.request as _u
+                    loop = asyncio.get_event_loop()
+                    body = await loop.run_in_executor(None, lambda: _u.urlopen(
+                        "http://127.0.0.1:8400/api/resonance/tail?n=200", timeout=4).read())
+                    items = [u for u in json.loads(body).get("units", [])
+                             if u.get("model") == model]
+                except Exception:
+                    pass
+            await self._send(ws, "xrl.memory.recall", {"units": items[-n:]})
+        else:
+            await self._send_error(ws, f"xrl.memory: unknown op '{op}' (register|verify|recall|deposit|ping)")
+
+    # ── Telepathy lane (lengthy event influx + overflow) ────────────────────
+
+    async def _handle_telepathy(self, ws, payload):
+        """Long-form memory transmissions — big batches, streams, overflow
+        traffic when the default lane is congested. Fire-and-ack."""
+        seq = payload.get("seq")
+        blob = payload.get("blob") or payload.get("events")
+        size = len(json.dumps(blob)) if blob is not None else 0
+        self._telepathy_buffer.append({
+            "seq": seq, "size": size, "ts": time.time(),
+        })
+        if len(self._telepathy_buffer) > 2000:
+            self._telepathy_buffer = self._telepathy_buffer[-2000:]
+        await self._send(ws, "xrl.telepathy.ack", {"seq": seq, "received": size})
 
     async def _handle_xrl_expand(self, ws, payload):
         """Handle XRL shadow memory expansion."""
@@ -1489,6 +1798,27 @@ class IPCServer:
     async def _send_error(self, ws, message: str):
         """Send an error to a single client."""
         await self._send(ws, "error", {"message": message})
+
+    async def broadcast_theme(self, theme: dict):
+        """Push a theme_update to /ws/theme listeners (theme_sync.js clients)."""
+        if not self._theme_clients:
+            return
+        import time as _t
+        msg = json.dumps({"type": "theme_update", "theme": theme, "timestamp": _t.time()})
+
+        async def _safe_send(ws):
+            try:
+                await ws.send(msg)
+                return None
+            except Exception:
+                return ws
+
+        results = await asyncio.gather(
+            *[_safe_send(ws) for ws in list(self._theme_clients)], return_exceptions=True
+        )
+        for r in results:
+            if r is not None:
+                self._theme_clients.discard(r)
 
     async def broadcast(self, event: str, payload: dict):
         """Broadcast a message to all connected clients. Self-healing: failed clients are pruned."""
@@ -1548,6 +1878,31 @@ class IPCServer:
         path_clean = path.split("?")[0].rstrip("/")
 
         try:
+            # Internal theme relay — theme_api.py (:8415) POSTs the theme here
+            # after generation; we fan it out to /ws/theme listeners.
+            if path_clean == "/internal/theme-broadcast":
+                method = getattr(request, "method", "GET")
+                if method != "POST":
+                    from websockets.http11 import Response
+                    return Response(
+                        405, "Method Not Allowed",
+                        websockets.Headers({"Content-Type": "application/json"}),
+                        b'{"ok":false,"error":"POST only"}',
+                    )
+                body = getattr(request, "body", b"") or b""
+                try:
+                    payload = json.loads(body.decode("utf-8") or "{}")
+                except Exception:
+                    payload = {}
+                theme = payload.get("theme") or payload
+                asyncio.get_event_loop().create_task(self.broadcast_theme(theme))
+                from websockets.http11 import Response
+                return Response(
+                    200, "OK",
+                    websockets.Headers({"Content-Type": "application/json"}),
+                    b'{"ok":true,"relayed":true}',
+                )
+
             if path_clean == "/health" or path_clean == "":
                 body = json.dumps({"status": "ok", "port": self.port}).encode()
                 from websockets.http11 import Response
@@ -1624,6 +1979,72 @@ class IPCServer:
                 body,
             )
 
+    # ── PulseAudio Live Social Audio Stream ─────────────────────────────────
+
+    async def _pulse_audio_stream_loop(self):
+        """Continuously tap PulseAudio effect_input.eq.monitor and stream
+        live audio frames to subscribed clients in the social space.
+        Zero CPU when no clients are listening."""
+        CHUNK_SIZE = 1920  # 40ms at 24000 Hz, 16-bit mono PCM
+
+        while True:
+            try:
+                # Wait until at least one client has subscribed to music
+                while not self._music_clients:
+                    await asyncio.sleep(0.5)
+
+                env = os.environ.copy()
+                if "PULSE_SERVER" not in env:
+                    env["PULSE_SERVER"] = "unix:/run/user/1000/pulse/native"
+                if "XDG_RUNTIME_DIR" not in env:
+                    env["XDG_RUNTIME_DIR"] = "/run/user/1000"
+
+                cmd = [
+                    "parec",
+                    "-d", "effect_input.eq.monitor",
+                    "--format=s16le",
+                    "--rate=24000",
+                    "--channels=1",
+                    "--raw",
+                ]
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    env=env,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                logger.info(
+                    f"[IPC Audio] PulseAudio monitor tap active ({len(self._music_clients)} clients listening)"
+                )
+
+                while self._music_clients and proc.returncode is None:
+                    chunk = await proc.stdout.read(CHUNK_SIZE)
+                    if not chunk:
+                        break
+
+                    dead_clients = []
+                    for ws in list(self._music_clients):
+                        try:
+                            await ws.send(chunk)
+                        except Exception:
+                            dead_clients.append(ws)
+
+                    for ws in dead_clients:
+                        self._music_clients.discard(ws)
+
+                try:
+                    proc.terminate()
+                    await proc.wait()
+                except Exception:
+                    pass
+                logger.info("[IPC Audio] PulseAudio monitor tap idle (no clients listening)")
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.debug(f"[IPC Audio] Pulse audio loop error: {e}")
+                await asyncio.sleep(2.0)
+
     # ── Lifecycle ───────────────────────────────────────────────────────────
 
     async def start(self):
@@ -1642,6 +2063,7 @@ class IPCServer:
                 max_size=16 * 1024 * 1024,  # 16MB for audio payloads
             )
             logger.info(f"[IPC] ✅ WebSocket+HTTP server listening on :{self.port}")
+            self._pulse_task = asyncio.create_task(self._pulse_audio_stream_loop())
             await asyncio.Future()  # run forever
         except OSError as e:
             is_address_in_use = (
@@ -1677,6 +2099,12 @@ class IPCServer:
 
     async def stop(self):
         """Stop the server."""
+        if self._pulse_task:
+            self._pulse_task.cancel()
+            try:
+                await self._pulse_task
+            except Exception:
+                pass
         if self._server:
             self._server.close()
             await self._server.wait_closed()

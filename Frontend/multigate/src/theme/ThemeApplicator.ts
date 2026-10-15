@@ -42,7 +42,7 @@ export interface MasterTheme {
 
 // ── Web Audio Engine ───────────────────────────────────────────────────────
 let audioCtx: AudioContext | null = null;
-let ambientSource: AudioBufferSourceNode | null = null;
+let ambientSource: AudioScheduledSourceNode | null = null;
 let ambientGain: GainNode | null = null;
 
 function getAudioCtx(): AudioContext {
@@ -159,14 +159,18 @@ function injectThemeVariables(theme: MasterTheme) {
   const s = theme.ui_structure;
   const root = document.documentElement;
 
-  // Core palette
-  root.style.setProperty('--fv-accent', theme.fv_accent);
-  root.style.setProperty('--fv-accent-2', theme.fv_accent_2);
-  root.style.setProperty('--fv-ok', theme.fv_ok);
-  root.style.setProperty('--fv-warn', theme.fv_warn);
-  root.style.setProperty('--fv-danger', theme.fv_danger);
-  root.style.setProperty('--fv-accent-dim', theme.fv_accent + '22');
-  root.style.setProperty('--fv-violet-dim', theme.fv_accent_2 + '22');
+  // Core palette — guard against undefined/missing fields from a malformed
+  // or half-streamed theme JSON; setProperty(x, undefined) poisons every
+  // rule using the variable with the literal string "undefined".
+  const color = (v: string | undefined, fb: string) =>
+    typeof v === 'string' && /^[#a-zA-Z0-9(),.%\s-]+$/.test(v) ? v : fb;
+  root.style.setProperty('--fv-accent', color(theme.fv_accent, '#6ab3d4'));
+  root.style.setProperty('--fv-accent-2', color(theme.fv_accent_2, '#8a7fbc'));
+  root.style.setProperty('--fv-ok', color(theme.fv_ok, '#19282c'));
+  root.style.setProperty('--fv-warn', color(theme.fv_warn, '#a07a3a'));
+  root.style.setProperty('--fv-danger', color(theme.fv_danger, '#8b2020'));
+  root.style.setProperty('--fv-accent-dim', color(theme.fv_accent, '#6ab3d4') + '22');
+  root.style.setProperty('--fv-violet-dim', color(theme.fv_accent_2, '#8a7fbc') + '22');
 
   // Structure
   root.style.setProperty('--fv-radius', s.border_radius);
@@ -368,6 +372,12 @@ function attachClickSounds(style: string) {
 // ── MAIN APPLICATOR ────────────────────────────────────────────────────────
 export async function applyMasterTheme(theme: MasterTheme, options = { sound: true }) {
   console.log(`🎨 Applying theme: ${theme.theme_name}`);
+  // Defensive default: a malformed theme must not NPE on ui_structure
+  theme.ui_structure ??= {
+    menu_position: 'left', border_radius: '8px', glass_opacity: 0.15,
+    shadow_intensity: 'medium', light_angle: '135deg', time_of_day_sync: false,
+    animation_style: 'breathe', ornamentation: 'minimal',
+  };
 
   // 1. CSS variables
   injectThemeVariables(theme);
@@ -384,6 +394,7 @@ export async function applyMasterTheme(theme: MasterTheme, options = { sound: tr
       const res = await fetch('/api/dream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(20000),
         body: JSON.stringify({
           prompt: theme.background_prompt,
           negative_prompt: 'blurry, low quality, text, watermark, cartoon',

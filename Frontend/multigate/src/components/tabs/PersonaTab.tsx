@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useProfilePicture } from '../../hooks/useProfilePicture';
 
 const agenticTraits = [
   { key: 'autonomy', label: 'Autonomy', left: 'Propose Only', right: 'Direct Edits' },
@@ -33,16 +34,32 @@ interface PersonaTabProps {
   onNavigateToDiagnostics?: () => void;
   activeSimulation?: any;
   onClearSimulation?: () => void;
+  currentUser?: { username: string; apiKey?: string } | null;
 }
 
 export const PersonaTab: React.FC<PersonaTabProps> = ({
   onNavigateToDiagnostics,
   activeSimulation,
-  onClearSimulation
+  onClearSimulation,
+  currentUser
 }) => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [nickname, setNickname] = useState('');
+
+  // ── Profile picture upload (user's gallery collection, never replaces) ──
+  const pfp = useProfilePicture(currentUser?.apiKey);
+  const userPfp = pfp.url;
+  const userPfpCount = pfp.count;
+  const pfpBusy = pfp.busy;
+  const pfpMsg = pfp.msg;
+
+  const handlePfpUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await pfp.upload(file);
+    if (e.target) e.target.value = '';
+  };
   
   const [dnaTraits, setDnaTraits] = useState<Record<string, number>>({});
   const [mbtiType, setMbtiType] = useState('');
@@ -168,6 +185,34 @@ export const PersonaTab: React.FC<PersonaTabProps> = ({
       <p style={{ fontSize: '0.75rem', opacity: 0.7, marginBottom: '16px', color: 'var(--neon-blue)' }}>
         Configure your companion's identity and core personality traits.
       </p>
+
+      {/* Profile Picture — uploads join the user's gallery collection */}
+      <div className="glass-card" style={{ padding: '16px 20px', borderRadius: '6px', marginBottom: '20px', display: 'flex', gap: '18px', alignItems: 'center', background: 'rgba(255, 184, 0, 0.04)', border: '1px solid rgba(255, 184, 0, 0.25)' }}>
+        <div style={{
+          width: 72, height: 96, borderRadius: 10, overflow: 'hidden', flexShrink: 0,
+          boxShadow: 'inset 4px 4px 10px rgba(0,0,0,0.9), inset -2px -2px 5px rgba(255,255,255,0.05)',
+          background: 'rgba(10,12,8,0.5)'
+        }}>
+          {userPfp ? (
+            <img src={userPfp} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} key={userPfp} />
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: '1.4rem', opacity: 0.4 }}>👤</div>
+          )}
+        </div>
+        <div style={{ flex: 1 }}>
+          <h4 style={{ fontFamily: 'Orbitron', margin: 0, fontSize: '0.85rem', color: '#ffb800', letterSpacing: '1px' }}>
+            🖼️ PROFILE PICTURE
+          </h4>
+          <p style={{ fontSize: '0.72rem', opacity: 0.85, color: '#a0e0ff', margin: '4px 0 8px 0' }}>
+            Uploads join your gallery collection ({userPfpCount} picture{userPfpCount === 1 ? '' : 's'} stored — nothing is replaced).
+          </p>
+          <label style={{ display: 'inline-block', cursor: pfpBusy ? 'wait' : 'pointer', padding: '5px 14px', borderRadius: '5px', border: '1px solid rgba(255, 184, 0, 0.4)', background: 'rgba(255, 184, 0, 0.08)', color: '#ffb800', fontSize: '0.75rem', opacity: pfpBusy ? 0.5 : 1 }}>
+            {pfpBusy ? 'Uploading…' : '📂 Choose image…'}
+            <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={handlePfpUpload} disabled={pfpBusy} />
+          </label>
+          {pfpMsg && <span style={{ fontSize: '0.72rem', marginLeft: '10px', color: pfpMsg.startsWith('✓') ? '#5dff8f' : '#ff6b6b' }}>{pfpMsg}</span>}
+        </div>
+      </div>
 
       {/* Clinical Disorder Assimilation Card */}
       <div className="glass-card" style={{ padding: '16px 20px', background: 'rgba(0, 243, 255, 0.04)', border: '1px solid rgba(0, 243, 255, 0.25)', borderRadius: '6px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -340,7 +385,7 @@ export const PersonaTab: React.FC<PersonaTabProps> = ({
       <div className="glass-card" style={{ padding: '20px', background: 'rgba(0,0,0,0.4)', border: '1px solid var(--border)', borderRadius: '4px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', marginTop: '20px' }}>
         <h4 style={{ fontFamily: 'Orbitron', margin: '0 0 6px 0', fontSize: '0.9rem', color: 'var(--neon-green, #4dffa0)', letterSpacing: '2px' }}>TASKS</h4>
         <p style={{ fontSize: '0.72rem', opacity: 0.7, color: '#a0e0ff', margin: '0 0 14px 0' }}>
-          Give Jenna a task — she decomposes it into a todo list, works it autonomously (web, browser, journals), and delivers a report.
+          Assign an autonomous task — your companion decomposes it into a todo list, works it autonomously (web, browser, journals), and delivers a report.
         </p>
         <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
           <input

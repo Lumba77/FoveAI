@@ -297,7 +297,10 @@ class TreasuryManager:
                     f"is below CoinEx minimum {min_amount}"
                 )
         except Exception as e:
-            logger.error(f"[TreasuryManager] Reinvestment execution error: {e}")
+            if "circuit breaker" in str(e).lower():
+                logger.debug(f"[TreasuryManager] Reinvestment paused by circuit breaker: {e}")
+            else:
+                logger.error(f"[TreasuryManager] Reinvestment execution error: {e}")
 
         return None
 

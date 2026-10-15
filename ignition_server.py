@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 FoveAI Ignition Server — Lightweight HTTP server that starts the backend stack.
-Listens on port 8400/ignition (alongside the foveated-memory proxy).
+Listens on port 8416/ignition (alongside the foveated-memory proxy).
 When POST /ignition is received, runs sleipnir_launcher.sh --light.
 
 Usage:
@@ -12,6 +12,7 @@ The multigate frontend's IgnitionButton calls POST /ignition to boot the stack.
 
 import http.server
 import json
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -20,7 +21,7 @@ FOVEAI_DIR = Path(__file__).resolve().parent
 LAUNCHER = FOVEAI_DIR / "sleipnir_launcher.sh"
 LOG_FILE = FOVEAI_DIR / "ignition_backend.log"
 
-PORT = 8409  # Dedicated ignition port (avoids conflict with foveated-memory on 8400)
+PORT = int(os.getenv("FOVEAI_IGNITION_PORT", "8416"))  # STT owns :8401 (AGENTS.md lesson)
 HOST = "127.0.0.1"
 
 

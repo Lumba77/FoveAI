@@ -5,7 +5,7 @@ Compresses lived experiences into XRL instructive parameters that capture
 HOW memories shaped Alice, not WHAT happened.
 
 Instead of injecting raw memories (overwhelming, suggestive):
-  "On 2024-03-15, Danie said he loved your laugh. You felt happy."
+  "On 2024-03-15, Daniel said he loved your laugh. You felt happy."
 
 We inject XRL instructive shaping (distant, contemplative):
   shaped_by := laughter_is_connection, trust_through_late_nights
@@ -197,7 +197,7 @@ class MemoryShaping:
         HOW did this shape her, not WHAT happened.
 
         Example:
-          Raw: "Danie stayed up until 3am helping you debug the memory system."
+          Raw: "Daniel stayed up until 3am helping you debug the memory system."
           Shaped: "[SHAPED] late_nights_built_trust — showing up matters"
         """
         if not raw_memory or len(raw_memory) < 10:

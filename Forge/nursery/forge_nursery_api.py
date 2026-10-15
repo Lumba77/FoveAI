@@ -25,6 +25,8 @@ from .fine_tuner import (
 )
 from .model_registry import VariantDefinition, get_registry
 from .quantizer import get_quantizer
+from .autonomous_pipeline import PipelineConfig, get_pipeline_runner
+from .hf_scout import get_model_scout
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("forge-nursery-api")
@@ -389,6 +391,125 @@ async def forge_variant(req: ForgeRequest):
         "auto_quantize": req.auto_quantize,
         "quant_type": req.quant_type if req.auto_quantize else None,
     }
+
+
+# ─── Autonomous Pipeline Endpoints ─────────────────────────
+
+
+class AutonomousPipelineStartRequest(BaseModel):
+    variant_id: str = Field(..., description="Unique variant identifier")
+    name: str = Field(..., description="Display name")
+    description: str = Field("", description="Variant description")
+    base_model: str = Field("gemma-4-12b-it", description="Base model name or path")
+    datasets: list[str] = Field(default_factory=list, description="Dataset IDs or paths")
+    quant_type: str = Field("moq-3.0", description="Target quantization profile")
+    lora_r: int = Field(16, description="LoRA rank")
+    lora_alpha: int = Field(32, description="LoRA alpha")
+    epochs: int = Field(3, description="Training epochs")
+    batch_size: int = Field(2, description="Batch size")
+    learning_rate: float = Field(2e-4, description="Learning rate")
+    max_samples: int = Field(3000, description="Max training samples")
+    auto_register: bool = Field(True, description="Auto-register upon completion")
+    validate_model: bool = Field(True, description="Run inference sanity test after quant")
+
+
+@app.post("/api/pipeline/start")
+async def start_autonomous_pipeline(req: AutonomousPipelineStartRequest):
+    """
+    Launch a fully autonomous end-to-end model creation pipeline:
+    Curate -> Fine-Tune -> Merge FP16 -> Quantize MoQ -> Validate -> Register.
+    """
+    runner = get_pipeline_runner()
+    cfg = PipelineConfig(
+        variant_id=req.variant_id,
+        name=req.name,
+        description=req.description,
+        base_model=req.base_model,
+        datasets=req.datasets,
+        quant_type=req.quant_type,
+        lora_r=req.lora_r,
+        lora_alpha=req.lora_alpha,
+        epochs=req.epochs,
+        batch_size=req.batch_size,
+        learning_rate=req.learning_rate,
+        max_samples=req.max_samples,
+        auto_register=req.auto_register,
+        validate_model=req.validate_model,
+    )
+    state = runner.create_run(cfg)
+    runner.start_run(state.run_id)
+    return {
+        "status": "started",
+        "run_id": state.run_id,
+        "variant_id": req.variant_id,
+        "stage": state.stage,
+    }
+
+
+@app.get("/api/pipeline/runs")
+async def list_pipeline_runs():
+    """List all autonomous pipeline runs and their current states."""
+    runner = get_pipeline_runner()
+    return [r.to_dict() for r in runner.runs.values()]
+
+
+@app.get("/api/pipeline/runs/{run_id}")
+async def get_pipeline_run(run_id: str):
+    """Get the current state and progress of an autonomous pipeline run."""
+    runner = get_pipeline_runner()
+    state = runner.runs.get(run_id)
+    if not state:
+        raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+    return state.to_dict()
+
+
+@app.get("/api/pipeline/runs/{run_id}/logs")
+async def get_pipeline_run_logs(run_id: str):
+    """Get the live logs of a specific pipeline run."""
+    runner = get_pipeline_runner()
+    state = runner.runs.get(run_id)
+    if not state:
+        raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+    return {"run_id": run_id, "logs": state.logs}
+
+
+# ─── Model Scout & Open XRL Provisioning Endpoints ──────────
+
+
+@app.get("/api/scout/search")
+async def scout_models(query: str = "Qwen3.5 MoQ", limit: int = 10):
+    """Search Hugging Face for GGUF/MoQ models suitable for FoveAI & Open XRL."""
+    scout = get_model_scout()
+    candidates = scout.search_candidates(query=query, limit=limit)
+    return [c.to_dict() for c in candidates]
+
+
+class ModelAdoptRequest(BaseModel):
+    repo_id: str = Field(..., description="HuggingFace repo ID")
+    filename: str = Field(..., description="GGUF filename inside repo")
+    variant_id: str | None = Field(None, description="Optional custom variant ID")
+    display_name: str | None = Field(None, description="Optional display name")
+    quant_type: str = Field("moq", description="Quantization profile")
+
+
+@app.post("/api/scout/adopt")
+async def adopt_model(req: ModelAdoptRequest):
+    """
+    Download a model to /opt/foveai-models/hub, run a sanity benchmark,
+    and provision an Open XRL contract profile in the model registry.
+    """
+    scout = get_model_scout()
+    try:
+        result = scout.adopt_model_with_xrl(
+            repo_id=req.repo_id,
+            filename=req.filename,
+            variant_id=req.variant_id,
+            display_name=req.display_name,
+            quant_type=req.quant_type,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Adoption failed: {e}")
 
 
 # ─── Main ──────────────────────────────────────────────────

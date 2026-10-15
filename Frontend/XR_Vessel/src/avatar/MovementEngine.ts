@@ -255,9 +255,27 @@ export class MovementEngine {
         this.connectMotorCortex();
     }
 
-    private connectMotorCortex() {
+    private async connectMotorCortex() {
+        // The motor daemon is optional and usually idle. Probe it first so a
+        // dead port produces silence instead of a CORS/connection error storm.
         try {
-            const motorStream = new EventSource("http://127.0.0.1:8110/stream");
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), 1200);
+            const r = await fetch('/motor-health', { signal: ctrl.signal });
+            clearTimeout(t);
+            if (!r.ok) { if (this.onLog) this.onLog('[Motor Cortex] daemon not up — running autonomous-only', 'pink'); return; }
+        } catch {
+            if (this.onLog) this.onLog('[Motor Cortex] unreachable — running autonomous-only', 'pink');
+            return;
+        }
+        try {
+            const motorStream = new EventSource("http://127.0.0.1:8410/stream");
+            let attempts = 0;
+            motorStream.onerror = () => {
+                // The motor daemon is optional; stop hammering a dead port.
+                attempts += 1;
+                if (attempts >= 3) { try { motorStream.close(); } catch { /* already closed */ } }
+            };
             motorStream.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);

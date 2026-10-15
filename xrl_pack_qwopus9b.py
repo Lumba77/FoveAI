@@ -11,7 +11,7 @@ Two stages:
        CORE_GGUF          (MoQ-4.6, ~5.1 GB)
        CORE_MMPROJ        (BF16 projector, ~0.9 GB — vision via projector)
        XRL_*              (artifacts from stage 1)
-       XRL_MM_HOOKS       (external TTS :8406 / STT :8409 — text-native core)
+       XRL_MM_HOOKS       (external TTS :8411 / STT :8411 — text-native core)
        XRL_MEMORY_DATA    (live foveated memory DB — transplanted from gemma cache)
        XRL_MEMORY_SCHEMA  (default 6-ring)
        RUNTIME_META
@@ -290,7 +290,7 @@ def pack():
     from formats.xrlf_schema import XRLFFlags
 
     # Qwen 9B flags: MoQ core, multimodal via mmproj (not native), no native STT
-    # (Whisper :8409), persistent embedded memory, MM hooks enabled.
+    # (Whisper :8401), persistent embedded memory, MM hooks enabled.
     qwen_flags = (
         XRLFFlags.HAS_CORE_GGUF
         | XRLFFlags.IS_MULTIMODAL
@@ -307,11 +307,11 @@ def pack():
     hooks = json.loads(json.dumps(DEFAULT_MM_HOOKS))  # deep copy
     hooks["native_multimodal"]["audio_in"] = False
     hooks["native_multimodal"]["video_in"] = False
-    hooks["external_hooks"]["tts"]["endpoint"] = "http://127.0.0.1:8406/tts"
+    hooks["external_hooks"]["tts"]["endpoint"] = "http://127.0.0.1:8411/tts"
     hooks["external_hooks"]["stt"] = {
         "enabled": True,
         "engine": "whisper",
-        "endpoint": "ws://127.0.0.1:8409",
+        "endpoint": "ws://127.0.0.1:8401",
     }
 
     packer = XRLFPacker(

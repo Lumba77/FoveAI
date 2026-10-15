@@ -1,59 +1,93 @@
-# .backupignore — exclusion list for Tools/backup/foveai-backup.sh (rsync --exclude-from)
-#
-# Ported from the schooled exclude list in backup.ps1 (the legacy Windows
-# sovereign-backup system). rsync glob syntax; trailing / = directory.
-# Edit carefully — this decides what never reaches the backup disk.
+# .backupignore — exclusion list for sovereign local backups
+# Everything here is excluded from safety tarballs.
 
 # VCS & environments (rebuildable)
-.git/
-.venv/
-.venv.bak*/
-.aider-venv/
-venv/
-node_modules/
-__pycache__/
+.git
+*/.git/*
+.venv
+*/.venv/*
+.venv.*
+*/.venv.*/*
+.aider-venv
+*/.aider-venv/*
+venv
+*/venv/*
+node_modules
+*/node_modules/*
+__pycache__
+*/__pycache__/*
 *.pyc
-.cache/
-unsloth_compiled_cache/
+.cache
+*/.cache/*
+unsloth_compiled_cache
+*/unsloth_compiled_cache/*
 
-# Secrets — never written to the backup disk
+# Secrets
 .env
 .env.*
 
 # Logs, build output, prior backups
-.logs/
-Build/
-build/
-dist/
-backups/
-Archive/
+.logs
+*/.logs/*
+Build
+*/Build/*
+Builds
+*/Builds/*
+build
+*/build/*
+dist
+*/dist/*
+backups
+*/backups/*
+Archive
+*/Archive/*
 backup.log
 *.log
 
-# Unity / heavy generated trees
-Library/
-PackageCache/
-Temp/
-Logs/
-obj/
-webvm_source/
+# Unity generated trees & caches
+Library
+*/Library/*
+*Library*
+PackageCache
+*/PackageCache/*
+Temp
+*/Temp/*
+Logs
+*/Logs/*
+obj
+*/obj/*
+webvm_source
+*/webvm_source/*
+client_quest
+*/client_quest/*
 
-# Binary assets & datasets (large, non-source)
-Animations/BVH/
-Bandai-Namco*/
+# Large binary assets, datasets, disk images
+Animations/BVH
+*/Animations/*
+*/Bandai-Namco*/*
+Bandai-Namco*
+custom-disk-images
+*/custom-disk-images/*
+media
+*/media/*
 *.gguf
 *.pak
 *.bin
 *.safetensors
+*.apk
+*.ext2
 
-# Model weights caches
-xrl_encoded/
-llama-b11053/
+# Model weights caches & heavy tool binaries
+models
+*/models/*
+xrl_encoded
+*/xrl_encoded/*
+llama-b11053*
+*/llama-b11053*/*
 llama-bins.tar.gz
+foveai-omni-router-v2.xrlf.cache
+*/foveai-omni-router-v2.xrlf.cache/*
 
-# Names with NTFS-illegal chars (colons in ISO timestamps) — archived via tar instead
-foveated-memory/memory_data/shadow-context/
-
-# Windows reserved device names (cause open errors on NTFS targets)
+# Windows reserved device names
 nul
 nulcmd

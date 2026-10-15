@@ -271,7 +271,7 @@ namespace FoveAI.UI
             var iconGo = new GameObject($"Icon_{name}");
             iconGo.transform.SetParent(glowGo.transform, false);
             cd.icon = iconGo.AddComponent<Text>();
-            cd.icon.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            cd.icon.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             cd.icon.fontSize = (int)iconSize;
             cd.icon.fontStyle = FontStyle.Bold;
             cd.icon.alignment = TextAnchor.MiddleCenter;
@@ -294,7 +294,7 @@ namespace FoveAI.UI
             var numGo = new GameObject($"Num_{name}");
             numGo.transform.SetParent(glowGo.transform, false);
             cd.number = numGo.AddComponent<Text>();
-            cd.number.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            cd.number.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             cd.number.fontSize = (int)numberSize;
             cd.number.fontStyle = FontStyle.Bold;
             cd.number.alignment = TextAnchor.MiddleCenter;
@@ -318,7 +318,7 @@ namespace FoveAI.UI
             var labelGo = new GameObject($"Label_{name}");
             labelGo.transform.SetParent(glowGo.transform, false);
             cd.label = labelGo.AddComponent<Text>();
-            cd.label.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            cd.label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             cd.label.fontSize = (int)labelSize;
             cd.label.alignment = TextAnchor.MiddleCenter;
             cd.label.horizontalOverflow = HorizontalWrapMode.Overflow;
@@ -392,7 +392,7 @@ namespace FoveAI.UI
                 var labGo = new GameObject($"Lab_{segLabels[i]}");
                 labGo.transform.SetParent(barGo.transform, false);
                 var labText = labGo.AddComponent<Text>();
-                labText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+                labText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
                 labText.fontSize = 11;
                 labText.fontStyle = FontStyle.Bold;
                 labText.alignment = TextAnchor.MiddleCenter;

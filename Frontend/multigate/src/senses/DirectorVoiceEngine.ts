@@ -627,7 +627,7 @@ export class DirectorVoiceEngine {
     }
 
     public get isMusicPlaying(): boolean {
-        return this.avalancheActive;
+        return this.avalancheActive || this.musicEnabled;
     }
 
     // ═══════════════════════════════════════════════════════════════

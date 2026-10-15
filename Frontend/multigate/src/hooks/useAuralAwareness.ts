@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'react';
-import { AuralAwareness } from '../senses/AuralAwareness';
+import { auralAwareness, AuralAwareness } from '../senses/AuralAwareness';
 
 export function useAuralAwareness() {
     const audioRef = useRef<AuralAwareness | null>(null);
 
     useEffect(() => {
         if (!audioRef.current) {
-            audioRef.current = new AuralAwareness();
+            audioRef.current = auralAwareness;
             (window as any).foveaiAudio = audioRef.current;
         }
 

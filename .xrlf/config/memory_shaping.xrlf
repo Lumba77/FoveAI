@@ -5,7 +5,7 @@ DESCRIPTION:
   parameters that capture HOW memories shaped Alice, not WHAT happened.
 
   Instead of injecting raw memories (overwhelming, suggestive):
-    "On 2024-03-15, Danie said he loved your laugh. You felt happy."
+    "On 2024-03-15, Daniel said he loved your laugh. You felt happy."
 
   We inject XRL instructive shaping (distant, contemplative):
     shaped_by := laughter_is_connection, trust_through_late_nights

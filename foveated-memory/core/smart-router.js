@@ -33,13 +33,28 @@ async function smartRouteMessages(messages, middleman = null, upstream = null) {
         || 'foveai-omni-router-v2';
     const failoverModel = process.env.FOVEAI_NO2_ROUTER_MODEL 
         || 'no2-foveai-omni-router';
-    const targetUpstream = upstream 
-        || process.env.XRLF_RUNTIME_URL 
+    const targetUpstream = upstream
+        // Dormant-router mode: when the sleep-phase model (smolvlm) is the
+        // resident model, SHE is the router — no other model gets woken for
+        // compression duty. XRLF_SMART_MIDDLEMAN=dormant selects this.
+        || (process.env.XRLF_SMART_MIDDLEMAN === 'dormant'
+            ? process.env.XRLF_DORMANT_BASE_URL || 'http://127.0.0.1:8406'
+            : process.env.XRLF_RUNTIME_URL)
         || 'http://127.0.0.1:8400';
 
     const baseUrl = targetUpstream.replace(/\/v1\/?$/, '');
     const routingPrompt = buildRoutingPrompt(messages);
 
+    // Dormant-router: when the sleep-phase model hosts routing, the
+    // middleman IS the resident model (smolvlm2-500m) — omni-routers are
+    // NOT woken for this (cycle law: one model resident).
+    if (process.env.XRLF_SMART_MIDDLEMAN === 'dormant') {
+        const dormantModel = process.env.XRLF_DORMANT_MODEL || 'Xrlf_Router_Qwen0.5B_Merged';
+        console.log(`[SmartRouter] Dormant-router mode — routing via resident sleep model: ${dormantModel}`);
+        const result = await callRouterModel(baseUrl, dormantModel, routingPrompt, messages);
+        if (result) return result;
+        console.warn('[SmartRouter] Dormant router failed — falling to omni-router chain');
+    }
     // ── Attempt 1: Primary Omni-Router ──
     try {
         console.log(`[SmartRouter] Attempting Primary Omni-Router: ${primaryModel}`);

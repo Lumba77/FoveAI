@@ -481,6 +481,56 @@ class IdeaEngine:
                 self._score_idea(idea)
                 discovered.append(idea)
 
+        # Search pattern 5: Live Web Scouting (Bounties, Staking yields, Referral APIs)
+        print("🔭 Running Live Web Scout sweep across public networks...")
+        try:
+            import asyncio
+            import concurrent.futures
+            from web_scout import get_web_scout
+
+            scout = get_web_scout(self.data_dir)
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    harvested = executor.submit(lambda: asyncio.run(scout.scan_all())).result(timeout=15.0)
+            else:
+                harvested = asyncio.run(scout.scan_all())
+
+            for opp in harvested:
+                if opp.id not in self.ideas:
+                    cat = IdeaCategory.AFFILIATE_MARKETING
+                    try:
+                        cat = IdeaCategory(opp.category)
+                    except Exception:
+                        pass
+
+                    web_idea = Idea(
+                        id=opp.id,
+                        title=opp.title,
+                        description=opp.description,
+                        category=cat,
+                        estimated_revenue_hour=round(opp.estimated_revenue_month / 720.0, 2),
+                        estimated_revenue_day=round(opp.estimated_revenue_month / 30.0, 2),
+                        estimated_revenue_month=opp.estimated_revenue_month,
+                        complexity=opp.complexity,
+                        time_to_market_days=opp.time_to_market_days,
+                        initial_investment=0.0,
+                        tools_required=opp.tools_required,
+                        skills_required=opp.skills_required,
+                        risks=["API access changes", "Rate limits"],
+                        opportunities=["Zero-credential auto onboarding", "Autonomous swarm execution"],
+                        created_at=datetime.now().isoformat(),
+                        search_origin="live_web_scout",
+                    )
+                    self._score_idea(web_idea)
+                    discovered.append(web_idea)
+        except Exception as e:
+            print(f"Web Scout sweep notice: {e}")
+
         # Sort by score
         discovered.sort(key=lambda x: x.score, reverse=True)
 

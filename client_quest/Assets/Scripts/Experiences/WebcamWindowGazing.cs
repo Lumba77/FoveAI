@@ -80,37 +80,37 @@ namespace FoveAI.Experiences
         {
             (
                 "Your Desk (Cam 0)",
-                "http://192.168.8.100:8410/cam/0/frame",
+                "http://192.168.8.109:8410/cam/0/frame",
                 "your real-world desk — Alice can see what you see",
                 "cozy"
             ),
             (
                 "Kitchen (Cam 1)",
-                "http://192.168.8.100:8410/cam/1/frame",
+                "http://192.168.8.109:8410/cam/1/frame",
                 "the kitchen — coffee, cooking, daily life",
                 "cozy"
             ),
             (
                 "Living Room (Cam 2)",
-                "http://192.168.8.100:8410/cam/2/frame",
+                "http://192.168.8.109:8410/cam/2/frame",
                 "the living room — relax and watch together",
                 "calm"
             ),
             (
                 "Garage (Cam 3)",
-                "http://192.168.8.100:8410/cam/3/frame",
+                "http://192.168.8.109:8410/cam/3/frame",
                 "the garage — projects and tools",
                 "energetic"
             ),
             (
                 "Garden (Cam 4)",
-                "http://192.168.8.100:8410/cam/4/frame",
+                "http://192.168.8.109:8410/cam/4/frame",
                 "the garden — weather, plants, seasons",
                 "calm"
             ),
             (
                 "All Rooms (Mosaic)",
-                "http://192.168.8.100:8410/cam/all/frames",
+                "http://192.168.8.109:8410/cam/all/frames",
                 "all cameras at once — Alice sees everything",
                 "aware"
             ),

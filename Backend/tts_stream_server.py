@@ -27,7 +27,10 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [TTS] %(message)s")
 logger = logging.getLogger("tts_server")
 
 HOST = "0.0.0.0"
-PORT = 8403  # Unity Quest3TTSClient connects to ws://<ip>:8403/ws
+# Legacy: 8411 collides with the XRLF WS-IPC (:8403). The runtime's Kokoro
+# hook is the primary mouth; this edge-tts streamer is the Quest fallback
+# and gets its own port (8012, its original). Override with TTS_STREAM_PORT.
+PORT = int(os.getenv("TTS_STREAM_PORT", "8012"))  # ws://<ip>:8012/ws Quest3TTSClient
 SAMPLE_RATE = 24000  # Quest3TTSClient.ServerSampleRate = 24000
 SAMPLE_WIDTH = 2  # 16-bit PCM
 CHANNELS = 1  # Mono

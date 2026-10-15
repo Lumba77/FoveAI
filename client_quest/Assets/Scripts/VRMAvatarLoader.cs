@@ -21,6 +21,19 @@ namespace FoveAI.Avatar
         [Tooltip("Filename of the .vrm file inside StreamingAssets (e.g. \"Alicechan.vrm\", \"SchoolUniform.vrm\")")]
         [SerializeField] private string vrmFileName = "Alicechan.vrm";
 
+        /// <summary>
+        /// Optional pre-imported VRM prefab. When set, the model is instantiated from
+        /// this prefab instead of parsing StreamingAssets at runtime.
+        ///
+        /// Why: UniVRM converts .vrm into a prefab at import time, so baking the model
+        /// into the scene means Jen is a real object — visible in the editor, renderable
+        /// headlessly, and instantiable without an async file read. Everything else
+        /// (TposeWarningSystem, SoftModuleSystem) still reads Avatar, so this loader
+        /// stays the single owner and nothing else needs to know.
+        /// </summary>
+        [Tooltip("Pre-imported VRM prefab. Wins over the StreamingAssets file when set.")]
+        [SerializeField] private GameObject preImportedPrefab;
+
         [Header("Spawn")]
         [SerializeField] private Vector3 spawnPosition = new Vector3(0f, 0f, 2f);
         [SerializeField] private Vector3 spawnRotation = Vector3.zero;

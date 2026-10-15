@@ -2,7 +2,7 @@
 """
 scripts/chat_client.py — CLI Chat Client for 4-Way XR Conversation
 ===================================================================
-Connects to the FoveAI chat relay (port 8407) and lets you send/receive
+Connects to the FoveAI chat relay (port 8413) and lets you send/receive
 messages from the terminal. Messages also appear in the XR scene.
 
 Usage:
@@ -113,7 +113,7 @@ def main() -> int:
     parser.add_argument(
         "--port",
         type=int,
-        default=int(os.getenv("FOVEAI_BACKEND_PORT_CHAT", 8407)),
+        default=int(os.getenv("FOVEAI_BACKEND_PORT_CHAT", 8413)),
         help="Relay port",
     )
     args: argparse.Namespace = parser.parse_args()

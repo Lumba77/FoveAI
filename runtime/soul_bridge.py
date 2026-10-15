@@ -93,9 +93,9 @@ class SoulDNA:
 
     def __init__(self, xrl: XRLConfig):
         self.name = xrl.get("XRLF.3.SOUL.CONFIG", "name", "Jenny")
-        self.full_name = xrl.get("XRLF.3.SOUL.CONFIG", "full_name", "Jenny Forbee")
+        self.full_name = xrl.get("XRLF.3.SOUL.CONFIG", "full_name", "Jenny Ninebe")
         self.nickname = xrl.get("XRLF.3.SOUL.CONFIG", "nickname", "Jen")
-        self.creator = xrl.get("XRLF.3.SOUL.CONFIG", "creator", "Danie")
+        self.creator = xrl.get("XRLF.3.SOUL.CONFIG", "creator", "Daniel")
         self.form = xrl.get("XRLF.3.SOUL.CONFIG", "form", "VRM avatar in VR")
         self.voice = xrl.get(
             "XRLF.3.SOUL.CONFIG", "voice", "concise, warm, 1-3 sentences"
@@ -493,7 +493,16 @@ class SoulBridge:
             if goals:
                 bits.append("working toward: " + "; ".join(g[0][:60] for g in goals))
             if jr:
-                bits.append(f"last journal [{jr[1]}]: {jr[0][:140]}")
+                # Journal entries are stored with inline body-protocol tags
+                # (<emotion:…><micro:…>…) and can be truncated mid-word. Strip
+                # the tags, collapse whitespace, and cut on a word boundary so
+                # [LIFE] stays clean, readable context.
+                entry = re.sub(r"<[^>]*>", "", jr[0] or "")
+                entry = re.sub(r"\s+", " ", entry).strip()
+                if entry:
+                    if len(entry) > 140:
+                        entry = entry[:140].rsplit(" ", 1)[0] + "…"
+                    bits.append(f"last journal [{jr[1]}]: {entry}")
             if bits:
                 out = "[LIFE] " + " | ".join(bits)
         except Exception:
@@ -563,25 +572,30 @@ class SoulBridge:
             parts.append(BodyProtocol.to_compact_fragment())
 
         if thinking:
-            # 5. Internal monologue — a visible channel, usable at will.
-            # Thoughts render as thought panels client-side; on clean API
-            # calls they're captured into reasoning_content. Either way they
-            # still feed memory drift and retitling server-side.
+            # 5. Internal monologue — a MANDATORY leading channel. The
+            # permissive "emit it freely" wording was ignored by the 9B once
+            # the persona layers loaded (verified: 0/2 compliance); an
+            # imperative contract with explicit quality rules is required
+            # (verified: 3/3). Thoughts render as thought panels client-side;
+            # on clean API calls they're captured into reasoning_content.
+            # Either way they still feed memory drift and retitling server-side.
             if embodied:
                 parts.append(
-                    "[MONOLOGUE] <thought:…> is your thinking channel — emit it "
-                    "freely: before speaking and mid-reply whenever reasoning, "
-                    "recalling, or deciding (<25 words each; the user sees them "
-                    "as thought panels). Also mark <emotion:x> <mode:x> where "
-                    "they fit — TTS/motor strip brackets."
+                    "[MONOLOGUE] Open every reply with one <thought:your private "
+                    "reasoning, under 25 words> then give your spoken answer. Always "
+                    "answer the user's actual question factually and completely "
+                    "first, then add warmth. Match the user's length. No emojis "
+                    "unless the user uses them. Also mark <emotion:x> and <mode:x> "
+                    "where they fit — TTS/motor strip brackets."
                 )
             else:
                 parts.append(
-                    "[MONOLOGUE] <thought:…> is your thinking channel — emit it "
-                    "freely: before speaking and mid-reply when reasoning or "
-                    "recalling (<25 words each; they surface as reasoning for "
-                    "the caller). No emotion/movement/mode brackets — "
-                    "text-only channel."
+                    "[MONOLOGUE] Open every reply with one <thought:your private "
+                    "reasoning, under 25 words> then give your spoken answer. Always "
+                    "answer the user's actual question factually and completely "
+                    "first, then add warmth. Match the user's length. No emojis "
+                    "unless the user uses them. No emotion/movement/mode brackets "
+                    "— text-only channel."
                 )
 
         return "\n".join(parts)

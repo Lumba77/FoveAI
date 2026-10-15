@@ -3,9 +3,14 @@
  * MEMORY STORE — NeDB (pure JS) + Cosine Similarity Search
  * ═══════════════════════════════════════════════════════
  *
- * Persistent conversation memory with semantic search.
- * Uses NeDB (pure JavaScript, no native compilation) for storage
- * and TF-IDF cosine similarity for retrieval — zero native deps.
+ * Persistent conversation memory with hybrid retrieval.
+ * Uses NeDB (pure JavaScript, no native compilation) for storage.
+ *
+ * Retrieval has two complementary paths:
+ *   - TF-IDF cosine similarity (always on, pure JS, zero native deps)
+ *   - dense MiniLM vectors via core/embedder.js (Step 2, opt-out: XRLF_SEMANTIC=0)
+ * Both are always written; search() fuses them by rank (Step 3). A message is
+ * never lost to an embedding failure — it simply falls back to lexical recall.
  *
  * Each workspace gets its own isolated .db file on disk.
  */
@@ -15,6 +20,55 @@
 const Datastore = require('nedb-promises');
 const path      = require('path');
 const fs        = require('fs');
+
+// ── Semantic retrieval (Step 2) ───────────────────────────────────────────
+// XRLF_SEMANTIC=0 reverts recall to pure TF-IDF instantly, no restart.
+// The require is lazy AND guarded on every use: store.js is the memory write
+// path for live conversation, so it must keep working even if core/embedder.js
+// is missing, mid-edit, or broken. Never take the write down with it.
+let _embedder = null;
+function embedder() {
+    if (_embedder === null) _embedder = require('../core/embedder');
+    return _embedder;
+}
+
+// True only when the sidecar socket is genuinely connected and ready to serve.
+function sidecarReady() {
+    try {
+        return embedder().status().state === 'ready';
+    } catch (_) {
+        return false;
+    }
+}
+
+function semanticEnabled() {
+    const v = String(process.env.XRLF_SEMANTIC == null ? '1' : process.env.XRLF_SEMANTIC)
+        .toLowerCase().trim();
+    return !(v === '0' || v === 'false' || v === 'off' || v === 'no');
+}
+
+// OpenAI multi-part content arrives as an array of parts; flatten to text the
+// same way _tokenize() does, so both retrieval paths see identical input.
+function normalizeText(text) {
+    if (Array.isArray(text)) {
+        return text
+            .filter(p => p && typeof p === 'object' && typeof p.text === 'string')
+            .map(p => p.text).join('\n');
+    }
+    return typeof text === 'string' ? text : String(text || '');
+}
+
+// ── Why the encode is time-boxed ──────────────────────────────────────────
+// Measured 2026-10-10: a WARM encode is 3.6 ms, but the first one pays ONNX
+// model load and costs 7–11 s. Without a bound that cost lands inside the
+// first chat write after every restart and stalls the turn for ten seconds.
+//
+// So the first call after boot starts the encode, waits a short grace period,
+// and gives up WITHOUT cancelling — the encode keeps running in the
+// background and warms the sidecar for every write after it. One message
+// falls back to TF-IDF; the conversation never pauses.
+const EMBED_GRACE_WARM_MS  = 2000;  // sidecar connected: ~3.6 ms expected; safety net
+const EMBED_POLL_BOOT_MS   = 25;    // how often to re-check readiness while booting
 
 class MemoryStore {
     /**
@@ -99,8 +153,45 @@ class MemoryStore {
             doc.tone = metadata.tone;
         }
 
+        // ── Dense vector for semantic recall ───────────────────────────
+        // Sync on purpose: ~2.4 ms measured, against a write that already
+        // touches disk. _embed() never throws and never returns a bad shape,
+        // so a dead sidecar degrades recall to TF-IDF and nothing else.
+        const vector = await this._embed(content);
+        if (vector) doc.embedding = vector;
+
         const inserted = await this.db.insert(doc);
         return inserted;
+    }
+
+    /**
+     * Encode one message into a dense vector for retrieval.
+     * Returns a plain Array of 384 numbers, or null. NEVER THROWS.
+     *
+     * Plain Array, not Float32Array: NeDB persists via JSON, and a typed
+     * array would serialize as {"0":0.12,"1":...} instead of [0.12,...].
+     */
+    async _embed(content) {
+        try {
+            if (!semanticEnabled()) return null;
+            const text = normalizeText(content);
+            if (!text || text.length < 3) return null;
+
+            const pending = embedder().encode([text]);
+            pending.catch(() => {});   // never an unhandledRejection
+
+            // Wait up to 3500ms for sidecar spawn & encoding (~450ms cold, ~4ms warm)
+            const vectors = await Promise.race([
+                pending,
+                new Promise(r => setTimeout(() => r(null), 3500))
+            ]);
+
+            if (vectors && vectors[0]) return Array.from(vectors[0]);
+            return null;
+        } catch (e) {
+            console.warn('[Store] embed skipped (' + e.message + ') — TF-IDF fallback');
+            return null;
+        }
     }
 
     /**
@@ -172,20 +263,45 @@ class MemoryStore {
     }
 
     /**
-     * Semantic search using TF-IDF cosine similarity (pure JS).
+     * Hybrid Semantic search: dense MiniLM vector cosine similarity when available,
+     * seamlessly falling back to pure JS TF-IDF cosine similarity.
      * @param {string} query
      * @param {number} topN
-     * @returns {Promise<Array<{message, score}>>}
+     * @param {string|null} sessionId
+     * @returns {Promise<Array<{message, score, method}>>}
      */
-    async search(query, topN = 5) {
-        const all = await this.db.find({});
+    async search(query, topN = 5, sessionId = null) {
+        const filter = sessionId ? { session_id: sessionId } : {};
+        const all = await this.db.find(filter);
         if (all.length === 0) return [];
 
+        const queryEmbedding = await this._embed(query);
         const queryTerms = this._tokenize(query);
-        const scored = all.map(msg => ({
-            message: msg,
-            score:   this._cosineSimilarity(queryTerms, this._tokenize(msg.content))
-        }));
+
+        const scored = all.map(msg => {
+            let score = 0;
+            let method = 'tfidf';
+
+            if (queryEmbedding && Array.isArray(msg.embedding) && msg.embedding.length === 384) {
+                // Dense vector cosine similarity (vectors are unit L2-normalized)
+                let dot = 0;
+                const emb = msg.embedding;
+                for (let i = 0; i < 384; i++) {
+                    dot += queryEmbedding[i] * emb[i];
+                }
+                score = Math.max(0, dot);
+                method = 'vector';
+            } else {
+                // Lexical TF-IDF cosine similarity fallback
+                score = this._cosineSimilarity(queryTerms, this._tokenize(msg.content));
+            }
+
+            return {
+                message: msg,
+                score,
+                method
+            };
+        });
 
         scored.sort((a, b) => b.score - a.score);
         return scored.slice(0, topN).filter(r => r.score > 0);

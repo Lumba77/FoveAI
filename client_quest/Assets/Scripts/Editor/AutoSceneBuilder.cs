@@ -280,6 +280,12 @@ namespace FoveAI.Editor
             xrFixerObj.transform.SetParent(root.transform, false);
             xrFixerObj.AddComponent<FoveAI.XR.XRRigFixer>();
 
+            // --- XR interaction layer: controller rays + UI input ---
+            // Without this the headset shows floating panels that cannot be pointed at
+            // or clicked — the "no rays" symptom. XRRigFixer creates its own controller
+            // anchors at runtime; these are the XRI interactors that make them usable.
+            BuildXRInteractionRig(root.transform);
+
             // --- Save scene ---
             if (!AssetDatabase.IsValidFolder("Assets/Scenes"))
             {
@@ -297,6 +303,93 @@ namespace FoveAI.Editor
             EditorBuildSettings.scenes = buildScenes;
             Debug.Log("[Spatial Machine] Build Settings updated — APK will now build from " + ScenePath);
         }
+        /// <summary>
+        /// Creates the XRI pieces that make the scene actually interactable:
+        /// an EventSystem with XRUIInputModule, left/right controller anchors each
+        /// carrying an XRRayInteractor + XRInteractorLineVisual, and a
+        /// TrackedDeviceGraphicRaycaster on every world-space Canvas so a ray has
+        /// something to hit.
+        ///
+        /// Standalone menu item as well, so the rig can be added to the open scene
+        /// without regenerating everything.
+        /// </summary>
+        [MenuItem("Spatial Machine/Add XR Interaction Rig")]
+        public static void AddXRInteractionRig()
+        {
+            var root = GameObject.Find("SpatialMachineRoot");
+            BuildXRInteractionRig(root != null ? root.transform : null);
+            EditorSceneManager.MarkSceneDirty(EditorSceneManager.GetActiveScene());
+        }
+
+        private static void BuildXRInteractionRig(Transform parent)
+        {
+            // ---- EventSystem + XRUIInputModule ----
+            // Without an XRUIInputModule, rays render but clicks are never routed.
+            var existingEvents = UnityEngine.Object.FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>();
+            if (existingEvents == null)
+            {
+                var esGo = new GameObject("EventSystem");
+                if (parent != null) esGo.transform.SetParent(parent, false);
+                esGo.AddComponent<UnityEngine.EventSystems.EventSystem>();
+                esGo.AddComponent<UnityEngine.XR.Interaction.Toolkit.UI.XRUIInputModule>();
+                Debug.Log("[Spatial Machine] EventSystem + XRUIInputModule created.");
+            }
+            else
+            {
+                Debug.LogWarning("[Spatial Machine] EventSystem already present — left untouched.");
+            }
+
+            // ---- Controller rays ----
+            var cameraObj = GameObject.FindWithTag("MainCamera");
+            if (cameraObj != null)
+            {
+                // XRI reads controller poses from this action reference; the Meta XR
+                // OpenXR feature supplies the actual bindings at runtime.
+                var left = CreateControllerRay("LeftControllerRay", isLeft: true, cameraObj);
+                var right = CreateControllerRay("RightControllerRay", isLeft: false, cameraObj);
+                Debug.Log($"[Spatial Machine] Controller rays created (left={left != null}, right={right != null}).");
+            }
+            else
+            {
+                Debug.LogError("[Spatial Machine] Main Camera not found — controller rays skipped.");
+            }
+
+            // ---- Raycasters on world-space canvases ----
+            int upgraded = 0;
+            foreach (var canvas in UnityEngine.Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None))
+            {
+                if (canvas.GetComponent<UnityEngine.XR.Interaction.Toolkit.UI.TrackedDeviceGraphicRaycaster>() != null)
+                    continue;
+                // Keep a GraphicRaycaster alongside as a mouse/desktop fallback.
+                if (canvas.GetComponent<UnityEngine.UI.GraphicRaycaster>() == null)
+                    canvas.gameObject.AddComponent<UnityEngine.UI.GraphicRaycaster>();
+                canvas.gameObject.AddComponent<UnityEngine.XR.Interaction.Toolkit.UI.TrackedDeviceGraphicRaycaster>();
+                upgraded++;
+            }
+            Debug.Log($"[Spatial Machine] TrackedDeviceGraphicRaycaster added to {upgraded} canvas(es).");
+        }
+
+        private static GameObject CreateControllerRay(string name, bool isLeft, GameObject cameraObj)
+        {
+            var existing = GameObject.Find(name);
+            if (existing != null) return existing;
+
+            var go = new GameObject(name);
+            if (cameraObj != null)
+            {
+                // Sibling of the camera, not a child: the XRI TrackedPoseDriver will
+                // drive the local pose, and inheriting the camera transform fights it.
+                go.transform.SetParent(cameraObj.transform.parent, false);
+            }
+
+            // XRI 3.x: XRControllerWithRumble is gone; the ray interactor is added bare and
+            // picks up its controller pose from the Meta XR OpenXR feature at runtime.
+            go.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactors.XRRayInteractor>();
+            go.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactors.Visuals.XRInteractorLineVisual>();
+            Debug.Log($"[Spatial Machine]   {name} ray created ({(isLeft ? "left" : "right")}).");
+            return go;
+        }
+
         /// <summary>
         /// Attaches a UnityEngine.InputSystem.XR.TrackedPoseDriver to the supplied
         /// camera GameObject and wires its position/rotation inputs to the XR HMD

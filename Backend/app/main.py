@@ -39,7 +39,7 @@ async def main():
 
     # Start HTTP proxy on :8400 — web requests, memory, proxy calls to XRLF
     # The WebSocket for Quest clients is on :8403 (owned by XRLF runtime).
-    # 8400 is the unified HTTP proxy: chat completions, soul status, memory, TTS.
+    # 8411 is the unified HTTP proxy: chat completions, soul status, memory, TTS.
     proxy_port = int(os.getenv("FOVEAI_LEGACY_WS_PORT", "8400"))
     try:
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))

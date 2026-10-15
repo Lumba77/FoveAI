@@ -96,8 +96,8 @@ export class RoomScanner {
     private scanDebugMeshes: THREE.Mesh[] = [];
     private scanGizmoGroup: THREE.Group | null = null;
 
-    constructor(logFn?: (msg: string, color: string) => void) {
-        this.log = logFn || ((msg, color) => console.log(`[RoomScanner] ${msg}`));
+    constructor(logFn?: (msg: string, _color: string) => void) {
+        this.log = logFn || ((msg, _color) => console.log(`[RoomScanner] ${msg}`));
         this.zones = DEFAULT_ZONES.map(z => ({ ...z, targetPosition: z.targetPosition.clone(), lookDirection: z.lookDirection.clone() }));
         this.session = this.buildSession();
         this.load(); // Restore from localStorage
@@ -254,7 +254,6 @@ export class RoomScanner {
         }
 
         const dist = userPosition.distanceTo(nextZone.targetPosition);
-        const dirToZone = new THREE.Vector3().subVectors(nextZone.targetPosition, userPosition).normalize();
         
         let hint = '';
         

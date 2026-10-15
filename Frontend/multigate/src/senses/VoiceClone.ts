@@ -12,7 +12,7 @@ export interface VoiceSample { base64: string; duration: number; source: string;
 export interface VoiceProfile { name: string; samples: VoiceSample[]; model: 'xttsv2' | 'piper' | 'elevenlabs'; }
 
 const envProcess = typeof globalThis !== 'undefined' ? (globalThis as any).process : undefined;
-const HF_TOKEN = envProcess?.env?.HF_TOKEN || '';
+export const HF_TOKEN = envProcess?.env?.HF_TOKEN || '';
 
 export class VoiceClone {
     private profiles: Map<string, VoiceProfile> = new Map();
@@ -20,7 +20,7 @@ export class VoiceClone {
     private log: (m: string, c: string) => void;
 
     constructor(logFn?: (m: string, c: string) => void) {
-        this.log = logFn || ((m, c) => console.log('[VoiceClone] ' + m));
+        this.log = logFn || ((m, _c) => console.log('[VoiceClone] ' + m));
     }
 
     /**

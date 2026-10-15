@@ -1,0 +1,2413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FoveAI Command</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700&family=Orbitron:wght@400;700&family=Share+Tech+Mono&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="settings.css">
+  <style>
+    /* ── Mode selector hero ─────────────────────────────────── */
+    .mode-hero {
+      grid-column: 1 / -1;
+      padding: 24px;
+      text-align: center;
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(0,243,255,0.05), rgba(11,19,36,0.8));
+    }
+    .mode-hero h2 { margin: 0 0 16px 0; font-size: 1.3rem; }
+    .mode-buttons {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .mode-btn {
+      padding: 16px 32px;
+      font-size: 1.1rem;
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 700;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      background: rgba(11,19,36,0.6);
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.2s;
+      min-width: 200px;
+    }
+    .mode-btn:hover { border-color: var(--accent); background: rgba(0,243,255,0.1); }
+    .mode-btn.active {
+      border-color: var(--accent);
+      background: rgba(0,243,255,0.15);
+      box-shadow: 0 0 20px rgba(0,243,255,0.3);
+    }
+    .mode-btn .mode-desc {
+      display: block;
+      font-size: 0.75rem;
+      font-family: 'Inter', sans-serif;
+      font-weight: 400;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* ── Engine selector ────────────────────────────────────── */
+    .engine-section {
+      grid-column: 1 / -1;
+      padding: 20px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--panel);
+      display: none;
+    }
+    .engine-section.visible { display: block; }
+    .engine-section h3 { margin: 0 0 12px 0; font-size: 1.1rem; }
+    .engine-buttons {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .engine-btn {
+      padding: 12px 24px;
+      font-size: 0.95rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: rgba(11,19,36,0.5);
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .engine-btn:hover { border-color: var(--accent); }
+    .engine-btn.active {
+      border-color: var(--accent);
+      background: rgba(0,243,255,0.12);
+    }
+    .engine-btn .engine-desc {
+      display: block;
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* ── VRAM warning ───────────────────────────────────────── */
+    .vram-warning {
+      grid-column: 1 / -1;
+      padding: 12px 16px;
+      border: 1px solid var(--warning);
+      border-radius: 8px;
+      background: rgba(255,170,0,0.08);
+      color: var(--warning);
+      font-size: 0.85rem;
+      display: none;
+    }
+    .vram-warning.visible { display: block; }
+    .vram-bar {
+      margin-top: 8px;
+      height: 8px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.1);
+      overflow: hidden;
+    }
+    .vram-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      transition: width 0.3s, background 0.3s;
+    }
+
+    /* ── Settings sections (hidden until engine chosen) ─────── */
+    .settings-grid {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 16px;
+      display: none;
+    }
+    .settings-grid.visible { display: grid; }
+
+    /* ── Model card ─────────────────────────────────────────── */
+    .model-card {
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      background: var(--panel);
+    }
+    .model-card h3 { margin: 0 0 12px 0; }
+    .model-select {
+      width: 100%;
+      padding: 10px;
+      font-size: 0.9rem;
+      background: rgba(2,5,10,0.8);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    .model-info {
+      margin-top: 8px;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .model-info .vram-tag {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      margin-left: 6px;
+    }
+    .vram-tag.light { background: rgba(57,255,20,0.15); color: var(--success); }
+    .vram-tag.medium { background: rgba(255,170,0,0.15); color: var(--warning); }
+    .vram-tag.heavy { background: rgba(239,68,68,0.15); color: var(--danger); }
+
+    .model-actions {
+      margin-top: 12px;
+      display: flex;
+      gap: 8px;
+    }
+    .model-actions button {
+      padding: 8px 16px;
+      font-size: 0.85rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: rgba(11,19,36,0.5);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .model-actions button:hover { border-color: var(--accent); }
+    .model-actions button.danger { border-color: var(--danger); color: var(--danger); }
+    .model-actions button.primary { border-color: var(--accent); background: rgba(0,243,255,0.1); }
+
+    /* ── Status indicator ───────────────────────────────────── */
+    .loaded-status {
+      margin-top: 10px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.82rem;
+      font-family: 'Share Tech Mono', monospace;
+    }
+    .loaded-status.idle { background: rgba(255,255,255,0.05); color: var(--muted); }
+    .loaded-status.loading { background: rgba(255,170,0,0.1); color: var(--warning); }
+    .loaded-status.loaded { background: rgba(57,255,20,0.1); color: var(--success); }
+    .loaded-status.error { background: rgba(239,68,68,0.1); color: var(--danger); }
+  </style>
+    <script src="http://127.0.0.1:8415/foveai_theme_sync.js"></script>
+</head>
+<body>
+  <header>
+    <h1>🎛️ FoveAI Command</h1>
+    <div class="status">
+      <span id="accountChip" class="pill" title="Signed-in account">👤 local</span>
+      <button onclick="openPage('/graphtest.html')" class="pill pill-accent">📊 Graph Test</button>
+      <span id="proxyStatus" class="pill offline">Proxy: checking…</span>
+      <span id="vramStatus" class="pill">VRAM: —</span>
+      <span id="memCount" class="pill">Memories: —</span>
+    </div>
+  </header>
+  <nav class="garage-nav">
+    <a href="#sec-mode" class="admin-only">Mode</a>
+    <a href="#sec-model" class="admin-only">Core Model</a>
+    <a href="#sec-voice">Voice</a>
+    <a href="#sec-fovea" class="admin-only">Foveation</a>
+    <a href="#sec-stack" class="admin-only">Stack</a>
+    <a href="#sec-ui" class="admin-only">Frontend</a>
+    <a href="#sec-persona" class="admin-only">Persona</a>
+    <a href="#sec-test">Diagnostics</a>
+    <a href="#sec-cmd" class="admin-only">Commando</a>
+    <a href="#sec-log">Event Log</a>
+  </nav>
+
+
+  <main>
+    <div class="grid">
+
+      <div id="memberBanner">Member view — core server settings are admin-managed. <a href="/user-settings.html" style="color:var(--accent);">Open your user settings →</a></div>
+
+      <!-- Account sign-in — shown when there's no session (role-none) or a
+           member session. No token = local admin (historical open access). -->
+      <section class="card card-full" id="sec-account">
+        <h2>👤 Account</h2>
+        <div id="accountSignedOut">
+          <div class="row"><label>Username</label><input id="authUser" type="text" autocomplete="username" placeholder="username"></div>
+          <div class="row"><label>Password</label><input id="authPass" type="password" autocomplete="current-password" placeholder="••••••••"></div>
+          <div class="row"><button class="primary" onclick="panelLogin()">Sign in</button></div>
+        </div>
+        <div id="accountSignedIn" style="display:none;">
+          <div class="row"><label>Signed in as</label><span id="accountName" class="pill online">—</span></div>
+          <div class="row"><label>Workspace</label><span id="accountWs" class="pill">—</span></div>
+          <div class="row"><button onclick="panelLogout()">Sign out</button></div>
+        </div>
+      </section>
+
+      <!-- ═══════════════════════════════════════════════════════
+           STEP 1: MODE SELECTOR (Local vs Cloud)
+           ═══════════════════════════════════════════════════════ -->
+      <section class="card mode-hero admin-only" id="sec-mode">
+        <h2>1 · Choose Mode</h2>
+        <div class="mode-buttons">
+          <button class="mode-btn" id="modeLocal" onclick="selectMode('local')">
+            🖥️ Local
+            <span class="mode-desc">Runs on your GPU. No internet needed.</span>
+          </button>
+          <button class="mode-btn" id="modeCloud" onclick="selectMode('cloud')">
+            ☁️ Cloud
+            <span class="mode-desc">Routes to Ollama Cloud / external API. Needs internet.</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- ═══════════════════════════════════════════════════════
+           STEP 2: ENGINE SELECTOR (XRLF vs LM Studio)
+           ═══════════════════════════════════════════════════════ -->
+      <section class="card engine-section admin-only" id="engineSection">
+        <h3>2 · Choose Engine</h3>
+        <div class="engine-buttons" id="engineButtons">
+          <!-- Populated by selectMode() -->
+        </div>
+      </section>
+
+      <!-- ═══════════════════════════════════════════════════════
+           VRAM WARNING (shows when switching models)
+           ═══════════════════════════════════════════════════════ -->
+      <div class="vram-warning" id="vramWarning">
+        ⚠️ <strong>VRAM Management:</strong> Only one large model can be loaded at a time.
+        Switching models will unload the current one first.
+        <div class="vram-bar"><div class="vram-bar-fill" id="vramBarFill" style="width:0%; background:var(--success);"></div></div>
+        <div id="vramDetail" style="margin-top:4px; font-size:0.75rem;"></div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════
+           STEP 3+: SETTINGS (appear after engine is chosen)
+           ═══════════════════════════════════════════════════════ -->
+      <div class="settings-grid" id="settingsGrid">
+
+        <!-- Model Selection & VRAM Management -->
+        <section class="card model-card admin-only" id="sec-model">
+          <h3>3 · Model Selection</h3>
+          <select class="model-select" id="mainProjectModel" onchange="onModelSelected(this.value)">
+            <!-- Populated dynamically -->
+          </select>
+          <div class="model-info" id="modelInfo">Select a model to see details.</div>
+          <div class="model-actions">
+            <button class="primary" onclick="loadModel()">Load Model</button>
+            <button class="danger" onclick="unloadModel()">Unload</button>
+            <button onclick="restartRuntime()">Restart Runtime</button>
+          </div>
+          <div class="loaded-status idle" id="loadedStatus">No model loaded</div>
+        </section>
+
+        <!-- Voice & Push-to-Talk -->
+        <section class="card" id="sec-voice">
+          <h2>🎙️ Voice & Push-to-Talk</h2>
+          <div class="row"><label>Voice Output (TTS)</label><div class="btn-grid"><button id="voiceOn" onclick="toggle('voice', true)">On</button><button id="voiceOff" onclick="toggle('voice', false)">Off</button></div></div>
+            <label>Active TTS Engine</label>
+            <select id="ttsEngineSelect" onchange="toggleSetting('XRLF_TTS_PROVIDER', this.value); sendWsSetting('tts_engine', this.value);">
+              <option value="websocket">Real-Time WebSocket IPC (Port 8403 / wss://lumax.1um6a.se — Low Latency)</option>
+              <option value="kokoro">Kokoro Emotional Mouth (Port 8411 / Native XRLF :8402)</option>
+              <option value="edgetts">Edge-TTS (Cloud Neural — Fast)</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>Active STT Engine</label>
+            <select id="sttEngineSelect" onchange="toggleSetting('XRLF_STT_PROVIDER', this.value); sendWsSetting('stt_engine', this.value);">
+              <option value="whisper">Faster-Whisper Ears (Port 8401 / WebSocket IPC :8403)</option>
+              <option value="browser">Web Speech API / Browser VAD</option>
+            </select>
+          </div>
+          <div class="row"><label>Microphone Mode</label><div class="btn-grid"><button id="micOn" onclick="toggle('mic', true)">On</button><button id="micOff" onclick="toggle('mic', false)">Off</button></div></div>
+          <div class="row"><label>Push-to-Talk</label><div class="btn-grid"><button id="pttModeOff" onclick="togglePtt(false)">Continuous VAD</button><button id="pttModeOn" onclick="togglePtt(true)">Push-to-Talk</button></div></div>
+          <div class="row"><label>Talk to AI</label><button onclick="openPage(H(5177))">Open Chat</button></div>
+        </section>
+
+        <!-- Foveation & Context -->
+        <section class="card admin-only" id="sec-fovea">
+          <h2>⚡ Foveation & Context</h2>
+          <div class="row"><label>Smart Context Router</label><div class="btn-grid"><button id="smartRouterOn" onclick="toggleSetting('XRLF_SMART_PROXY', 'true')">On</button><button id="smartRouterOff" onclick="toggleSetting('XRLF_SMART_PROXY', 'false')">Off</button></div></div>
+          <div class="row"><label>XRL Auto-Checkpoint</label><div class="btn-grid"><button id="autoCkpOn" onclick="toggleSetting('XRLF_PROXY_AUTO_CHECKPOINT', 'true')">On (8 Turns)</button><button id="autoCkpOff" onclick="toggleSetting('XRLF_PROXY_AUTO_CHECKPOINT', 'false')">Off</button></div></div>
+          <div class="row"><label for="fovea">Foveation Level</label>
+            <select id="fovea" onchange="setFovea(this.value)">
+              <option value="0">Auto (Model-Detected)</option>
+              <option value="1">1 - Minimal (x0.5)</option>
+              <option value="2">2 - Light (x1.0)</option>
+              <option value="3">3 - Moderate (x2.0)</option>
+              <option value="4">4 - Aggressive (x4.0)</option>
+              <option value="5">5 - Maximum (x8.0)</option>
+            </select>
+          </div>
+          <div class="row" id="cloudCapRow" style="display:none;"><label for="cap">Cloud Cap (tokens)</label><input type="number" id="cap" value="0" min="0" step="1000" onchange="setCap(this.value)"></div>
+          <div class="row"><label for="preserve">Preserve Last</label><input type="number" id="preserve" value="4" min="0" max="50" onchange="setPreserve(this.value)"></div>
+        </section>
+
+        <!-- Stack Control -->
+        <section class="card admin-only" id="sec-stack">
+          <h2>🚀 Stack Control</h2>
+          <div class="row"><label>Full Stack</label><div class="btn-grid"><button onclick="call('start-stack')">Start</button><button onclick="call('stop-stack')" class="danger">Stop</button></div></div>
+          <div class="row"><label>Tray Hub</label><button onclick="call('open-tray')">Open Tray</button></div>
+          <div class="row"><label>Debug Terminal</label><button onclick="call('open-debug-terminal')">Open Debug Terminal</button></div>
+          <div class="row"><label>Restart Proxy</label><button onclick="call('restart-proxy')">Restart Proxy (:8400)</button></div>
+          <div class="row"><label>Machine Metrics</label><button onclick="openPage(`http://${HOST}:19999`)">Open Netdata (:19999) — also embedded as the Multigate Metrics tab</button></div>
+        </section>
+
+        <!-- UI Shell -->
+        <section class="card admin-only" id="sec-ui">
+          <h2>📱 UI & Frontend</h2>
+          <div class="row"><label>Active Desktop UI</label>
+            <div class="btn-grid">
+              <button id="shellCorner" onclick="toggleSetting('XRLF_UI_SHELL', 'corner'); call('open-corner-companion');">Corner Companion</button>
+              <button id="shellTopBar" onclick="toggleSetting('XRLF_UI_SHELL', 'topbar'); call('open-topbar');">TopBar</button>
+            </div>
+          </div>
+          <div class="row"><label>Active Frontend</label>
+            <div class="btn-grid">
+              <button id="frontendMultigate" onclick="setFrontend('multigate')">Multigate Spatial UI (Port 5177) — Primary Default</button>
+              <button id="frontend3d" onclick="setFrontend('3d_avatar')">3D Avatar (Port 8080)</button>
+              <button id="frontendXr" onclick="setFrontend('xr_vessel')">XR Vessel (Port 5176)</button>
+            </div>
+          </div>
+          <div class="row"><label>AUI Dashboard</label><button onclick="openPage('/memory')">Open AUI</button></div>
+          <div class="row"><label>Cloudflare Tunnel Target</label><span id="tunnelTarget" class="pill">https://lumax.1um6a.se (Target: 127.0.0.1:5177)</span></div>
+        </section>
+
+        <!-- Model Thinking -->
+        <!-- Model Thinking & Soul Persona -->
+        <section class="card admin-only" id="sec-persona">
+          <h2>🎭 Persona & Agency Control</h2>
+
+          <!-- Continuous 5-Step Lever -->
+          <div style="background:rgba(0,243,255,0.04); border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <label style="font-weight:700; color:var(--text); letter-spacing:1px;">🧬 Companion ⇄ Agent Lever</label>
+              <span id="soulPresetBadge" class="pill online" style="font-size:0.78rem;">COMPANION (0.50)</span>
+            </div>
+            <div style="position:relative; margin:10px 0 6px 0;">
+              <input type="range" id="agentBalanceSlider" min="0" max="1" step="0.05" value="0.50"
+                     style="width:100%; accent-color:var(--accent); cursor:pointer;"
+                     oninput="onSoulSliderInput(this.value)" onchange="onSoulSliderChange(this.value)">
+              <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--muted); margin-top:4px;">
+                <span>0.0 TOOL</span>
+                <span>0.25 ASSISTANT</span>
+                <span>0.50 COMPANION</span>
+                <span>0.75 FRIEND</span>
+                <span>1.00 BELOVED</span>
+              </div>
+            </div>
+
+            <!-- Martinus Symbol 33 Harmonic Waves & Spider Radar Matrix -->
+            <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(0,243,255,0.15); border-radius:6px; padding:10px; margin-top:8px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <div style="display:flex; gap:6px;">
+                  <button type="button" id="tabViewWaves" class="pill active" style="font-size:0.72rem; padding:2px 8px;" onclick="switchPersonaVisualMode('waves')">🌊 Wave Spectrum</button>
+                  <button type="button" id="tabViewRadar" class="pill" style="font-size:0.72rem; padding:2px 8px;" onclick="switchPersonaVisualMode('radar')">🕸️ Spider Radar Matrix</button>
+                </div>
+                <span id="soulWaveBlendText" style="font-size:0.72rem; color:var(--accent); font-family:monospace;">Waves: calculating...</span>
+              </div>
+
+              <!-- View 1: Continuous Catenary Wave Spectrum Canvas -->
+              <div id="personaWavesContainer">
+                <canvas id="martinusWaveCanvas" width="560" height="75" style="width:100%; height:75px; display:block; border-radius:4px; background:rgba(5,10,18,0.7);"></canvas>
+              </div>
+
+              <!-- View 2: Pentagonal Spider Radar Field Canvas -->
+              <div id="personaRadarContainer" style="display:none; text-align:center;">
+                <canvas id="personaRadarCanvas" width="560" height="200" style="width:100%; max-width:560px; height:200px; display:inline-block; border-radius:4px; background:rgba(5,10,18,0.7);"></canvas>
+              </div>
+
+              <div style="display:flex; justify-content:space-between; font-size:0.68rem; margin-top:6px; color:var(--muted); flex-wrap:wrap; gap:4px;">
+                <span style="color:#00e5ff;">■ Tool (INTJ)</span>
+                <span style="color:#00b0ff;">■ Assistant (ISTJ)</span>
+                <span style="color:#00e676;">■ Companion (ENFJ)</span>
+                <span style="color:#ffb300;">■ Friend (ENFP)</span>
+                <span style="color:#ff4081;">■ Beloved (INFP)</span>
+              </div>
+
+              <!-- Parametric Q-Curvature Slider & Reset -->
+              <div style="margin-top:10px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.1);">
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem;">
+                  <span style="color:var(--text); font-weight:600;">🎪 Resonance Q (<span id="qCurvatureActivePole" style="color:var(--accent);">Active Pole</span>): <span id="qCurvatureVal" style="color:var(--accent);">0.75</span></span>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span id="qCurvatureDesc" style="color:var(--muted); font-size:0.7rem;">Sagging</span>
+                    <button type="button" class="pill" style="font-size:0.68rem; padding:1px 7px;" onclick="resetQCurvaturesToDefault()">↺ Reset Q</button>
+                  </div>
+                </div>
+                <input type="range" id="qCurvatureSlider" min="0.4" max="2.5" step="0.05" value="0.75"
+                       style="width:100%; accent-color:#00e676; margin:6px 0 2px 0; cursor:pointer;"
+                       oninput="onQCurvatureInput(this.value)" onchange="onQCurvatureChange(this.value)">
+                <div style="display:flex; justify-content:space-between; font-size:0.65rem; color:var(--muted);">
+                  <span>0.4 Sagging / Concave</span>
+                  <span>1.0 Linear / Triangle</span>
+                  <span>2.5 Inflated / Convex</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 5 Quick-Snap Step Buttons -->
+            <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; margin-top:10px;">
+              <button type="button" class="pill" id="step-tool" onclick="setSoulStep(0.0, 'TOOL')">🛠️ Tool</button>
+              <button type="button" class="pill" id="step-assistant" onclick="setSoulStep(0.25, 'ASSISTANT')">💼 Assistant</button>
+              <button type="button" class="pill" id="step-companion" onclick="setSoulStep(0.50, 'COMPANION')">🤝 Companion</button>
+              <button type="button" class="pill" id="step-friend" onclick="setSoulStep(0.75, 'FRIEND')">🌸 Friend</button>
+              <button type="button" class="pill" id="step-beloved" onclick="setSoulStep(1.00, 'BELOVED')">💖 Beloved</button>
+            </div>
+
+            <!-- Custom User Snapshots (Save & Recall Presets) -->
+            <div style="margin-top:12px; padding:10px; background:rgba(0,0,0,0.25); border:1px solid rgba(0,243,255,0.1); border-radius:6px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <label style="font-size:0.75rem; color:var(--text); font-weight:700; letter-spacing:0.5px;">💾 Custom User Snapshots (Presets)</label>
+                <span id="snapshotCount" style="font-size:0.68rem; color:var(--muted);">0 saved</span>
+              </div>
+              <div style="display:flex; gap:6px; margin-bottom:8px;">
+                <input type="text" id="snapshotNameInput" placeholder="Snapshot name (e.g. Deep Coder, Late Night Intimacy)..."
+                       style="flex:1; padding:6px 10px; font-size:0.78rem; background:rgba(2,5,10,0.8); color:var(--text); border:1px solid var(--border); border-radius:4px;">
+                <button type="button" class="pill active" style="font-size:0.75rem; padding:4px 10px;" onclick="saveUserSnapshot()">💾 Save Snapshot</button>
+              </div>
+              <div id="snapshotList" style="display:flex; flex-wrap:wrap; gap:6px;">
+                <!-- Dynamically populated snapshot pills -->
+              </div>
+            </div>
+
+            <div id="soulFeedback" style="font-size:0.75rem; color:var(--accent); margin-top:8px; min-height:16px;"></div>
+          </div>
+
+          <!-- 5 Agentic Levers -->
+          <div style="margin-bottom:14px;">
+            <label style="font-size:0.85rem; color:var(--muted); display:block; margin-bottom:8px;">🎛️ Agentic Levers (Proportions)</label>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div style="background:rgba(0,0,0,0.25); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.06);">
+                <div style="display:flex; justify-content:space-between; font-size:0.75rem;">
+                  <span>Autonomy</span><span id="val-autonomy">0.50</span>
+                </div>
+                <input type="range" min="0" max="1" step="0.05" id="lever-autonomy" style="width:100%;" onchange="updateLever('autonomy', this.value)">
+              </div>
+              <div style="background:rgba(0,0,0,0.25); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.06);">
+                <div style="display:flex; justify-content:space-between; font-size:0.75rem;">
+                  <span>Proactivity</span><span id="val-proactivity">0.60</span>
+                </div>
+                <input type="range" min="0" max="1" step="0.05" id="lever-proactivity" style="width:100%;" onchange="updateLever('proactivity', this.value)">
+              </div>
+              <div style="background:rgba(0,0,0,0.25); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.06);">
+                <div style="display:flex; justify-content:space-between; font-size:0.75rem;">
+                  <span>Curiosity</span><span id="val-curiosity">0.70</span>
+                </div>
+                <input type="range" min="0" max="1" step="0.05" id="lever-curiosity" style="width:100%;" onchange="updateLever('curiosity', this.value)">
+              </div>
+              <div style="background:rgba(0,0,0,0.25); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.06);">
+                <div style="display:flex; justify-content:space-between; font-size:0.75rem;">
+                  <span>Service</span><span id="val-service">0.65</span>
+                </div>
+                <input type="range" min="0" max="1" step="0.05" id="lever-service" style="width:100%;" onchange="updateLever('service', this.value)">
+              </div>
+              <div style="grid-column:1 / -1; background:rgba(0,0,0,0.25); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.06);">
+                <div style="display:flex; justify-content:space-between; font-size:0.75rem;">
+                  <span>Mentorship</span><span id="val-mentorship">0.50</span>
+                </div>
+                <input type="range" min="0" max="1" step="0.05" id="lever-mentorship" style="width:100%;" onchange="updateLever('mentorship', this.value)">
+              </div>
+            </div>
+          </div>
+
+          <div class="row"><label>Model Thinking</label>
+            <div class="btn-grid">
+              <button id="thinkOff" onclick="toggleSetting('XRLF_MODEL_THINKING', 'false')">Instruct (Fast)</button>
+              <button id="thinkOn" onclick="toggleSetting('XRLF_MODEL_THINKING', 'true')">Reasoning</button>
+            </div>
+          </div>
+          <div class="row"><label>Anti-Alignment Protocol</label><span class="pill online">Active (Jen Persona)</span></div>
+          <div class="row"><label>Proxy Summarizer</label>
+            <select id="compressorModel" onchange="toggleSetting('XRLF_COMPRESSOR_MODEL', this.value)">
+              <option value="xrlf_runtime">XRLF Runtime (same model — no extra VRAM)</option>
+              <option value="qwen3-0.6b-summarizer">qwen3-0.6b (separate 0.6B — light)</option>
+              <option value="qwen3.5-4b-abliterated">qwen3.5-4b (separate 4B — heavy)</option>
+            </select>
+          </div>
+        </section>
+
+        <!-- Feedback & targeted questions (admin) -->
+        <section class="card admin-only" id="sec-feedback">
+          <h2>💬 Feedback & Questions</h2>
+          <div class="row" style="flex-direction:column; align-items:stretch;">
+            <label>Ask users a question</label>
+            <textarea id="qText" rows="2" placeholder="e.g. How is the new voice latency for you?" style="width:100%; padding:.5rem; border:1px solid var(--border); border-radius:6px; background:rgba(0,0,0,.35); color:var(--text); font-family:inherit;"></textarea>
+          </div>
+          <div class="row"><label>Send to</label><div id="qTargets" style="display:flex; flex-wrap:wrap; gap:.4rem;"></div></div>
+          <div class="row"><button class="primary" onclick="postQuestion()">Post question</button></div>
+          <div class="row" style="margin-top:10px;"><label>Inbox</label><button onclick="loadFeedback()" class="pill">↻ refresh</button></div>
+          <div id="fbInbox" style="font-size:.8rem; max-height:220px; overflow-y:auto;"></div>
+        </section>
+
+      </div><!-- /settings-grid -->
+
+      <!-- Diagnostics -->
+      <div class="card card-full" id="sec-test">
+        <h2>🔬 System Test & Context Debugger</h2>
+        <div class="row" style="flex-wrap:wrap; gap:8px;">
+          <button onclick="runSystemTest()" class="pill pill-accent">🧪 System Test</button>
+          <button onclick="runCoherenceTest()" class="pill pill-accent">🧠 Coherence Test</button>
+          <button onclick="runContextDebug()" class="pill">📊 Context Debugger</button>
+          <button onclick="runSubsystemsTest()" class="pill">⚙️ Subsystems Health</button>
+          <button onclick="runStackDiagnostic()" class="pill">🔍 XRLF Stack Diagnostic</button>
+          <button onclick="clearDiagnostics()">Clear</button>
+        </div>
+        <div id="diagResults" class="log" style="min-height:120px; margin-top:12px; font-size:0.85rem;">
+          <span style="color:var(--text-muted);">Click a test button to begin diagnostics…</span>
+        </div>
+        <div id="ctxVisualizer" style="margin-top:16px; display:none;">
+          <h3 style="font-size:0.9rem; margin-bottom:8px;">Context Window Breakdown</h3>
+          <div id="ctxBar" style="display:flex; width:100%; height:32px; border-radius:6px; overflow:hidden; border:1px solid rgba(255,255,255,0.1); font-size:0.7rem;"></div>
+          <div id="ctxLegend" style="display:flex; gap:16px; margin-top:8px; font-size:0.75rem; flex-wrap:wrap;"></div>
+          <div id="ctxDetails" style="margin-top:12px; font-size:0.8rem; font-family:'Share Tech Mono',monospace; white-space:pre-wrap;"></div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════
+           COMMANDO CENTRE — run every setting/test as a command
+           ═══════════════════════════════════════════════════════ -->
+      <div class="card card-full admin-only" id="sec-cmd">
+        <h2>⌨️ Commando Centre</h2>
+        <div id="cmdOut" class="log" style="min-height:140px; font-size:0.85rem;">
+          <span style="color:var(--text-muted);">Type <b>help</b> for commands. Every panel action is also a command.</span>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <input id="cmdInput" type="text" placeholder="> e.g.  status · set XRLF_MODEL_THINKING=true · fovea 3 · model gemma-4-e2b · subsystems"
+                 style="flex:1; font-family:'Share Tech Mono',monospace;" autocomplete="off">
+          <button class="pill pill-accent" onclick="runCommand()">Run ⏎</button>
+        </div>
+      </div>
+
+      <div class="card card-full" id="sec-log">
+        <h2>📜 Event Log</h2>
+        <div id="log" class="log"></div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Host is derived from the address this page was loaded on — so it works
+    // identically from localhost, the LAN IP (Quest/remote), or a tunnel domain.
+    // On a Cloudflare-tunnelled domain (xarel.net / 1um6a.se) ports can't be
+    // appended to the hostname — the dashboard server bridges /api/* (proxy
+    // :8400) and /xrlf/* (runtime :8402) on the SAME origin, so use relative
+    // paths there. Direct ports are only used on plain IP/localhost access.
+    const HOST = location.hostname || '127.0.0.1';
+    const IS_IP = /^[\d.]+$/.test(HOST) || HOST === 'localhost' || HOST.includes(':');
+    const API = IS_IP ? `http://${HOST}:8400` : location.origin;
+    const XRLF = IS_IP ? `http://${HOST}:8402` : `${location.origin}/xrlf`;
+    const WS_IPC = IS_IP ? `ws://${HOST}:8403` : null;
+    const H = (port, path = '') => IS_IP ? `http://${HOST}:${port}${path}` : `${location.origin}${path}`;
+    const logEl = document.getElementById('log');
+    function log(msg) { logEl.textContent += `\n[${new Date().toLocaleTimeString()}] ${msg}`; logEl.scrollTop = logEl.scrollHeight; }
+
+    // ── Account auth ─────────────────────────────────────────────────────
+    // Token sources, in order: this page's own session (foveai_panel_token),
+    // or a Multigate session token when this page is served same-origin via
+    // the :5177 proxy. No token → server treats us as local admin (legacy).
+    let PANEL_TOKEN = localStorage.getItem('foveai_panel_token') || null;
+    try {
+      const mu = JSON.parse(localStorage.getItem('foveai_foveai_user') || 'null');
+      if (!PANEL_TOKEN && mu && mu.apiKey && String(mu.apiKey).startsWith('fvs_')) PANEL_TOKEN = mu.apiKey;
+    } catch (_) {}
+
+    function authHeaders(extra) {
+      const h = { ...(extra || {}) };
+      if (PANEL_TOKEN) h['Authorization'] = 'Bearer ' + PANEL_TOKEN;
+      return h;
+    }
+
+    function applyRole(role, account) {
+      document.body.classList.remove('role-none', 'role-member', 'role-admin');
+      const chip = document.getElementById('accountChip');
+      if (role === 'member') {
+        document.body.classList.add('role-member');
+        chip.textContent = '👤 ' + (account?.displayName || 'member') + ' · member';
+      } else if (role === 'admin') {
+        document.body.classList.add('role-admin');
+        chip.textContent = '👤 ' + (account?.displayName || account?.username || 'admin') + ' · admin';
+        document.getElementById('accountSignedIn').style.display = 'block';
+        document.getElementById('accountSignedOut').style.display = 'none';
+        document.getElementById('accountName').textContent = account?.displayName || account?.username || 'admin';
+        document.getElementById('accountWs').textContent = account?.workspaceId || '—';
+      } else {
+        // no/legacy token — full access, but no named account
+        document.body.classList.add('role-none');
+        chip.textContent = '👤 local · admin';
+      }
+    }
+
+    async function detectRole() {
+      if (!PANEL_TOKEN) { applyRole('none'); return; }
+      try {
+        const r = await fetch(`${API}/api/auth/me`, { headers: authHeaders() });
+        if (!r.ok) { applyRole('none'); return; }
+        const d = await r.json();
+        const acct = d.account || null;
+        if (acct) {
+          applyRole(acct.role === 'admin' ? 'admin' : 'member', acct);
+          if (acct.role !== 'admin') {
+            document.getElementById('accountSignedIn').style.display = 'block';
+            document.getElementById('accountSignedOut').style.display = 'none';
+            document.getElementById('accountName').textContent = acct.displayName || acct.username;
+            document.getElementById('accountWs').textContent = acct.workspaceId || '—';
+          }
+        } else {
+          applyRole('none'); // legacy bearer — admin-equivalent, not an account
+        }
+      } catch { applyRole('none'); }
+    }
+
+    async function panelLogin() {
+      const u = document.getElementById('authUser').value.trim();
+      const p = document.getElementById('authPass').value;
+      if (!u || !p) return;
+      try {
+        const r = await fetch(`${API}/api/auth/login`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: u, password: p })
+        });
+        const d = await r.json();
+        if (!r.ok || !d.token) { log(`login failed: ${d?.error || r.status}`); return; }
+        PANEL_TOKEN = d.token;
+        localStorage.setItem('foveai_panel_token', d.token);
+        log(`Signed in as ${d.user.displayName || d.user.username} (${d.user.role})`);
+        detectRole();
+      } catch (e) { log(`login failed: ${e.message}`); }
+    }
+
+    function panelLogout() {
+      if (PANEL_TOKEN) fetch(`${API}/api/auth/logout`, { method: 'POST', headers: authHeaders() }).catch(() => {});
+      PANEL_TOKEN = null;
+      localStorage.removeItem('foveai_panel_token');
+      document.getElementById('accountSignedIn').style.display = 'none';
+      document.getElementById('accountSignedOut').style.display = 'block';
+      applyRole('none');
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // MODEL REGISTRY — single source of truth for all models
+    // vram_category: light (<2GB), medium (2-4GB), heavy (>4GB)
+    // Only ONE heavy/medium model can be loaded at a time.
+    // ═══════════════════════════════════════════════════════════════
+    const MODEL_REGISTRY = {
+      // ── XRLF Runtime models (loaded via run_xrlf.py on :8402/:8403) ──
+      xrlf: [
+        // Qwen 4B XRLF removed — the pack is malformed (missing blk.32
+        // tensors), crashes on load. File stays on disk for re-pack.
+        { id: 'gemma-4-e2b-multimodal-v1.0',    label: 'XRLF Gemma E2B Multimodal (3.3GB — E2B Q5_K_M)',      vram: 3458,  category: 'medium', path: 'xrl_encoded/gemma-4-e2b-multimodal-v1.0.xrlf',    ctx: 8192, desc: 'Gemma E2B with native vision+audio+MTP. True multimodal: STT/TTS built in.' },
+        { id: 'smolvlm2-500m-multimodal-v1.0',  label: 'XRLF SmolVLM2 500M Multimodal (525MB — 500M Q5_K_M)', vram: 525,   category: 'light',  path: 'xrl_encoded/smolvlm2-500m-multimodal-v1.0.xrlf',  ctx: 4096, desc: 'Ultra-light 500M vision model. Whisper + Kokoro hooks. Fastest boot.' },
+        // 12B XRLF removed from the picker — exceeds this host's VRAM and
+        // crashes the runtime on load. File stays on disk for admin use.
+      ],
+      // ── LM Studio models (loaded via LM Studio on :1234) ──
+      lmstudio: [
+        { id: 'qwopus3.5-9b-coder-mtp-moq',   label: 'QwOpus 3.5 9B Coder MTP MoQ',                            vram: 5000,  category: 'heavy',  path: null, ctx: 32768, desc: 'Deep coder. 9B with MTP. Requires LM Studio.' },
+        { id: 'qwen3.5-4b-moq',               label: 'Qwen MoQ 4B + MTP (1.88GB VRAM, 32K ctx)',               vram: 1880,  category: 'medium', path: null, ctx: 32768, desc: 'Fast 4B with 32K context. Good for coding.' },
+
+      ],
+      // ── Cloud models (no VRAM — routed externally) ──
+      cloud: [
+        { id: 'kimi-k2.7-code',    label: 'Kimi K2.7 Code (Cloud)',     vram: 0, category: 'light', path: null, ctx: 131072, desc: 'Cloud coding model. No VRAM needed.' },
+        { id: 'kimi-k2.6',         label: 'Kimi K2.6 (Cloud)',          vram: 0, category: 'light', path: null, ctx: 131072, desc: 'Cloud general model. No VRAM needed.' },
+        { id: 'gemma4:31b',        label: 'Gemma 4 31B (Cloud)',        vram: 0, category: 'light', path: null, ctx: 131072, desc: 'Large 31B cloud model. No VRAM needed.' },
+        { id: 'devin-sonnet-4',    label: 'Devin Sonnet 4 (Cloud)',     vram: 0, category: 'light', path: null, ctx: 200000, desc: 'Cloud Sonnet. No VRAM needed.' },
+        { id: 'cloud-auto',        label: 'Cloud Auto-Route',           vram: 0, category: 'light', path: null, ctx: 131072, desc: 'Auto-selects best cloud model.' },
+      ],
+    };
+
+    // ═══════════════════════════════════════════════════════════════
+    // STATE
+    // ═══════════════════════════════════════════════════════════════
+    let currentMode = null;       // 'local' | 'cloud'
+    let currentEngine = null;     // 'xrlf' | 'lmstudio' | 'cloud'
+    let currentModel = null;      // model object from registry
+    let loadedModel = null;       // currently loaded model id
+    let loadedModelCategory = null; // 'light' | 'medium' | 'heavy'
+    let _restoring = false;       // true during loadEnv() — suppresses setting writes
+
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 1: MODE SELECTOR
+    // ═══════════════════════════════════════════════════════════════
+    function selectMode(mode) {
+      currentMode = mode;
+      document.getElementById('modeLocal').classList.toggle('active', mode === 'local');
+      document.getElementById('modeCloud').classList.toggle('active', mode === 'cloud');
+
+      const engineSection = document.getElementById('engineSection');
+      const engineButtons = document.getElementById('engineButtons');
+      engineSection.classList.add('visible');
+
+      if (mode === 'local') {
+        engineButtons.innerHTML = `
+          <button class="engine-btn" id="engineXrlf" onclick="selectEngine('xrlf')">
+            🧠 XRLF Runtime
+            <span class="engine-desc">Foveated memory + GGUF on :8402/:8403. Self-contained.</span>
+          </button>
+          <button class="engine-btn" id="engineLmstudio" onclick="selectEngine('lmstudio')">
+            💻 LM Studio
+            <span class="engine-desc">Standard GGUF models on :1234. No foveation.</span>
+          </button>
+        `;
+        log(`Mode: Local — choose engine (XRLF or LM Studio)`);
+      } else {
+        engineButtons.innerHTML = `
+          <button class="engine-btn active" onclick="selectEngine('cloud')">
+            ☁️ Cloud Provider
+            <span class="engine-desc">Routes to Ollama Cloud / external API. No VRAM used.</span>
+          </button>
+        `;
+        selectEngine('cloud');
+        log(`Mode: Cloud — routing to external API`);
+      }
+
+      // Hide settings until engine is chosen
+      document.getElementById('settingsGrid').classList.remove('visible');
+      document.getElementById('vramWarning').classList.remove('visible');
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 2: ENGINE SELECTOR
+    // ═══════════════════════════════════════════════════════════════
+    function selectEngine(engine) {
+      currentEngine = engine;
+
+      // Update button states
+      document.querySelectorAll('.engine-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById('engine' + (engine === 'xrlf' ? 'Xrlf' : engine === 'lmstudio' ? 'Lmstudio' : ''));
+      if (btn) btn.classList.add('active');
+
+      // Show settings
+      document.getElementById('settingsGrid').classList.add('visible');
+
+      // Populate model dropdown
+      const select = document.getElementById('mainProjectModel');
+      select.innerHTML = '';
+      const fleet = MODEL_REGISTRY[engine] || [];
+      fleet.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = m.label;
+        select.appendChild(opt);
+      });
+
+      // Show VRAM warning for local modes, hide Cloud Cap
+      const cloudCapRow = document.getElementById('cloudCapRow');
+      if (engine === 'xrlf' || engine === 'lmstudio') {
+        document.getElementById('vramWarning').classList.add('visible');
+        if (cloudCapRow) cloudCapRow.style.display = 'none';
+      } else {
+        document.getElementById('vramWarning').classList.remove('visible');
+        if (cloudCapRow) cloudCapRow.style.display = 'flex';
+      }
+
+      // Set provider env + correct base URL for each engine
+      const providerMap = { xrlf: 'xrlf_proxy', lmstudio: 'lmstudio', cloud: 'cloud' };
+      const baseUrlMap = {
+        xrlf: 'http://127.0.0.1:8402/v1',      // XRLF runtime's own llama.cpp
+        lmstudio: 'http://127.0.0.1:1234/v1',  // LM Studio server
+        cloud: 'https://ollama.com/v1',         // Ollama Cloud
+      };
+      toggleSetting('XRLF_LLM_PROVIDER', providerMap[engine]);
+      toggleSetting('XRLF_COGNITIVE_MODE', engine === 'cloud' ? 'cloud' : 'local');
+      toggleSetting('XRLF_CHAT_PROVIDER', providerMap[engine]);
+      toggleSetting('XRLF_LOCAL_BASE_URL', baseUrlMap[engine]);
+      log(`Engine ${engine}: upstream → ${baseUrlMap[engine]}`);
+
+      // Auto-select first model only if not restoring (during restore, loadEnv picks the saved model)
+      if (fleet.length > 0 && !_restoring) {
+        select.value = fleet[0].id;
+        onModelSelected(fleet[0].id);
+      }
+
+      log(`Engine: ${engine} — ${fleet.length} models available`);
+      updateVRAMDisplay();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // STEP 3: MODEL SELECTION + VRAM CHECK
+    // ═══════════════════════════════════════════════════════════════
+    function onModelSelected(modelId) {
+      const fleet = MODEL_REGISTRY[currentEngine] || [];
+      currentModel = fleet.find(m => m.id === modelId);
+      if (!currentModel) return;
+
+      const info = document.getElementById('modelInfo');
+      const vramMB = currentModel.vram;
+      const vramGB = (vramMB / 1024).toFixed(1);
+      const cat = currentModel.category;
+      const catLabel = cat === 'light' ? 'LIGHT' : cat === 'medium' ? 'MEDIUM' : 'HEAVY';
+
+      info.innerHTML = `
+        ${currentModel.desc}<br>
+        VRAM: <strong>${vramGB} GB</strong> <span class="vram-tag ${cat}">${catLabel}</span><br>
+        Context: ${currentModel.ctx.toLocaleString()} tokens
+      `;
+
+      // VRAM conflict check
+      if (loadedModel && loadedModel !== modelId) {
+        const loadedFleet = Object.values(MODEL_REGISTRY).flat();
+        const loaded = loadedFleet.find(m => m.id === loadedModel);
+        if (loaded && (loaded.category === 'heavy' || loaded.category === 'medium') && (cat === 'heavy' || cat === 'medium')) {
+          info.innerHTML += `<br><span style="color:var(--warning);">⚠️ Will unload "${loaded.label}" before loading this model.</span>`;
+        }
+      }
+
+      toggleSetting('XRLF_MODEL_LOCAL_ID', modelId);
+      log(`Model selected: ${currentModel.label} (${vramGB} GB, ${cat})`);
+      updateVRAMDisplay();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // VRAM MANAGEMENT — only one large model at a time
+    // ═══════════════════════════════════════════════════════════════
+    function updateVRAMDisplay() {
+      const bar = document.getElementById('vramBarFill');
+      const detail = document.getElementById('vramDetail');
+      const status = document.getElementById('vramStatus');
+
+      if (!currentModel || currentEngine === 'cloud') {
+        bar.style.width = '0%';
+        bar.style.background = 'var(--success)';
+        detail.textContent = 'No local model — cloud mode uses 0 VRAM';
+        status.textContent = 'VRAM: — (cloud)';
+        return;
+      }
+
+      // Estimate: light <2GB, medium 2-4GB, heavy >4GB
+      // 8GB VRAM (RTX 3060 Ti / 4060 / 4070)
+      const totalVRAM = 8192; // 8GB in MB
+      const usedVRAM = currentModel.vram;
+      const pct = Math.min(100, (usedVRAM / totalVRAM) * 100);
+
+      bar.style.width = pct + '%';
+      bar.style.background = currentModel.category === 'light' ? 'var(--success)' :
+                             currentModel.category === 'medium' ? 'var(--warning)' : 'var(--danger)';
+
+      detail.textContent = `~${(usedVRAM/1024).toFixed(1)} GB / 8 GB (${currentModel.category})`;
+      status.textContent = `VRAM: ${(usedVRAM/1024).toFixed(1)} GB`;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // LOAD / UNLOAD / RESTART — with VRAM safety
+    // ═══════════════════════════════════════════════════════════════
+    async function loadModel() {
+      if (!currentModel) { log('No model selected'); return; }
+
+      const statusEl = document.getElementById('loadedStatus');
+      statusEl.className = 'loaded-status loading';
+      statusEl.textContent = `Checking runtime…`;
+
+      // Step 1: Check if the XRLF runtime is already running with this model
+      if (currentEngine === 'xrlf') {
+        let runtimeAlive = false;
+        try {
+          const hr = await fetch(`${XRLF}/health`, { signal: AbortSignal.timeout(3000) });
+          if (hr.ok) {
+            const h = await hr.json();
+            runtimeAlive = true;
+            if (h.load_state === 'loading') {
+              statusEl.className = 'loaded-status loading';
+              statusEl.textContent = 'Runtime is busy loading a model — wait for it, or restart the runtime';
+              log('Runtime busy: load_state=loading');
+              return;
+            }
+            if (h.loaded) {
+              // Runtime is already running — is it the same model?
+              const runningModel = h.model || '';
+              const fleet = MODEL_REGISTRY.xrlf || [];
+              const matchedModel = fleet.find(m => runningModel.includes(m.id) || m.id.includes(runningModel));
+              if (matchedModel && matchedModel.id === currentModel.id) {
+                loadedModel = currentModel.id;
+                loadedModelCategory = currentModel.category;
+                statusEl.className = 'loaded-status loaded';
+                statusEl.textContent = `✅ ${currentModel.label} — already loaded`;
+                log(`Model already loaded: ${runningModel}`);
+                updateVRAMDisplay();
+                return;
+              }
+            }
+          }
+        } catch {
+          // Runtime not running — we'll need to start it
+          log('Runtime not running — starting fresh…');
+        }
+
+        // /load now returns immediately — the load runs in the background and
+        // /health.load_state announces 'ready'. The poll loop below is shared
+        // by both the hot-swap and the cold-start paths.
+        let loadInitiated = false;
+
+        if (runtimeAlive) {
+          // Runtime is alive — hot-swap the model via /load endpoint (no process restart!)
+          log(`Hot-swapping to ${currentModel.path}…`);
+          statusEl.textContent = `Loading ${currentModel.label}…`;
+          try {
+            const r = await fetch(`${XRLF}/load`, {
+              method: 'POST',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({model: currentModel.path}),
+              signal: AbortSignal.timeout(15000) // kickoff only — load is polled via /health
+            });
+            const txt = await r.text();
+            log(`Load response: ${r.status} ${txt}`);
+            if (r.ok || r.status === 409) {
+              loadInitiated = true; // 409 = a load is already running; poll it
+            } else {
+              statusEl.className = 'loaded-status error';
+              statusEl.textContent = `❌ Load failed: ${txt}`;
+              return;
+            }
+          } catch (e) {
+            log(`Hot-swap kickoff failed, falling back to full restart: ${e.message}`);
+            runtimeAlive = false;
+          }
+        }
+
+        if (!runtimeAlive) {
+          // Runtime is down — start it via the proxy control action
+          log(`Starting XRLF runtime with ${currentModel.path}…`);
+          statusEl.textContent = `Starting runtime…`;
+          try {
+            const r = await fetch(`${API}/api/control`, {
+              method: 'POST',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({action: 'start-xrlf', model: currentModel.path, port: 8402, ws_port: 8403})
+            });
+            const txt = await r.text();
+            log(`XRLF start command sent: ${r.status} ${txt}`);
+          } catch (e) { log(`XRLF start failed: ${e.message}`); }
+          loadInitiated = true;
+        }
+
+        if (loadInitiated) {
+          // Poll health endpoint until the runtime reports loaded (max 6 min).
+          // The API binds BEFORE the model loads, so /health answers during the
+          // whole load window — a persistent refusal means the PROCESS died,
+          // not that it's still working. Track whether we ever reached it.
+          statusEl.textContent = `Waiting for runtime…`;
+          let up = false;
+          let loadErr = null;
+          let sawHealth = false;
+          for (let i = 0; i < 180; i++) {
+            await new Promise(r => setTimeout(r, 2000));
+            try {
+              const hr = await fetch(`${XRLF}/health`, { signal: AbortSignal.timeout(2000) });
+              if (hr.ok) {
+                sawHealth = true;
+                const h = await hr.json();
+                if (h.loaded) { up = true; log(`Runtime online: ${h.model}`); break; }
+                if (h.load_state === 'error') { loadErr = h.load_error || 'load failed'; break; }
+                statusEl.textContent = h.load_state === 'loading'
+                  ? `Loading model… (${(i+1)*2}s — runtime reports loading)`
+                  : `Waiting for runtime… (${(i+1)*2}s)`;
+                continue;
+              }
+            } catch {}
+            if (!sawHealth && i >= 30) {
+              // ~60s without /health ever answering — the runtime process
+              // failed at spawn (bad model path, port conflict, crash).
+              statusEl.className = 'loaded-status error';
+              statusEl.textContent = `❌ Runtime never came up after 60s — process likely died at launch`;
+              log('❌ /health never answered — run_xrlf exited early. Check ~/xrlf_live.log');
+              return;
+            }
+            statusEl.textContent = `Waiting for runtime process… (${(i+1)*2}s)`;
+          }
+          if (loadErr) {
+            statusEl.className = 'loaded-status error';
+            statusEl.textContent = `❌ Model load failed: ${loadErr}`;
+            log(`❌ Runtime load_state=error: ${loadErr}`);
+            return;
+          }
+          if (!up) {
+            statusEl.className = sawHealth ? 'loaded-status loading' : 'loaded-status error';
+            statusEl.textContent = sawHealth
+              ? `⏳ Still loading after 6min — runtime hasn't reported loaded yet. It may still be initializing; re-check status shortly.`
+              : `❌ Runtime unreachable after 6min — process died or was never started`;
+            log(sawHealth
+              ? '⚠️ Runtime not reporting loaded after 6min — likely still initializing (see ~/xrlf_live.log)'
+              : '❌ /health never answered after 6min — see ~/xrlf_live.log');
+            return;
+          }
+        }
+      } else if (currentEngine === 'lmstudio') {
+        log(`Loading ${currentModel.id} in LM Studio…`);
+        statusEl.textContent = `Loading in LM Studio…`;
+        try {
+          const r = await fetch(H(1234, '/v1/chat/completions'), {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({model: currentModel.id, messages: [{role:'user', content:'ping'}], max_tokens: 1})
+          });
+          log(`LM Studio load: ${r.status}`);
+        } catch (e) { log(`LM Studio load failed: ${e.message}`); }
+      }
+
+      loadedModel = currentModel.id;
+      loadedModelCategory = currentModel.category;
+      statusEl.className = 'loaded-status loaded';
+      statusEl.textContent = `✅ ${currentModel.label} — loaded`;
+      updateVRAMDisplay();
+    }
+
+    async function unloadModel() {
+      await unloadModelInternal();
+    }
+
+    async function unloadModelInternal() {
+      if (!loadedModel) { log('No model loaded'); return; }
+
+      const statusEl = document.getElementById('loadedStatus');
+      statusEl.className = 'loaded-status loading';
+      statusEl.textContent = `Unloading ${loadedModel}…`;
+
+      if (currentEngine === 'xrlf') {
+        // Use the runtime's /unload endpoint — keeps the process alive, just frees VRAM
+        log('Unloading model from runtime…');
+        try {
+          const r = await fetch(`${XRLF}/unload`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            signal: AbortSignal.timeout(30000)
+          });
+          const txt = await r.text();
+          log(`Unload: ${r.status} ${txt}`);
+        } catch (e) { log(`Unload failed: ${e.message}`); }
+
+        // Verify via health endpoint
+        try {
+          const hr = await fetch(`${XRLF}/health`, { signal: AbortSignal.timeout(2000) });
+          if (hr.ok) {
+            const h = await hr.json();
+            log(`Runtime alive, loaded=${h.loaded}`);
+          }
+        } catch { log('Runtime went down'); }
+      } else if (currentEngine === 'lmstudio') {
+        log('Unloading LM Studio models…');
+        try {
+          const r = await fetch(`${API}/api/control`, {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({action: 'unload-lm'})
+          });
+          log(`LM Studio unload: ${r.status}`);
+        } catch (e) { log(`LM Studio unload failed: ${e.message}`); }
+      }
+
+      loadedModel = null;
+      loadedModelCategory = null;
+      statusEl.className = 'loaded-status idle';
+      statusEl.textContent = 'No model loaded — runtime ready';
+      updateVRAMDisplay();
+      log('Model unloaded — VRAM freed');
+    }
+
+    async function restartRuntime() {
+      log('Restarting runtime…');
+      await unloadModelInternal();
+      await new Promise(r => setTimeout(r, 2000));
+      await loadModel();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // HEALTH CHECK
+    // ═══════════════════════════════════════════════════════════════
+    async function health() {
+      try {
+        const r = await fetch(`${API}/health`);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
+        const el = document.getElementById('proxyStatus');
+        el.textContent = `Proxy: ${j.mode || 'online'}`;
+        el.className = 'pill online';
+        document.getElementById('memCount').textContent = `Memories: ${j.stored_messages ?? '—'}`;
+        return j;
+      } catch (e) {
+        document.getElementById('proxyStatus').textContent = 'Proxy: offline';
+        document.getElementById('proxyStatus').className = 'pill offline';
+        return null;
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // API HELPERS (same as before)
+    // ═══════════════════════════════════════════════════════════════
+    async function call(action) {
+      log(`Calling ${action}…`);
+      try {
+        const r = await fetch(`${API}/api/control`, { method:'POST', headers:authHeaders({'Content-Type':'application/json'}), body: JSON.stringify({action}) });
+        const txt = await r.text();
+        log(`${action}: ${r.status} ${txt}`);
+      } catch (e) { log(`${action} failed: ${e.message}`); }
+    }
+
+    function openPage(path) {
+      const url = path.startsWith('http') ? path : H(8414, path);
+      window.open(url, '_blank');
+      log(`Opened ${url}`);
+    }
+
+    async function toggle(name, value) {
+      if (_restoring) { updateToggleButtons(name, value); return; }
+      log(`Setting ${name} = ${value}`);
+      try {
+        const r = await fetch(`${API}/api/toggle`, { method:'POST', headers:authHeaders({'Content-Type':'application/json'}), body: JSON.stringify({name, value}) });
+        log(`${name} => ${value} (${r.status})`);
+        updateToggleButtons(name, value);
+      } catch (e) { log(`${name} toggle failed: ${e.message}`); }
+    }
+
+    async function setFrontend(ui) {
+      if (_restoring) { updateFrontend(ui); return; }
+      log(`Switching frontend to ${ui}…`);
+      try {
+        const r = await fetch(`${API}/api/setting`, { method:'POST', headers:authHeaders({'Content-Type':'application/json'}), body: JSON.stringify({key:'XRLF_FRONTEND_UI_PRESET', val: ui}) });
+        log(`Frontend => ${ui} (${r.status})`);
+        updateFrontend(ui);
+      } catch (e) { log(`frontend switch failed: ${e.message}`); }
+    }
+
+    async function setFovea(level) {
+      if (_restoring) return;
+      try {
+        const r = await fetch(`${API}/api/fovea`, {method:'POST', headers:authHeaders({'Content-Type':'application/json'}), body: JSON.stringify({level: parseInt(level,10)})});
+        log(`Fovea => ${level} (${r.status})`);
+      } catch (e) { log(`fovea failed: ${e.message}`); }
+    }
+
+    async function setCap(v) {
+      if (_restoring) return;
+      try {
+        const r = await fetch(`${API}/api/cap`, {method:'POST', headers:authHeaders({'Content-Type':'application/json'}), body: JSON.stringify({cap: parseInt(v,10)})});
+        log(`Cap => ${v} (${r.status})`);
+      } catch (e) { log(`cap failed: ${e.message}`); }
+    }
+
+    async function setPreserve(v) {
+      if (_restoring) return;
+      try {
+        const r = await fetch(`${API}/api/preserve`, {method:'POST', headers:authHeaders({'Content-Type':'application/json'}), body: JSON.stringify({preserve: parseInt(v,10)})});
+        log(`Preserve => ${v} (${r.status})`);
+      } catch (e) { log(`preserve failed: ${e.message}`); }
+    }
+
+    async function toggleSetting(key, val) {
+      if (_restoring) { log(`Restore: ${key} = ${val} (no write)`); return; }
+      log(`Setting ${key} = ${val}`);
+      try {
+        const r = await fetch(`${API}/api/setting`, { method:'POST', headers:authHeaders({'Content-Type':'application/json'}), body: JSON.stringify({key, val}) });
+        const txt = await r.text();
+        log(`${key} => ${val} (${r.status}) ${txt}`);
+      } catch (e) { log(`${key} update failed: ${e.message}`); }
+    }
+
+    // ── Feedback & targeted questions (admin card) ──
+    async function loadQuestionTargets() {
+      try {
+        const r = await fetch(`${API}/api/auth/users`, { headers: authHeaders() });
+        const { users } = await r.json();
+        const el = document.getElementById('qTargets');
+        el.innerHTML = '<label style="display:flex;gap:.3rem;align-items:center;font-size:.8rem;"><input type="checkbox" id="qAll" checked> all users</label>' +
+          (users || []).map(u => `<label style="display:flex;gap:.3rem;align-items:center;font-size:.8rem;"><input type="checkbox" class="qUser" value="${u.username}"> ${u.displayName || u.username}</label>`).join('');
+        el.querySelector('#qAll').onchange = (e) => { el.querySelectorAll('.qUser').forEach(c => c.disabled = e.target.checked); };
+      } catch {}
+    }
+
+    async function postQuestion() {
+      const text = document.getElementById('qText').value.trim();
+      if (!text) return;
+      const all = document.getElementById('qAll');
+      let targets = ['all'];
+      if (all && !all.checked) targets = [...document.querySelectorAll('.qUser:checked')].map(c => c.value);
+      if (!targets.length) { log('no targets selected'); return; }
+      const r = await fetch(`${API}/api/feedback/questions`, { method:'POST', headers: authHeaders({'Content-Type':'application/json'}), body: JSON.stringify({ text, targets }) });
+      log(r.ok ? `question posted → ${targets.join(', ')}` : `post failed: ${r.status}`);
+      if (r.ok) document.getElementById('qText').value = '';
+    }
+
+    async function loadFeedback() {
+      try {
+        const r = await fetch(`${API}/api/feedback/responses`, { headers: authHeaders() });
+        const { responses } = await r.json();
+        const el = document.getElementById('fbInbox');
+        el.innerHTML = (responses || []).map(x => `
+          <div style="border-bottom:1px solid rgba(255,255,255,.08); padding:.45rem 0; ${x.read ? 'opacity:.55;' : ''}">
+            <b>${x.username}</b> <span style="color:var(--muted); font-size:.7rem">${x.created.slice(0,16).replace('T',' ')}</span>
+            ${x.questionText ? `<div style="color:var(--muted); font-size:.72rem;">re: ${String(x.questionText).replace(/</g,'&lt;')}</div>` : ''}
+            <div>${String(x.text).replace(/</g,'&lt;')}</div>
+            ${x.read ? '' : `<button class="pill" style="font-size:.65rem; margin-top:.3rem;" onclick="markFbRead('${x.id}')">mark read</button>`}
+          </div>`).join('') || '<span style="color:var(--text-muted);">No feedback yet.</span>';
+      } catch (e) { log('feedback load failed: ' + e.message); }
+    }
+
+    async function markFbRead(id) {
+      await fetch(`${API}/api/feedback/responses/${id}/read`, { method:'POST', headers: authHeaders() });
+      loadFeedback();
+    }
+
+    function sendWsSetting(setting, value) {
+      if (_restoring) return;
+      if (!WS_IPC) {
+        log(`WS push skipped — tunneled domain (${HOST}) can't reach :8403; setting saved via API`);
+        return;
+      }
+      log(`Sending WS Setting ${setting} = ${value}`);
+      try {
+        const ws = new WebSocket(WS_IPC);
+        ws.onopen = () => {
+          ws.send(JSON.stringify({ event: "settings", payload: { setting, value } }));
+          log(`WS Sent: ${setting}=${value}`);
+          setTimeout(() => ws.close(), 100);
+        };
+        ws.onerror = (e) => log(`WS setting failed`);
+      } catch (e) {
+        log(`WS setting failed: ${e.message}`);
+      }
+    }
+
+    function updateToggleButtons(name, value) {
+      const on = document.getElementById(name + 'On');
+      const off = document.getElementById(name + 'Off');
+      if (on && off) { on.classList.toggle('active', value); off.classList.toggle('active', !value); }
+    }
+
+    async function togglePtt(enabled) {
+      if (_restoring) {
+        document.getElementById('pttModeOn').classList.toggle('active', enabled);
+        document.getElementById('pttModeOff').classList.toggle('active', !enabled);
+        return;
+      }
+      toggleSetting('XRLF_MIC_PTT', enabled ? 'true' : 'false');
+      document.getElementById('pttModeOn').classList.toggle('active', enabled);
+      document.getElementById('pttModeOff').classList.toggle('active', !enabled);
+    }
+
+    function updateFrontend(ui) {
+      document.getElementById('frontendMultigate').classList.toggle('active', ui === 'multigate');
+      document.getElementById('frontend3d').classList.toggle('active', ui === '3d_avatar');
+      document.getElementById('frontendXr').classList.toggle('active', ui === 'xr_vessel');
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // LOAD ENV + RESTORE STATE
+    // ═══════════════════════════════════════════════════════════════
+    async function loadEnv() {
+      _restoring = true;
+      try {
+        const r = await fetch(`${API}/api/env`);
+        if (!r.ok) throw new Error('not ok');
+        const e = await r.json();
+
+        // Restore numeric inputs from env (no write)
+        document.getElementById('cap').value = e.XRLF_CLOUD_MAX_TOKENS_CAP || 0;
+        document.getElementById('preserve').value = e.XRLF_CLOUD_PRESERVE_LAST || 4;
+        document.getElementById('fovea').value = e.XRLF_PROXY_AGGRESSION || 0;
+
+        const compModelEl = document.getElementById('compressorModel');
+        if (compModelEl) compModelEl.value = e.XRLF_COMPRESSOR_MODEL || 'xrlf_runtime';
+
+        // Restore TTS/STT engine selects from env
+        const ttsEl = document.getElementById('ttsEngineSelect');
+        if (ttsEl) ttsEl.value = e.XRLF_TTS_PROVIDER || 'websocket';
+        const sttEl = document.getElementById('sttEngineSelect');
+        if (sttEl) sttEl.value = e.XRLF_STT_PROVIDER || 'whisper';
+
+        // Restore mode + engine from env (selectMode/selectEngine won't write during restore)
+        const provider = e.XRLF_LLM_PROVIDER || 'xrlf_proxy';
+        const cognitiveMode = e.XRLF_COGNITIVE_MODE || 'local';
+
+        if (cognitiveMode === 'cloud' || provider === 'cloud' || provider === 'ollama_cloud') {
+          selectMode('cloud');
+        } else {
+          selectMode('local');
+          if (provider === 'lmstudio') selectEngine('lmstudio');
+          else selectEngine('xrlf');
+        }
+
+        // Restore model selection from env — don't auto-select first if env has a saved model
+        const savedModel = e.XRLF_MODEL_LOCAL_ID;
+        if (savedModel) {
+          const select = document.getElementById('mainProjectModel');
+          // Check if the saved model exists in the current engine's fleet
+          const fleet = MODEL_REGISTRY[currentEngine] || [];
+          const exists = fleet.find(m => m.id === savedModel);
+          if (exists) {
+            select.value = savedModel;
+            onModelSelected(savedModel);
+          }
+        }
+
+        // Check if XRLF runtime is running and detect which model
+        try {
+          const hr = await fetch(`${XRLF}/health`, { signal: AbortSignal.timeout(2000) });
+          if (hr.ok) {
+            const h = await hr.json();
+            if (h.load_state === 'loading') {
+              const statusEl = document.getElementById('loadedStatus');
+              statusEl.className = 'loaded-status loading';
+              statusEl.textContent = 'Runtime online — model still loading…';
+              log(`Runtime online: load_state=loading`);
+            } else if (h.load_state === 'error') {
+              const statusEl = document.getElementById('loadedStatus');
+              statusEl.className = 'loaded-status error';
+              statusEl.textContent = `❌ Load error: ${h.load_error || 'unknown'}`;
+              log(`Runtime load error: ${h.load_error}`);
+            } else if (h.loaded) {
+              const runningModel = h.model || '';
+              // Try to match the running model to one in our registry
+              const allFleet = Object.values(MODEL_REGISTRY).flat();
+              const matched = allFleet.find(m => runningModel.includes(m.id) || m.id.includes(runningModel));
+              loadedModel = matched ? matched.id : (savedModel || runningModel);
+              loadedModelCategory = matched ? matched.category : 'light';
+              const statusEl = document.getElementById('loadedStatus');
+              statusEl.className = 'loaded-status loaded';
+              statusEl.textContent = `✅ ${matched ? matched.label : runningModel} — running`;
+              log(`Detected running model: ${runningModel}`);
+
+              // Also select the running model in the dropdown if it matches
+              if (matched) {
+                const select = document.getElementById('mainProjectModel');
+                select.value = matched.id;
+                onModelSelected(matched.id);
+              }
+              updateVRAMDisplay();
+            } else {
+              const statusEl = document.getElementById('loadedStatus');
+              statusEl.className = 'loaded-status idle';
+              statusEl.textContent = 'Runtime online — no model loaded';
+            }
+          } else {
+            const statusEl = document.getElementById('loadedStatus');
+            statusEl.className = 'loaded-status idle';
+            statusEl.textContent = 'No model loaded — click Load Model to start';
+          }
+        } catch {
+          const statusEl = document.getElementById('loadedStatus');
+          statusEl.className = 'loaded-status idle';
+          statusEl.textContent = 'No model loaded — click Load Model to start';
+        }
+
+        // Restore toggle states from env (visual only during restore)
+        updateToggleButtons('voice', (e.XRLF_VOICE_ENABLED || '').toLowerCase() === 'true');
+        updateToggleButtons('mic', (e.XRLF_MIC_ENABLED || '').toLowerCase() === 'true');
+        document.getElementById('pttModeOn').classList.toggle('active', (e.XRLF_MIC_PTT || '').toLowerCase() === 'true');
+        document.getElementById('pttModeOff').classList.toggle('active', (e.XRLF_MIC_PTT || '').toLowerCase() !== 'true');
+        document.getElementById('thinkOn').classList.toggle('active', (e.XRLF_MODEL_THINKING || '').toLowerCase() === 'true');
+        document.getElementById('thinkOff').classList.toggle('active', (e.XRLF_MODEL_THINKING || '').toLowerCase() === 'false');
+        document.getElementById('smartRouterOn').classList.toggle('active', (e.XRLF_SMART_PROXY || '').toLowerCase() === 'true');
+        document.getElementById('smartRouterOff').classList.toggle('active', (e.XRLF_SMART_PROXY || '').toLowerCase() === 'false');
+        document.getElementById('autoCkpOn').classList.toggle('active', (e.XRLF_PROXY_AUTO_CHECKPOINT || '').toLowerCase() !== 'false');
+        document.getElementById('autoCkpOff').classList.toggle('active', (e.XRLF_PROXY_AUTO_CHECKPOINT || '').toLowerCase() === 'false');
+        document.getElementById('shellCorner').classList.toggle('active', (e.XRLF_UI_SHELL || 'corner').toLowerCase() === 'corner');
+        document.getElementById('shellTopBar').classList.toggle('active', (e.XRLF_UI_SHELL || '').toLowerCase() === 'topbar');
+        document.getElementById('tunnelTarget').textContent = e.VITE_URL || e.FOVEAI_PUBLIC_URL || '—';
+        updateFrontend((e.XRLF_FRONTEND_UI || 'multigate').toLowerCase());
+        log('Settings restored from running config (no writes)');
+      } catch (err) {
+        log(`Could not load env from ${API}/api/env: ${err.message}`);
+      } finally {
+        _restoring = false;
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // DIAGNOSTICS (same as before)
+    // ═══════════════════════════════════════════════════════════════
+    const diagEl = document.getElementById('diagResults');
+    function diag(msg, color = '') { diagEl.innerHTML += `\n<span style="color:${color}">${msg}</span><br>`; diagEl.scrollTop = diagEl.scrollHeight; }
+    function clearDiagnostics() { diagEl.innerHTML = '<span style="color:var(--text-muted);">Diagnostics cleared.</span><br>'; }
+
+    async function runSystemTest() {
+      clearDiagnostics();
+      diag('🧪 System Test: Sending "Hello, can you hear me?"…', '#0ff');
+      const t0 = performance.now();
+      try {
+        const body = { model: loadedModel || 'lumax-plumax-omni-router-v2', messages: [{role:'user', content:'Hello, can you hear me? Reply in one short sentence.'}], stream: false, max_tokens: 80 };
+        const r = await fetch(`${API}/v1/chat/completions`, { method:'POST', headers:authHeaders({'Content-Type':'application/json'}), body: JSON.stringify(body) });
+        // 2026-10-09: the gate/shield can answer with the login HTML page — parse it as text first
+        const raw = await r.text();
+        let data; try { data = JSON.parse(raw); }
+        catch { diag(`❌ ERROR — server returned HTML (login gate) instead of JSON. Open this page logged-in, or set the panel token.`, '#f00'); return; }
+        const ms = Math.round(performance.now() - t0);
+        if (r.ok && data.choices && data.choices[0]) {
+          diag(`✅ PASS — ${ms}ms`, '#0f0');
+          diag(`   Model: ${data.model || 'unknown'}`, '#aaa');
+          diag(`   Reply: "${data.choices[0].message.content}"`, '#fff');
+          if (data._healer) diag(`   Budget: ${data._healer.currentBudget}/${data._healer.maxBudget} chars`, '#aaa');
+        } else if (r.status === 502 || r.status === 503) {
+          diag(`❌ FAIL — HTTP ${r.status} (proxy up, XRLF runtime down)`, '#f00');
+        } else { diag(`❌ FAIL — HTTP ${r.status}`, '#f00'); }
+      } catch (e) { diag(`❌ ERROR — ${e.message}`, '#f00'); }
+    }
+
+    async function runCoherenceTest() {
+      clearDiagnostics();
+      diag('🧠 Coherence Test…', '#0ff');
+      const questions = ['What is 7 multiplied by 8? Reply with just the number.', 'Name three colors in the rainbow.', 'If I have 5 apples and eat 2, how many are left? Reply with just the number.'];
+      const q = questions[Math.floor(Math.random() * questions.length)];
+      diag(`   Question: "${q}"`, '#aaa');
+      try {
+        const body = { model: loadedModel || 'lumax-plumax-omni-router-v2', messages: [{role:'user', content:q}], stream: false, max_tokens: 100 };
+        const r = await fetch(`${API}/v1/chat/completions`, { method:'POST', headers:authHeaders({'Content-Type':'application/json'}), body: JSON.stringify(body) });
+        const data = await r.json();
+        if (r.ok && data.choices && data.choices[0]) {
+          const reply = data.choices[0].message.content.trim();
+          diag(`   Reply: "${reply}"`, '#fff');
+          if (reply.length > 0 && !reply.includes('⚠️')) diag(`✅ PASS — Model responded`, '#0f0');
+          else diag(`⚠️ WARNING — Error in response`, '#fa0');
+        } else if (r.status === 502 || r.status === 503) {
+          diag(`❌ FAIL — HTTP ${r.status} (proxy up, XRLF runtime down${data?.error ? `: ${data.error}` : ''})`, '#f00');
+          diag(`   → Runtime is loading or crashed. Check "Start XRLF Runtime" above.`, '#fa0');
+        } else { diag(`❌ FAIL — HTTP ${r.status}`, '#f00'); }
+      } catch (e) { diag(`❌ ERROR — ${e.message}`, '#f00'); }
+    }
+
+    async function runContextDebug() {
+      clearDiagnostics();
+      diag('📊 Context Window Debugger…', '#0ff');
+      try {
+        const r = await fetch(`${API}/api/healer-state`);
+        const healer = r.ok ? await r.json() : null;
+        const r2 = await fetch(`${API}/api/env`);
+        const env = r2.ok ? await r2.json() : {};
+        diag(`   Provider: ${env.XRLF_LLM_PROVIDER || 'unknown'}`, '#aaa');
+        diag(`   Mode: ${env.XRLF_COGNITIVE_MODE || 'unknown'}`, '#aaa');
+        diag(`   Budget: ${healer?.currentBudget || 0} / ${healer?.maxBudget || 0} chars`, '#0fa');
+        diag(`   Shrinks: ${healer?.totalShrinks || 0} | OK streak: ${healer?.consecutiveOk || 0}`, '#aaa');
+        document.getElementById('ctxVisualizer').style.display = 'block';
+        const real = healer?.currentBudget || 0;
+        const spoofed = parseInt(env.XRLF_SPOOF_CONTEXT_WINDOW) || 32768;
+        const ratio = Math.min(1, real / spoofed);
+        document.getElementById('ctxBar').innerHTML = `<div style="width:${ratio*100}%; background:linear-gradient(90deg,#0f0,#0fa); display:flex; align-items:center; justify-content:center; color:#000; font-weight:bold;">Real ${real}</div><div style="width:${(1-ratio)*100}%; background:rgba(255,255,255,0.05); display:flex; align-items:center; justify-content:center; color:#666;">Spoofed ${spoofed}</div>`;
+        document.getElementById('ctxLegend').innerHTML = `<span style="color:#0f0;">■ Real: ${real} chars</span><span style="color:#666;">■ Spoofed: ${spoofed} tokens</span>`;
+        document.getElementById('ctxDetails').textContent = `Pipeline:\n  Client → Proxy (foveation) → XRLF :8402 → GGUF\n  Cost: ~${Math.round(real/4)} tokens/request`;
+        diag(`✅ Context debugger rendered`, '#0f0');
+      } catch (e) { diag(`❌ ERROR — ${e.message}`, '#f00'); }
+    }
+
+    async function runSubsystemsTest() {
+      clearDiagnostics();
+      // Preferred: server-side check via the proxy — it probes 127.0.0.1 on the
+      // PC itself, so the results are true regardless of which device browsed
+      // here (localhost, LAN IP, tunnel). Falls back to client-side checks.
+      diag('⚙️ Subsystems Health Check (server-side)…', '#0ff');
+      let serverSide = false;
+      try {
+        const r = await fetch(`${API}/api/subsystems`, { signal: AbortSignal.timeout(10000) });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = await r.json();
+        for (const c of (data.checks || [])) {
+          const ok = c.state === 'online' || c.state === 'listening';
+          const mark = ok ? '✅' : c.state === 'dormant' ? '⚠️' : '❌';
+          const color = ok ? '#0f0' : c.state === 'dormant' ? '#fa0' : '#f00';
+          let extra = c.http_status ? ` (HTTP ${c.http_status})` : '';
+          if (c.port === 8402 && c.load_state) {
+            extra += ` — ${c.load_state}${c.model ? ` (${c.model})` : ''}${c.load_error ? ` ERR: ${c.load_error}` : ''}`;
+          }
+          diag(`${mark} ${c.name} :${c.port} — ${c.state.toUpperCase()}${extra}`, color);
+        }
+        serverSide = true;
+      } catch (e) {
+        diag(`⚠️ Server-side check unavailable (${e.message}) — client-side from ${HOST}`, '#fa0');
+      }
+
+      if (!serverSide) {
+        const checks = [
+          { name: 'Proxy :8400', url: `${API}/health`, type: 'http' },
+          { name: 'Hearing :8401', url: H(8414, '/api/status'), type: 'http' },
+          { name: 'XRLF Runtime :8402', url: `${XRLF}/health`, type: 'http', engine: 'xrlf' },
+          { name: 'WebSocket :8403', url: WS_IPC, type: 'tcp', engine: 'xrlf' },
+          { name: 'TTS :8406', url: H(8411, '/health'), type: 'http' },
+          { name: 'Chat Relay :8407', url: H(8413, '/health'), type: 'http' },
+          { name: 'STT :8409', url: `ws://${HOST}:8409`, type: 'tcp' },
+          { name: 'Body / Motor :8410', url: H(8410, '/health'), type: 'http' },
+          { name: 'Subconscious :8411', url: H(8409, '/health'), type: 'http' },
+          { name: 'LM Studio :1234', url: H(1234, '/v1/models'), type: 'http', engine: 'lmstudio' },
+          { name: 'XR Vessel :5176', url: H(5176, '/'), type: 'http' },
+          { name: 'Multigate :5177', url: H(5177, '/'), type: 'http' },
+        ].filter(c => !c.engine || c.engine === currentEngine);
+        for (const c of checks) {
+          if (c.type === 'tcp') {
+            // WebSocket ports don't respond to HTTP — test with a raw TCP connection
+            try {
+              const ws = new WebSocket(c.url);
+              const connected = await Promise.race([
+                new Promise(resolve => { ws.onopen = () => { ws.close(); resolve(true); }; ws.onerror = () => resolve(false); }),
+                new Promise(resolve => setTimeout(() => { ws.close(); resolve(false); }, 3000))
+              ]);
+              if (connected) diag(`✅ ${c.name} — LISTENING`, '#0f0');
+              else diag(`❌ ${c.name} — OFFLINE`, '#f00');
+            } catch (e) { diag(`❌ ${c.name} — OFFLINE`, '#f00'); }
+          } else {
+            try {
+              const r = await fetch(c.url, { signal: AbortSignal.timeout(3000) });
+              if (r.ok) diag(`✅ ${c.name} — ONLINE`, '#0f0');
+              else diag(`⚠️ ${c.name} — HTTP ${r.status}`, '#fa0');
+            } catch (e) { diag(`❌ ${c.name} — OFFLINE`, '#f00'); }
+          }
+        }
+      }
+      try {
+        const r = await fetch(`${API}/api/healer-state`);
+        if (r.ok) { const h = await r.json(); diag(`✅ Context Healer — budget=${h.currentBudget}/${h.maxBudget}`, '#0f0'); }
+      } catch { diag(`❌ Context Healer — unreachable`, '#f00'); }
+    }
+
+    // ── Deep XRLF stack verification — hits /v1/diagnostics on :8402 ──
+    async function runStackDiagnostic() {
+      clearDiagnostics();
+      diag('🔍 XRLF Stack Diagnostic — verifying runtime, package, XRL layers, prompt gates, memory, inference…', '#0ff');
+      let data;
+      try {
+        const r = await fetch(`${XRLF}/v1/diagnostics`, { signal: AbortSignal.timeout(10000) });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        data = await r.json();
+      } catch (e) {
+        diag(`❌ Diagnostics endpoint unreachable (${e.message}) — is the XRLF runtime up on :8402?`, '#f00');
+        return;
+      }
+
+      const icons = { pass: '✅', warn: '⚠️', fail: '❌' };
+      const colors = { pass: '#0f0', warn: '#fa0', fail: '#f00' };
+      const overallColor = colors[data.overall] || '#fff';
+      diag(`   Model: ${data.model} | loaded=${data.loaded} | overall: `, '#aaa');
+      diagEl.innerHTML += `<span style="color:${overallColor}; font-weight:bold;">${icons[data.overall] || ''} ${String(data.overall).toUpperCase()}</span><br>`;
+
+      const groups = {};
+      for (const c of (data.checks || [])) (groups[c.group] = groups[c.group] || []).push(c);
+      for (const [group, checks] of Object.entries(groups)) {
+        diag(`   ── ${group.toUpperCase()} ──`, '#0af');
+        for (const c of checks) {
+          diag(`   ${icons[c.status] || '•'} ${c.name} — ${c.detail}`, colors[c.status] || '#aaa');
+        }
+      }
+
+      // Inference smoke test — proves the whole pipeline end to end
+      diag(`   ── SMOKE TEST ──`, '#0af');
+      try {
+        const t0 = performance.now();
+        const body = { messages: [{role:'user', content:'Reply with exactly: OK'}], stream:false, max_tokens: 24, temperature: 0.1 };
+        const r = await fetch(`${XRLF}/v1/chat/completions`, { method:'POST', headers:authHeaders({'Content-Type':'application/json'}), body: JSON.stringify(body), signal: AbortSignal.timeout(60000) });
+        const d2 = await r.json();
+        const ms = Math.round(performance.now() - t0);
+        if (r.ok && d2.choices && d2.choices[0]) {
+          diag(`   ✅ Inference OK — ${ms}ms → "${String(d2.choices[0].message.content).slice(0,80)}"`, '#0f0');
+        } else {
+          diag(`   ❌ Inference FAILED — HTTP ${r.status}`, '#f00');
+        }
+      } catch (e) { diag(`   ❌ Inference ERROR — ${e.message}`, '#f00'); }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // COMMANDO CENTRE — command-line over the same routes the panel uses
+    // ═══════════════════════════════════════════════════════════════
+    const cmdOut = document.getElementById('cmdOut');
+    const cmdInput = document.getElementById('cmdInput');
+    const cmdHistory = [];
+    let cmdHistIdx = -1;
+    function cout(msg, color = '') {
+      cmdOut.innerHTML += `\n<span style="color:${color}">${msg}</span>`;
+      cmdOut.scrollTop = cmdOut.scrollHeight;
+    }
+
+    const COMMANDS = {
+      help:      'help — list commands',
+      status:    'status — proxy + runtime health',
+      subsystems:'subsystems — server-side fleet check (:8400)',
+      stackdiag: 'stackdiag — deep XRLF stack verification (:8402)',
+      test:      'test — system chat ping',
+      coherence: 'coherence — random-question coherence check',
+      context:   'context — healer budget debugger',
+      set:       'set KEY=VALUE — live .env + proxy push',
+      get:       'get KEY — read env value',
+      env:       'env [filter] — dump env',
+      toggle:    'toggle voice|mic on|off',
+      fovea:     'fovea 0-5 — foveation level',
+      cap:       'cap N — cloud token cap',
+      preserve:  'preserve N — preserve-last turns',
+      mode:      'mode local|cloud — routing mode',
+      engine:    'engine xrlf|lmstudio|cloud — provider + base URL',
+      model:     'model list | model <id> — select + hot-load',
+      load:      'load <path.xrlf> — runtime /load',
+      unload:    'unload — runtime /unload (frees VRAM)',
+      runtime:   'runtime — :8402 status (load_state)',
+      restart:   'restart runtime|proxy',
+      stack:     'stack start|stop — full stack control',
+      frontend:  'frontend multigate|xr_vessel|3d_avatar',
+      ws:        'ws <setting> <value> — push to IPC :8403',
+      control:   'control <action> — raw /api/control passthrough',
+      open:      'open <path> — open a dashboard page',
+      clear:     'clear — wipe command output',
+    };
+
+    async function runCommand(raw) {
+      const line = (raw ?? cmdInput.value).trim();
+      if (!line) return;
+      cmdHistory.push(line); cmdHistIdx = cmdHistory.length;
+      cmdInput.value = '';
+      cout(`<span style="color:var(--accent)">&gt; ${line}</span>`);
+      const [cmd, ...rest] = line.split(/\s+/);
+      const argStr = rest.join(' ');
+      try {
+        switch (cmd.toLowerCase()) {
+          case 'help':
+            Object.values(COMMANDS).forEach(c => cout(`  ${c}`, '#aaa'));
+            break;
+          case 'clear': cmdOut.innerHTML = ''; break;
+          case 'status': case 'health': {
+            const h = await health();
+            const xr = await fetch(`${XRLF}/health`, { signal: AbortSignal.timeout(2000) }).then(r => r.json()).catch(() => null);
+            cout(`  proxy: ${h ? 'online' : 'OFFLINE'}  memories=${h?.stored_messages ?? '—'}`, h ? '#0f0' : '#f00');
+            cout(`  xrlf : ${xr ? `${xr.load_state || (xr.loaded ? 'ready' : 'idle')} (${xr.model || '—'})` : 'OFFLINE'}`, xr ? '#0f0' : '#f00');
+            break;
+          }
+          case 'subsystems': await runSubsystemsTest(); Array.from(diagEl.querySelectorAll('span')).forEach(s => cout(s.textContent, s.style.color)); diagEl.innerHTML = ''; break;
+          case 'stackdiag': case 'xrlfdiag': await runStackDiagnostic(); Array.from(diagEl.querySelectorAll('span')).forEach(s => cout(s.textContent, s.style.color)); diagEl.innerHTML = ''; break;
+          case 'test': case 'system': await runSystemTest(); Array.from(diagEl.querySelectorAll('span')).forEach(s => cout(s.textContent, s.style.color)); diagEl.innerHTML = ''; break;
+          case 'coherence': await runCoherenceTest(); Array.from(diagEl.querySelectorAll('span')).forEach(s => cout(s.textContent, s.style.color)); diagEl.innerHTML = ''; break;
+          case 'context': await runContextDebug(); Array.from(diagEl.querySelectorAll('span')).forEach(s => cout(s.textContent, s.style.color)); diagEl.innerHTML = ''; break;
+          case 'set': {
+            const m = argStr.match(/^(\S+)\s*=\s*(.*)$/);
+            if (!m) { cout('  usage: set KEY=VALUE', '#f00'); break; }
+            const r = await fetch(`${API}/api/setting`, { method:'POST', headers:authHeaders({'Content-Type':'application/json'}), body: JSON.stringify({key: m[1], val: m[2]}) });
+            cout(`  ${m[1]}=${m[2]} [${r.status}]`, r.ok ? '#0f0' : '#f00');
+            break;
+          }
+          case 'get': {
+            const e = await fetch(`${API}/api/env`).then(r => r.json());
+            const v = e[argStr.trim()];
+            const masked = /KEY|TOKEN|SECRET|PASS/i.test(argStr);
+            cout(`  ${argStr}=${v === undefined ? '(unset)' : masked ? '***' : v}`, v === undefined ? '#fa0' : '#0f0');
+            break;
+          }
+          case 'env': {
+            const e = await fetch(`${API}/api/env`).then(r => r.json());
+            const f = argStr.toLowerCase();
+            Object.keys(e).sort().filter(k => !f || k.toLowerCase().includes(f))
+              .forEach(k => cout(`  ${k}=${/KEY|TOKEN|SECRET|PASS/i.test(k) ? '***' : e[k]}`, '#aaa'));
+            break;
+          }
+          case 'toggle': {
+            const m = argStr.match(/^(\S+)\s+(on|off|true|false)$/i);
+            if (!m) { cout('  usage: toggle voice|mic on|off', '#f00'); break; }
+            await toggle(m[1], /^(on|true)$/i.test(m[2]));
+            break;
+          }
+          case 'fovea': await setFovea(argStr); break;
+          case 'cap': await setCap(argStr); break;
+          case 'preserve': await setPreserve(argStr); break;
+          case 'mode': {
+            if (!['local', 'cloud'].includes(argStr)) { cout('  usage: mode local|cloud', '#f00'); break; }
+            await toggleSetting('XRLF_COGNITIVE_MODE', argStr);
+            selectMode(argStr);
+            break;
+          }
+          case 'engine': {
+            const baseUrlMap = { xrlf: 'http://127.0.0.1:8402/v1', lmstudio: 'http://127.0.0.1:1234/v1', cloud: 'https://ollama.com/v1' };
+            const providerMap = { xrlf: 'xrlf_proxy', lmstudio: 'lmstudio', cloud: 'cloud' };
+            if (!providerMap[argStr]) { cout('  usage: engine xrlf|lmstudio|cloud', '#f00'); break; }
+            selectMode(argStr === 'cloud' ? 'cloud' : 'local');
+            selectEngine(argStr);
+            break;
+          }
+          case 'model': {
+            if (argStr === 'list' || !argStr) {
+              (MODEL_REGISTRY[currentEngine || 'xrlf'] || []).forEach(m => cout(`  ${m.id} — ${m.label}`, '#aaa'));
+              break;
+            }
+            const fleet = MODEL_REGISTRY[currentEngine || 'xrlf'] || [];
+            const m = fleet.find(x => x.id === argStr || x.id.includes(argStr));
+            if (!m) { cout(`  unknown model '${argStr}' — try 'model list'`, '#f00'); break; }
+            document.getElementById('mainProjectModel').value = m.id;
+            onModelSelected(m.id);
+            await loadModel();
+            break;
+          }
+          case 'load': {
+            if (!argStr) { cout('  usage: load <path.xrlf>', '#f00'); break; }
+            const r = await fetch(`${XRLF}/load`, { method:'POST', headers:authHeaders({'Content-Type':'application/json'}), body: JSON.stringify({model: argStr}) });
+            cout(`  /load → [${r.status}] ${await r.text()}`, r.ok ? '#0f0' : '#f00');
+            break;
+          }
+          case 'unload': await unloadModel(); break;
+          case 'runtime': {
+            const xr = await fetch(`${XRLF}/health`, { signal: AbortSignal.timeout(2000) }).then(r => r.json()).catch(() => null);
+            cout(`  ${xr ? JSON.stringify(xr) : 'OFFLINE'}`, xr ? '#0f0' : '#f00');
+            break;
+          }
+          case 'restart': {
+            if (argStr === 'runtime') await call('restart-local');
+            else if (argStr === 'proxy') await call('restart-proxy');
+            else cout('  usage: restart runtime|proxy', '#f00');
+            break;
+          }
+          case 'stack': {
+            if (argStr === 'start') await call('start-stack');
+            else if (argStr === 'stop') await call('stop-stack');
+            else cout('  usage: stack start|stop', '#f00');
+            break;
+          }
+          case 'frontend': {
+            if (!['multigate', 'xr_vessel', '3d_avatar'].includes(argStr)) { cout('  usage: frontend multigate|xr_vessel|3d_avatar', '#f00'); break; }
+            await setFrontend(argStr);
+            break;
+          }
+          case 'ws': {
+            const m = argStr.match(/^(\S+)\s+(.+)$/);
+            if (!m) { cout('  usage: ws <setting> <value>', '#f00'); break; }
+            sendWsSetting(m[1], m[2]);
+            break;
+          }
+          case 'control': await call(argStr); break;
+          case 'open': openPage(argStr); break;
+          default:
+            cout(`  unknown command '${cmd}' — type help`, '#f00');
+        }
+      } catch (e) {
+        cout(`  ERROR: ${e.message}`, '#f00');
+      }
+    }
+
+    cmdInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') runCommand();
+      else if (e.key === 'ArrowUp') { if (cmdHistIdx > 0) { cmdHistIdx--; cmdInput.value = cmdHistory[cmdHistIdx] || ''; } e.preventDefault(); }
+      else if (e.key === 'ArrowDown') { if (cmdHistIdx < cmdHistory.length) { cmdHistIdx++; cmdInput.value = cmdHistory[cmdHistIdx] || ''; } e.preventDefault(); }
+    });
+
+    // ═══════════════════════════════════════════════════════════════
+    // SOUL DNA & 5-STEP CONTINUOUS LEVER WITH MBTI ARCHETYPES
+    // ═══════════════════════════════════════════════════════════════
+    const SOUL_STEPS = [
+      { id: 'tool', val: 0.00, label: 'TOOL', mbti: 'INTJ', desc: 'Architect / Rational Agent', icon: '🛠️' },
+      { id: 'assistant', val: 0.25, label: 'ASSISTANT', mbti: 'ISTJ', desc: 'Steward / Capable Co-Pilot', icon: '💼' },
+      { id: 'companion', val: 0.50, label: 'COMPANION', mbti: 'ENFJ', desc: 'Mentor / Balanced Companion', icon: '🤝' },
+      { id: 'friend', val: 0.75, label: 'FRIEND', mbti: 'ENFP', desc: 'Campaigner / Passionate Friend', icon: '🌸' },
+      { id: 'beloved', val: 1.00, label: 'BELOVED', mbti: 'INFP', desc: 'Romantic Soul / Intimate Partner', icon: '💖' },
+    ];
+
+    function getStepForValue(v) {
+      const f = parseFloat(v);
+      if (f <= 0.12) return SOUL_STEPS[0];
+      if (f <= 0.37) return SOUL_STEPS[1];
+      if (f <= 0.62) return SOUL_STEPS[2];
+      if (f <= 0.87) return SOUL_STEPS[3];
+      return SOUL_STEPS[4];
+    }
+
+    // ── Martinus Symbol 33 Catenary Tent-Canvas Curves (Peaking at 100%) ───
+    const DEFAULT_POLE_Q = {
+      tool: 1.30,
+      assistant: 1.05,
+      companion: 0.85,
+      friend: 0.80,
+      beloved: 0.65,
+    };
+    let poleQ = Object.assign({}, DEFAULT_POLE_Q);
+
+    const ARCHETYPE_WAVES = [
+      { id: 'tool',      label: 'Tool',      color: '#00e5ff', center: 0.00, wL: 0.10, wR: 0.28 },
+      { id: 'assistant', label: 'Assist',    color: '#00b0ff', center: 0.25, wL: 0.12, wR: 0.25 },
+      { id: 'companion', label: 'Comp',      color: '#00e676', center: 0.50, wL: 0.14, wR: 0.14 },
+      { id: 'friend',    label: 'Friend',    color: '#ffb300', center: 0.75, wL: 0.14, wR: 0.12 },
+      { id: 'beloved',   label: 'Beloved',   color: '#ff4081', center: 1.00, wL: 0.26, wR: 0.10 },
+    ];
+
+    function calculateMartinusWeights(x) {
+      const v = Math.max(0, Math.min(1, parseFloat(x)));
+      const raw = {};
+      for (const a of ARCHETYPE_WAVES) {
+        const dist = Math.abs(v - a.center);
+        const w = v < a.center ? a.wL : a.wR;
+        const alpha = poleQ[a.id] || DEFAULT_POLE_Q[a.id] || 0.75;
+        const val = Math.exp(-Math.pow(dist / w, alpha));
+        raw[a.id] = Math.max(0, Math.min(1, val));
+      }
+
+      // 🕸️ Spider-Web Tension Modulation
+      let domId = 'companion';
+      let maxVal = -1;
+      for (const k in raw) {
+        if (raw[k] > maxVal) { maxVal = raw[k]; domId = k; }
+      }
+      const domDefQ = DEFAULT_POLE_Q[domId] || 0.85;
+      const domCurQ = poleQ[domId] || domDefQ;
+      const tensionRatio = domCurQ / domDefQ;
+      const modFactor = Math.pow(1.0 / Math.max(0.2, tensionRatio), 0.65);
+
+      const res = {};
+      for (const k in raw) {
+        if (k === domId) {
+          res[k] = raw[k];
+        } else {
+          res[k] = Math.max(0, Math.min(1, raw[k] * modFactor));
+        }
+      }
+      return res;
+    }
+
+    function drawMartinusWaves(currentVal) {
+      const cvs = document.getElementById('martinusWaveCanvas');
+      if (!cvs) return;
+      const ctx = cvs.getContext('2d');
+      const w = cvs.width;
+      const h = cvs.height;
+      const v = Math.max(0, Math.min(1, parseFloat(currentVal)));
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Draw subtle background grid & 5 pole lines
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 4; i++) {
+        const gx = (i / 4) * w;
+        ctx.beginPath();
+        ctx.moveTo(gx, 0);
+        ctx.lineTo(gx, h);
+        ctx.stroke();
+      }
+
+      // Draw each archetype tent curve
+      ARCHETYPE_WAVES.forEach(a => {
+        const curAlpha = poleQ[a.id] || DEFAULT_POLE_Q[a.id] || 0.75;
+        ctx.beginPath();
+        ctx.strokeStyle = a.color;
+        ctx.lineWidth = 2.2;
+        for (let px = 0; px <= w; px += 2) {
+          const xVal = px / w;
+          const dist = Math.abs(xVal - a.center);
+          const cw = xVal < a.center ? a.wL : a.wR;
+          const curveY = Math.exp(-Math.pow(dist / cw, curAlpha));
+          // map to canvas height (peak reaches top at 8px, base at h-8)
+          const py = (h - 8) - (curveY * (h - 16));
+          if (px === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+
+        // Fill subtle translucent under-area
+        ctx.lineTo(w, h);
+        ctx.lineTo(0, h);
+        ctx.fillStyle = a.color + '1a'; // 10% opacity
+        ctx.fill();
+      });
+
+      // Draw current lever needle position
+      const needleX = v * w;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(needleX, 0);
+      ctx.lineTo(needleX, h);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Needle glowing knob
+      ctx.beginPath();
+      ctx.arc(needleX, h / 2, 4, 0, Math.PI * 2);
+      ctx.fillStyle = '#00f3ff';
+      ctx.shadowColor = '#00f3ff';
+      ctx.shadowBlur = 8;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      // Update Magnitudes Display
+      const weights = calculateMartinusWeights(v, alpha);
+      const textSpan = document.getElementById('soulWaveBlendText');
+      if (textSpan) {
+        const parts = ARCHETYPE_WAVES
+          .map(a => ({ label: a.label, pct: Math.round(weights[a.id] * 100) }))
+          .filter(p => p.pct >= 5)
+          .map(p => `${p.label} ${p.pct}%`);
+        textSpan.textContent = (activePersonaVisualMode === 'radar' ? 'Radar: ' : 'Waves: ') + parts.join(' · ');
+      }
+
+      // Also redraw Radar canvas if available
+      drawPersonaRadarMatrix(v, alpha, weights);
+    }
+
+    let activePersonaVisualMode = 'waves';
+
+    function switchPersonaVisualMode(mode) {
+      activePersonaVisualMode = mode;
+      const wavesDiv = document.getElementById('personaWavesContainer');
+      const radarDiv = document.getElementById('personaRadarContainer');
+      const btnWaves = document.getElementById('tabViewWaves');
+      const btnRadar = document.getElementById('tabViewRadar');
+
+      if (mode === 'radar') {
+        if (wavesDiv) wavesDiv.style.display = 'none';
+        if (radarDiv) radarDiv.style.display = 'block';
+        if (btnWaves) btnWaves.classList.remove('active');
+        if (btnRadar) btnRadar.classList.add('active');
+      } else {
+        if (wavesDiv) wavesDiv.style.display = 'block';
+        if (radarDiv) radarDiv.style.display = 'none';
+        if (btnWaves) btnWaves.classList.add('active');
+        if (btnRadar) btnRadar.classList.remove('active');
+      }
+      const slider = document.getElementById('agentBalanceSlider');
+      const currLever = slider ? slider.value : 0.5;
+      drawMartinusWaves(currLever, currentQCurvature);
+    }
+
+    function drawPersonaRadarMatrix(leverVal, qVal, weights) {
+      const cvs = document.getElementById('personaRadarCanvas');
+      if (!cvs) return;
+      const ctx = cvs.getContext('2d');
+      const w = cvs.width;
+      const h = cvs.height;
+      const cx = w / 2;
+      const cy = h / 2 + 5;
+      const radius = Math.min(cx, cy) - 28;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // 5 Vertices: Angles starting from top (-PI/2) evenly spaced around pentagon
+      // 0: Tool (Top-Left / -126 deg)
+      // 1: Assistant (Bottom-Left / -198 deg)
+      // 2: Companion (Bottom-Right / -270 deg)
+      // 3: Friend (Top-Right / -342 deg)
+      // 4: Beloved (Top / -90 deg)
+      // Or in order 0..4 around circle:
+      // Index 0: Tool (-90° - 72° = -162°), etc.
+      // Let's place Beloved at top (-90°), and order clockwise:
+      // Beloved (Top, -90°), Friend (-18°), Companion (54°), Assistant (126°), Tool (198°)
+      const axes = [
+        { id: 'tool',      label: 'Tool (0.0)',      color: '#00e5ff', angle: (198 * Math.PI) / 180 },
+        { id: 'assistant', label: 'Assist (0.25)',   color: '#00b0ff', angle: (126 * Math.PI) / 180 },
+        { id: 'companion', label: 'Comp (0.50)',     color: '#00e676', angle: (54 * Math.PI) / 180 },
+        { id: 'friend',    label: 'Friend (0.75)',   color: '#ffb300', angle: (-18 * Math.PI) / 180 },
+        { id: 'beloved',   label: 'Beloved (1.0)',   color: '#ff4081', angle: (-90 * Math.PI) / 180 },
+      ];
+
+      // Draw concentric pentagon web rings (25%, 50%, 75%, 100%)
+      const rings = [0.25, 0.50, 0.75, 1.00];
+      rings.forEach(rFrac => {
+        ctx.beginPath();
+        ctx.strokeStyle = rFrac === 1.00 ? 'rgba(0,243,255,0.25)' : 'rgba(255,255,255,0.06)';
+        ctx.lineWidth = rFrac === 1.00 ? 1.5 : 1;
+        axes.forEach((ax, idx) => {
+          const r = radius * rFrac;
+          const px = cx + r * Math.cos(ax.angle);
+          const py = cy + r * Math.sin(ax.angle);
+          if (idx === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        });
+        ctx.closePath();
+        ctx.stroke();
+      });
+
+      // Draw radial spokes from center to outer vertices
+      axes.forEach(ax => {
+        const ox = cx + radius * Math.cos(ax.angle);
+        const oy = cy + radius * Math.sin(ax.angle);
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1;
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(ox, oy);
+        ctx.stroke();
+
+        // Node cap on outer rim
+        ctx.beginPath();
+        ctx.arc(ox, oy, 3, 0, Math.PI * 2);
+        ctx.fillStyle = ax.color;
+        ctx.fill();
+
+        // Label text outside ring
+        const tx = cx + (radius + 16) * Math.cos(ax.angle);
+        const ty = cy + (radius + 14) * Math.sin(ax.angle) + 4;
+        ctx.fillStyle = ax.color;
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(ax.label, tx, ty);
+      });
+
+      // Compute Radar polygon vertices from actual weights
+      const polyPoints = [];
+      axes.forEach(ax => {
+        const mag = Math.max(0.04, Math.min(1.0, weights ? weights[ax.id] || 0 : 0));
+        const r = radius * mag;
+        const px = cx + r * Math.cos(ax.angle);
+        const py = cy + r * Math.sin(ax.angle);
+        polyPoints.push({ x: px, y: py, color: ax.color, mag });
+      });
+
+      // Fill Glowing Tension Polygon
+      if (polyPoints.length > 0) {
+        ctx.beginPath();
+        polyPoints.forEach((pt, idx) => {
+          if (idx === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
+        });
+        ctx.closePath();
+
+        // Gradient Glow Fill
+        const grad = ctx.createRadialGradient(cx, cy, 5, cx, cy, radius);
+        grad.addColorStop(0, 'rgba(0, 243, 255, 0.45)');
+        grad.addColorStop(0.6, 'rgba(255, 64, 129, 0.35)');
+        grad.addColorStop(1, 'rgba(0, 230, 118, 0.15)');
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        // Neon outline
+        ctx.strokeStyle = '#00f3ff';
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = '#00f3ff';
+        ctx.shadowBlur = 10;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        // Glowing points at each active vertex
+        polyPoints.forEach(pt => {
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.shadowColor = pt.color;
+          ctx.shadowBlur = 8;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+
+          // Mini percentage badge next to point
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '9px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(`${Math.round(pt.mag * 100)}%`, pt.x, pt.y - 7);
+        });
+      }
+    }
+
+    function updateQSliderForActivePole(leverVal) {
+      const step = getStepForValue(leverVal);
+      const pid = step.id;
+      const qVal = poleQ[pid] || DEFAULT_POLE_Q[pid] || 0.75;
+      const qSlider = document.getElementById('qCurvatureSlider');
+      if (qSlider) qSlider.value = qVal;
+      const qActiveSpan = document.getElementById('qCurvatureActivePole');
+      if (qActiveSpan) qActiveSpan.textContent = step.label;
+      const span = document.getElementById('qCurvatureVal');
+      if (span) span.textContent = qVal.toFixed(2);
+      const desc = document.getElementById('qCurvatureDesc');
+      if (desc) {
+        if (qVal < 0.7) desc.textContent = 'Highly Sagging (Spiky + Long Skirts)';
+        else if (qVal < 0.95) desc.textContent = 'Sagging (Spiky + Fluid Tails)';
+        else if (qVal <= 1.1) desc.textContent = 'Linear (Pure Triangles)';
+        else if (qVal < 1.7) desc.textContent = 'Bell-Shaped (Curving Shoulders)';
+        else desc.textContent = 'Inflated / Dome (Steep Cliffs)';
+      }
+    }
+
+    function onQCurvatureInput(val) {
+      const slider = document.getElementById('agentBalanceSlider');
+      const currLever = slider ? slider.value : 0.5;
+      const step = getStepForValue(currLever);
+      const pid = step.id;
+      const qVal = parseFloat(val);
+      poleQ[pid] = qVal;
+
+      const span = document.getElementById('qCurvatureVal');
+      if (span) span.textContent = qVal.toFixed(2);
+      const desc = document.getElementById('qCurvatureDesc');
+      if (desc) {
+        if (qVal < 0.7) desc.textContent = 'Highly Sagging (Spiky + Long Skirts)';
+        else if (qVal < 0.95) desc.textContent = 'Sagging (Spiky + Fluid Tails)';
+        else if (qVal <= 1.1) desc.textContent = 'Linear (Pure Triangles)';
+        else if (qVal < 1.7) desc.textContent = 'Bell-Shaped (Curving Shoulders)';
+        else desc.textContent = 'Inflated / Dome (Steep Cliffs)';
+      }
+      drawMartinusWaves(currLever);
+    }
+
+    async function onQCurvatureChange(val) {
+      onQCurvatureInput(val);
+      const slider = document.getElementById('agentBalanceSlider');
+      const currLever = slider ? slider.value : 0.5;
+      const step = getStepForValue(currLever);
+      const pid = step.id;
+      await saveSoulPatch({ [`q_${pid}`]: parseFloat(val) });
+    }
+
+    async function resetQCurvaturesToDefault() {
+      poleQ = Object.assign({}, DEFAULT_POLE_Q);
+      const patch = {};
+      for (const k in DEFAULT_POLE_Q) {
+        patch[`q_${k}`] = DEFAULT_POLE_Q[k];
+      }
+      patch['persona_q_curvature'] = 0.75;
+      const slider = document.getElementById('agentBalanceSlider');
+      const currLever = slider ? slider.value : 0.5;
+      updateQSliderForActivePole(currLever);
+      drawMartinusWaves(currLever);
+      await saveSoulPatch(patch);
+      const fb = document.getElementById('soulFeedback');
+      if (fb) fb.textContent = '✓ All 5 pole Q curves reset to canonical defaults!';
+    }
+
+    function renderSoulBadge(val, mbti) {
+      const step = getStepForValue(val);
+      const effectiveMbti = mbti || step.mbti;
+      const badge = document.getElementById('soulPresetBadge');
+      if (badge) {
+        badge.textContent = `${step.icon} ${step.label} [${effectiveMbti}] (${parseFloat(val).toFixed(2)})`;
+      }
+      SOUL_STEPS.forEach(s => {
+        const btn = document.getElementById(`step-${s.id}`);
+        if (btn) btn.classList.toggle('active', s.id === step.id);
+      });
+      updateQSliderForActivePole(val);
+      drawMartinusWaves(val);
+    }
+
+    function onSoulSliderInput(val) {
+      renderSoulBadge(val);
+    }
+
+    async function onSoulSliderChange(val) {
+      const step = getStepForValue(val);
+      renderSoulBadge(val, step.mbti);
+      await saveSoulPatch({
+        agent_person_balance: parseFloat(val),
+        mbti_type: step.mbti,
+        person_role: step.label
+      });
+    }
+
+    async function setSoulStep(val, name) {
+      const step = SOUL_STEPS.find(s => Math.abs(s.val - val) < 0.05) || getStepForValue(val);
+      const slider = document.getElementById('agentBalanceSlider');
+      if (slider) slider.value = step.val;
+      renderSoulBadge(step.val, step.mbti);
+      await saveSoulPatch({
+        agent_person_balance: step.val,
+        mbti_type: step.mbti,
+        person_role: step.label
+      });
+    }
+
+    async function updateLever(key, val) {
+      const span = document.getElementById(`val-${key}`);
+      if (span) span.textContent = parseFloat(val).toFixed(2);
+      await saveSoulPatch({ [key]: parseFloat(val) });
+    }
+
+    async function saveSoulPatch(patch) {
+      const fb = document.getElementById('soulFeedback');
+      if (fb) fb.textContent = 'Saving to Soul Core (:8405)...';
+      try {
+        const res = await fetch('/api/soul/update_soul', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch)
+        });
+        if (res.ok) {
+          if (fb) {
+            fb.textContent = `✓ Synchronized live: ${Object.keys(patch).join(', ')}`;
+            setTimeout(() => { if (fb.textContent.startsWith('✓')) fb.textContent = ''; }, 3000);
+          }
+          log(`Soul DNA updated: ${JSON.stringify(patch)}`);
+        } else {
+          if (fb) fb.textContent = '⚠️ Failed to save soul DNA.';
+        }
+      } catch (err) {
+        if (fb) fb.textContent = `⚠️ Error saving: ${err.message}`;
+      }
+    }
+
+    async function loadSoulDNA() {
+      try {
+        const res = await fetch('/api/soul/soul_dna');
+        if (!res.ok) return;
+        const data = await res.json();
+        const dna = data.dna || {};
+
+        // Load per-pole Q values
+        for (const k in DEFAULT_POLE_Q) {
+          if (dna[`q_${k}`] !== undefined) {
+            poleQ[k] = parseFloat(dna[`q_${k}`]);
+          } else if (dna.persona_q_curvature !== undefined) {
+            poleQ[k] = parseFloat(dna.persona_q_curvature);
+          }
+        }
+
+        if (dna.agent_person_balance !== undefined) {
+          const slider = document.getElementById('agentBalanceSlider');
+          if (slider) slider.value = dna.agent_person_balance;
+          renderSoulBadge(dna.agent_person_balance, dna.mbti_type);
+        } else {
+          renderSoulBadge(0.50);
+        }
+        ['autonomy', 'proactivity', 'curiosity', 'service', 'mentorship'].forEach(k => {
+          if (dna[k] !== undefined) {
+            const input = document.getElementById(`lever-${k}`);
+            const span = document.getElementById(`val-${k}`);
+            if (input) input.value = dna[k];
+            if (span) span.textContent = parseFloat(dna[k]).toFixed(2);
+          }
+        });
+        loadSnapshots();
+      } catch (err) {
+        console.warn('Could not load soul DNA', err);
+      }
+    }
+
+    // ── User Snapshot Preset Manager ─────────────────────────────
+    let userSnapshots = [];
+
+    function loadSnapshots() {
+      try {
+        const stored = localStorage.getItem('foveai_user_soul_snapshots');
+        userSnapshots = stored ? JSON.parse(stored) : [];
+      } catch {
+        userSnapshots = [];
+      }
+      renderSnapshots();
+    }
+
+    function renderSnapshots() {
+      const list = document.getElementById('snapshotList');
+      const countSpan = document.getElementById('snapshotCount');
+      if (countSpan) countSpan.textContent = `${userSnapshots.length} saved`;
+      if (!list) return;
+      list.innerHTML = '';
+
+      if (userSnapshots.length === 0) {
+        list.innerHTML = '<span style="font-size:0.7rem; color:var(--muted); font-style:italic;">No custom snapshots saved yet.</span>';
+        return;
+      }
+
+      userSnapshots.forEach((snap, idx) => {
+        const div = document.createElement('div');
+        div.style.cssText = 'display:inline-flex; align-items:center; background:rgba(0,243,255,0.08); border:1px solid rgba(0,243,255,0.25); border-radius:4px; overflow:hidden; font-size:0.72rem;';
+        
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.style.cssText = 'background:none; border:none; color:var(--text); padding:3px 8px; cursor:pointer; font-weight:600;';
+        btn.textContent = `🎯 ${snap.name} (${snap.agent_person_balance?.toFixed(2) || '0.50'})`;
+        btn.onclick = () => loadUserSnapshot(idx);
+        
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.style.cssText = 'background:rgba(255,0,0,0.2); border:none; color:#ff5555; padding:3px 6px; cursor:pointer; font-weight:bold;';
+        delBtn.textContent = '✕';
+        delBtn.title = 'Delete snapshot';
+        delBtn.onclick = (e) => { e.stopPropagation(); deleteUserSnapshot(idx); };
+
+        div.appendChild(btn);
+        div.appendChild(delBtn);
+        list.appendChild(div);
+      });
+    }
+
+    async function saveUserSnapshot() {
+      const input = document.getElementById('snapshotNameInput');
+      const name = input && input.value.trim() ? input.value.trim() : `Snapshot ${userSnapshots.length + 1}`;
+      
+      const slider = document.getElementById('agentBalanceSlider');
+      const balance = slider ? parseFloat(slider.value) : 0.50;
+      const step = getStepForValue(balance);
+
+      const snap = {
+        id: 'snap_' + Date.now(),
+        name,
+        created: new Date().toISOString(),
+        agent_person_balance: balance,
+        mbti_type: step.mbti,
+        person_role: step.label,
+        poleQ: Object.assign({}, poleQ),
+        autonomy: parseFloat(document.getElementById('lever-autonomy')?.value || 0.5),
+        proactivity: parseFloat(document.getElementById('lever-proactivity')?.value || 0.6),
+        curiosity: parseFloat(document.getElementById('lever-curiosity')?.value || 0.7),
+        service: parseFloat(document.getElementById('lever-service')?.value || 0.65),
+        mentorship: parseFloat(document.getElementById('lever-mentorship')?.value || 0.5),
+      };
+
+      userSnapshots.push(snap);
+      localStorage.setItem('foveai_user_soul_snapshots', JSON.stringify(userSnapshots));
+      if (input) input.value = '';
+      renderSnapshots();
+
+      const fb = document.getElementById('soulFeedback');
+      if (fb) {
+        fb.textContent = `✓ Saved snapshot "${name}"!`;
+        setTimeout(() => { if (fb.textContent.includes(name)) fb.textContent = ''; }, 3000);
+      }
+    }
+
+    async function loadUserSnapshot(idx) {
+      const snap = userSnapshots[idx];
+      if (!snap) return;
+
+      const slider = document.getElementById('agentBalanceSlider');
+      if (slider) slider.value = snap.agent_person_balance;
+
+      if (snap.poleQ) {
+        poleQ = Object.assign({}, snap.poleQ);
+      }
+
+      const patch = {
+        agent_person_balance: snap.agent_person_balance,
+        mbti_type: snap.mbti_type,
+        person_role: snap.person_role,
+        autonomy: snap.autonomy,
+        proactivity: snap.proactivity,
+        curiosity: snap.curiosity,
+        service: snap.service,
+        mentorship: snap.mentorship,
+      };
+
+      for (const k in poleQ) {
+        patch[`q_${k}`] = poleQ[k];
+      }
+
+      ['autonomy', 'proactivity', 'curiosity', 'service', 'mentorship'].forEach(k => {
+        if (snap[k] !== undefined) {
+          const input = document.getElementById(`lever-${k}`);
+          const span = document.getElementById(`val-${k}`);
+          if (input) input.value = snap[k];
+          if (span) span.textContent = parseFloat(snap[k]).toFixed(2);
+        }
+      });
+
+      renderSoulBadge(snap.agent_person_balance, snap.mbti_type);
+      await saveSoulPatch(patch);
+
+      const fb = document.getElementById('soulFeedback');
+      if (fb) {
+        fb.textContent = `✓ Recalled snapshot "${snap.name}"!`;
+        setTimeout(() => { if (fb.textContent.includes(snap.name)) fb.textContent = ''; }, 3000);
+      }
+    }
+
+    function deleteUserSnapshot(idx) {
+      userSnapshots.splice(idx, 1);
+      localStorage.setItem('foveai_user_soul_snapshots', JSON.stringify(userSnapshots));
+      renderSnapshots();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // INIT
+    // ═══════════════════════════════════════════════════════════════
+    async function init() {
+      await detectRole();
+      if (!document.body.classList.contains('role-member')) { loadQuestionTargets(); loadFeedback(); }
+      await loadEnv();
+      await loadSoulDNA();
+      await health();
+      setInterval(health, 5000);
+    }
+    init();
+
+    // ── garage nav scrollspy: light the diode of the visible section ──
+    (function () {
+      const links = [...document.querySelectorAll('.garage-nav a')];
+      const secs = links.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+      if (!secs.length) return;
+      const io = new IntersectionObserver(entries => {
+        entries.forEach(e => {
+          if (e.isIntersecting) {
+            links.forEach(a => a.classList.toggle('lit', a.getAttribute('href') === '#' + e.target.id));
+          }
+        });
+      }, { rootMargin: '-30% 0px -60% 0px' });
+      secs.forEach(s => io.observe(s));
+    })();
+  </script>
+</body>
+</html>

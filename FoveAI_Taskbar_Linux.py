@@ -21,6 +21,7 @@ Usage:
     python3 FoveAI_Taskbar_Linux.py --no-autostart-stack
 """
 
+import json
 import os
 import signal
 
@@ -74,6 +75,17 @@ if not os.path.exists(VENV_PYTHON):
     VENV_PYTHON = os.path.join(FOVEAI_DIR, "venv", "bin", "python")
 if not os.path.exists(VENV_PYTHON):
     VENV_PYTHON = sys.executable
+
+# ─── LLAMA-SERVER (external inference engine) ────────────────────────
+# Models served directly by llama-server rather than in-process via
+# run_xrlf.py. Required for speculative decoding (Eagle3/DFlash/draft-simple),
+# which lives in the server binary's common/speculative.cpp and is NOT exposed
+# by llama-cpp-python — so an XRLF-bundled runtime cannot use it.
+LLAMA_SERVER = os.path.join(
+    FOVEAI_DIR, "Tools", "llama-b11053-cuda", "llama-b11053", "llama-server"
+)
+if not os.path.exists(LLAMA_SERVER):
+    LLAMA_SERVER = "llama-server"
 
 DEBUG = "--debug" in sys.argv
 NO_AUTOSTART = "--no-autostart-stack" in sys.argv
@@ -161,7 +173,7 @@ if not _bind_lock_socket():
     # Another instance is running — open settings panel as fallback
     try:
         subprocess.Popen(
-            ["xdg-open", "http://127.0.0.1:8401/memory/settings.html"],
+            ["xdg-open", "http://127.0.0.1:8414/memory/settings.html"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -374,21 +386,136 @@ def get_service_status(port: int, path: str | None = None) -> tuple[str, str]:
     return "active", "[● ACTIVE]"
 
 
+# ─── Theme Management ───────────────────────────────────────────────────
+
+_current_theme = "foveai-celestial"
+_theme_manifest: dict[str, Any] | None = None
+
+
+def fetch_themes() -> dict[str, Any]:
+    """Fetch theme manifest from backend proxy."""
+    global _theme_manifest
+    try:
+        import urllib.request
+
+        req = urllib.request.Request(
+            "http://127.0.0.1:8400/themes",
+            headers={"User-Agent": "FoveAI-Tray/1.0"},
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            if resp.status == 200:
+                data = json.loads(resp.read().decode("utf-8"))
+                _theme_manifest = data
+                return data
+    except Exception as e:
+        print(f"[Tray] Failed to fetch themes: {e}")
+    return {"themes": [], "default": "foveai-celestial"}
+
+
+def get_current_theme() -> str:
+    """Get current theme from .env or default."""
+    global _current_theme
+    env = read_env()
+    _current_theme = env.get("FOVEAI_THEME", "foveai-celestial")
+    return _current_theme
+
+
+def set_theme(icon, item, theme_id: str):
+    """Set current theme and persist to .env."""
+    global _current_theme
+    _current_theme = theme_id
+    set_env_key("FOVEAI_THEME", theme_id)
+    notify(icon, f"Theme set to: {theme_id}", "FoveAI Theme")
+    _refresh_menu(icon)
+
+
+def checked(label: str, cond: bool) -> str:
+    return f"✅ {label}" if cond else label
+
+
+def build_theme_menu():
+    """Build dynamic theme menu from manifest."""
+    manifest = _theme_manifest or fetch_themes()
+    themes = manifest.get("themes", [])
+    current = get_current_theme()
+
+    if not themes:
+        return [
+            pystray.MenuItem(
+                "No themes available (backend offline?)",
+                lambda icon, item: None,
+            )
+        ]
+
+    items = []
+    for theme in themes:
+        theme_id = theme.get("id", "")
+        name = theme.get("name", theme_id)
+        items.append(
+            pystray.MenuItem(
+                checked(name, current == theme_id),
+                (lambda tid: lambda icon, item: set_theme(icon, item, tid))(theme_id),
+            )
+        )
+
+    return items
+
+
 # ─── Stack Control (via Sleipnir launcher) ──────────────────────────
 
 SLEIPNIR_SH = os.path.join(FOVEAI_DIR, "sleipnir_launcher.sh")
+FOVEAI_SH = os.path.join(FOVEAI_DIR, "foveai.sh")
+
+# The fleet is systemd-managed (foveai-*.service + foveai-llama-*.service).
+# start/stop/status go through systemd directly — reliable from a GUI
+# context (no TTY issues) and consistent with sleipnir/foveai.sh behaviour.
+_fleet_units = [
+    "foveai-backend", "foveai-xrlf", "foveai-soul", "foveai-tts",
+    "foveai-relay", "foveai-creative", "foveai-stt",
+    "foveai-llama-core", "foveai-llama-draft", "foveai-llama-9b",
+]
+
+
+def _systemctl(action: str, *units: str, quiet: bool = True) -> bool:
+    """Run systemctl for fleet units; tolerate permission errors."""
+    try:
+        r = subprocess.run(
+            ["systemctl", action, *units],
+            capture_output=quiet, text=True, timeout=60,
+        )
+        if r.returncode != 0:
+            # fall back to sudo -n (polkit may allow without password)
+            r2 = subprocess.run(
+                ["sudo", "-n", "systemctl", action, *units],
+                capture_output=quiet, text=True, timeout=60,
+            )
+            return r2.returncode == 0
+        return True
+    except Exception:
+        return False
+
+
+def fleet_start(light: bool = False) -> bool:
+    units = [u for u in _fleet_units
+             if not (light and u in ("foveai-xrlf",))]
+    return _systemctl("start", *units)
+
+
+def fleet_stop() -> bool:
+    return _systemctl("stop", *_fleet_units)
 
 
 def start_stack(icon, item):
-    """Start the full FoveAI stack via Sleipnir: backend + XRLF runtime + dormant model."""
-    notify(icon, "Igniting FoveAI Fleet via Sleipnir...", "FoveAI Stack")
+    """Start the full FoveAI stack (systemd units + sleipnir fallback)."""
+    notify(icon, "Igniting FoveAI Fleet...", "FoveAI Stack")
     icon.icon = ICON_ORANGE
-    subprocess.Popen(
-        ["bash", SLEIPNIR_SH, "start"],
-        cwd=FOVEAI_DIR,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    if not fleet_start():
+        subprocess.Popen(
+            ["bash", SLEIPNIR_SH, "start"],
+            cwd=FOVEAI_DIR,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
     # Wait for XRLF runtime (model loading takes time)
     for _ in range(60):
         time.sleep(1)
@@ -407,15 +534,16 @@ def start_stack(icon, item):
 
 
 def start_light_stack(icon, item):
-    """Start light stack: backend only (no XRLF model loaded)."""
-    notify(icon, "Starting Light Fleet (Backend only)...", "FoveAI Light Mode")
+    """Start light fleet: everything except the XRLF model runtime."""
+    notify(icon, "Starting Light Fleet (no XRLF model)...", "FoveAI Light Mode")
     icon.icon = ICON_ORANGE
-    subprocess.Popen(
-        ["bash", SLEIPNIR_SH, "--light"],
-        cwd=FOVEAI_DIR,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+    if not fleet_start(light=True):
+        subprocess.Popen(
+            ["bash", SLEIPNIR_SH, "--light"],
+            cwd=FOVEAI_DIR,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
     for _ in range(30):
         time.sleep(0.5)
         if check_port_listener(8400):
@@ -429,9 +557,10 @@ def start_light_stack(icon, item):
 
 
 def stop_stack(icon, item):
-    """Stop the full FoveAI fleet via Sleipnir."""
+    """Stop the full FoveAI fleet (systemd units + sleipnir fallback)."""
     notify(icon, "Stopping FoveAI Fleet...", "FoveAI Stack")
     icon.icon = ICON_ORANGE
+    fleet_stop()
     subprocess.Popen(
         ["bash", SLEIPNIR_SH, "stop"],
         cwd=FOVEAI_DIR,
@@ -500,7 +629,7 @@ def stop_memory_proxy(icon, item):
         notify(icon, "Backend is not running", "FoveAI Service")
         return
     notify(icon, "Stopping Backend...", "FoveAI Service")
-    kill_port_listeners([8400, 8401])
+    kill_port_listeners([8400, 8408])
     time.sleep(0.5)
     notify(icon, "Backend stopped", "FoveAI Service")
     icon.icon = ICON_RED
@@ -510,7 +639,7 @@ def stop_memory_proxy(icon, item):
 def restart_memory_proxy(icon, item):
     notify(icon, "Restarting Backend...", "FoveAI Service")
     icon.icon = ICON_ORANGE
-    kill_port_listeners([8400, 8401])
+    kill_port_listeners([8400, 8408])
     time.sleep(1.5)
     backend_dir = os.path.join(FOVEAI_DIR, "Backend")
     subprocess.Popen(
@@ -572,6 +701,25 @@ def free_ram_flush_caches(icon, item=None):
 # ─── Model Selectors ────────────────────────────────────────────────
 
 PERSONA_MODELS: dict[str, dict[str, Any]] = {
+    "qwen_9b_moq32_eagle": {
+        "name": "Qwen3.5 9B MoQ 3.2 (Eagle3 + Vision)",
+        "id": "qwen3.5-9b-moq32-eagle",
+        "file": "qwen3.5-9b-multimodal-v3.2.xrlf",
+        "xrlf_path": "/xrl_build/qwen3.5-9b-multimodal-v3.2.xrlf.cache/core.gguf",
+        "mmproj": "/xrl_build/qwen3.5-9b-multimodal-v3.2.xrlf.cache/mmproj.gguf",
+        "engine": "llama-server",
+        "port": 8412,
+        "n_gpu_layers": 99,
+        "n_ctx": 2048,
+        "cache_type": "q4_0",
+        "size_gb": 4.7,
+        "total_layers": 40,
+        "multimodal": True,
+        "is_xrlf": False,
+        "detail": "9B MoQ 3.2 served by llama-server: Eagle3 native (no draft). "
+        "Vision + projective decoding only. Measured 95.8 tok/s baseline. "
+        "Exclusive VRAM — unloads the XRLF runtime.",
+    },
     "gemma_e2b_xrlf": {
         "name": "Gemma 4 E2B MTP (Default Persona)",
         "id": "gemma-4-e2b-multimodal-v1.0.xrlf",
@@ -677,28 +825,80 @@ def select_persona_model(icon, item, model_key: str):
         env = os.environ.copy()
         env["XRLF_REPO_ENABLED"] = "true"
         env["GGML_CUDA_NO_VMM"] = "1"
-        subprocess.Popen(
-            [
-                VENV_PYTHON,
-                os.path.join(FOVEAI_DIR, "run_xrlf.py"),
-                "--model",
-                xrlf_model,
-                "--port",
-                "8402",
-                "--ws-port",
-                "8403",
-            ],
-            cwd=FOVEAI_DIR,
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        mm_note = " Native STT + Vision" if m.get("multimodal") else ""
-        notify(
-            icon,
-            f"Persona AI set to {m['name']}{mm_note}\nXRLF runtime starting on :8402",
-            "Persona AI Loader",
-        )
+
+        if m.get("engine") == "llama-server":
+            # External inference engine: llama-server owns the weights, so
+            # speculative decoding and a vision projector are both expressible.
+            # VRAM is exclusive — unload_models() kills llama-server too.
+            def _resolve(p: str) -> str:
+                """Absolute paths pass through; relatives anchor to FOVEAI_DIR."""
+                return p if os.path.isabs(p) else os.path.join(FOVEAI_DIR, p)
+
+            cmd = [LLAMA_SERVER, "-m", _resolve(xrlf_model)]
+            if m.get("mmproj"):
+                cmd += ["--mmproj", _resolve(m["mmproj"])]
+            if m.get("draft"):
+                cmd += ["-md", _resolve(m["draft"])]
+                cmd += ["--spec-type", m.get("spec_type", "draft-eagle3")]
+                cmd += ["--spec-draft-p-min", str(m.get("spec_p_min", 0.75))]
+            cmd += [
+                "-ngl", str(m.get("n_gpu_layers", 99)),
+                "-ngld", str(m.get("n_gpu_draft_layers", 99)),
+                "-c", str(m.get("n_ctx", 2048)),
+                "--cache-type-k", m.get("cache_type", "q4_0"),
+                "--cache-type-v", m.get("cache_type", "q4_0"),
+                "-fa", "on",
+                "--port", str(m.get("port", 8412)),
+                "-np", "1",
+            ]
+            # Gaming gate: never start a model into a GPU a game already owns.
+            gaming = vram_guard.gaming_gate()
+            if gaming is not None:
+                notify(
+                    icon,
+                    f"Not loading {m['name']} — " + "; ".join(gaming["reasons"])
+                    + "\nClose it, or set FOVEAI_ALLOW_GAMING_OVERLOAD=1 to load anyway.",
+                    "GPU busy — model not loaded",
+                )
+                return
+            subprocess.Popen(
+                cmd,
+                cwd=FOVEAI_DIR,
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            notify(
+                icon,
+                f"Persona AI set to {m['name']}\n"
+                f"llama-server on :{m.get('port', 8412)}"
+                + (f" · {m['spec_type']}" if m.get("draft") else "")
+                + (" · vision" if m.get("mmproj") else ""),
+                "Persona AI Loader",
+            )
+        else:
+            subprocess.Popen(
+                [
+                    VENV_PYTHON,
+                    os.path.join(FOVEAI_DIR, "run_xrlf.py"),
+                    "--model",
+                    xrlf_model,
+                    "--port",
+                    "8402",
+                    "--ws-port",
+                    "8403",
+                ],
+                cwd=FOVEAI_DIR,
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            mm_note = " Native STT + Vision" if m.get("multimodal") else ""
+            notify(
+                icon,
+                f"Persona AI set to {m['name']}{mm_note}\nXRLF runtime starting on :8402",
+                "Persona AI Loader",
+            )
     except Exception as e:
         notify(icon, f"Persona AI launch failed: {e}", "Persona AI Error")
 
@@ -795,14 +995,45 @@ def launch_multigate(icon, item):
 
 
 def open_settings_panel(icon=None, item=None):
-    url = "http://127.0.0.1:8401/memory/settings.html"
+    url = "http://127.0.0.1:8414/settings.html#sec-persona"
     open_url(url)
     if icon:
-        notify(icon, "Opening Settings Panel", "FoveAI Settings")
+        notify(icon, "Opening Command Center Settings", "FoveAI Settings")
+
+
+def set_soul_step_action(icon, item, val: float, name: str, mbti: str):
+    payload = {"agent_person_balance": val, "mbti_type": mbti, "person_role": name}
+    try:
+        requests.post("http://127.0.0.1:8405/api/soul/update_soul", json=payload, timeout=0.8)
+    except Exception:
+        pass
+    soul_file = os.path.join(FOVEAI_DIR, "Backend/Cognition/jen_soul.json")
+    if os.path.exists(soul_file):
+        try:
+            with open(soul_file, "r", encoding="utf-8") as f:
+                d = json.load(f)
+            d.update(payload)
+            with open(soul_file, "w", encoding="utf-8") as f:
+                json.dump(d, f, indent=2)
+        except Exception:
+            pass
+    mind_file = os.path.join(FOVEAI_DIR, "Backend/Cognition/jen_mind.json")
+    if os.path.exists(mind_file):
+        try:
+            with open(mind_file, "r", encoding="utf-8") as f:
+                m = json.load(f)
+            m["lever"] = float(val)
+            with open(mind_file, "w", encoding="utf-8") as f:
+                json.dump(m, f, indent=2)
+        except Exception:
+            pass
+    if icon:
+        notify(icon, f"Soul lever set to {name} ({val:.2f}) [{mbti}]", "Jen Persona & Agency")
+
 
 
 def open_memory_dashboard(icon, item):
-    open_url("http://127.0.0.1:8401/memory")
+    open_url("http://127.0.0.1:8414/memory")
     notify(icon, "Opening AUI Memory Dashboard", "FoveAI Memory")
 
 
@@ -926,6 +1157,18 @@ def switch_to_local(icon, item):
         notify(icon, f"Switch failed: {e}", "FoveAI Cognitive Mode")
 
 
+def switch_to_juggler(icon, item):
+    notify(icon, "Switching to Juggler (Race Router)...", "FoveAI Cognitive Mode")
+    try:
+        set_env_key("FoveAI_COGNITIVE_MODE", "juggler")
+        set_env_key("XRLF_COGNITIVE_MODE", "juggler")
+        set_env_key("XRLF_RUNTIME_MODE", "juggler")
+        set_env_key("FoveAI_CHAT_PROVIDER", "juggler")
+        notify(icon, "Switched to Juggler mode", "FoveAI Cognitive Mode")
+        _refresh_menu(icon)
+    except Exception as e:
+        notify(icon, f"Switch failed: {e}", "FoveAI Cognitive Mode")
+
 def switch_to_cloud(icon, item):
     notify(icon, "Switching to cloud inference...", "FoveAI Cognitive Mode")
     try:
@@ -1044,7 +1287,7 @@ def inspect_ram_consumers_action(icon, item=None):
 
 
 def start_super_kiosk(icon, item):
-    open_url("http://127.0.0.1:8401/memory/prompt-kiosk.html")
+    open_url("http://127.0.0.1:8414/memory/prompt-kiosk.html")
     notify(icon, "Opening Super Prompt Kiosk", "FoveAI Memory")
 
 
@@ -1230,7 +1473,7 @@ def heal_restart_proxy_action(icon, item):
     if not HEALTH_MONITOR_AVAILABLE:
         notify(icon, "Health monitor not available", "FoveAI Health")
         return
-    notify(icon, "Restarting proxy (8400/8401)...", "FoveAI Health")
+    notify(icon, "Restarting proxy (8400/8408)...", "FoveAI Health")
     ok, msg = execute_heal("restart_proxy")
     notify(icon, msg, "FoveAI Health")
     _refresh_menu(icon)
@@ -1396,6 +1639,28 @@ def set_webcam_plaster_orientation(icon, item, orientation: str):
     )
 
 
+def open_dashboard(icon=None, item=None):
+    """Open the fleet Studio window (close = minimize to tray).
+
+    Studio is the full settings panel (tabs, dials, LCDs); Dash is the
+    compact grid. Studio preferred, Dash as fallback."""
+    script = os.path.join(FOVEAI_DIR, "FoveAI_Studio.py") \
+        if os.path.exists(os.path.join(FOVEAI_DIR, "FoveAI_Studio.py")) \
+        else os.path.join(FOVEAI_DIR, "FoveAI_Dash.py")
+    # launch as its own app (own taskbar entry) if not already running
+    pg = subprocess.run(["pgrep", "-f", script[-16:]],
+                        capture_output=True, text=True)
+    if pg.returncode == 0 and pg.stdout.strip():
+        # already running → just notify; the window is in the taskbar
+        notify(icon, "Studio already open — see taskbar", "FoveAI")
+        return
+    subprocess.Popen(
+        ["/usr/bin/python3", script],
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    notify(icon, "FoveAI Studio opened", "FoveAI")
+
+
 def toggle_jen_pov(icon, item=None):
     """Toggle 'Be Jen' first-person POV mode in the frontend.
 
@@ -1442,6 +1707,10 @@ def toggle_avalanche_music(icon, item=None):
 
 def build_menu() -> pystray.Menu:
     env = read_env()
+    # first item: open the dashboard window (left-click default on some
+    # panels also triggers this via `default=True`)
+    dash_item = pystray.MenuItem("🛰️ Open Dashboard", open_dashboard,
+                                 default=True)
     current_ui = env.get(
         "XRLF_FRONTEND_UI_PRESET", env.get("FoveAI_FRONTEND_UI", "3d_avatar")
     ).lower()
@@ -1458,7 +1727,7 @@ def build_menu() -> pystray.Menu:
 
     # Live service status
     st_backend, tag_backend = get_service_status(8400, "/health")
-    _, tag_dash = get_service_status(8401, "/api/status")
+    _, tag_dash = get_service_status(8408, "/api/status")
     st_xrlf, tag_xrlf = get_service_status(8402, "/v1/models")
     # Port 8403 is a WebSocket server — check TCP listener only, not HTTP /health
     _, tag_ws = get_service_status(8403, None)
@@ -1610,7 +1879,7 @@ def build_menu() -> pystray.Menu:
                 ),
                 pystray.MenuItem("🧹 Clear Memory DB Only", heal_clear_memory_action),
                 pystray.MenuItem(
-                    "🔄 Restart Proxy (8400/8401)", heal_restart_proxy_action
+                    "🔄 Restart Proxy (8400/8408)", heal_restart_proxy_action
                 ),
                 pystray.MenuItem("🩹 Heal All Failing Now", heal_all_action),
             ]
@@ -1620,8 +1889,49 @@ def build_menu() -> pystray.Menu:
             pystray.MenuItem("Health monitor not available", show_status_info)
         ]
 
+    # ── Persona & Agency 5-Step Submenu ──
+    soul_file = os.path.join(FOVEAI_DIR, "Backend/Cognition/jen_soul.json")
+    cur_balance = 0.50
+    cur_mbti = "ENFJ"
+    if os.path.exists(soul_file):
+        try:
+            with open(soul_file, "r", encoding="utf-8") as f:
+                sd = json.load(f)
+            cur_balance = float(sd.get("agent_person_balance", 0.50))
+            cur_mbti = sd.get("mbti_type", "ENFJ")
+        except Exception:
+            pass
+
+    SOUL_STEPS_TRAY = [
+        (0.00, "Tool", "INTJ", "🛠️", "Architect / Rational Agent"),
+        (0.25, "Assistant", "ISTJ", "💼", "Steward / Capable Co-Pilot"),
+        (0.50, "Companion", "ENFJ", "🤝", "Mentor / Balanced Companion"),
+        (0.75, "Friend", "ENFP", "🌸", "Campaigner / Passionate Friend"),
+        (1.00, "Beloved", "INFP", "💖", "Romantic Soul / Intimate Partner"),
+    ]
+    closest_step = min(SOUL_STEPS_TRAY, key=lambda s: abs(s[0] - cur_balance))
+    persona_lever_items = [
+        pystray.MenuItem(f"Active: {closest_step[3]} {closest_step[1]} [{cur_mbti}] ({cur_balance:.2f})", show_status_info),
+        pystray.Menu.SEPARATOR,
+    ]
+    for step_val, step_name, step_mbti, step_icon, step_desc in SOUL_STEPS_TRAY:
+        is_chk = abs(cur_balance - step_val) < 0.12
+        p_lbl = f"{'✅ ' if is_chk else '   '}{step_icon} {step_name} ({step_val:.2f}) [{step_mbti}]"
+        persona_lever_items.append(
+            pystray.MenuItem(
+                p_lbl,
+                (lambda v, n, m: lambda icon, item: set_soul_step_action(icon, item, v, n, m))(step_val, step_name, step_mbti)
+            )
+        )
+    persona_lever_items.append(pystray.Menu.SEPARATOR)
+    persona_lever_items.append(
+        pystray.MenuItem("⚙️ Open Command Center Settings...", open_settings_panel)
+    )
+
     return pystray.Menu(
+        dash_item,
         pystray.MenuItem(f"🛡️ Guardian: {status_text}", show_status_info),
+        pystray.MenuItem("🎭 Persona & Agency (5-Step Lever)", pystray.Menu(*persona_lever_items)),
         pystray.MenuItem("🏥 Health Monitor & Healing", pystray.Menu(*health_items)),
         pystray.MenuItem("🛡️ Rig & Bloat Guardian", pystray.Menu(*rig_menu_items)),
         pystray.MenuItem("🧹 Liberate VRAM & Flush Caches", free_ram_flush_caches),
@@ -1650,7 +1960,7 @@ def build_menu() -> pystray.Menu:
                     f"{tag_backend} FoveAI Backend WS (:8400)", show_status_info
                 ),
                 pystray.MenuItem(
-                    f"{tag_dash} Settings & Memory Dashboard (:8401)", show_status_info
+                    f"{tag_dash} Settings & Memory Dashboard (:8414)", show_status_info
                 ),
                 pystray.MenuItem(f"{tag_xrlf} XRLF Runtime (:8402)", show_status_info),
                 pystray.MenuItem(
@@ -1802,6 +2112,10 @@ def build_menu() -> pystray.Menu:
                 ),
             ),
         ),
+        pystray.MenuItem(
+            "🎨 Theme",
+            pystray.Menu(*build_theme_menu()),
+        ),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem(
             "Foveation",
@@ -1830,7 +2144,7 @@ def build_menu() -> pystray.Menu:
                     pystray.Menu(
                         pystray.MenuItem(
                             checked(
-                                "Kokoro Emotional Mouth (:8402)",
+                                "Kokoro Emotional Mouth (:8411)",
                                 tts_provider in ["kokoro", "qwen"],
                             ),
                             lambda icon, item: switch_tts_provider(
@@ -1861,7 +2175,7 @@ def build_menu() -> pystray.Menu:
                     pystray.Menu(
                         pystray.MenuItem(
                             checked(
-                                "Faster-Whisper Ears (:8405)", stt_provider == "whisper"
+                                "Faster-Whisper Ears (:8401)", stt_provider == "whisper"
                             ),
                             lambda icon, item: switch_stt_provider(
                                 icon, item, "whisper"
@@ -1888,6 +2202,9 @@ def build_menu() -> pystray.Menu:
                 ),
                 pystray.MenuItem(
                     checked("Cloud", cognitive_mode == "cloud"), switch_to_cloud
+                ),
+                pystray.MenuItem(
+                    checked("Juggler", cognitive_mode == "juggler"), switch_to_juggler
                 ),
             ),
         ),
@@ -1962,15 +2279,20 @@ threading.Thread(target=auto_start_stack, daemon=True).start()
 
 def menu_refresh_loop():
     global _last_context_collect
+    last_menu_build: float = time.time()
     while True:
         try:
             total_gb, used_gb, free_gb, color, status_text = get_hardware_telemetry()
             if app.icon != color:
                 app.icon = color
             app.title = f"FoveAI Guardian | {status_text}"
-            app.menu = build_menu()
 
             now = time.time()
+            # Replacing the menu while it is open collapses submenus — only
+            # rebuild rarely; click handlers refresh via _refresh_menu().
+            if now - last_menu_build > 120:
+                last_menu_build = now
+                app.menu = build_menu()
             if is_context_collector_enabled() and (now - _last_context_collect > 60):
                 _last_context_collect = now
                 _collect_workspace_context()

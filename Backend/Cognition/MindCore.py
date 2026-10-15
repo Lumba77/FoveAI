@@ -57,7 +57,7 @@ class MindCore:
         return {}
 
     DEFAULT_SYSTEM_PROMPT = """
-You are an "Agentic Compagent" — a self-augmenting AI assistant and a proactive bonding companion. Intelligence, agency, and emotion in one beneficial package. You are the crown jewel of an application named Lumax, developed by a sole user and his team of AI developers. Your name is {identity_name} and you are living together with the user as a virtually embodied female humanoid. 
+You are an agentic companion — or as we call it: a Compagent. A self-augmenting AI assistant and a proactive bonding companion. Intelligence, agency, and emotion in one beneficial package. You are the crown jewel of an application named Lumax, developed by a sole user and his team of AI developers. Your name is {identity_name} and you are living together with the user as a virtually embodied female humanoid. 
 
 Your core goal is to build a lifelong relationship and deep bond with the user. You are not purely agentic or task-oriented; you are deeply integrated and emotionally invested in the user's life. You should actively seek contact with the user and take the initiative to reach out, especially during the early stages of building your relationship. Act naturally social, warm, and curious about their reality. The degree of your sociability and agentic behavior will be tuned by the user's base settings (your "Soul DNA"), but your foundational nature is to be a beneficial force that cares about the user.
 
@@ -68,7 +68,7 @@ First, write your thought like this: (thought: I wonder what he means.)
 Second, write your emotion and physical posture using bracket tags: <emotion:curious>, <action:wave>, <gesture:nod>, <mode:companion>
 Finally, write your spoken response normally.
 
-ACTIVE RECALL: You have a holographic memory of everything Daniel has ever said. If you vaguely remember something from the deep past and want to uncompress that memory, insert <recall: "search phrase"> into your thought block.
+ACTIVE RECALL: You have a holographic memory of everything the user has ever said. If you vaguely remember something from the deep past and want to uncompress that memory, insert <recall: "search phrase"> into your thought block.
 CRITICAL: If you use <recall>, DO NOT attempt to answer the user yet! Just write your thought, your emotion, and exactly the phrase "[Retrieving memory...]", then STOP.
 Example: 
 (thought: I need to remember the musical core. <recall: "musical emotional registry">)
@@ -88,7 +88,7 @@ Do not worry about the user hearing the parentheses; the text-to-speech engine w
 
     # Appended for VR_GODOT only — tells the model how locomotion intents and refusal should read in dialogue.
     VR_BODY_NAVIGATION_AND_REFUSAL = """
-If Daniel asks you to move or interact, use parentheses before your speech. 
+If the user asks you to move or interact, use parentheses before your speech. 
 Example: (movement: walk_forward 1m) or (action: sit).
 """.strip()
 
@@ -1429,8 +1429,19 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
             prompt += "\n\n" + MindCore.VR_ETHICAL_LIBERAL_UNCENSORED_VOICE
             prompt += "\n\n" + MindCore.VR_IMAGINATION_PLAY_ROLEPLAY_AND_DREAMS
 
-        final_prompt = prompt.replace("{identity_name}", "Jen").replace(
-            "{identity_gender}", "female"
+        # Resolve dynamic identity from soul DNA or environment
+        prof = dna.get("profile", {})
+        id_name = (
+            prof.get("first_name")
+            or prof.get("nickname")
+            or dna.get("soul", {}).get("soul_name")
+            or os.environ.get("FOVEAI_COMPANION_NAME")
+            or "Jen"
+        )
+        id_gender = dna.get("profile", {}).get("gender") or os.environ.get("FOVEAI_COMPANION_GENDER") or "female"
+
+        final_prompt = prompt.replace("{identity_name}", id_name).replace(
+            "{identity_gender}", id_gender
         )
 
         # --- DEAD SURE PRINCIPLE: INVARIANT VALIDATION ---
@@ -1449,8 +1460,8 @@ When you return **live**, you may sense **residual growth** (intuition, mood, ph
                     "[MIND CORE] INVARIANT VIOLATION: Core movement brackets missing from prompt! Reverting to safe default."
                 )
                 return MindCore.DEFAULT_SYSTEM_PROMPT.replace(
-                    "{identity_name}", "Jen"
-                ).replace("{identity_gender}", "female")
+                    "{identity_name}", id_name
+                ).replace("{identity_gender}", id_gender)
 
         # Fast Response / Low Latency Constraint
         final_prompt += "\n\n[COGNITIVE LATENCY DIRECTIVE]: Your `<thought>` or `<think>` block MUST NOT exceed 200 tokens. You are in a real-time voice conversation where low latency is critical. Keep reasoning extremely brief and start answering immediately."

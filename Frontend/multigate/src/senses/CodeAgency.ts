@@ -3,7 +3,7 @@ export interface FileInfo{path:string;size:number;isDir:boolean;modified:string}
 export interface CodeSearchResult{file:string;line:number;content:string;match:string}
 export interface CodeOperationResult{success:boolean;message:string;data?:any;rolledBack?:boolean;validationErrors?:string[]}
 const API='/api/code';const DENY=['.env','.git/','__pycache__','venv','node_modules','backups/autosave']
-export class CodeAgency{private log:(M:string,c:string)=>void;constructor(lf?:(M:string,c:string)=>void){this.log=lf||((m,c)=>console.log('[CA]'+m))}
+export class CodeAgency{constructor(){console.log('[CA] ready')}
 async listDir(dir='.'):Promise<FileInfo[]>{try{const r=await fetch(API+'/ls?dir='+encodeURIComponent(dir));return((await r.json()).files||[])as FileInfo[]}catch{return[]}}
 async readFile(path:string,maxL=500):Promise<string|null>{try{const r=await fetch(API+'/read?path='+encodeURIComponent(path)+'&maxLines='+maxL);return(await r.json()).content||null}catch{return null}}
 async searchCode(q:string,glob='*'):Promise<CodeSearchResult[]>{try{const r=await fetch(API+'/search?q='+encodeURIComponent(q)+'&glob='+encodeURIComponent(glob));return((await r.json()).results||[])as CodeSearchResult[]}catch{return[]}}

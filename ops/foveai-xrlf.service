@@ -5,7 +5,7 @@ After=network.target foveai-backend.service
 [Service]
 Type=simple
 WorkingDirectory=/home/lumba/FoveAI
-ExecStart=/home/lumba/FoveAI/.venv/bin/python run_xrlf.py --model xrl_encoded/gemma-4-e2b-multimodal-v1.0.xrlf --port 8402 --ws-port 8403
+ExecStart=/home/lumba/FoveAI/.venv/bin/python run_xrlf.py --model xrl_encoded/gemma-4-e2b-multimodal-v1.0.xrlf --port 8407 --ws-port 8407
 Restart=always
 RestartSec=3
 Environment=NODE_ENV=production

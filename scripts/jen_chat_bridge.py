@@ -2,7 +2,7 @@
 """
 scripts/jen_chat_bridge.py — Jen LLM Bridge for 4-Way Chat
 ============================================================
-Listens to the chat relay (port 8407) for messages addressed to Jen,
+Listens to the chat relay (port 8413) for messages addressed to Jen,
 sends them to the XRLF runtime (port 8402) for LLM responses,
 and posts Jen's replies back to the relay.
 
@@ -28,7 +28,7 @@ from typing import Any
 
 import websockets
 
-RELAY_PORT: int = int(os.getenv("FOVEAI_BACKEND_PORT_CHAT", 8407))
+RELAY_PORT: int = int(os.getenv("FOVEAI_BACKEND_PORT_CHAT", 8413))
 XRLF_PORT: int = int(os.getenv("XRLF_PORT", 8402))
 RELAY_URL: str = f"ws://127.0.0.1:{RELAY_PORT}/ws"
 XRLF_URL: str = f"http://127.0.0.1:{XRLF_PORT}/v1/chat/completions"

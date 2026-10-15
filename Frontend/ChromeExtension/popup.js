@@ -100,7 +100,7 @@ async function httpStatus() {
   const services = [
     { name: 'soul', port: 8402 },
     { name: 'proxy', port: 8400 },
-    { name: 'dashboard', port: 8401 },
+    { name: 'dashboard', port: 8414 },
     { name: 'ears', port: 8001 },
     { name: 'memory', port: 8002 },
     { name: 'creative', port: 8003 },

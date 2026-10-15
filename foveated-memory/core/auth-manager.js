@@ -48,9 +48,33 @@ function verifyPassword(password, salt, expectedHash) {
     return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+function parseSshEd25519(sshStr) {
+    if (!sshStr || typeof sshStr !== 'string') throw new Error('invalid ssh key string');
+    const parts = sshStr.trim().split(/\s+/);
+    if (parts[0] !== 'ssh-ed25519' || !parts[1]) throw new Error('Not an ed25519 ssh key');
+    const buf = Buffer.from(parts[1], 'base64');
+    const typeLen = buf.readUInt32BE(0);
+    const keyOffset = 4 + typeLen;
+    const keyLen = buf.readUInt32BE(keyOffset);
+    const rawKey = buf.slice(keyOffset + 4, keyOffset + 4 + keyLen);
+    if (rawKey.length !== 32) throw new Error('Invalid raw key length: ' + rawKey.length);
+    const spkiPrefix = Buffer.from('302a300506032b6570032100', 'hex');
+    const spkiDer = Buffer.concat([spkiPrefix, rawKey]);
+    return crypto.createPublicKey({ key: spkiDer, format: 'der', type: 'spki' });
+}
+
+function computeSshFingerprint(sshStr) {
+    const parts = sshStr.trim().split(/\s+/);
+    if (parts[0] !== 'ssh-ed25519' || !parts[1]) return null;
+    const buf = Buffer.from(parts[1], 'base64');
+    const hash = crypto.createHash('sha256').update(buf).digest('base64').replace(/=+$/, '');
+    return `SHA256:${hash}`;
+}
+
 class AuthManager {
     constructor(dbPath) {
         this.dbFile = path.resolve(dbPath, 'auth.json');
+        this._challenges = {}; // nonce -> { username, expires }
         this.data = {
             teams: {},    // teamId -> { name, created }
             tokens: {},   // lmx_* token -> { teamId, userId, role }
@@ -78,9 +102,10 @@ class AuthManager {
         try {
             const dir = path.dirname(this.dbFile);
             if (!fs.existsSync(dir)) {
-                fs.mkdirSync(dir, { recursive: true });
+                fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
             }
-            fs.writeFileSync(this.dbFile, JSON.stringify(this.data, null, 2), 'utf8');
+            fs.writeFileSync(this.dbFile, JSON.stringify(this.data, null, 2), { encoding: 'utf8', mode: 0o600 });
+            try { fs.chmodSync(this.dbFile, 0o600); } catch (_) {}
         } catch (e) {
             console.error('[AuthManager] Error saving auth db:', e.message);
         }
@@ -243,6 +268,11 @@ class AuthManager {
             workspaceId: u.workspaceId,
             created: u.created,
             disabled: !!u.disabled,
+            profilePicture: u.profilePicture || null,
+            firstName: u.firstName || '',
+            lastName: u.lastName || '',
+            aiName: u.aiName || '',
+            pubKeys: (u.pubKeys || []).map(pk => ({ fingerprint: pk.fingerprint, created: pk.created })),
         };
     }
 
@@ -254,6 +284,10 @@ class AuthManager {
         const u = this.data.users?.[username];
         if (!u) throw new Error('user not found');
         if (patch.displayName !== undefined) u.displayName = String(patch.displayName).slice(0, 64);
+        if (patch.firstName !== undefined) u.firstName = String(patch.firstName).slice(0, 64);
+        if (patch.lastName !== undefined) u.lastName = String(patch.lastName).slice(0, 64);
+        if (patch.aiName !== undefined) u.aiName = String(patch.aiName).slice(0, 64);
+        if (patch.profilePicture !== undefined) u.profilePicture = patch.profilePicture === null ? null : String(patch.profilePicture).slice(0, 512);
         if (patch.role && ['admin', 'member', 'guest'].includes(patch.role)) u.role = patch.role;
         if (Array.isArray(patch.features)) u.features = patch.features.filter(f => FEATURE_CATALOG[f]);
         if (patch.disabled !== undefined) u.disabled = !!patch.disabled;
@@ -321,6 +355,114 @@ class AuthManager {
             isSession: true,
         };
     }
+
+    /* ── public key identity (Ed25519) ── */
+
+    addPublicKey(username, sshPublicKeyStr) {
+        username = String(username || '').trim().toLowerCase();
+        const u = this.data.users?.[username];
+        if (!u) throw new Error('user not found');
+        const pubKeyObj = parseSshEd25519(sshPublicKeyStr);
+        if (!pubKeyObj) throw new Error('failed to parse ed25519 key');
+        const fingerprint = computeSshFingerprint(sshPublicKeyStr);
+        if (!fingerprint) throw new Error('failed to compute fingerprint');
+        if (!Array.isArray(u.pubKeys)) u.pubKeys = [];
+        if (u.pubKeys.some(pk => pk.fingerprint === fingerprint)) {
+            return { fingerprint, alreadyExists: true };
+        }
+        const entry = {
+            key: sshPublicKeyStr.trim(),
+            fingerprint,
+            created: new Date().toISOString(),
+        };
+        u.pubKeys.push(entry);
+        this.save();
+        return { fingerprint, created: entry.created };
+    }
+
+    removePublicKey(username, fingerprint) {
+        username = String(username || '').trim().toLowerCase();
+        const u = this.data.users?.[username];
+        if (!u || !Array.isArray(u.pubKeys)) return false;
+        const initialLen = u.pubKeys.length;
+        u.pubKeys = u.pubKeys.filter(pk => pk.fingerprint !== fingerprint);
+        if (u.pubKeys.length !== initialLen) {
+            this.save();
+            return true;
+        }
+        return false;
+    }
+
+    createChallenge(username) {
+        username = String(username || '').trim().toLowerCase();
+        const u = this.data.users?.[username];
+        if (!u || u.disabled) throw new Error('user not found or disabled');
+        if (!Array.isArray(u.pubKeys) || u.pubKeys.length === 0) {
+            throw new Error('user has no registered public keys');
+        }
+        const now = Date.now();
+        for (const [n, ch] of Object.entries(this._challenges)) {
+            if (ch.expires < now) delete this._challenges[n];
+        }
+        const nonce = crypto.randomBytes(32).toString('hex');
+        const expires = now + 60000;
+        this._challenges[nonce] = { username, expires };
+        return { nonce, expires };
+    }
+
+    verifySignature(username, nonce, signatureB64) {
+        username = String(username || '').trim().toLowerCase();
+        const ch = this._challenges[nonce];
+        if (!ch) return false;
+        if (ch.username !== username || ch.expires < Date.now()) {
+            delete this._challenges[nonce];
+            return false;
+        }
+        delete this._challenges[nonce];
+
+        const u = this.data.users?.[username];
+        if (!u || u.disabled || !Array.isArray(u.pubKeys) || u.pubKeys.length === 0) {
+            return false;
+        }
+
+        const challengeData = Buffer.from(`xrl-challenge:${username}:${nonce}`, 'utf8');
+        let sigBuf;
+        try {
+            sigBuf = Buffer.from(signatureB64, 'base64');
+        } catch (_) {
+            return false;
+        }
+
+        for (const pk of u.pubKeys) {
+            try {
+                const pubKeyObj = parseSshEd25519(pk.key);
+                if (crypto.verify(null, challengeData, pubKeyObj, sigBuf)) {
+                    return true;
+                }
+            } catch (err) {
+                console.error('[AuthManager] verifySignature error:', err.message);
+            }
+        }
+        return false;
+    }
+
+    loginWithSignature(username, nonce, signatureB64) {
+        username = String(username || '').trim().toLowerCase();
+        if (!this.verifySignature(username, nonce, signatureB64)) {
+            return null;
+        }
+        const token = `fvs_${crypto.randomBytes(24).toString('hex')}`;
+        if (!this.data.sessions) this.data.sessions = {};
+        this.data.sessions[token] = {
+            username,
+            created: new Date().toISOString(),
+            expires: Date.now() + SESSION_TTL_MS,
+            authType: 'ed25519',
+        };
+        this.save();
+        return { token, user: this.publicUser(username) };
+    }
+
 
     hasFeature(resolved, feature) {
         if (!resolved) return false;

@@ -99,6 +99,10 @@ GGUF_AVAILABLE: bool | None = None
 
 # Flux 2 GGUF single-file quantized model (e.g. flux-2-dev-FALAI-Turbo-Merged-GGUF)
 FLUX_GGUF_PIPE = None
+
+# Z-Image-Turbo (MoQ-principle): smallest-viable GGUF transformer + quantized
+# text encoder + fp16 VAE, steered by XRLF instructive language.
+ZIMAGE_PIPE = None
 FLUX_GGUF_AVAILABLE: bool | None = None
 
 
@@ -670,6 +674,7 @@ class DreamRequest(BaseModel):
     reference_image_b64: str = ""
 
     strength: float = 0.75
+    xrlf_steering: bool = True
 
     guidance_scale: float = 7.5
 
@@ -1143,7 +1148,22 @@ def _pipe_to_device(pipe):
     """Move a diffusers pipeline to the device — or stage it via CPU offload
     when FoveAI_CREATIVITY_CPU_OFFLOAD=1. On the shared 8GB card the XRLF LLM
     already holds ~2-3GB VRAM; offload keeps weights in RAM and stages modules
-    to the GPU per call, so both coexist without OOM."""
+    to the GPU per call, so both coexist without OOM.
+
+    EDGE MODE (FoveAI_CREATIVITY_SEQ_OFFLOAD=1): sequential per-layer
+    offload — quantized/fp16 weights parked in RAM, each layer ferried to
+    the GPU to COMPUTE (never CPU inference), streamed over PCIe. Fits
+    alongside the resident LLM even when a whole module couldn't. Slower
+    per pass, viable per image (4-step turbos)."""
+    if _DEVICE == "cuda" and _env_str(
+        "FoveAI_CREATIVITY_SEQ_OFFLOAD", ""
+    ).lower() in ("1", "true", "yes", "on"):
+        try:
+            pipe.enable_sequential_cpu_offload()
+            logger.info("Pipeline using sequential per-layer GPU streaming (low-VRAM edge mode)")
+            return pipe
+        except Exception as e:
+            logger.warning("Sequential offload unavailable (%s); falling back", e)
     if _DEVICE == "cuda" and _env_str(
         "FoveAI_CREATIVITY_CPU_OFFLOAD", ""
     ).lower() in ("1", "true", "yes", "on"):
@@ -1321,6 +1341,163 @@ def _load_gguf_pipe():
             "GGUF pipeline running on CPU (no CUDA). Performance will be slow."
         )
     return _pipe_to_device(pipe)
+
+
+def _resolve_zimage_paths():
+    """The MoQ smallest-viable set under media/models/z-image-turbo."""
+    root = os.getenv(
+        "FoveAI_CREATIVITY_ZIMAGE_ROOT",
+        os.path.join(os.path.dirname(IMAGEN_ROOT), "..", "..", "..", "media", "models", "z-image-turbo"),
+    ).strip()
+    root = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "media", "models", "z-image-turbo")) if not os.path.isdir(root) else root
+    # te_native/ = the FULL native Qwen3-4B text encoder (safetensors,
+    # hidden 2560 — verified). The Q3_K_M GGUF mis-pairs with the
+    # transformer's cap_embedder (from_single_file 5120-shape error).
+    te_native = os.path.join(root, "te_native")
+    return {
+        "transformer": os.path.join(root, "z-image-turbo-Q2_K.gguf"),
+        "text_encoder": te_native if os.path.isdir(te_native)
+                        else os.path.join(root, "qwen3-4b-text-encoder-Q3_K_M.gguf"),
+        "vae": os.path.join(root, "z-image-vae.safetensors"),
+    }
+
+
+def _load_zimage_pipe():
+    """Z-Image-Turbo 4-step Turbo pipeline from the quantized trio.
+
+    Semantic guidance: the steering composer (XRLF instructive language)
+    is applied to user prompts before the text encoder sees them, so the
+    heavily-quantized transformer receives maximally informative
+    conditioning — the MoQ principle: starve the weights, feed the encoder.
+    """
+    global ZIMAGE_PIPE
+    # RAM preflight — the trio resident-load needs ~12G (7.9G TE bf16 +
+    # 3.6G quantized transformer + 0.5G VAE). systemd-oomd kills silent
+    # mid-load when the resident LLM is holding the card. Gate hard:
+    # only attempt on a free machine, fail fast otherwise.
+    def _mem_avail_gb() -> float:
+        try:
+            with open("/proc/meminfo") as _f:
+                for _line in _f:
+                    if _line.startswith("MemAvailable:"):
+                        return float(_line.split()[1]) / 1048576.0
+        except Exception:
+            pass
+        return 0.0
+
+    if _mem_avail_gb() < 13.0:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Z-Turbo needs a free card (12G RAM for the quantized trio). "
+                f"Only {_mem_avail_gb():.1f}G available — the LLM is resident. "
+                "Use the SD1.5 edge engine instead, or free the card."
+            ),
+        )
+
+    paths = _resolve_zimage_paths()
+    # te_native is a DIRECTORY (HF Qwen3-4B layout) — accept dir or file.
+    missing = [
+        k
+        for k, p in paths.items()
+        if not (os.path.isfile(p) or os.path.isdir(p))
+    ]
+    if missing:
+        raise HTTPException(
+            status_code=503,
+            detail="zimage_gguf weights incomplete — missing: " + ", ".join(missing)
+                   + " (run media/models/z-image-turbo/fetch_zimage.sh)",
+        )
+    from diffusers import (
+        AutoencoderKLQwenImage,
+        FlowMatchEulerDiscreteScheduler,
+        GGUFQuantizationConfig,
+        ZImagePipeline,
+        ZImageTransformer2DModel,
+    )
+    from transformers import AutoTokenizer, Qwen3Model
+    import gguf as _gguf  # noqa: F401  (registers gguf decode)
+    logger.info("Loading Z-Image-Turbo (transformer=%s, encoder=%s)", paths["transformer"], paths["text_encoder"])
+    # diffusers 0.40 notes:
+    #  · from_single_file dequantizes gguf ONLY with an explicit
+    #    GGUFQuantizationConfig — otherwise Q2_K bytes stay uint8
+    #  · pipeline-level from_single_file does NOT accept component PATHS
+    #    (text_encoder='…' registers a str) — each component must be a
+    #    real instance, assembled here.
+    _dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
+    _qcfg = GGUFQuantizationConfig(compute_dtype=_dtype)
+
+    # hub mirror: diffusers configs (model_index/scheduler/transformer/tokenizer)
+    hub = Path(
+        "/mnt/foveai/Models/hub/models--Tongyi-MAI--Z-Image-Turbo/snapshots"
+    )
+    snap = next(iter(sorted(hub.iterdir()))) if hub.is_dir() else None
+    cfg_ref = str(snap) if snap and (snap / "model_index.json").is_symlink() or (snap / "model_index.json").is_file() else "Tongyi-MAI/Z-Image-Turbo"
+
+    transformer = ZImageTransformer2DModel.from_single_file(
+        paths["transformer"], quantization_config=_qcfg,
+        torch_dtype=_dtype, local_files_only=True, config=str(snap / "transformer"),
+    )
+    # the local QuantStack vae file is ComfyUI-format and shares NO keys
+    # with diffusers — use the diffusers-native Qwen-Image VAE (Z-Image's
+    # own VAE) from the hub cache instead
+    vae = AutoencoderKLQwenImage.from_pretrained(
+        "Qwen/Qwen-Image", subfolder="vae", torch_dtype=_dtype,
+    )
+    text_encoder = Qwen3Model.from_pretrained(
+        paths["text_encoder"], torch_dtype=_dtype, local_files_only=True,
+    )
+    # tokenizer: the hub snapshot tokenizer/ (Qwen2Tokenizer — vocab+merges);
+    # fall back to the native TE dir when it carries one
+    tok_dir = str(snap / "tokenizer") if snap and (snap / "tokenizer").is_dir() else paths["text_encoder"]
+    tokenizer = AutoTokenizer.from_pretrained(tok_dir, local_files_only=True)
+    scheduler = FlowMatchEulerDiscreteScheduler.from_pretrained(
+        cfg_ref, subfolder="scheduler", local_files_only=True,
+    )
+    pipe = ZImagePipeline(
+        tokenizer=tokenizer, text_encoder=text_encoder, vae=vae,
+        scheduler=scheduler, transformer=transformer,
+    )
+    ZIMAGE_PIPE = _pipe_to_device(pipe)
+    return ZIMAGE_PIPE
+
+
+def _xrlf_steering_compose(prompt: str) -> str:
+    """Fold XRLF instructive language around a user prompt.
+
+    Reads the steering corpus (contracts, resonance, agent directives)
+    from the repo and emits a compact instruction envelope so the tiny
+    quantized model behaves bigger than its weights. Bounded to a few
+    hundred tokens: ring_0 discipline — steerage, not bulk.
+    """
+    import re as _re
+    foveai = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+    steer_sources = [
+        os.path.join(foveai, ".xrlf", "config", "resonance.config.xrlf"),
+        os.path.join(foveai, "XRLF_REFACTOR_STEERING.xrlf.xml"),
+    ]
+    directives = []
+    for fp in steer_sources:
+        try:
+            txt = open(fp, "r", encoding="utf-8").read(4096)
+            # xrl key := value lines (resonance) and <rule>/<objective> xml
+            directives += _re.findall(r"^\s*(steering_strength|compute_policy|temperature)\s*:=\s*(.+)$", txt, _re.M)
+            directives += [(m[0], m[1]) for m in _re.findall(r"<(objective|rule)>\s*(.+?)\s*</", txt, _re.S)[:3]]
+        except Exception:
+            continue
+    calib = {k: v for k, v in directives if k in ("steering_strength", "temperature")}
+
+    # Domain rules: steerage for a *tiny quantized* image model. Semantic
+    # anchors matter more than bulk — S3-DiT fuses encoder tokens directly,
+    # so every instruction token is expensive.
+    image_rules = [
+        "composition follows the user's subject precisely",
+        "coherent local detail; no duplicated artifacts",
+        "clean edges, natural light, high perceived sharpness",
+    ]
+    parts = [f"{k}: {str(v).strip()[:30]}" for k, v in calib.items()] + image_rules
+    compact = "; ".join(parts)
+    return f"[xrlf steering: {compact}] {prompt}"
 
 
 def _load_flux_gguf_pipe():
@@ -1879,6 +2056,7 @@ async def generate_dream_image(req: DreamRequest):
         ORT_SDXL_PIPE, \
         GGUF_PIPE, \
         FLUX_GGUF_PIPE, \
+        ZIMAGE_PIPE, \
         _CONTROL_BUNDLE
 
     try:
@@ -2111,6 +2289,31 @@ async def generate_dream_image(req: DreamRequest):
                     )
 
         # 3c. GGUF — single-file quantized model (e.g. sdxl-turbo-GGUF)
+        elif mt == "zimage_gguf":
+            ref_pil = get_safe_image((req.reference_image_b64 or "").strip())
+            if ref_pil is not None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="zimage_gguf txt2img only for now — detail/outpaint come via the /api/tools/ai pipeline.",
+                )
+            if ZIMAGE_PIPE is None:
+                ZIMAGE_PIPE = _load_zimage_pipe()
+            generator = (
+                torch.Generator(_DEVICE).manual_seed(req.seed)
+                if req.seed != -1
+                else None
+            )
+            steered = _xrlf_steering_compose(req.prompt or "") if getattr(req, "xrlf_steering", True) else (req.prompt or "")
+            logger.info("Z-Image steered prompt: %s", steered[:160])
+            output = ZIMAGE_PIPE(
+                prompt=steered,
+                num_inference_steps=int(req.num_inference_steps or 4),
+                generator=generator,
+                guidance_scale=float(req.guidance_scale or 0.0),
+                width=dw,
+                height=dh,
+            )
+
         elif mt == "gguf":
             ref_pil = get_safe_image((req.reference_image_b64 or "").strip())
             if ref_pil is not None:

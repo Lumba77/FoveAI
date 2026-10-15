@@ -4,6 +4,7 @@ import './components/ChatLayout.css';
 import AvatarOverlay from './AvatarOverlay';
 import IgnitionScreen from './IgnitionScreen';
 import { useBackendStatus } from './useBackendStatus';
+import { useProfilePicture } from './hooks/useProfilePicture';
 import Trackball from './trackball/Trackball';
 import { useTraits } from './trackball/useTraits';
 import { CanvasTab } from './components/tabs/CanvasTab';
@@ -38,6 +39,7 @@ interface Message {
   content: string;
   reasoning?: string; // thinking-model chain-of-thought, kept out of content
   divider?: { sessionId: string; title: string };  // session boundary marker
+  at?: number;        // epoch ms — stamped on send; rides the thread elbow
 }
 
 interface User {
@@ -47,6 +49,7 @@ interface User {
   firstName?: string;
   lastName?: string;
   aiName?: string;
+  profilePicture?: string | null;
   features?: string[];
 }
 
@@ -55,12 +58,15 @@ interface User {
 // display only. msg.content keeps the raw text so TTS keeps its emotion markers.
 function displayText(text: string): string {
   return text
-    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, '')
+    .replace(/<thought>[\s\S]*?<\/\s*thought\b[^>]*>?/gi, '')
     .replace(/\(\s*thought\s*:[^)]*\)/gi, '')
     // orphan thought fragments — "(…) </thought" leaks where the model
     // opened a plain paren instead of the proper <thought:> channel
     .replace(/\([^()]*\)\s*<\/\s*thought\b[^>]*>?/gi, '')
     .replace(/<\/?\s*thought\b[^>]*>?/gi, '')
+    .replace(/<\/\s*thought\b/gi, '')
+    .replace(/<\s*thought\b/gi, '')
     .replace(/<[^>]*>/g, '')
     .replace(/<[^>]*$/g, '')
     .replace(/\*[^*]+\*/g, '')
@@ -68,17 +74,17 @@ function displayText(text: string): string {
     .trim();
 }
 
-// Thought channels stay visible: <thought:…> markers and <think>/<thinking>
-// blocks are pulled out of the raw stream and rendered as dim thought panels,
-// inline where the model emitted them — the "thinking codeblock" display.
+// Thought channels stay visible: <thought:…> markers, <thought>…</thought>,
+// and <think>/<thinking> blocks are pulled out of the raw stream and rendered
+// as dim thought panels, inline where the model emitted them.
 function renderAssistantContent(text: string): React.ReactNode {
   const parts: React.ReactNode[] = [];
-  const re = /<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>|<thought:([^>]+)>|\(\s*thought\s*:\s*([^)]*)\)/gi;
+  const re = /<think(?:ing)?>([\s\S]*?)<\/think(?:ing)?>|<thought>([\s\S]*?)<\/\s*thought\b[^>]*>?|<thought:([^>]+)>|\(\s*thought\s*:\s*([^)]*)\)/gi;
   let last = 0, m: RegExpExecArray | null, k = 0;
   while ((m = re.exec(text)) !== null) {
     const before = displayText(text.slice(last, m.index));
     if (before) parts.push(<span key={k++}>{before}</span>);
-    const thought = (m[1] ?? m[2] ?? m[3] ?? '').trim();
+    const thought = displayText(m[1] ?? m[2] ?? m[3] ?? m[4] ?? '').trim();
     if (thought) parts.push(<div key={k++} className="thought-block">{thought}</div>);
     last = m.index + m[0].length;
   }
@@ -87,8 +93,13 @@ function renderAssistantContent(text: string): React.ReactNode {
   return parts;
 }
 
-function formatModelName(id: string): string {
+function formatModelName(id: string, name?: string): string {
+  if (name) return name;
   if (!id) return id;
+  if (id.startsWith('micro_')) {
+    const raw = id.replace('micro_', '').replace(/_/g, ' ');
+    return `⚡ Micro · ${raw.charAt(0).toUpperCase() + raw.slice(1)}`;
+  }
   let s = id.replace(/-(multimodal|instruct|chat|v\d+\.\d+)/gi, '');
   let ext = '';
   if (/\.xrlf$/i.test(s)) ext = ' xrlf';
@@ -178,7 +189,23 @@ function App() {
   // Persona setup shows when an authenticated user hasn't named their AI yet.
   // Derived from currentUser — no separate flag to drift out of sync.
   const showSetup = !!currentUser && !currentUser?.aiName;
-  const [ignited, setIgnited] = useState(false);
+  const [ignited, setIgnited] = useState(() => {
+    try { return sessionStorage.getItem('foveai_ignited') === '1'; } catch { return false; }
+  });
+  useEffect(() => {
+    try {
+      if (ignited) sessionStorage.setItem('foveai_ignited', '1');
+      else sessionStorage.removeItem('foveai_ignited');
+    } catch { /* private mode */ }
+  }, [ignited]);
+  const userPic = useProfilePicture(currentUser?.apiKey, 'user');
+  const aiPic = useProfilePicture(currentUser?.apiKey, 'ai_persona');
+  /* hidden file inputs — click a portrait → pick a new picture inline */
+  const userPicInput = useRef<HTMLInputElement>(null);
+  const aiPicInput = useRef<HTMLInputElement>(null);
+  const pickUserPic = (f: File | null) => { if (f) void userPic.upload(f); };
+  const pickAiPic = (f: File | null) => { if (f) void aiPic.upload(f); };
+
   const backend = useBackendStatus();
   const backendDown = backend.state === 'down' || backend.state === 'offline' || backend.state === 'starting';
 
@@ -415,9 +442,15 @@ function App() {
     return saved === 'VAD' || saved === 'TXT' ? saved : 'PTT';
   });
   const [isRecording, setIsRecording] = useState(false);
+  /* transient speech preview (2026-10-08 user rule): when speaking from
+     another tab, the transcription surfaces as a transient bubble by the
+     user portrait — the user sees their words being heard. */
+  const [transientVoice, setTransientVoice] = useState<string | null>(null);
   const [isProcessingAudio, setIsProcessingAudio] = useState(false);
 
-  const [jenPinned, setJenPinned] = useState(false);
+  /* 2026-10-08 user rule: the portraits are ALWAYS present — they are the
+     faces of the conversation, on every tab. Pin defaults ON; 📌 unpins. */
+  const [jenPinned, setJenPinned] = useState(true);
   const [activeMode, setActiveMode] = useState<'TEXT' | 'DICTATE' | 'Vocal PTT' | 'Vocal VAD' | 'Video PTT' | 'Video VAD'>('TEXT');
   const [pendingMode, setPendingMode] = useState<'TEXT' | 'DICTATE' | 'Vocal PTT' | 'Vocal VAD' | 'Video PTT' | 'Video VAD' | null>(null);
   
@@ -625,9 +658,16 @@ function App() {
       }
 
       const u = session.user || {};
+      // Persona merge: server profile first, locally saved persona second —
+      // the user must never re-type their name on every login.
+      let savedPersona: Partial<User> = {};
+      try { savedPersona = JSON.parse(localStorage.getItem('foveai_foveai_user') || '{}'); } catch { /* fresh */ }
       setCurrentUser({
         username: u.username || usernameInput.trim(),
-        firstName: u.displayName || u.username || usernameInput.trim(),
+        firstName: u.firstName || savedPersona.firstName || u.displayName || usernameInput.trim(),
+        lastName: u.lastName || savedPersona.lastName,
+        aiName: u.aiName || savedPersona.aiName,
+        profilePicture: u.profilePicture ?? savedPersona.profilePicture ?? null,
         role: u.role === 'admin' ? 'Admin' : 'Member',
         apiKey: session.token,          // every fetch already sends apiKey as Bearer
         features: u.features || [],
@@ -667,6 +707,10 @@ function App() {
       aiName: aiNameInput.trim(),
     };
     setCurrentUser(newUser);
+    fetch('/api/auth/profile', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentUser?.apiKey}` },
+      body: JSON.stringify({ firstName: newUser.firstName, lastName: newUser.lastName, aiName: newUser.aiName })
+    }).catch(() => { /* offline — localStorage still holds it */ });
     setMessages([{ role: 'assistant', content: `Welcome, ${newUser.firstName}. I am ${newUser.aiName}. How can I help you today?` }]);
     setFirstNameInput('');
     setLastNameInput('');
@@ -677,9 +721,10 @@ function App() {
   const handleSendMessage = async () => {
     if (!inputValue.trim() || !currentUser) return;
     
-    const userMsg: Message = { role: 'user', content: inputValue };
+    const userMsg: Message = { role: 'user', content: inputValue, at: Date.now() };
     setMessages(prev => [...prev, userMsg]);
     setInputValue('');
+    setTransientVoice(null);
     setIsTyping(true);
 
     try {
@@ -712,12 +757,34 @@ function App() {
         })
       });
 
-      const data = await response.json();
+      // Robust body decode: any non-JSON reply (proxy quirk, raw text)
+      // must surface its true body instead of crashing as a SyntaxError.
+      let data: any = null;
+      let rawBody = '';
+      try {
+        rawBody = await response.text();
+        data = JSON.parse(rawBody);
+      } catch (parseErr) {
+        if (data === null) {
+          data = {
+            choices: [{
+              message: {
+                role: 'assistant',
+                content: rawBody.trim().slice(0, 600) || '(empty reply)',
+              },
+              index: 0,
+              finish_reason: 'raw_non_json_reply',
+            }],
+            _parse_error: `body was not JSON (status ${response.status}): ${String(parseErr).slice(0, 120)}`,
+          };
+          console.error('[chat] non-JSON reply body (status ' + response.status + '):', rawBody.slice(0, 2000));
+        }
+      }
       const botReply = data.choices?.[0]?.message?.content;
       const reasoning = data.choices?.[0]?.message?.reasoning_content;
       const fallback = data.error?.message || `Proxy error ${response.status}`;
 
-      setMessages(prev => [...prev, { role: 'assistant', content: botReply || fallback, ...(reasoning ? { reasoning } : {}) }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: botReply || fallback, at: Date.now(), ...(reasoning ? { reasoning } : {}) }]);
 
       // Auto-title the session once it has a few turns to describe
       sessionTurns.current += 1;
@@ -760,6 +827,16 @@ function App() {
     if (chatProvider !== 'xrlf_proxy' || id === 'auto') return;
     const pkg = availableModels.find((m: any) => m.id === id);
     if (!pkg || pkg.active) return;
+
+    if (pkg.is_micro) {
+      setAvailableModels(prev => prev.map((m: any) => ({ ...m, active: m.id === id })));
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `⚡ **${pkg.name || id}** activated as high-speed Micro Worker! Ready for UI automations, sub-second execution, and custom tools.`
+      }]);
+      return;
+    }
+
     setSwappingModel(id);
     setMessages(prev => [...prev, { role: 'assistant', content: `⏳ Loading XRLF package **${id}** (${pkg.size_mb} MB) — swapping model in VRAM, this takes a minute…` }]);
     try {
@@ -832,6 +909,7 @@ function App() {
         if (cancelled) break;
         if (text.trim()) {
           setInputValue(prev => (prev.trim() ? prev.trim() + ' ' : '') + text.trim());
+          setTransientVoice(prev => (prev ? prev + ' ' : '') + text.trim());
           scheduleAutoSend();
         }
       }
@@ -894,6 +972,18 @@ function App() {
           </form>
         </div>
       </div>
+    );
+  }
+
+  // ----------------------------------------------------
+  // RENDER GATE (ignition) — early return; the main app is
+  // NEVER mounted under it. ENTER = real page reload with the
+  // armed settings as base (sessionStorage marks the pass).
+  // ----------------------------------------------------
+  if (!ignited && currentUser) {
+    return (
+      <IgnitionScreen userName={currentUser?.firstName}
+        onEnter={() => { setIgnited(true); location.reload(); }} />
     );
   }
 
@@ -1104,7 +1194,15 @@ function App() {
 
         if (audioBlob.size >= 2000) {
           const text = await transcribeAudioBlob(audioBlob);
-          if (text.trim()) setInputValue(text);
+          if (text.trim()) {
+            setTransientVoice(text.trim());
+            /* 2026-10-08 user rule: speech becomes chat bubbles BY ITSELF —
+               PTT auto-sends the transcription like VAD does (was: text
+               parked in the input, never sent). Value flows through the
+               normal send path (inputValue → handleSendMessage). */
+            setInputValue(text.trim());
+            setTimeout(() => sendRef.current(), 350);
+          }
         }
         setIsProcessingAudio(false);
       };
@@ -1229,32 +1327,17 @@ function App() {
   // ----------------------------------------------------
   return (
     <div className="app-container">
-      {(jenPinned || activeTab === 'Copilot') && (
-        <>
-          <div className={`ai-avatar-window ${jenPinned ? 'pinned' : ''}`}>
-            <span className="ai-avatar-name">
-              {currentUser?.aiName || 'JEN'}
-              <span style={{ float: 'right', cursor: 'pointer', opacity: 0.6 }} onClick={() => setJenPinned(!jenPinned)} title={jenPinned ? "Unpin avatars" : "Pin avatars to all screens"}>📌</span>
-            </span>
-            <AvatarView mode={activeMode.startsWith('Video') ? 'video' : 'still'} />
-          </div>
-          <div className={`user-avatar-window ${jenPinned ? 'pinned' : ''}`}>
-            <span className="user-avatar-name">{currentUser?.firstName?.toUpperCase() || 'USER'}</span>
-            <img src="/avatars/user_fallback.png" alt="User" className="user-avatar-image" onError={(e) => (e.currentTarget.src = '/avatars/fallback.png')} />
-          </div>
-          <TransientSubtitles messages={messages} visible={activeTab !== 'Copilot'} />
-        </>
-      )}
       {/* Sidebar Navigation */}
       <aside className={`sidebar${sidebarOpen ? ' open' : ''}`}>
-        <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '16px 17.4px 12px' }}>
           {/* FoveAI mark — light variant for the dark sidebar. Files live in
               public/: foveai-mark-light.png (here), foveai-icon.png (favicon),
               foveai-logo{,-light}.png (full wordmark for splash pages). */}
-          <img src="/foveai-mark-light.png" alt="" style={{ height: '26px', display: 'none' }}
-            onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'block'; }}
-            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-          <h2 style={{ margin: 0 }}>{siteName}</h2>
+          {/* the true FoveAI logotype — full wordmark (user rule 2026-10-08:
+              real logo asset, not styled text) */}
+          <img src="/foveai-logo-light.png" alt="FoveAI" style={{ height: '30px', display: 'block',
+                   filter: 'drop-shadow(0 0 10px rgba(94,234,212,.25))' }} />
+          <h2 style={{ margin: 0, position: 'absolute', left: '-9999px' }}>{siteName}</h2>
           <div
             className={`dot ${proxyStatus === 'online' ? 'online' : 'offline'}`}
             title={proxyStatus === 'online' ? 'Online' : 'Offline'}
@@ -1362,8 +1445,14 @@ function App() {
 
         <div className="user-profile">
           <div className="user-info">
+            {/* 2026-10-08: real portrait instead of the redundant initial —
+                the picture already starts with the user's face; circular
+                crop focuses the center (user rule). */}
             <div className="avatar">
-              {currentUser.username.charAt(0).toUpperCase()}
+              <img src={userPic.url || currentUser.profilePicture || '/avatars/user_fallback.png'}
+                   alt={currentUser.username}
+                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                   style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top', borderRadius: '50%' }} />
             </div>
             <div>
               <div className="username">{currentUser.username}</div>
@@ -1380,19 +1469,21 @@ function App() {
       {/* Main Content Area */}
       <main className="main-content">
         {/* Top Bar with Server Metrics & Quick Actions */}
-        <header className="chat-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 120px 8px 16px' }}>
+        <header className="chat-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 24px 14px 20px', gap: '22px', flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {/* Hamburger — only visible under the mobile media query */}
             <button className="icon-btn menu-toggle" title="Menu" onClick={() => setSidebarOpen(!sidebarOpen)}>☰</button>
             {/* Quick Action Toolbar */}
-            <div className="topbar-actions" style={{ display: 'flex', gap: '10px' }}>
-              <button
-                className="icon-btn clock-btn"
+            <div className="topbar-actions" style={{ display: 'flex', gap: '14px' }}>
+              {/* clock as a plain chip (not a button) — same padding box as
+                  the metrics panel; user rule: the metrics panel is the
+                  guiding measurement for the whole top bar */}
+              <div
                 title="Local Time"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', fontSize: '0.8rem', padding: '0 8px', borderRadius: '4px', fontFamily: 'Share Tech Mono', color: 'var(--text-light)', minWidth: '60px' }}
+                style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', fontSize: '0.72rem', padding: '6px 12px', borderRadius: '4px', fontFamily: 'Share Tech Mono', color: 'rgba(255,255,255,0.7)' }}
               >
                 {clockTime}
-              </button>
+              </div>
               <button
                 className={`icon-btn ${showAvatar ? 'active' : ''}`}
                 title="Toggle Video / 3D Avatar"
@@ -1404,8 +1495,8 @@ function App() {
               <button className={`icon-btn ${activeTab === 'Soundboard' ? 'active' : ''}`} title="Voice & Soundboard" onClick={() => setActiveTab('Soundboard')}>
                 🔊
               </button>
-              <button className={`icon-btn ${deepThink ? 'active' : ''}`} title="Deep Think" onClick={() => setDeepThink(!deepThink)} style={deepThink ? { background: 'rgba(0, 243, 255, 0.3)', borderColor: 'var(--accent-cyan)' } : {}}>
-                🧠
+              <button className={`icon-btn ${deepThink ? 'active' : ''}`} title="Turbo — extra reasoning effort (burns more tokens)" onClick={() => setDeepThink(!deepThink)} style={deepThink ? { color: 'var(--accent-magenta)', textShadow: '0 0 12px rgba(232,182,76,.7)' } : {}}>
+                ⚡
               </button>
               <button className={`icon-btn ${activeTab === 'Canvas' ? 'active' : ''}`} title="Creative / Image Canvas" onClick={() => setActiveTab('Canvas')}>
                 🎨
@@ -1420,7 +1511,7 @@ function App() {
                   setContextBudget(v);
                   setCompressionLevel(v <= 4000 ? 5 : v <= 8000 ? 4 : v <= 16000 ? 3 : v <= 32000 ? 2 : 1);
                 }}
-                style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(0,243,255,0.3)', color: 'var(--text-light)', borderRadius: '4px', padding: '4px 8px', fontSize: '0.7rem', fontFamily: 'Share Tech Mono', cursor: 'pointer' }}
+                style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '4px', padding: '6px 12px', fontSize: '0.72rem', fontFamily: 'Share Tech Mono', cursor: 'pointer' }}
               >
                 <option value={4000}>4K Max</option>
                 <option value={8000}>8K Small</option>
@@ -1445,14 +1536,51 @@ function App() {
             )}
           </div>
 
-          {/* Top Bar Server Metrics */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px', fontFamily: 'Share Tech Mono', fontSize: '0.7rem', color: 'rgba(255,255,255,0.7)', background: 'rgba(0,0,0,0.4)', padding: '6px 12px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)' }}>
+          {/* Top Bar Server Metrics — hangs at the AI portrait's left edge,
+              never behind her (user: Jen should let it come forward) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px', fontFamily: 'Share Tech Mono', fontSize: '0.7rem', color: 'rgba(255,255,255,0.7)', background: 'rgba(0,0,0,0.4)', padding: '6px 12px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.1)', marginRight: '168px' }}>
             <div>CPU: <span style={{ color: 'var(--neon-green)' }}>14%</span></div>
             <div>RAM: <span style={{ color: 'var(--neon-green)' }}>3.8 GB</span></div>
             <div>STT: <span style={{ color: 'var(--accent-cyan)' }}>Whisper</span></div>
           </div>
         </header>
 
+      {(jenPinned) && (
+        <>
+          <div className={`ai-avatar-window ${jenPinned ? 'pinned' : ''}`} title="Click to change the AI portrait">
+            <span className="ai-avatar-name">
+              {currentUser?.aiName || 'JEN'}
+              <span style={{ float: 'right', cursor: 'pointer', opacity: 0.6 }} onClick={(e) => { e.stopPropagation(); setJenPinned(!jenPinned); }} title={jenPinned ? "Unpin avatars" : "Pin avatars to all screens"}>📌</span>
+            </span>
+            {/* click the portrait → pick a new persona image; falls back to
+                the live view; the still overlay uses the persona picture */}
+            <div className="avatar-clickable" onClick={() => aiPicInput.current?.click()}>
+              {aiPic.url
+                ? <img src={aiPic.url} alt={currentUser?.aiName || 'AI'} className="ai-avatar-image"
+                    onError={(e) => { e.currentTarget.src = '/avatars/fallback.png'; }} />
+                : <AvatarView mode={activeMode.startsWith('Video') ? 'video' : 'still'} />}
+            </div>
+          </div>
+          <div className={`user-avatar-window ${jenPinned ? 'pinned' : ''}`} title="Click to change your portrait">
+            <span className="user-avatar-name">{currentUser?.firstName?.toUpperCase() || 'USER'}</span>
+            <div className={`avatar-clickable ${isRecording ? 'speaking' : ''}`} onClick={() => userPicInput.current?.click()}
+                 title={isRecording ? 'listening…' : 'Click to change your portrait'}>
+              <img src={userPic.url || currentUser?.profilePicture || '/avatars/user_fallback.png'} alt="User" className="user-avatar-image" onError={(e) => (e.currentTarget.src = '/avatars/fallback.png')} />
+            </div>
+          </div>
+          {transientVoice && activeTab !== 'Copilot' && (
+            <div className="transient-voice-bubble" aria-live="polite">
+              “{transientVoice}”
+              <span className="tv-send-hint">↗</span>
+            </div>
+          )}
+          <input ref={userPicInput} type="file" accept="image/*" hidden
+            onChange={(e) => { pickUserPic(e.target.files?.[0] ?? null); e.target.value = ''; }} />
+          <input ref={aiPicInput} type="file" accept="image/*" hidden
+            onChange={(e) => { pickAiPic(e.target.files?.[0] ?? null); e.target.value = ''; }} />
+          <TransientSubtitles messages={messages} visible={activeTab !== 'Copilot'} />
+        </>
+      )}
         {/* Tab Router */}
         {activeTab === 'Memory' ? (
           <div style={{ flex: 1, width: '100%', height: '100%', overflow: 'hidden' }}>
@@ -1600,7 +1728,7 @@ function App() {
                   <option key={m.id} value={m.id}>{m.label}</option>
                 ))}
                 {chatProvider === 'xrlf_proxy' && availableModels.map((m: any) => (
-                  <option key={m.id} value={m.id}>{m.active ? '● ' : '○ '}{formatModelName(m.id)}</option>
+                  <option key={m.id} value={m.id}>{m.active ? '● ' : '○ '}{formatModelName(m.id, m.name)}</option>
                 ))}
                 {chatProvider === 'lmstudio' && availableModels.map((m: any) => (
                   <option key={m.id} value={m.id}>{formatModelName(m.id)}</option>
@@ -1717,12 +1845,17 @@ function App() {
                 </div>
               ) : (
                 <div key={idx} className={`chat-bubble-row ${msg.role}`}>
-                  <div className="message-avatar" title={msg.role === 'user' ? `${currentUser?.firstName} ${currentUser.lastName}` : (currentUser?.aiName || 'AI')}>
-                    {msg.role === 'user' ? currentUser?.firstName?.charAt(0).toUpperCase() || 'U' : (currentUser?.aiName?.charAt(0).toUpperCase() || 'A')}
-                  </div>
+                  {/* initial-letter avatars dropped (2026-10-08): the name
+                      tag inside the bubble says who's who — bubbles got the
+                      freed width. First names only. */}
+                  {msg.at && (
+                    <span className="thread-stamp">
+                      {new Date(msg.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
                   <div className={`chat-bubble ${msg.role}`}>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                      {msg.role === 'user' ? `${currentUser?.firstName} ${currentUser.lastName}` : (currentUser?.aiName || 'AI')}
+                    <div className="bubble-name">
+                      {msg.role === 'user' ? (currentUser?.firstName || 'You') : (currentUser?.aiName?.split(' ')[0] || 'Jen')}
                     </div>
                     {msg.reasoning && <div className="thought-block">{msg.reasoning}</div>}
                     {msg.role === 'assistant' ? renderAssistantContent(msg.content) : displayText(msg.content)}
@@ -1731,9 +1864,9 @@ function App() {
               ))}
               
               {isTyping && (
-                <div className="message assistant">
-                  <div className="message-avatar" title={currentUser?.aiName || 'AI'}>
-                    {currentUser?.aiName?.charAt(0).toUpperCase() || 'A'}
+                <div className="chat-bubble-row ai">
+                  <div className="chat-bubble ai">
+                  <div className="bubble-name">{currentUser?.aiName?.split(' ')[0] || 'Jen'}</div>
                   </div>
                   <div className="message-content" style={{ padding: '20px 24px' }}>
                     <div className="typing-indicator">
@@ -1806,6 +1939,10 @@ function App() {
                   </span>
                 )}
                 
+                {/* 2026-10-08 composer law: TEXT modes → the input area;
+                    VOCAL modes → no dead input box: a mode chip says the mic
+                    is live; speech transcribes and sends itself. */}
+                {inputMode === 'TXT' ? (
                 <input 
                   type="text" 
                   className="chat-input"
@@ -1822,6 +1959,16 @@ function App() {
                     background: pendingMode ? 'rgba(0, 243, 255, 0.05)' : undefined
                   }}
                 />
+                ) : (
+                <div className="vocal-mode-chip" aria-live="polite">
+                  <span className={`mic-dot ${isRecording ? 'live' : ''}`} />
+                  {isRecording
+                    ? 'listening — speak, words will send themselves'
+                    : inputMode === 'VAD'
+                      ? 'hands-free — speak anytime, words send themselves'
+                      : 'push-to-talk — hold the ball, speak, release'}
+                </div>
+                )}
                 
                 {pendingMode && (
                   <div style={{ position: 'absolute', bottom: '75px', right: '10px', pointerEvents: 'none', color: 'var(--accent-cyan)', fontFamily: 'Share Tech Mono', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(11, 15, 26, 0.8)', padding: '8px 16px', borderRadius: '12px', border: '1px solid rgba(0, 243, 255, 0.3)', backdropFilter: 'blur(8px)', boxShadow: '0 4px 15px rgba(0,0,0,0.5)', zIndex: 50 }}>
@@ -1835,9 +1982,6 @@ function App() {
                   className={`send-socket ${backendDown ? 'down' : ''} ${!inputValue.trim() || isTyping ? 'idle' : ''} ${isRecording ? 'rec' : ''}`}
                   title={backendDown ? 'backend is down — press to ignite' : 'spin to select mode · press to lock/send'}
                   style={{ zIndex: 100, position: 'relative' }}
-                  onWheel={(e) => {
-                    if (Math.abs(e.deltaY) > 10) handleRollStep(e.deltaY > 0 ? 1 : -1);
-                  }}
                 >
                   <SendBall onSend={inputValue.trim() ? backend.state === 'down' ? backend.ignite : handleSendMessage : handleModeConfirm} 
                     health={backend.state === 'up' ? 'ok' : backend.state === 'offline' ? 'off' : backend.state === 'down' ? 'down' : 'warn'}
@@ -1894,10 +2038,7 @@ function App() {
         </button>
       </nav>
 
-      {!ignited && currentUser && (
-        <IgnitionScreen userName={currentUser?.firstName} token={currentUser.apiKey} onEnter={() => setIgnited(true)} />
-      )}
-      
+
       <SettingsOverlay isVisible={showSettings} onClose={() => setShowSettings(false)} />
           </div>
   );
@@ -1908,7 +2049,9 @@ function App() {
    the feel of it, but turns no dial (bare mode). */
 function SendBall({ onSend, onHoldStart, onHoldEnd, health, pressHint, onRollStep }: { onSend: () => void; onHoldStart?: () => void; onHoldEnd?: () => void; onRollStep?: (dir: number) => void; health?: 'ok' | 'warn' | 'down' | 'off' | null; pressHint?: string }) {
   const tb = useTraits();
-  return <Trackball store={tb} size={56} bare health={health} onPress={onSend} onHoldStart={onHoldStart} onHoldEnd={onHoldEnd} onRollStep={onRollStep} pressHint={pressHint || 'press to send · hold to talk'} />;
+  /* 66 of the 75px socket — fills the bezel snugly (was 56: a small dot
+     floating in a big room; user: "too small to do anything of use") */
+  return <Trackball store={tb} size={74} bare health={health} onPress={onSend} onHoldStart={onHoldStart} onHoldEnd={onHoldEnd} onRollStep={onRollStep} pressHint={pressHint || 'press to send · hold to talk'} />;
 }
 
 export default App;

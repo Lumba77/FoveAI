@@ -18,18 +18,18 @@ FoveAI (Diamond Concordia) is a spatial AI companion ecosystem. A multimodal AI 
 │         ▼                       ▼                               │
 │  ┌─────────────────┐    ┌──────────────────┐                   │
 │  │  Kokoro TTS      │    │  Whisper STT     │                   │
-│  │  8406            │    │  8409            │                   │
+│  │  8411            │    │  8401            │                   │
 │  └─────────────────┘    └──────────────────┘                   │
 │         │                       │                               │
 │         ▼                       ▼                               │
 │  ┌─────────────────┐    ┌──────────────────┐                   │
 │  │  Memory Proxy    │    │  Chat Relay      │                   │
-│  │  8400/8401       │    │  8407            │                   │
+│  │  8400/8414       │    │  8413            │                   │
 │  └─────────────────┘    └──────────────────┘                   │
 │                                                                 │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐     │
 │  │ Motor        │  │ Subconscious │  │ Multigate WebUI  │     │
-│  │ 8410         │  │ 8411         │  │ 5177             │     │
+│  │ 8410         │  │ 8409         │  │ 5177             │     │
 │  └──────────────┘  └──────────────┘  └──────────────────┘     │
 └─────────────────────────────────────────────────────────────────┘
          │ WebSocket (8403)
@@ -84,3 +84,73 @@ All configuration via environment variables and `.env` file. Key env vars:
 | `XRLF_REP_THRESHOLD_COUNT` | 3 | Repetition guard trigger count |
 | `XRLF_MAX_TOKENS_BURST` | 4096 | Hard cap on generated tokens/turn |
 | `XRLF_REPO_ENABLED` | false | XRLF reactor master switch |
+
+# 2026-10-06Addendum — Theme & Profile subsystem topology (current wiring)
+
+```
+Theme Machine (multigate) ──► /api/theme/generate ──────► theme_api.py :8415 (FastAPI)
+        │ click "apply"            │ (VLM pipeline → MasterTheme JSON stream)
+        ▼                          ▼
+  /api/theme/set_active ────► theme_api.py POST set_active
+        │                          │ 1) persist theme/active_theme.json
+        │                          │ 2) WS broadcast :8415/ws/theme (legacy)
+        │                          │ 3) HTTP relay → :8413/internal/theme-broadcast
+        ▼                          ▼
+  websocket_server.py :8403 ──broadcast_theme()──► all /ws/theme listeners
+                                                   (theme_sync.js on every FoveAI page:
+                                                    multigate, XR_Vessel, webvm, dash pages)
+        │
+        ▼ (fetch on load)
+  GET /api/themes  ──► vite rewrite ──► :8400 /themes ──► Backend/themes/manifest.json
+  GET /foveai-aurora.css ──► :8415 FileResponse (theme/<name>.css)
+
+Profile Pictures:
+  PersonaTab ──POST /api/profile/picture (dataURL)──► :8400
+      → media/gallery/<user>/profile_<id>.<ext>   (COLLECT — new file per upload)
+      → gallery.json + profile_pictures.json (index + current pointer)
+      → auth.json users[].profilePicture (mirrored)
+  AvatarWindow ──GET /api/profile/picture──► current gallery URL (or fallback)
+
+# 2026-10-12 Addendum — Host Developer Cockpit, Open XRL Agent Contract & Memory Pipeline
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            HOST DEVELOPER COCKPIT                           │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐  │
+│  │                     XRL COGNITION HUD (Top Banner)                    │  │
+│  │   🧠 Model: Tier-B (9B MoQ) │ 📂 Repo: ~/FoveAI │ ⚡ Vitals: GPU/RAM  │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│       │                                                               │     │
+│  ┌────▼───────────────────────────────────────────────────────────────▼──┐  │
+│  │  Padded Interactive Prompt (bash / agy)                                │  │
+│  │  - 2cm overscan margins (TV/monitor dead-space protection)             │  │
+│  │  - 50,000-line scrollback buffer                                       │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+│       │                                                               │     │
+│  ┌────▼───────────────────────────────────────────────────────────────▼──┐  │
+│  │  Lifted Status Bar: Live Telemetry (CPU, RAM, GPU, VRAM, IO, Net)      │  │
+│  └───────────────────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 1. Open XRL Contract Provisioning
+- **Agent Directory Structure**: Managed via `Tools/open_xrl_agent_provision.py`. Creates `/agent/<name>` with ed25519 keypair, `XRL_CONTRACT.json` (specification `xrl-memory/1.0`), and dedicated foveated memory ring storage.
+- **WebSocket IPC & Memory Bus**: Real-time event streams on `ws://127.0.0.1:8403` handling `xrl.memory.register`, `deposit`, and `recall`.
+- **Active Resonance Ring**: Influx and telemetry tail accessible over HTTP via `:8400/api/resonance/tail`.
+
+### 2. Dual-Tier Model Residency (`runtime/residency.py`)
+- **Tier A (Lightweight Multimodal)**: `gemma-4-e2b-multimodal-v1.0` on `:8407`. Runs continuously alongside desktop and VR.
+- **Tier B (Flagship Interactive)**: `Qwen3.5-9B-MoQ-3.6` + `Eagle3` draft on `:8408`. Captures full VRAM for high-speed chain-of-thought, with a 30s auto-unload timer to release GPU memory when idle.
+- **Hot-swapping**: Programmatic control via `foveai mind`, `python -m runtime.residency load A|B`, or `/swap` inside the console.
+
+### 3. Multi-Layer Memory Recall (`/usr/local/bin/recall`)
+A unified human-accessible recall pipeline querying across three distinct storage tiers:
+1. **Shadow Context Blocks**: Multi-turn dialogue snapshots stored in `foveated-memory/memory_data/shadow-context/` as structured JSON.
+2. **SQLite Agent Database**: `db/agent_memory.db` across `agent_memories`, `agent_journal` (1,300+ entries), and `agent_thoughts`.
+3. **Resonance Ring Bus**: Live telemetry memory units on port `:8400`.
+
+### 4. Zero-Memorization Master Control (`/usr/local/bin/foveai-menu`)
+- Interactive arrow-key navigation interface invoked by running `foveai` with no arguments.
+- Unifies fleet boot (`sleipnir_launcher.sh`), clean teardown (`foveai --unload`), model hot-swapping, interactive chat, memory recall, and tmux overscan HUD without requiring command memorization.
+

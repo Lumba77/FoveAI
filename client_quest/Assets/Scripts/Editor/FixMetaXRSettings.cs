@@ -19,6 +19,45 @@ public static class FixMetaXRSettings
             AssetDatabase.ImportAsset(openXRSettingsPath, ImportAssetOptions.ForceUpdate);
         }
 
+        // 1b. 2026-10-09: XR AUTO-START + loader for Android — the whole reason the
+        // installed APK rendered pitch black: automatic XR loading/running was off
+        // and no script started OpenXR at runtime. XRGeneralSettings drives the
+        // same flags as Assets/XR/XRGeneralSettingsPerBuildTarget.asset but from
+        // the build pipeline, so a fresh machine can never ship a dead build.
+        try
+        {
+            var asmXR = System.AppDomain.CurrentDomain.GetAssemblies()
+                .FirstOrDefault(a => a.GetName().Name == "Unity.XR.Management");
+            if (asmXR != null)
+            {
+                var settingsType = asmXR.GetType("UnityEditor.XR.Management.XRGeneralSettingsPerBuildTarget", false);
+                var editorType = asmXR.GetType("UnityEditor.XR.Management.XRGeneralSettings", false);
+                if (settingsType != null && editorType != null)
+                {
+                    var instanceProp = settingsType.GetProperty("Instance");
+                    var perTarget = instanceProp?.GetValue(null);
+                    var settingsFor = settingsType.GetMethod("SettingsForBuildTarget",
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                    var androidTarget = UnityEditor.Build.NamedBuildTarget.Android;
+                    var generalSettings = settingsFor?.Invoke(null, new object[] { androidTarget });
+                    if (generalSettings != null)
+                    {
+                        var managerField = generalSettings.GetType().GetField("Manager");
+                        var manager = managerField?.GetValue(generalSettings);
+                        if (manager != null)
+                        {
+                            var autoLoad = manager.GetType().GetField("automaticLoading");
+                            var autoRun = manager.GetType().GetField("automaticRunning");
+                            autoLoad?.SetValue(manager, true);
+                            autoRun?.SetValue(manager, true);
+                            Debug.Log("[FixMetaXR] XR automaticLoading/Running = true (Android)");
+                        }
+                    }
+                }
+            }
+        }
+        catch (System.Exception e) { Debug.LogWarning($"[FixMetaXR] XR auto-start reflection failed: {e.Message}"); }
+
         // 2. Android SDK settings
         PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel32;
         PlayerSettings.Android.targetSdkVersion = (AndroidSdkVersions)0; // auto-detect
@@ -63,13 +102,6 @@ public static class FixMetaXRSettings
         AssetDatabase.Refresh();
 
         Debug.Log("[FixMetaXR] === ALL FIXES APPLIED ===");
-        EditorUtility.DisplayDialog(
-            "Fixes Applied",
-            "All Meta XR + OpenXR settings have been fixed.\n\n" +
-            "Next steps:\n" +
-            "1. Go to Edit > Project Settings > Meta XR — click 'Fix All' if any items remain\n" +
-            "2. Run Spatial Machine > Configure and Build APK",
-            "OK");
     }
 
     private static void FixOpenXRFeatures()
@@ -183,15 +215,24 @@ public static class FixMetaXRSettings
             }
         }
 
-        // Refresh features via FeatureHelpers
+        // Refresh features via FeatureHelpers — 2026-10-09: NREs inside Unity's
+        // RefreshAllFeatureInfo on a fresh machine (empty feature tables).
+        // Cosmetic-only refresh: guard it so a clean install can still build.
         var featureHelpersType = System.Type.GetType("UnityEditor.XR.OpenXR.Features.FeatureHelpers, Unity.XR.OpenXR.Editor");
         if (featureHelpersType != null)
         {
-            var refreshMethod = featureHelpersType.GetMethod("RefreshFeatures", BindingFlags.Public | BindingFlags.Static);
-            if (refreshMethod != null)
+            try
             {
-                refreshMethod.Invoke(null, new object[] { BuildTargetGroup.Android });
-                Debug.Log("[FixMetaXR] Refreshed OpenXR features for Android");
+                var refreshMethod = featureHelpersType.GetMethod("RefreshFeatures", BindingFlags.Public | BindingFlags.Static);
+                if (refreshMethod != null)
+                {
+                    refreshMethod.Invoke(null, new object[] { BuildTargetGroup.Android });
+                    Debug.Log("[FixMetaXR] Refreshed OpenXR features for Android");
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"[FixMetaXR] OpenXR feature refresh skipped: {e.InnerException?.Message ?? e.Message}");
             }
         }
 

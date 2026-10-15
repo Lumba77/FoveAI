@@ -257,12 +257,58 @@ function getCachedSkeleton(rootDir, cachePath) {
     return skeleton;
 }
 
+// ── Symbol Index Lens ───────────────────────────────────────────────────────
+
+const DEFAULT_SYMBOL_INDEX = path.resolve(__dirname, '..', '..', '.sidecar', 'cache', 'symbol-embeddings-meta.json');
+let _symbolCache = null;
+
+function loadSymbolIndex(customPath) {
+    const indexPath = customPath || process.env.REPO_INDEX_OVERRIDE || DEFAULT_SYMBOL_INDEX;
+    if (_symbolCache && !customPath) return _symbolCache;
+    try {
+        if (fs.existsSync(indexPath)) {
+            _symbolCache = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+            return _symbolCache;
+        }
+    } catch (_) {}
+    return null;
+}
+
+function lookupSymbol(symbolName, options = {}) {
+    const index = loadSymbolIndex(options.indexPath);
+    if (!index || !index.entries) return [];
+    const results = [];
+    const query = symbolName.toLowerCase();
+    for (const entry of Object.values(index.entries)) {
+        if (entry.name && entry.name.toLowerCase().includes(query)) {
+            results.push(entry);
+        }
+    }
+    return results;
+}
+
+function getSymbolsForFile(relFilePath, options = {}) {
+    const index = loadSymbolIndex(options.indexPath);
+    if (!index || !index.entries) return [];
+    const norm = relFilePath.replace(/\\/g, '/');
+    const results = [];
+    for (const entry of Object.values(index.entries)) {
+        if (entry.filePath && entry.filePath === norm) {
+            results.push(entry);
+        }
+    }
+    return results;
+}
+
 // ── Export ─────────────────────────────────────────────────────────────────
 
 module.exports = {
     generateSkeleton,
     getCachedSkeleton,
     extractAnnotation,
+    loadSymbolIndex,
+    lookupSymbol,
+    getSymbolsForFile,
     SKIP_DIRS,
     SKIP_EXTENSIONS
 };

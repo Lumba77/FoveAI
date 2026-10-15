@@ -59,12 +59,14 @@ export class AmbientSoundEngine {
             let topBarAlive = false;
             try {
                 // Check TopBar first (if running, it handles background audio)
-                const tbResp = await fetch('http://127.0.0.1:19847/status', { signal: AbortSignal.timeout(1500) });
+                // Same-origin backend health (:19847 TopBar is long dead and
+                // only produced cross-origin console errors on every poll).
+                const tbResp = await fetch('/api/status', { signal: AbortSignal.timeout(1500) });
                 if (tbResp.ok) {
                     const tbData = await tbResp.json();
                     topBarAlive = true;
-                    this._backendAlive = tbData.alive !== false;
-                    return; // TopBar is running — let it govern audio
+                    this._backendAlive = tbData.status !== 'ERROR';
+                    return; // backend is up — it governs audio
                 }
             } catch (_) { /* TopBar not running */ }
 

@@ -90,7 +90,7 @@ def refresh_network_config() -> None:
 
 def establish_adb_reverse() -> None:
     """Establish ADB reverse tunnels directly on Windows."""
-    ports = [8400, 8401, 8402, 8403, 8300, 8001, 8002, 8003, 8004, 8005, 8080, 8888]
+    ports = [8400, 8414, 8402, 8403, 8300, 8001, 8002, 8003, 8004, 8005, 8080, 8888]
     try:
         res = subprocess.run(
             ["adb", "devices"], capture_output=True, text=True, timeout=5

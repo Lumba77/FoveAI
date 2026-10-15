@@ -65,7 +65,7 @@ namespace Lumax.Quest3Bridge
                 _ = ConfigLoader.LoadConfigAsync();
             }
 
-            string ip = ConfigLoader.Settings != null ? ConfigLoader.Settings.serverIp : "192.168.8.100";
+            string ip = ConfigLoader.Settings != null ? ConfigLoader.Settings.serverIp : "192.168.8.109";
             _serverUrl = $"http://{ip}:{targetPort}/v1/chat/completions";
             Debug.Log($"[DirectXRLFClient] Initialized routing to: {_serverUrl}");
 

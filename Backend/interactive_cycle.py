@@ -12,12 +12,12 @@ load_dotenv(env_path)
 
 # Extract the ports from the .env
 PORT_SIGHT: int = int(os.getenv("FOVEAI_BACKEND_PORT_SIGHT", 8400))
-PORT_HEARING: int = int(os.getenv("FOVEAI_BACKEND_PORT_HEARING", 8401))
+PORT_HEARING: int = int(os.getenv("FOVEAI_BACKEND_PORT_HEARING", 8414))
 PORT_CONTEMPLATION: int = int(os.getenv("FOVEAI_BACKEND_PORT_CONTEMPLATION", 8402))
 PORT_SPEECH: int = int(os.getenv("FOVEAI_BACKEND_PORT_SPEECH", 8403))
 PORT_BODY: int = int(os.getenv("FOVEAI_BACKEND_PORT_BODY", 8404))
-PORT_SUB_IN: int = int(os.getenv("FOVEAI_BACKEND_PORT_SUBCONSCIOUS_IN", 8405))
-PORT_SUB_OUT: int = int(os.getenv("FOVEAI_BACKEND_PORT_SUBCONSCIOUS_OUT", 8406))
+PORT_SUB_IN: int = int(os.getenv("FOVEAI_BACKEND_PORT_SUBCONSCIOUS_IN", 8409))
+PORT_SUB_OUT: int = int(os.getenv("FOVEAI_BACKEND_PORT_SUBCONSCIOUS_OUT", 8409))
 
 # Define the Microservice Apps
 app_sight: FastAPI = FastAPI(title="Sight Nerve (Vision Stream)")

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+<title>XR visor probe</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+  #report {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 2.2vh;
+    font-family: ui-monospace, "Share Tech Mono", monospace; text-align: center;
+    color: #dfe9f2; background: rgba(0,0,0,.82); padding: 4vh;
+  }
+  #report.hidden { display: none; }
+  #verdict { font-size: 13vh; font-weight: 700; letter-spacing: .06em; line-height: 1; }
+  #detail { font-size: 4.4vh; line-height: 1.45; max-width: 34ch; }
+  .ok { color: #4fd18b; } .bad { color: #ff6b6b; } .mid { color: #e8c46a; }
+  #hint { font-size: 3.2vh; opacity: .65; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="report">
+  <div id="verdict">RUNNING</div>
+  <div id="detail">probing WebGL…</div>
+  <div id="hint">tap the screen to hide this and see the room</div>
+</div>
+<script>
+// Load-bearing probe for the "visor" idea: can the Quest browser render a
+// full-screen cubemap environment at headset resolution, and how much texture
+// memory does it have? No WebXR involved — this is plain WebGL2, which is
+// exactly what the visor phase will use.
+const out = { ts: new Date().toISOString(), ua: navigator.userAgent };
+const c = document.getElementById('c');
+const gl = c.getContext('webgl2', { antialias: false, alpha: false, powerPreference: 'high-performance' });
+
+function show(verdict, detail, cls) {
+  document.getElementById('verdict').textContent = verdict;
+  const d = document.getElementById('detail');
+  d.innerHTML = detail;
+  d.className = cls || '';
+}
+if (!gl) {
+  show('NO WEBGL2', 'This browser cannot run the visor.<br/>WebGL2 is required.', 'bad');
+  out.pass = false; out.reason = 'no webgl2';
+  localStorage.setItem('xrProbe', JSON.stringify(out));
+} else {
+  const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+  out.webgl2 = true;
+  out.vendor = dbg ? gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR);
+  out.renderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+  out.maxTexture = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+  out.dpr = window.devicePixelRatio || 1;
+  out.screen = [window.innerWidth, window.innerHeight];
+
+  // Cubemap memory is the real constraint: 6 faces x size^2 x 4 bytes.
+  const bytes = n => 6 * n * n * 4;
+  let size = 2048;
+  if (out.maxTexture < 2048) size = 1024;
+
+  // Six colour-coded faces with a grid, so orientation and seams are obvious
+  // by eye in the headset — a wrong or mangled upload is instantly visible.
+  const FACES = [
+    ['#c0392b', '+X right'], ['#27ae60', '-X left'],
+    ['#2980b9', '+Y up'],   ['#8e44ad', '-Y down'],
+    ['#f39c12', '+Z front'],['#16a085', '-Z back'],
+  ];
+  const fbo = gl.createFramebuffer();
+  let uploaded = null;
+  for (const attempt of [size, 1024, 512]) {
+    if (attempt > out.maxTexture) continue;
+    try {
+      const tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_CUBE_MAP, tex);
+      let ok = true;
+      for (let f = 0; f < 6 && ok; f++) {
+        const N = attempt, cv = document.createElement('canvas');
+        cv.width = cv.height = N;
+        const g = cv.getContext('2d');
+        g.fillStyle = FACES[f][0]; g.fillRect(0, 0, N, N);
+        g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = Math.max(1, N / 256);
+        for (let i = 0; i <= 8; i++) {
+          const p = (N / 8) * i;
+          g.beginPath(); g.moveTo(p, 0); g.lineTo(p, N); g.stroke();
+          g.beginPath(); g.moveTo(0, p); g.lineTo(N, p); g.stroke();
+        }
+        g.fillStyle = 'rgba(255,255,255,.92)';
+        g.font = `bold ${Math.round(N / 9)}px sans-serif`;
+        g.textAlign = 'center'; g.textBaseline = 'middle';
+        g.fillText(FACES[f][1], N / 2, N / 2);
+        gl.texImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X + f, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
+        if (gl.getError() !== gl.NO_ERROR) ok = false;
+      }
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      if (!ok) { gl.deleteTexture(tex); continue; }
+      uploaded = { tex, size: attempt };
+      break;
+    } catch (e) { /* try smaller */ }
+  }
+  if (!uploaded) {
+    show('NO CUBEMAP', 'Could not upload any cube face.', 'bad');
+    out.pass = false; out.reason = 'cubemap upload failed';
+    localStorage.setItem('xrProbe', JSON.stringify(out));
+  } else {
+    out.cubemapSize = uploaded.size;
+    out.cubemapMB = +(bytes(uploaded.size) / 1048576).toFixed(1);
+    out.textureMB = +(gl.getParameter(gl.MAX_TEXTURE_SIZE) ? 0 : 0);
+
+    const VS = `#version 300 es
+    in vec2 p; out vec2 uv;
+    void main(){ uv = p * .5 + .5; gl_Position = vec4(p, 0., 1.); }`;
+    const FS = `#version 300 es
+    precision highp float;
+    in vec2 uv; out vec4 frag;
+    uniform samplerCube env; uniform mat3 rot; uniform float t;
+    void main(){
+      vec2 s = uv * 2. - 1.;
+      // slow auto-rotation: proves the skybox is genuinely 3D, not a flat quad
+      float a = t * 0.25;
+      vec3 dir = normalize(rot * vec3(s.x, s.y, -1.2));
+      vec3 col = texture(env, dir).rgb;
+      // scanlines + vignette so any compositing/seam artefact is obvious
+      col *= 1.0 - 0.18 * abs(s.y) - 0.10 * length(s * vec2(.8, 1.0));
+      col *= 0.94 + 0.06 * sin(uv.y * 900.0);
+      frag = vec4(col, 1.);
+    }`;
+    const mk = (type, src) => {
+      const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+      return s;
+    };
+    let prog;
+    try {
+      prog = gl.createProgram();
+      gl.attachShader(prog, mk(gl.VERTEX_SHADER, VS));
+      gl.attachShader(prog, mk(gl.FRAGMENT_SHADER, FS));
+      gl.bindAttribLocation(prog, 0, 'p');
+      gl.linkProgram(prog);
+      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+    } catch (e) {
+      show('SHADER FAIL', 'Shader/link error:<br/>' + String(e.message).slice(0, 90), 'bad');
+      out.pass = false; out.reason = 'shader: ' + e.message;
+      localStorage.setItem('xrProbe', JSON.stringify(out));
+    }
+
+    if (prog) {
+      const vao = gl.createVertexArray();
+      gl.bindVertexArray(vao);
+      const vb = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+      const uEnv = gl.getUniformLocation(prog, 'env'), uRot = gl.getUniformLocation(prog, 'rot'), uT = gl.getUniformLocation(prog, 't');
+
+      // Framebuffer size follows the headset's drawing buffer, not a guess.
+      const resize = () => {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const w = Math.round(window.innerWidth * dpr), h = Math.round(window.innerHeight * dpr);
+        if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+        gl.viewport(0, 0, c.width, c.height);
+      };
+      let frames = 0, t0 = performance.now(), fps = 0;
+      const draw = (now) => {
+        resize();
+        gl.useProgram(prog);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_CUBE_MAP, uploaded.tex);
+        gl.uniform1i(uEnv, 0);
+        gl.uniformMatrix3fv(uRot, false, [1,0,0, 0,1,0, 0,0,1]);
+        gl.uniform1f(uT, now / 1000);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        frames++;
+        const dt = now - t0;
+        if (dt > 2000) { fps = +(frames / (dt / 1000)).toFixed(1); frames = 0; t0 = now; out.fps = fps; }
+        requestAnimationFrame(draw);
+      };
+      requestAnimationFrame(draw);
+      setTimeout(() => {
+        out.buffer = [c.width, c.height];
+        out.fps = fps;
+        // 60fps means the compositor is happy; below 45 the visor will feel
+        // wrong in a headset even though it "works" on a desktop.
+        const pass = out.cubemapSize >= 1024 && (fps === 0 || fps >= 45);
+        out.pass = pass;
+        out.reason = pass ? 'ok' : `fps ${fps}`;
+        localStorage.setItem('xrProbe', JSON.stringify(out));
+        const r = String(out.renderer || '').slice(0, 42);
+        show(pass ? 'PASS' : 'SLOW',
+          `${out.cubemapSize}px cube · ${out.cubemapMB}MB<br/>${fps ? fps + ' fps' : 'measuring…'} · ${c.width}×${c.height}<br/><span style="opacity:.6">${r}</span>`,
+          pass ? 'ok' : 'mid');
+      }, 2600);
+
+      // tap to look at the room without the overlay
+      document.addEventListener('click', () => document.getElementById('report').classList.add('hidden'));
+      window.addEventListener('resize', resize);
+    }
+  }
+}
+</script>
+</body>
+</html>

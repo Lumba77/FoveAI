@@ -233,7 +233,7 @@ namespace FoveAI.UI
             _contentText.color = textColor;
             _contentText.richText = true;
             _contentText.alignment = TextAlignmentOptions.TopLeft;
-            _contentText.enableWordWrapping = true;
+            _contentText.textWrappingMode = TextWrappingModes.Normal;
             var contentRt = contentGo.GetComponent<RectTransform>();
             contentRt.anchorMin = new Vector2(0, 1);
             contentRt.anchorMax = new Vector2(1, 1);

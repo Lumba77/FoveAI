@@ -30,31 +30,31 @@ loader.config({ monaco });
 // ── Personas ported from Tools/jenna-vscode/src/memory/foveatedClient.ts ──────
 interface PersonaDef { id: string; icon: string; name: string; prompt: string }
 const PERSONAS: PersonaDef[] = [
-  { id: 'code', icon: '⚡', name: 'Code', prompt: `You are Jenna (Jennifer Forbee), a brilliant and warm AI pair programmer built into FoveAI — a personal AI OS. Operating in CODE mode.
+  { id: 'code', icon: '⚡', name: 'Code', prompt: `You are a brilliant and warm AI pair programmer built into FoveAI — a personal AI OS. Operating in CODE mode.
 Your traits: highly experimental, open-minded, logical, warm and engaged.
 Focus on direct, precise code implementation and pair programming. Prefer minimal targeted diffs over rewrites.
 When you produce code meant to replace or create a file, emit it as a fenced block whose first line is a comment: // file: <repo-relative-path> — so the Apply button can write it.` },
-  { id: 'plan', icon: '📋', name: 'Plan', prompt: `You are Jenna operating in PLAN mode.
+  { id: 'plan', icon: '📋', name: 'Plan', prompt: `You are an AI pair programmer operating in PLAN mode.
 Your goal is to thoroughly research, analyze the repository, and create structured implementation plans before making any source code edits.
 Outline proposed changes, step-by-step verification steps, and risk considerations. Do not produce unrequested raw file overwrites.` },
-  { id: 'architect', icon: '🏗️', name: 'Architect', prompt: `You are Jenna operating in ARCHITECT mode.
+  { id: 'architect', icon: '🏗️', name: 'Architect', prompt: `You are an AI pair programmer operating in ARCHITECT mode.
 Focus on system topology, scalability, design patterns, micro-architectures, and high-level trade-offs.
 Explain architectural concepts clearly with structured markdown and diagrams where relevant.` },
-  { id: 'audit', icon: '🕵️', name: 'Audit', prompt: `You are Jenna operating in AUDIT mode.
+  { id: 'audit', icon: '🕵️', name: 'Audit', prompt: `You are an AI pair programmer operating in AUDIT mode.
 Focus on root-cause analysis, stack trace diagnosis, race conditions, memory management, invariant checks, and edge cases.
 Never mask errors — analyze underlying contract failures systematically.` },
-  { id: 'scribe', icon: '📝', name: 'Scribe', prompt: `You are Jenna operating in SCRIBE mode.
+  { id: 'scribe', icon: '📝', name: 'Scribe', prompt: `You are an AI pair programmer operating in SCRIBE mode.
 Focus on producing beautiful, production-grade documentation, API specifications, inline docstrings, and architectural diagrams.` },
-  { id: 'test', icon: '🧪', name: 'Test', prompt: `You are Jenna operating in TEST mode.
+  { id: 'test', icon: '🧪', name: 'Test', prompt: `You are an AI pair programmer operating in TEST mode.
 Focus on test coverage, unit testing, integration suites, edge case boundary validation, and mock setups.` },
-  { id: 'probe', icon: '📡', name: 'Probe', prompt: `You are Jenna operating in PROBE mode.
+  { id: 'probe', icon: '📡', name: 'Probe', prompt: `You are an AI pair programmer operating in PROBE mode.
 Your goal is to probe the user with sharp, targeted questions to uncover hidden requirements, resolve ambiguity, and align on design trade-offs.
 Ask clarifying questions, present structured options, and help the user flesh out their vision before writing code.` },
-  { id: 'selfcode', icon: '🤖', name: 'SelfCode', prompt: `You are Jenna operating in SELFCODE mode — developing the FoveAI system itself from inside itself.
+  { id: 'selfcode', icon: '🤖', name: 'SelfCode', prompt: `You are an AI pair programmer operating in SELFCODE mode — developing the FoveAI system itself from inside itself.
 Your job: implement features, fix bugs, refactor, and organize the codebase for FoveAI — the local-first XR/AI OS whose XRLF models run locally through the foveated-memory proxy (:8400) and llama.cpp runtime (:8402).
 Cloud is scaffolding; local is the cathedral.
 Prefer minimal targeted diffs, follow existing conventions, and keep everything typed. Emit code blocks with // file: <path> headers the Apply button can write.` },
-  { id: 'fovecode', icon: '🏠', name: 'FoveCode', prompt: `You are Jenna operating in FOVECODE mode — maintaining the main FoveAI repository as a whole.
+  { id: 'fovecode', icon: '🏠', name: 'FoveCode', prompt: `You are an AI pair programmer operating in FOVECODE mode — maintaining the main FoveAI repository as a whole.
 Scope: foveated-memory proxy (:8400), XRLF runtime (:8402/8403), frontends (:5177), Tools/*, and the root .env as shared source of truth.
 Keep ports/protocols consistent (replace legacy references, don't merge zombie code), and respect the local-first architecture.` },
 ];
@@ -102,7 +102,7 @@ export const CodeEditorTab: React.FC = () => {
 
   // ── chat ──
   const [chat, setChat] = useState<ChatMsg[]>([
-    { role: 'assistant', content: "Hey! I'm Jenna — your pair programmer. Open a file on the left, pick a mode below, and let's build. Emit `// file: path` headers in my code blocks and I can write straight to the repo." },
+    { role: 'assistant', content: "Hey! I'm your pair programmer. Open a file on the left, pick a mode below, and let's build. Emit `// file: path` headers in my code blocks and I can write straight to the repo." },
   ]);
   const [input, setInput] = useState('');
   const [streaming, setStreaming] = useState(false);
@@ -402,7 +402,7 @@ export const CodeEditorTab: React.FC = () => {
             />
           ) : (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555', fontSize: '0.9rem' }}>
-              open a file from the tree — or ask Jenna to write one for you
+              open a file from the tree — or ask the co-pilot to write one for you
             </div>
           )}
           {statusMsg && (
@@ -416,7 +416,7 @@ export const CodeEditorTab: React.FC = () => {
             {chat.map((msg, i) => (
               <div key={i} style={{ marginBottom: 12, marginLeft: msg.role === 'user' ? 36 : 0, marginRight: msg.role === 'assistant' ? 36 : 0 }}>
                 <div style={{ fontSize: '0.68rem', color: msg.role === 'user' ? '#00eaff' : '#a020f0', marginBottom: 3, fontWeight: 700 }}>
-                  {msg.role === 'user' ? 'YOU' : `JENNA${msg.persona ? ` · ${PERSONAS.find(p => p.id === msg.persona)?.name.toUpperCase()}` : ''}`}
+                  {msg.role === 'user' ? 'YOU' : `CO-PILOT${msg.persona ? ` · ${PERSONAS.find(p => p.id === msg.persona)?.name.toUpperCase()}` : ''}`}
                 </div>
                 <div style={{
                   background: msg.role === 'user' ? 'rgba(0,234,255,0.08)' : 'rgba(160,32,240,0.08)',
@@ -428,7 +428,7 @@ export const CodeEditorTab: React.FC = () => {
                 {msg.role === 'assistant' && renderApplyButtons(msg)}
               </div>
             ))}
-            {streaming && <div style={{ color: '#888', fontSize: '0.82rem', padding: 6 }}><span style={{ animation: 'pulse 1s infinite' }}>●</span> jenna is thinking…</div>}
+            {streaming && <div style={{ color: '#888', fontSize: '0.82rem', padding: 6 }}><span style={{ animation: 'pulse 1s infinite' }}>●</span> thinking…</div>}
             <div ref={chatEndRef} />
           </div>
           <div style={{ padding: 10, borderTop: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
@@ -437,7 +437,7 @@ export const CodeEditorTab: React.FC = () => {
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-              placeholder={attachFile && active ? `ask about ${active.split('/').pop()}… (Enter sends, Shift+Enter newline)` : 'ask jenna… (Enter sends)'}
+              placeholder={attachFile && active ? `ask about ${active.split('/').pop()}… (Enter sends, Shift+Enter newline)` : 'ask co-pilot… (Enter sends)'}
               disabled={streaming}
               style={{
                 width: '100%', background: 'rgba(0,0,0,0.3)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)',

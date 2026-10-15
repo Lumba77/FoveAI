@@ -1,0 +1,16 @@
+[Unit]
+Description=FoveAI Residency — on-demand brain tiers, idle unload
+After=network.target
+
+[Service]
+Type=simple
+User=lumba
+WorkingDirectory=/home/lumba/FoveAI
+Environment=FOVEAI_IDLE_UNLOAD_S=30
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/lumba/FoveAI/.venv/bin/python -m runtime.residency run
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

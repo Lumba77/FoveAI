@@ -35,16 +35,23 @@
   filter: drop-shadow(0 0 .4em color-mix(in srgb, var(--tb-finish) 70%, transparent));
 }
 
-/* ── bearing-pips: little steel planets seated on the ring ── */
+/* ── bearing-pips: little steel planets seated on the ring ──
+    z-index 4 — ABOVE the socket (3): the pip boxes overlap the socket's
+    edge by a few px, and at z2 the socket bowl painted over the silver
+    settings balls, obscuring them entirely. */
 .tb-pip {
-  position: absolute; left: 50%; top: 50%; width: 3.5em; height: 3.5em;
-  margin: -1.75em 0 0 -1.75em; z-index: 2;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: .06em; cursor: pointer;
+  position: absolute; left: 50%; top: 50%;
+  /* 0x0 anchor at the exact centre: children (ball/label/val) center
+     themselves via translate(-50%,-50%). The old 3.5em box with -1.75em
+     margins offset the anchor by half an em-box (54px at ignition scale)
+     → pips orbited an ellipse, N and S balls at different radii. */
+  width: 0; height: 0; z-index: 4;
+  cursor: pointer;
   font-family: 'Share Tech Mono', monospace;
 }
 .tb-pip-ball {
-  width: 1.65em; height: 1.65em; border-radius: 50%; flex-shrink: 0;
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: 1.65em; height: 1.65em; border-radius: 50%;
   background:
     radial-gradient(circle at 34% 28%, rgba(255,255,255,.85) 0 12%, transparent 30%),
     radial-gradient(circle at 40% 35%, #cfd4de 0%, #6a7080 45%, #14161f 100%);
@@ -67,11 +74,15 @@
     inset 0 -.3em .5em rgba(0,0,0,.7);
 }
 .tb-pip-label {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, calc(-50% - 2.2em));   /* headline above the ball */
   font-size: .62em; letter-spacing: 1px; color: #b9c2de; white-space: nowrap;
   text-shadow: 0 1px 3px #000, 0 0 .5em rgba(10,14,40,.9);
 }
 .tb-pip.armed .tb-pip-label { color: var(--tb-finish); text-shadow: 0 0 .5em var(--tb-finish), 0 1px 3px #000; }
 .tb-pip-val {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, calc(-50% + 2.1em));   /* value below the ball */
   font-size: .66em; color: rgba(201,240,174, calc(.5 + var(--pv) * .5)); white-space: nowrap;
   text-shadow: 0 1px 3px #000;
 }
@@ -207,7 +218,7 @@
   cursor: pointer; pointer-events: auto; z-index: 6;
   transition: all .12s ease;
 }
-.tb-lock:hover { filter: brightness(1.15); }
+.tb-lock:hover { filter: brightness(1.15); transition: none; }
 .tb-lock.tb-on {
   background: radial-gradient(circle at 42% 38%, #7a4a12, #b57f2e 70%, #e8c06a);
   box-shadow:
@@ -252,3 +263,139 @@
     inset 0 -.15em .4em rgba(255,205,110,.12);
 }
 .tb-bare .tb-ball { cursor: pointer; }
+
+/* ── LCD screen inside the ball — the settings console lives IN the ball ── */
+.tb-lcd {
+  position: absolute; left: 50%; top: 47%;
+  transform: translate(-50%, -50%);
+  width: 74%; max-height: 44%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: .18em;
+  pointer-events: none;             /* never eats ball gestures */
+  z-index: 5;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: .95em;
+  color: #eaffd2;
+  text-shadow: 0 1px 2px rgba(0,0,0,.9);
+  background:
+    linear-gradient(180deg, rgba(6,10,4,.42), rgba(3,6,2,.55));
+  border-radius: 1.2em;
+  padding: .5em .7em;
+}
+.tb-lcd-warm { color: #ffe9b0; }
+.tb-lcd-cool { color: #eaffd2; }
+.tb-lcd b { font-weight: normal; letter-spacing: 1.6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tb-lcd .row { display: flex; justify-content: space-between; width: 100%;
+  gap: 1em; font-size: .82em; opacity: .92;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tb-lcd .hint { font-size: .7em; opacity: .78; letter-spacing: .8px; line-height: 1.5;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+/* ══ TRANSPARENT CONSOLE BALL ══
+   The ball is now a glass dome: the LCD inside must be plainly readable,
+   while the ball's hue carries the SERVER STATE (health beacon semantics
+   already on .tb-root: red=down, yellow=loading, green=ready). */
+.tb-ball, .tb-ball:not(:active) {
+  /* dilute the red plastic into glass: high transparency, lamp light kept */
+  background:
+    radial-gradient(circle at 33% 22%, rgba(255,255,255,.55) 0 3.5%, rgba(255,240,220,.30) 8%, transparent 22%),
+    radial-gradient(ellipse 65% 30% at 50% 10%, rgba(255,255,255,.16), transparent 70%),
+    radial-gradient(circle at 50% 45%,
+      color-mix(in srgb, var(--tb-lamp-hot) 40%, transparent) 0 8%,
+      color-mix(in srgb, var(--tb-lamp) 30%, transparent) 42%,
+      transparent 72%),
+    linear-gradient(180deg, rgba(20,24,34,.34), rgba(8,10,18,.44));
+  box-shadow:
+    0 0 1.7em color-mix(in srgb, var(--tb-lamp) 40%, transparent),
+    inset 0 -1.6em 2.8em rgba(0,0,0,.38),
+    inset 0 0 0 1px color-mix(in srgb, var(--tb-lamp) 55%, transparent),
+    0 1.1em 2.6em rgba(0,0,0,.55);
+  backdrop-filter: blur(2px) saturate(1.1);
+  -webkit-backdrop-filter: blur(2px) saturate(1.1);
+}
+/* LCD readability on glass */
+.tb-lcd {
+  background: linear-gradient(180deg, rgba(4,7,3,.68), rgba(2,4,1,.78));
+}
+
+/* ── inner planets: tappable core-setting seats inside the glass ball ── */
+.tb-planet {
+  position: absolute; left: 50%; top: 50%;
+  width: 2.1em; height: 2.1em; border-radius: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 6; pointer-events: auto; cursor: pointer;
+  background: radial-gradient(circle at 36% 30%, rgba(255,255,255,.9) 0 10%, transparent 28%),
+              radial-gradient(circle at 40% 36%, #dfe4ee 0%, #8a90a0 45%, #171a26 100%);
+  border: 1px solid rgba(140,200,255,.25);
+  box-shadow: 0 .12em .3em rgba(0,0,0,.5), inset 0 -.2em .35em rgba(0,0,0,.5);
+  transition: box-shadow .2s, border-color .2s, filter .2s;
+}
+.tb-planet:hover { filter: brightness(1.2); border-color: rgba(190,225,255,.55); }
+.tb-planet.sel {
+  border-color: var(--tb-lamp);
+  box-shadow: 0 0 .7em color-mix(in srgb, var(--tb-lamp) 70%, transparent),
+              0 .1em .25em rgba(0,0,0,.5),
+              inset 0 -.2em .3em rgba(0,0,0,.45);
+}
+/* planet orbit seats — two TIGHT rows inside the LCD pane */
+.tb-planet { width: 1.7em; height: 1.7em; }
+.tb-planet.r1 { translate: 0 -2.1em; }
+.tb-planet.r1.p-2 { translate: -2.35em -1.5em; }
+.tb-planet.r1.p-3 { translate: 2.35em -1.5em; }
+.tb-planet.r2 { translate: 0 2.2em; }
+.tb-planet.r2.p-2 { translate: -2.35em 1.55em; }
+.tb-planet.r2.p-3 { translate: 2.35em 1.55em; }
+
+/* axis guide arrows — how to spin the ball in the current mode */
+.tb-axis-hint { position: absolute; z-index: 7; pointer-events: none;
+  font-size: 1em; color: color-mix(in srgb, var(--tb-lamp) 75%, #fff);
+  text-shadow: 0 1px 3px #000, 0 0 .5em color-mix(in srgb, var(--tb-lamp) 60%, transparent);
+  opacity: .85; }
+.tb-axis-hint.up   { left: 50%; top: 4%;  transform: translateX(-50%); }
+.tb-axis-hint.down { left: 50%; bottom: 4%; transform: translateX(-50%); }
+.tb-axis-hint.left  { left: 4%;  top: 50%; transform: translateY(-50%); }
+.tb-axis-hint.right { right: 4%; top: 50%; transform: translateY(-50%); }
+/* locked: hide vertical arrows, show horizontal — static opacities only,
+   NO transitions/hovers inside the ball (they re-composite the whole
+   instrument on weak GPUs → background flicker) */
+.tb-locked .tb-axis-hint.up, .tb-locked .tb-axis-hint.down { opacity: .18; }
+.tb-locked .tb-axis-hint.left, .tb-locked .tb-axis-hint.right { opacity: .95; }
+
+/* ══ PLANETARY SYSTEM — visual only, behind the glass ══
+   A faint orbit ellipse + small planets riding it. pointer-events: none —
+   the glass ball is manipulated by tilting, never by clicking the glass. */
+.tb-orbit { position: absolute; left: 50%; top: 50%; width: 100%; height: 100%;
+  transform: translate(-50%, -50%); pointer-events: none; z-index: 2;
+  animation: orbit-tilt 12s ease-in-out infinite alternate; }
+@keyframes orbit-tilt {
+  0%   { transform: translate(-50%,-50%) rotate(-6deg) scaleY(.96); }
+  100% { transform: translate(-50%,-50%) rotate(7deg)  scaleY(1.04); } }
+.tb-orbit-ring { position: absolute; left: 50%; top: 50%; width: 78%; height: 30%;
+  transform: translate(-50%,-50%); border-radius: 50%;
+  border: 1px solid rgba(210,225,255,.20);
+  box-shadow: 0 0 .5em rgba(160,190,255,.08) inset; }
+.tb-orbit-planet { position: absolute; left: 50%; top: 50%; width: 6%; height: 9.5%;
+  border-radius: 50%;
+  /* ellipse walk: angle→position on a 39%×15% ellipse (of ball), centered */
+  left: calc(50% + 39% * cos(var(--pa, 0deg)));
+  top:  calc(50% + 15% * sin(var(--pa, 0deg)));
+  transform: translate(-50%, -50%);
+  translate: none;
+  background: radial-gradient(circle at 36% 30%, rgba(255,255,255,.85) 0 12%, transparent 30%),
+              radial-gradient(circle at 40% 36%, #cfd6e4 0%, #6d7488 50%, #14161f 100%);
+  box-shadow: 0 .06em .18em rgba(0,0,0,.5), inset 0 -.1em .2em rgba(0,0,0,.45);
+  opacity: .8; }
+.tb-orbit-planet.p2 { width: 4.5%; height: 7%; opacity: .7; }
+.tb-orbit-planet.p3 { width: 7%; height: 11%; opacity: .85; }
+.tb-orbit-planet.p4 { width: 4%; height: 6.5%; opacity: .6; }
+.tb-orbit-planet.p5 { width: 5.5%; height: 8.5%; opacity: .75; }
+
+/* LCD below the ball — inside the socket's bottom rim, out of the hands */
+.tb-lcd-below { position: absolute; left: 50%; top: 100%;
+  transform: translate(-50%, -12%); width: 74%;
+  z-index: 7; pointer-events: none; }
+.tb-lcd-below { opacity: 0; animation: lcd-in .4s ease .15s forwards; }
+@keyframes lcd-in { to { opacity: 1; } }
+.tb-orbit-planet.sel { box-shadow: 0 0 .6em color-mix(in srgb, var(--tb-lamp) 65%, transparent),
+  inset 0 -.1em .2em rgba(0,0,0,.45); outline: 1px solid color-mix(in srgb, var(--tb-lamp) 60%, transparent); }

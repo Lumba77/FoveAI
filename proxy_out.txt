@@ -4,9 +4,9 @@
 [XRLF]    context_override=true capability_override=true foveation_override=true
 [PWSH] Using PowerShell: C:\Program Files\WindowsApps\Microsoft.PowerShell_7.6.5.0_x64__8wekyb3d8bbwe\pwsh.exe
 [XRLF] Proxy port: 8400
-[XRLF-Config] Loaded xrlf_config.yaml (model=lumax-plumax-omni-router-v2.xrlf, port=8402)
+[XRLF-Config] Loaded xrlf_config.yaml (model=lumax-plumax-omni-router-v2.xrlf, port=8406)
 [XRLF-Summarizer] enabled=true model=gemma-4-12b-it-qat-GGUF-MoQ endpoint=http://127.0.0.1:8402/v1 max_tokens=512 temp=0.3
-[ModelProfile] ✅ 'lumax-plumax-omni-router' → FoveAI Omni Router v1 (XRLF runtime) | mode=local upstream=http://127.0.0.1:8402/v1 aggression=2 ctx=8192 🔀 URL CHANGED
+[ModelProfile] ✅ 'lumax-plumax-omni-router' → FoveAI Omni Router v1 (XRLF runtime) | mode=local upstream=http://127.0.0.1:8406/v1 aggression=2 ctx=8192 🔀 URL CHANGED
 [ModelProfile] 🔄 Restored 'lumax-plumax-omni-router' from active-model.json (2026-08-26T10:00:00.000Z)
 [Store] Initializing new memory workspace: default
 
@@ -26,7 +26,7 @@
 [Continuity]    Messages: unknown
 [Continuity]    Model: lumax-plumax-omni-router-v2
 [Startup] Upstream LLM endpoint target: http://127.0.0.1:8402
-🖥️  Foveated Memory Dashboard on http://localhost:8401/memory
+🖥️  Foveated Memory Dashboard on http://localhost:8414/memory
 [Store] Initializing new memory workspace: XRLF
 [Store] Initializing new memory workspace: a87e5fe6d3334214b866ba8c79af3460_lCOisLzsLJ8X9Mug6VIfwQfU
 [Store] Initializing new memory workspace: a87e5fe6d3334214b866ba8c79af3460_lCOisLzsLJ8X9Mug6VIfwQfU_bak
@@ -130,7 +130,7 @@
 [Proxy] GET /health
 [Proxy] GET /health
 [Proxy] POST /v1/chat/completions
-[ModelProfile] ✅ 'lumax-plumax-omni-router-v2' → FoveAI Omni Router v2 (XRLF runtime — improved) | mode=local upstream=http://127.0.0.1:8402/v1 aggression=2 ctx=32768
+[ModelProfile] ✅ 'lumax-plumax-omni-router-v2' → FoveAI Omni Router v2 (XRLF runtime — improved) | mode=local upstream=http://127.0.0.1:8406/v1 aggression=2 ctx=32768
 [ContextHealer] 🔧 Provider=xrlf_server → max budget 16000 → 8000 chars
 [ContextHealer] 📉 Current budget clamped to 8000 chars
 [Fovea] Manual override: XRLF_PROXY_AGGRESSION=2 → multiplier=1 (L2 Light (x1.0))
@@ -150,7 +150,7 @@
 [Proxy] GET /health
 [Proxy] GET /health
 [Proxy] POST /v1/chat/completions
-[ModelProfile] ✅ 'lumax-plumax-omni-router-v2' → FoveAI Omni Router v2 (XRLF runtime — improved) | mode=local upstream=http://127.0.0.1:8402/v1 aggression=2 ctx=32768
+[ModelProfile] ✅ 'lumax-plumax-omni-router-v2' → FoveAI Omni Router v2 (XRLF runtime — improved) | mode=local upstream=http://127.0.0.1:8406/v1 aggression=2 ctx=32768
 [Fovea] Manual override: XRLF_PROXY_AGGRESSION=2 → multiplier=1 (L2 Light (x1.0))
 [Memory Resolution] Model 'lumax-plumax-omni-router-v2' mapped to L2 Light (x1.0). Budget: 400 tokens
 [handleChatCompletion] ▶️ entry | inject=false | rawMessages=1 | session=default_9f056dcf
@@ -231,7 +231,7 @@
 [Proxy] GET /health
 [Proxy] GET /health
 [Proxy] POST /v1/chat/completions
-[ModelProfile] ✅ 'lumax-plumax-omni-router-v2' → FoveAI Omni Router v2 (XRLF runtime — improved) | mode=local upstream=http://127.0.0.1:8402/v1 aggression=2 ctx=32768
+[ModelProfile] ✅ 'lumax-plumax-omni-router-v2' → FoveAI Omni Router v2 (XRLF runtime — improved) | mode=local upstream=http://127.0.0.1:8406/v1 aggression=2 ctx=32768
 [Fovea] Manual override: XRLF_PROXY_AGGRESSION=2 → multiplier=1 (L2 Light (x1.0))
 [Memory Resolution] Model 'lumax-plumax-omni-router-v2' mapped to L2 Light (x1.0). Budget: 400 tokens
 [handleChatCompletion] ▶️ entry | inject=false | rawMessages=1 | session=default_9f056dcf

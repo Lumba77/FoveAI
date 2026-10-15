@@ -13,13 +13,13 @@
 //
 // SoftLayer params:
 //   chatRelay.enabled     — true/false (default: true)
-//   chatRelay.port        — relay port (default: 8407)
+//   chatRelay.port        — relay port (default: 8413)
 //   chatRelay.maxLines    — max visible lines (default: 12)
 //   chatRelay.opacity     — panel opacity 0-1 (default: 0.85)
 //   chatRelay.fontSize    — text size (default: 0.08)
 
 FoveAI.setParam("chatRelay.enabled", true);
-FoveAI.setParam("chatRelay.port", 8407);
+FoveAI.setParam("chatRelay.port", 8413);
 FoveAI.setParam("chatRelay.maxLines", 12);
 FoveAI.setParam("chatRelay.opacity", 0.85);
 FoveAI.setParam("chatRelay.fontSize", 0.08);
@@ -63,7 +63,7 @@ function chatRelay_onLoad() {
 
 // ── Connect to the WebSocket relay ──
 function _connectRelay() {
-    var port = FoveAI.getParam("chatRelay.port") || 8407;
+    var port = FoveAI.getParam("chatRelay.port") || 8413;
     try {
         _ws = new WebSocket("ws://127.0.0.1:" + port + "/ws");
 

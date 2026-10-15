@@ -41,14 +41,36 @@ echo "  ✓ Installed filter-chain configs and impulses"
 # 4. Custom LADSPA plugins (fovefx: width/mixer helpers)
 if command -v gcc >/dev/null 2>&1; then
     mkdir -p "$HOME/.ladspa"
-    gcc -shared -fPIC -O2 -o "$HOME/.ladspa/fovefx.so" "$SCRIPT_DIR/fovefx.c"
-    echo "  ✓ Built fovefx.so → ~/.ladspa"
+    # Build with math library explicitly linked as needed for tanhf
+    gcc -shared -fPIC -O2 -o "$HOME/.ladspa/fovefx.so" "$SCRIPT_DIR/fovefx.c" -Wl,--no-as-needed -lm
+    
+    # Also copy to the system LADSPA dir (requires sudo) to bypass PipeWire sandbox issues
+    if [ -d "/usr/lib/ladspa" ]; then
+        echo "  [Sudo] Copying fovefx.so to system /usr/lib/ladspa/ (may prompt for password)..."
+        sudo cp "$HOME/.ladspa/fovefx.so" "/usr/lib/ladspa/fovefx.so" || echo "  ! Failed to copy to /usr/lib/ladspa/ - PipeWire might fail to load it."
+    fi
+    
+    # Back up to the older audio_fx folder for legacy reference
+    if [ -d "$HOME/FoveAI/tools/audio_fx" ]; then
+        cp "$HOME/.ladspa/fovefx.so" "$HOME/FoveAI/tools/audio_fx/fovefx.so"
+    fi
+    echo "  ✓ Built fovefx.so and deployed"
 else
     echo "  ! gcc not found — skipping fovefx.so build (pitch/width features need it)"
 fi
+
 if [ ! -e "$HOME/.ladspa/am_pitchshift_1433.so" ] && [ ! -e /usr/lib/ladspa/am_pitchshift_1433.so ]; then
-    echo "  ! swh-plugins (amPitchshift) not found — install it for pitch/warp to work"
+    echo "  ! swh-plugins (amPitchshift) not found — install it via 'sudo apt-get install swh-plugins' for pitch/warp to work"
 fi
+
+# Fix ladspa paths in the deployed config to use the system path if they were hardcoded
+sed -i "s|/home/lumba/.ladspa/fovefx.so|/usr/lib/ladspa/fovefx.so|g" \
+    "$HOME/.config/pipewire/pipewire.conf.d/sink-eq.conf" \
+    "$HOME/.config/pipewire/pipewire.conf.d/mic-fx.conf"
+sed -i "s|/home/lumba/.ladspa/am_pitchshift_1433.so|/usr/lib/ladspa/am_pitchshift_1433.so|g" \
+    "$HOME/.config/pipewire/pipewire.conf.d/sink-eq.conf" \
+    "$HOME/.config/pipewire/pipewire.conf.d/mic-fx.conf"
+
 
 # 5. Cinnamon Sound Applet integration
 mkdir -p "$HOME/.local/share/cinnamon/applets/sound@cinnamon.org"

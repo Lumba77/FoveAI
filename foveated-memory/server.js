@@ -47,6 +47,7 @@ const path    = require('path');
 const fs      = require('fs');
 const { execFile, spawn } = require('child_process');
 const { v4: uuidv4 } = require('uuid');
+const net     = require('net');
 
 
 // ============================================================
@@ -179,6 +180,7 @@ const { score: scoreImportance, refine: refineImportance, summarizeWithImportanc
 const { runAudit, tick: auditTick, startAutoAudit } = require('./core/memory-auditor');
 const { classifyBatch, formatStats: formatRetinaStats, VALUE } = require('./core/retina');
 const { applyProfile, saveActiveModel, loadActiveModel, listProfiles } = require('./core/model-profile-loader');
+const residency = require('./core/residency');
 const { 
     processButterflyEffect, 
     setEmotionalState, 
@@ -922,8 +924,8 @@ app.use((req, res, next) => {
     next();
 });
 
-// ── Dashboard static assets on port 8401 ─────────────────────────────────────
-const DASHBOARD_PORT = parseInt(process.env.XRLF_DASHBOARD_PORT || '8401', 10);
+// ── Dashboard static assets on port 8414 ─────────────────────────────────────
+const DASHBOARD_PORT = parseInt(process.env.XRLF_DASHBOARD_PORT || '8414', 10);
 const dashboardApp   = express();
 dashboardApp.use(express.json());
 const publicDir      = path.join(__dirname, 'public');
@@ -1207,7 +1209,7 @@ dashboardApp.get('/api/proximity/state', (req, res) => {
 
 // ── Same-origin bridges (for Cloudflare-tunnel / LAN access) ────────────────
 // A tunnel domain can only proxy ONE port per hostname, so panels served from
-// :8401 must reach the runtime (:8402) and the proxy API (:8400) same-origin.
+// :8414 must reach the runtime (:8402) and the proxy API (:8400) same-origin.
 // /xrlf/* forwards to the runtime; everything else falls through to the full
 // proxy app mounted below.
 dashboardApp.use('/xrlf', async (req, res) => {
@@ -1461,6 +1463,18 @@ const { logRequest, bodySnippet, readRecent, summarize } = require('./core/reque
 
 async function handleChatCompletion(req, res, injectMessages = null, store, workspaceId) {
     logDebug(`\n[${new Date().toISOString()}] handleChatCompletion started\n`);
+    residency.touchTurn(); // never let idle-unload cut a live turn
+    // ── Per-request effective settings (workspace overlay > global env) ──
+    // The ignition trackball dials are user-scoped (setting_overlays/<ws>.json);
+    // member sessions must honor THEIR dials, not the process's boot-time env.
+    let effMode = COGNITIVE_MODE;
+    let effModel = null;
+    try {
+        const ov = readSettingsOverlay(workspaceId);
+        if (ov.XRLF_COGNITIVE_MODE) effMode = String(ov.XRLF_COGNITIVE_MODE).toLowerCase();
+        if (ov.XRLF_MODEL_LOCAL_ID) effModel = String(ov.XRLF_MODEL_LOCAL_ID);
+    } catch (_) {}
+    const isEffCloud = effMode === 'cloud';
     const body     = { ...req.body };
     const isStream = body.stream === true;
 
@@ -1597,11 +1611,121 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
         ringBlock = hudBlock + '\n\n' + (ringBlock || '');
     }
 
+    // ── Juggle / Tandem mode ────────────────────────────────────────────────
+    // model:'juggle'|'tandem' — or XRLF_COGNITIVE_MODE=juggle — routes the
+    // prompt through Backend/Creativity/tandem.py (local routers + free NIM
+    // juggle race + gemini plan/synth). Answer is relayed as one OpenAI-shaped
+    // completion. The memory pipeline above stays untouched.
+    const juggleRequested =
+        body.model === 'juggle' || body.model === 'tandem'
+        || effMode === 'juggle';
+    if (juggleRequested && !injectMessages) {
+        const convo = (body.messages || [])
+            .filter(m => m && (m.role === 'user' || m.role === 'assistant' || m.role === 'system'))
+            .map(m => ({
+                role: m.role,
+                content: typeof m.content === 'string'
+                    ? m.content
+                    : extractTextFromContent(m.content)
+            }))
+            .filter(m => typeof m.content === 'string' && m.content.length);
+        const userText = convo.filter(m => m.role === 'user').pop()?.content;
+        const prompt = typeof userText === 'string'
+            ? userText : extractTextFromContent(userText);
+        // History travels with the prompt — Jen must not answer blind.
+        const historyJson = JSON.stringify(convo.slice(-12));
+        if (prompt) {
+            console.log(`[Juggle] ▶️ tandem run for: ${prompt.slice(0, 80)}… (${convo.length} msgs of context)`);
+            const pyBin = process.env.FOVEAI_VENV_PYTHON || '/home/lumba/FoveAI/.venv/bin/python';
+            try {
+                const { stdout, stderr } = await new Promise((resolve) => {
+                    const { execFile } = require('child_process');
+                    const child = execFile(pyBin,
+                        ['-u', '/home/lumba/FoveAI/Backend/Creativity/tandem.py', prompt, '--history', historyJson],
+                        { timeout: 180000, maxBuffer: 4 * 1024 * 1024,   // ms, not python-seconds!
+                          cwd: '/home/lumba/FoveAI/Backend/Creativity' },
+                        (err, stdout, stderr) => resolve({ err, stdout, stderr }));
+                    child.once('error', (e) => console.warn('[Juggle] child error event:', e.message));
+                    child.once('exit', (code, signal) => console.warn('[Juggle] child exit:', code, signal));
+                }).then(r => {
+                    if (r.err) console.warn('[Juggle] tandem err:', (r.stderr || '').slice(0, 800),
+                        '| code:', r.err.code, '| killed:', r.err.killed,
+                        '| signal:', r.err.signal || '-',
+                        '| msg:', (r.err.message || '').slice(0, 160));
+                    return { stdout: r.stdout || '', stderr: r.stderr || '' };
+                });
+                let answer = (stdout || '').trim();
+                // first-call-after-restart flake: juggler race cold → rc=2.
+                // One retry usually lands (state warms on the first try).
+                if (!answer) {
+                    console.warn('[Juggle] empty answer — retrying once');
+                    const { execFile: exec2 } = require('child_process');
+                    const r2 = await new Promise((resolve) => {
+                        exec2(pyBin,
+                            ['-u', '/home/lumba/FoveAI/Backend/Creativity/tandem.py', prompt, '--history', historyJson],
+                            { timeout: 180000, maxBuffer: 4 * 1024 * 1024,
+                              cwd: '/home/lumba/FoveAI/Backend/Creativity' },
+                            (err, so, se) => resolve({ err, so, se }));
+                    });
+                    answer = (r2.so || '').trim();
+                }
+                // Junk guard: a bare route tag or near-empty leg output is a
+                // router artefact, never Jen's answer — fall through instead.
+                const junk = !answer
+                    || answer.length < 2
+                    || /^\s*<\/?[a-z_-]+:[^>]*>\s*$/i.test(answer)
+                    || /^(route|tag|keep|compress)\s*[:=]/i.test(answer);
+                if (junk) {
+                    console.warn(`[Juggle] ⚠️ router artefact discarded (${JSON.stringify(answer.slice(0, 60))}) — falling back to upstream`);
+                    baseMessages = processedMessages;
+                } else {
+                    console.log(`[Juggle] ✅ ${answer.length} chars ${stderr ? `| ${stderr.split('\n').pop()}` : ''}`);
+                    _log.reply_chars = answer.length;
+                    const now = Date.now() / 1000;
+                    const shape = {
+                        id: 'chatcmpl-juggle-' + now,
+                        object: 'chat.completion',
+                        created: Math.floor(now),
+                        model: body.model || 'juggle',
+                        choices: [{
+                            index: 0,
+                            message: { role: 'assistant', content: answer },
+                            finish_reason: 'stop',
+                        }],
+                        usage: {
+                            prompt_tokens: Math.ceil((JSON.stringify(body.messages) || '').length / 4),
+                            completion_tokens: Math.ceil(answer.length / 4),
+                            total_tokens: 0,
+                        },
+                    };
+                    if (isStream) {
+                        // one chunk containing the whole answer, then [DONE]
+                        res.writeHead(200, {
+                            'Content-Type': 'text/event-stream',
+                            'Cache-Control': 'no-cache',
+                            'Connection': 'keep-alive',
+                        });
+                        res.write(`data: ${JSON.stringify({ ...shape, choices: [{ index: 0, delta: { role: 'assistant', content: answer }, finish_reason: null }] })}\n\n`);
+                        res.write('data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\n');
+                        res.write('data: [DONE]\n\n');
+                        res.end();
+                    } else {
+                    res.json(shape);
+                    }
+                }
+                return; // juggle answered — skip the standard pipeline
+            } catch (e) {
+                console.error('[Juggle] tandem failed:', e.message, '— fall through to standard pipeline');
+                // falls through to normal routing on failure
+            }
+        }
+    }
+
     // ── XRL Context Compression ──────────────────────────────────────────
     // Compress old turns into XRL checkpoints before patching (transparent)
     // In cloud mode, ensure LM Studio is running for local compression checkpoints
     // Fire-and-forget: don't block the request stream waiting for LM Studio startup
-    if (COGNITIVE_MODE === 'cloud') {
+    if (isEffCloud) {
         ensureLMStudio().catch(e => console.warn('[AutoStart] Background LM Studio check failed:', e.message));
     }
 
@@ -1875,7 +1999,7 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
     }
 
     const shouldOverride = !nvidiaRequested && !byokRequested && !freeCloudRequested &&
-        ((isLocalLMStudio && COGNITIVE_MODE !== 'cloud') || originalModel === 'auto' || !originalModel);
+        ((isLocalLMStudio && !isEffCloud) || originalModel === 'auto' || !originalModel);
     if (nvidiaRequested) {
         body.model = originalModel.slice(NVIDIA_PREFIX.length);
         body.messages = injectNvidiaContext(body.messages);
@@ -1910,7 +2034,7 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
             body.max_tokens = parseInt(process.env.XRLF_NVIDIA_MAX_TOKENS || '2048', 10);
         }
     }
-    const currentEnvModel = COGNITIVE_MODE === 'cloud'
+    const currentEnvModel = isEffCloud
         ? (process.env.XRLF_MODEL_CLOUD_ID || process.env.XRLF_PROXY_MODEL || UPSTREAM_MODEL).trim()
         : (process.env.XRLF_MODEL_LOCAL_ID || process.env.XRLF_PROXY_MODEL || UPSTREAM_MODEL).trim();
     if (shouldOverride) {
@@ -1953,7 +2077,7 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
             }
 
             // Only use Swarm Router in local Cognitive Mode and when repo context override is enabled
-            if (!nvidiaRequested && !freeCloudRequested && !byokRequested && COGNITIVE_MODE !== 'cloud' && REPO_ENABLED && REPO_CONTEXT_OVERRIDE) {
+            if (!nvidiaRequested && !freeCloudRequested && !byokRequested && !isEffCloud && REPO_ENABLED && REPO_CONTEXT_OVERRIDE) {
                 const bestNode = swarmRouter.route(requiredCapability);
                 if (bestNode) {
                     targetUpstream = bestNode;
@@ -1969,7 +2093,29 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
             // Serialize concurrent requests to the local runtime — overlapping
             // decode frees trip llama.cpp's CUDA pool assert → SIGABRT (see
             // runtime_stderr.log). Slot is released when the response body ends.
-            const isLocalTarget = !nvidiaRequested && !freeCloudRequested && !byokRequested && !(config._cloud_mode && config._api_key);
+            const isLocalTarget = !nvidiaRequested && !freeCloudRequested && !byokRequested && !(config._cloud_mode && config._api_key) && !isEffCloud;
+            // ── Residency gate ──────────────────────────────────────────
+            // A managed local port with no tier resident is not a failure —
+            // it is Jen asleep. Wake her and tell the caller, don't 502.
+            if (isLocalTarget) {
+                residency.touchTurn();
+                const managed = residency.managedTier(targetUpstream);
+                if (managed) {
+                    const cur = residency.resident();
+                    const ready = cur && cur.tier === managed && (cur.state === 'present' || !cur.state);
+                    if (!ready) {
+                        residency.requestWake(managed);
+                        return res.status(200).json({
+                            id: `chatcmpl-${uuidv4().slice(0, 8)}`,
+                            object: 'chat.completion',
+                            model: body.model || 'foveated-proxy',
+                            choices: [{ message: { role: 'assistant', content: residency.wakeNotice(managed) }, index: 0, finish_reason: 'waking' }],
+                            usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+                            _residency: { waking: managed },
+                        });
+                    }
+                }
+            }
             let releaseSlot = null;
             if (isLocalTarget) {
                 releaseSlot = await acquireLocalUpstream();
@@ -2072,6 +2218,27 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
                 _healer: { budget: getBudget(), retries: retryCount, reason }
             });
         }
+    }
+
+    // ── Buffered-stream keep-alive ───────────────────────────────────────────
+    // In buffered mode (FOVEA_PASSTHROUGH_MODE=false) we collect the whole
+    // upstream reply before emitting, so the client would otherwise sit in
+    // silence for the entire generation. Send an immediate role chunk plus
+    // periodic comments so clients show life and idle timeouts don't fire.
+    if (isStream && process.env.FOVEA_PASSTHROUGH_MODE === 'false' && !res.headersSent && !res._kaTimer) {
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.setHeader('X-Accel-Buffering', 'no');
+        if (typeof res.flushHeaders === 'function') res.flushHeaders();
+        res.write(`data: ${JSON.stringify({ id: `chatcmpl-${uuidv4().slice(0, 8)}`, object: 'chat.completion.chunk', choices: [{ delta: { role: 'assistant' }, index: 0, finish_reason: null }] })}\n\n`);
+        res._kaTimer = setInterval(() => {
+            try { res.write(': keep-alive\n\n'); } catch (_) {}
+        }, 1500);
+        if (res._kaTimer.unref) res._kaTimer.unref();
+        const stopKa = () => { if (res._kaTimer) { clearInterval(res._kaTimer); res._kaTimer = null; } };
+        res.once('close', stopKa);
+        res.once('finish', stopKa);
     }
 
     // ── Passthrough Mode (real-time streaming for IDE plugins — zero freezing) ──────────
@@ -2211,9 +2378,12 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
 
         // Return a valid response instead of empty content that causes VS Code "no choices" error
         if (isStream) {
-            res.setHeader('Content-Type', 'text/event-stream');
-            res.setHeader('Cache-Control', 'no-cache');
-            res.setHeader('Connection', 'keep-alive');
+            if (res._kaTimer) { clearInterval(res._kaTimer); res._kaTimer = null; }
+            if (!res.headersSent) {
+                res.setHeader('Content-Type', 'text/event-stream');
+                res.setHeader('Cache-Control', 'no-cache');
+                res.setHeader('Connection', 'keep-alive');
+            }
             const id = `chatcmpl-${uuidv4().slice(0, 8)}`;
             res.write(`data: ${JSON.stringify({id, object:'chat.completion.chunk', choices:[{delta:{role:'assistant',content: warningMsg}}]})}\n\n`);
             res.write(`data: ${JSON.stringify({id, object:'chat.completion.chunk', choices:[{delta:{},finish_reason:'stop'}]})}\n\n`);
@@ -2495,8 +2665,8 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
             console.warn(`[QualityGuard] ⚠️ Response flagged: score=${qualityResult.qualityScore} issues=${qualityResult.issues.join(',')}`);
         }
 
-        // Fire-and-forget speech dispatch to TTS service (:8406) for 3D avatar audio sync
-        const mouthUrl = process.env.TTS_URL || 'http://127.0.0.1:8406';
+        // Fire-and-forget speech dispatch to TTS service (:8411) for 3D avatar audio sync
+        const mouthUrl = process.env.TTS_URL || 'http://127.0.0.1:8411';
         try {
             const cleanSpeech = fullText.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/```[\s\S]*?```/g, '').replace(/[*_#`]/g, '').trim();
             if (cleanSpeech.length > 0 && cleanSpeech.length < 400) {
@@ -2516,7 +2686,9 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
     let clientText = fullText;
     if (!wantRaw) {
         const st = createTagStripper();
-        clientText = st.feed(fullText) + st.flush();
+        // Strip leading whitespace/newlines left behind when a leading
+        // <thought:…> tag is removed, so the reply doesn't start with blank lines.
+        clientText = (st.feed(fullText) + st.flush()).replace(/^\s+/, '');
         const captured = st.takeThoughts();
         if (captured) {
             reasoningText = reasoningText ? reasoningText + '\n' + captured : captured;
@@ -2525,10 +2697,13 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
 
     // Return to client in the requested format
     if (isStream) {
+        if (res._kaTimer) { clearInterval(res._kaTimer); res._kaTimer = null; }
         // Re-emit as SSE
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
+        if (!res.headersSent) {
+            res.setHeader('Content-Type', 'text/event-stream');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Connection', 'keep-alive');
+        }
 
         const id = `chatcmpl-${uuidv4().slice(0, 8)}`;
         // Reasoning first, in the standard field — thinking-capable clients can render it
@@ -2590,6 +2765,144 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
 
 // ── API endpoints (Port 8400 Active Recall & Ingestion) ───────────────────────
 
+// ── Theme manifest endpoints (Theme Machine in Multigate) ───────────────────
+// The Multigate's ThemeMachineTab fetches /api/themes and POSTs
+// /api/theme/set_active. These used to live in Backend/app/IPC/http_proxy.py
+// (Python) which isn't the process actually listening on :8400 — so every
+// fetch 404'd and opening the Theme Machine crashed on res.json().
+// Manifest: Backend/themes/manifest.json (single source of truth).
+const THEME_MANIFEST_CANDIDATES = [
+    path.resolve(__dirname, 'themes', 'manifest.json'),
+    path.resolve(__dirname, '..', 'Backend', 'themes', 'manifest.json'),
+];
+function readThemeManifest() {
+    for (const p of THEME_MANIFEST_CANDIDATES) {
+        try {
+            if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'));
+        } catch (e) { console.warn('[themes] manifest read failed:', p, e.message); }
+    }
+    return { themes: [], default: 'foveai-celestial', error: 'Manifest not found' };
+}
+app.get(['/api/themes', '/themes'], (req, res) => {
+    try {
+        res.json(readThemeManifest());
+    } catch (e) {
+        res.status(500).json({ themes: [], error: 'Failed to load theme manifest', detail: String(e && e.message || e) });
+    }
+});
+app.post('/api/theme/set_active', express.json({ limit: '2mb' }), (req, res) => {
+    try {
+        const theme = req.body || {};
+        if (!theme.theme_name) {
+            return res.status(400).json({ ok: false, error: 'theme_name required' });
+        }
+        // Persist the full theme blob under data/active_theme.json for restarts
+        const activePath = path.resolve(__dirname, 'data', 'active_theme.json');
+        try {
+            fs.mkdirSync(path.dirname(activePath), { recursive: true });
+            if (theme && theme.theme_name) {
+                fs.writeFileSync(activePath, JSON.stringify(theme, null, 2));
+            } else {
+                fs.writeFileSync(activePath, JSON.stringify({ active: theme }, null, 2));
+            }
+        } catch (e) {
+            console.warn('[themes] active-theme persist failed:', e.message);
+        }
+        res.json({ ok: true, active: theme.theme_name });
+    } catch (e) {
+        res.status(500).json({ ok: false, error: String(e && e.message || e) });
+    }
+});
+
+// ── Resonant-memory influx (:8400) — the gravity lane ──────────────────────
+// Naturally accumulated memory material lands here — batched, patient, no
+// latency SLA (that traffic rides :8403 xrl.memory / :8402 compute instead).
+// The store: data/resonance.jsonl (append-only), tail endpoint for recall.
+const RESONANCE_FILE = path.join(__dirname, 'data', 'resonance.jsonl');
+let RESONANCE_OVERFLOW = null;   // set when default lane is blocked
+
+// Telepathy overflow: when the WS lane backs up, HTTP POST here instead
+app.post(['/api/resonance/ingest', '/api/resonance/telepathy'], (req, res) => {
+    try {
+        const body = Array.isArray(req.body) ? req.body : (req.body?.units || (req.body ? [req.body] : []));
+        if (!body.length) return res.status(400).json({ error: 'empty influx' });
+        const lines = body.map(u => JSON.stringify({ ...u, ingested: new Date().toISOString(), lane: req.path.endsWith('telepathy') ? 'telepathy' : 'resonance' })).join('\n') + '\n';
+        try { fs.mkdirSync(path.dirname(RESONANCE_FILE), { recursive: true }); } catch (_) {}
+        fs.appendFileSync(RESONANCE_FILE, lines);
+        res.json({ ok: true, ingested: body.length, lane: req.path.endsWith('telepathy') ? 'telepathy' : 'resonance' });
+    } catch (e) {
+        res.status(500).json({ error: String(e && e.message || e) });
+    }
+});
+
+// Tail recall for models hooking in over HTTP (contrast with ws xrl.memory recall)
+app.get('/api/resonance/tail', (req, res) => {
+    const n = Math.min(500, Math.max(1, parseInt(req.query.n || '50', 10)));
+    let lines = [];
+    try {
+        lines = fs.readFileSync(RESONANCE_FILE, 'utf8').trim().split('\n').filter(Boolean).slice(-n);
+    } catch (_) {}
+    res.json({ units: lines.map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean) });
+});
+
+app.get('/api/resonance/depth', (_req, res) => {
+    let count = 0;
+    try { count = fs.readFileSync(RESONANCE_FILE, 'utf8').split('\n').filter(Boolean).length; } catch (_) {}
+    res.json({ depth: count, overflowRegistered: !!RESONANCE_OVERFLOW });
+});
+
+// ── Live Nervous System Synapses & Rings Telemetry ───────────────────────
+app.get('/api/synapses', async (_req, res) => {
+    const net = require('net');
+    const probe = (port) => new Promise(resolve => {
+        const s = new net.Socket();
+        s.setTimeout(250);
+        s.once('connect', () => { s.destroy(); resolve(true); });
+        s.once('timeout', () => { s.destroy(); resolve(false); });
+        s.once('error', () => { s.destroy(); resolve(false); });
+        s.connect(port, '127.0.0.1');
+    });
+
+    const synapses = [
+        { id: 'gateway', name: 'Gateway Proxy', port: 8400, role: 'Active Recall & Compressor', layer: 'core' },
+        { id: 'hearing', name: 'STT Whisper', port: 8401, role: 'Senses · Hearing', layer: 'senses' },
+        { id: 'vision', name: 'XRLF Vision', port: 8402, role: 'Senses · Vision Runtime', layer: 'senses' },
+        { id: 'memory_bus', name: 'Memory Bus', port: 8403, role: 'Unified WebSocket IPC', layer: 'senses' },
+        { id: 'soul', name: 'Soul DNA', port: 8405, role: 'Mind · Persona Authority', layer: 'mind' },
+        { id: 'tier_a', name: 'Mind Tier A', port: 8407, role: 'Gemma-4-E2B Background Model', layer: 'mind' },
+        { id: 'tier_b', name: 'Mind Tier B', port: 8408, role: 'Qwen3.5-9B Flagship MoQ', layer: 'mind' },
+        { id: 'body', name: 'Act Body', port: 8410, role: 'Gamepad & Input Relay', layer: 'act' },
+        { id: 'voice', name: 'Act Voice', port: 8411, role: 'Kokoro TTS Speech', layer: 'act' },
+        { id: 'create', name: 'Act Create', port: 8412, role: 'Dreamscape Creative Engine', layer: 'act' },
+        { id: 'relay', name: 'Chat Relay', port: 8413, role: 'Multi-Way Chat Relay', layer: 'serve' },
+        { id: 'dashboard', name: 'Dashboard', port: 8414, role: 'Foveated Memory WebUI', layer: 'serve' },
+        { id: 'theme', name: 'Theme Engine', port: 8415, role: 'Dynamic UI Theme API', layer: 'serve' },
+        { id: 'multigate', name: 'Multigate UI', port: 5177, role: 'Frontend Spatial WebUI', layer: 'frontend' }
+    ];
+
+    const results = await Promise.all(synapses.map(async s => ({
+        ...s,
+        alive: await probe(s.port)
+    })));
+
+    const rings = [
+        { ring: 0, name: 'Fovea', budget: 600, compression: '0–35%', scope: 'Last 4–6 messages (High Res)' },
+        { ring: 1, name: 'Parafovea', budget: 200, compression: '~65%', scope: 'Last 24 hours (Themes)' },
+        { ring: 2, name: 'Near Periphery', budget: 300, compression: '~85%', scope: '1–7 days (Headlines)' },
+        { ring: 3, name: 'Mid Periphery', budget: 300, compression: '~93%', scope: '7–30 days (Topics & Hashes)' },
+        { ring: 4, name: 'Far Periphery', budget: 300, compression: '~97%', scope: '30–365 days (Summaries)' },
+        { ring: 5, name: 'Outer Horizon', budget: 200, compression: '~99%', scope: '1yr+ Deep Past (Atomic Hashes)' }
+    ];
+
+    res.json({
+        ok: true,
+        timestamp: new Date().toISOString(),
+        synapses: results,
+        rings: rings,
+        healer: getHealerState()
+    });
+});
+
 // ── Context Healer Health & Control API ────────────────────────────────────
 app.get('/_health/context', (req, res) => {
     res.json(getHealerState());
@@ -2613,16 +2926,87 @@ app.post('/_health/context/budget', (req, res) => {
     res.json({ status: 'set', ...result, state: getHealerState() });
 });
 
+// ── Settings Redirect on Port 8400 ──────────────────────────────────────────
+app.get(['/settings', '/settings.html'], (_req, res) => {
+    res.redirect(`http://${PROXY_HOST || '127.0.0.1'}:${DASHBOARD_PORT}/settings.html`);
+});
+
+// ── Soul DNA & Persona Bridge ───────────────────────────────────────────
+app.get('/api/soul/soul_dna', async (_req, res) => {
+    try {
+        const resp = await fetch('http://127.0.0.1:8405/api/soul/soul_dna', { timeout: 1500 });
+        if (resp.ok) {
+            const data = await resp.json();
+            return res.json(data);
+        }
+    } catch (_) {}
+    try {
+        const soulPath = path.resolve(__dirname, '..', 'Backend', 'Cognition', 'jen_soul.json');
+        if (fs.existsSync(soulPath)) {
+            const raw = fs.readFileSync(soulPath, 'utf8');
+            return res.json({ dna: JSON.parse(raw) });
+        }
+    } catch (err) {
+        return res.status(500).json({ error: 'Failed to read soul DNA: ' + err.message });
+    }
+    res.status(404).json({ error: 'Soul DNA not found' });
+});
+
+app.post(['/api/soul/update_soul', '/update_soul'], async (req, res) => {
+    let forwarded = false;
+    let forwardData = null;
+    try {
+        const resp = await fetch('http://127.0.0.1:8405/api/soul/update_soul', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(req.body),
+            timeout: 2000
+        });
+        if (resp.ok) {
+            forwardData = await resp.json();
+            forwarded = true;
+        }
+    } catch (_) {}
+
+    try {
+        const soulPath = path.resolve(__dirname, '..', 'Backend', 'Cognition', 'jen_soul.json');
+        let current = {};
+        if (fs.existsSync(soulPath)) {
+            current = JSON.parse(fs.readFileSync(soulPath, 'utf8'));
+        }
+        Object.assign(current, req.body);
+        fs.writeFileSync(soulPath, JSON.stringify(current, null, 2), 'utf8');
+
+        // Also sync lever to jen_mind.json if present
+        if (req.body.agent_person_balance !== undefined) {
+            const mindPath = path.resolve(__dirname, '..', 'Backend', 'Cognition', 'jen_mind.json');
+            if (fs.existsSync(mindPath)) {
+                try {
+                    const mind = JSON.parse(fs.readFileSync(mindPath, 'utf8'));
+                    mind.lever = parseFloat(req.body.agent_person_balance);
+                    mind.updated = Date.now() / 1000;
+                    fs.writeFileSync(mindPath, JSON.stringify(mind, null, 2), 'utf8');
+                } catch (_) {}
+            }
+        }
+
+        return res.json(forwardData || { status: 'success', dna: current });
+    } catch (err) {
+        if (forwarded) return res.json(forwardData);
+        return res.status(500).json({ error: 'Failed to write soul DNA: ' + err.message });
+    }
+});
+
 // ── Unified Voice API (STT + TTS) ──────────────────────────────────────────
 // The proxy is the single endpoint for all modalities.
 // Strategy: try the XRLF model first (when it supports audio natively),
 // fall back to dedicated voice services on the 840x port series.
 //
 // XRLF_URL = native model API (STT/TTS/vision on :8402)
-// TTS_URL  = TTS service (Kokoro on :8406)
-// STT_URL  = STT service (Whisper on :8409)
-const TTS_URL = process.env.TTS_URL || 'http://127.0.0.1:8406';
-const STT_URL = process.env.STT_URL || 'http://127.0.0.1:8409';
+// TTS_URL  = TTS service (Kokoro on :8411)
+// STT_URL  = STT service (Whisper on :8401 — the HEARING lane)
+const TTS_URL = process.env.TTS_URL || 'http://127.0.0.1:8411';
+const STT_URL = process.env.STT_URL || 'http://127.0.0.1:8401';
 const XRLF_URL = process.env.XRLF_URL || 'http://127.0.0.1:8402';
 
 // ── STT: POST /api/soul/stt ─────────────────────────────────────────────────
@@ -2683,7 +3067,7 @@ app.post('/api/soul/stt', requireFeature('voice'), async (req, res) => {
 
 // ── TTS: POST /api/tts ──────────────────────────────────────────────────────
 // Accepts text, returns audio or dispatches to TTS engine.
-// Tries XRLF model native TTS first, falls back to the TTS service (Kokoro on :8406).
+// Tries XRLF model native TTS first, falls back to the TTS service (Kokoro on :8411).
 app.post('/api/tts', requireFeature('voice'), async (req, res) => {
     const { text, voice } = req.body || {};
     if (!text) {
@@ -2720,7 +3104,7 @@ app.post('/api/tts', requireFeature('voice'), async (req, res) => {
         console.warn(`[Voice/TTS] Native TTS unavailable: ${e.message}`);
     }
 
-    // Fallback 1: TTS service (Kokoro) on :8406
+    // Fallback 1: TTS service (Kokoro) on :8411
     try {
         const r = await fetch(`${TTS_URL}/tts`, {
             method: 'POST',
@@ -2741,10 +3125,10 @@ app.post('/api/tts', requireFeature('voice'), async (req, res) => {
         }
         console.warn(`[Voice/TTS] TTS service returned ${r.status}`);
     } catch (e) {
-        console.warn(`[Voice/TTS] TTS service (:8406) unavailable: ${e.message}`);
+        console.warn(`[Voice/TTS] TTS service (:8411) unavailable: ${e.message}`);
     }
 
-    // Fallback 2: TTS service /say alias on :8406
+    // Fallback 2: TTS service /say alias on :8411
     try {
         const r = await fetch(`${TTS_URL}/say`, {
             method: 'POST',
@@ -2772,7 +3156,7 @@ app.post('/api/tts', requireFeature('voice'), async (req, res) => {
 });
 
 // ── TTS voices: GET /api/tts/voices ─────────────────────────────────────────
-// Passthrough to the TTS service's /voices endpoint (Kokoro on :8406).
+// Passthrough to the TTS service's /voices endpoint (Kokoro on :8411).
 app.get('/api/tts/voices', async (req, res) => {
     try {
         const r = await fetch(`${TTS_URL}/voices`, { signal: AbortSignal.timeout(4000) });
@@ -2802,7 +3186,7 @@ app.get('/api/voice/status', async (req, res) => {
     // Check Whisper STT service (fallback, :8409) — WebSocket-only, so probe TCP
     if (status.stt === 'offline') {
         try {
-            const sttPort = parseInt(new URL(STT_URL).port || '8409', 10);
+            const sttPort = parseInt(new URL(STT_URL).port || '8401', 10);
             await new Promise((resolve, reject) => {
                 const sock = require('net').connect({ host: '127.0.0.1', port: sttPort, timeout: 1500 });
                 sock.on('connect', () => { sock.end(); resolve(); });
@@ -2811,7 +3195,7 @@ app.get('/api/voice/status', async (req, res) => {
             status.stt = 'whisper';
         } catch {}
     }
-    // Check Kokoro TTS service (fallback, :8406)
+    // Check Kokoro TTS service (fallback, :8411)
     if (status.tts === 'offline') {
         try {
             const r = await fetch(`${TTS_URL}/health`, { signal: AbortSignal.timeout(2000) });
@@ -2875,39 +3259,16 @@ function cosineSimilarity(a, b) {
 
 app.post('/v1/memory/search', async (req, res) => {
     try {
-        const { query, limit = 10, mode = 'tfidf', sessionId } = req.body;
+        const _authz = resolveRequestAuth(req);
+        const workspaceId = _authz.workspaceId || config.workspace_id || 'default';
+        const { query, limit = 10, sessionId } = req.body || {};
         if (!query) return res.status(400).json({ error: 'query required' });
 
-        const store = getStore(config.workspace_id);
+        const store = getStore(workspaceId);
         const results = await store.search(query, limit, sessionId);
+        const mode = (results.length > 0 && results[0].method === 'vector') ? 'minilm-vector' : 'tfidf';
 
-        // If embedding mode requested, try LM Studio embeddings
-        if (mode === 'embedding' && results.length > 0) {
-            try {
-                const embResp = await fetch(`${config.upstream_url}/v1/embeddings`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ input: [query, ...results.map(r => r.content)].filter(Boolean) }),
-                    signal: AbortSignal.timeout(10000)
-                });
-                if (embResp.ok) {
-                    const embData = await embResp.json();
-                    const embeddings = embData.data || [];
-                    const queryEmb = embeddings[0]?.embedding;
-                    if (queryEmb) {
-                        results.forEach((r, i) => {
-                            const docEmb = embeddings[i + 1]?.embedding;
-                            r._embeddingScore = docEmb ? cosineSimilarity(queryEmb, docEmb) : 0;
-                        });
-                        results.sort((a, b) => (b._embeddingScore || 0) - (a._embeddingScore || 0));
-                    }
-                }
-            } catch (e) {
-                console.warn('[SemanticSearch] Embedding mode failed, falling back to TF-IDF:', e.message);
-            }
-        }
-
-        res.json({ results, count: results.length, mode });
+        res.json({ results, count: results.length, mode, workspace: workspaceId });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -3589,10 +3950,25 @@ app.get('/api/status', async (req, res) => {
 
         // Live runtime readiness — merged here so browser ignition probes don't
         // need a session cookie against the shielded /xrlf surface.
+        // Probe the REAL health endpoint: upstream_url ends in /v1, and
+        // llama-server serves /health (not /v1/health) — the old probe always
+        // failed, so ignition sat on "checking the model" for two minutes.
         let runtimeHealth = null;
         try {
-            const hr = await fetch(`${config.upstream_url}/health`, { signal: AbortSignal.timeout(1500) });
-            if (hr.ok) runtimeHealth = await hr.json();
+            const healthBase = String(config.upstream_url || '').replace(/\/v1\/?$/, '');
+            const hr = await fetch(`${healthBase}/health`, { signal: AbortSignal.timeout(2500) });
+            if (hr.ok) {
+                const body = await hr.json().catch(() => ({}));
+                // llama.cpp answers {"status":"ok"}; XRLF answers loaded/load_state
+                const ready = body.loaded === true
+                    || body.load_state === 'ready'
+                    || String(body.status || '').toLowerCase() === 'ok';
+                runtimeHealth = {
+                    ...body,
+                    loaded: ready,
+                    load_state: body.load_state || (ready ? 'ready' : 'loading'),
+                };
+            }
         } catch (_) {}
 
         res.json({
@@ -3618,6 +3994,34 @@ app.get('/api/status', async (req, res) => {
     } catch (err) {
         res.status(500).json({ status: 'ERROR', error: err.message });
     }
+});
+
+// ── /api/residency/status endpoint (Tier A / Tier B live probe) ─────────────
+app.get('/api/residency/status', async (req, res) => {
+    const checkPort = (port) => new Promise(resolve => {
+        const s = new net.Socket();
+        s.setTimeout(250);
+        s.on('connect', () => { s.destroy(); resolve(true); });
+        s.on('error', () => { s.destroy(); resolve(false); });
+        s.on('timeout', () => { s.destroy(); resolve(false); });
+        s.connect(port, '127.0.0.1');
+    });
+
+    let tier = 'idle';
+    let label = 'Idle (VRAM released)';
+    let port = null;
+
+    if (await checkPort(8408)) {
+        tier = 'B';
+        label = 'Tier B (9B on VRAM :8408)';
+        port = 8408;
+    } else if (await checkPort(8407)) {
+        tier = 'A';
+        label = 'Tier A (4B Light :8407)';
+        port = 8407;
+    }
+
+    res.json({ tier, label, port });
 });
 
 // ── /api/sessions endpoint (returns list of available sessions across all stores) ────────────────
@@ -4127,6 +4531,44 @@ function isSessionAdmin(a, mgr) {
         && mgr.hasFeature({ role: a.role, features: a.features }, 'users_admin');
 }
 
+// ── Per-user settings overlay (member self-service) ──────────────────────
+// Admin keys stay admin-only (requireAdmin). The ignition trackball traits
+// (XRLF_*/FOVEA_*) are user-scoped: member writes land in the workspace
+// overlay file instead of the global env — that's WHY the dial "just won't
+// change": member POSTs were silently 403'd by admin gating.
+const SETTINGS_OVERLAYS_DIR = path.join(path.resolve(__dirname, '..'), 'foveated-memory', 'data', 'setting_overlays');
+function settingsOverlayPath(workspaceId) {
+    const ws = String(workspaceId || 'default').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32) || 'default';
+    return path.join(SETTINGS_OVERLAYS_DIR, `${ws}.json`);
+}
+function readSettingsOverlay(workspaceId) {
+    try { return JSON.parse(fs.readFileSync(settingsOverlayPath(workspaceId), 'utf8')); }
+    catch (_) { return {}; }
+}
+function writeSettingsOverlay(workspaceId, obj) {
+    try {
+        fs.mkdirSync(SETTINGS_OVERLAYS_DIR, { recursive: true });
+        fs.writeFileSync(settingsOverlayPath(workspaceId), JSON.stringify(obj, null, 2));
+        return true;
+    } catch (e) { console.warn('[Setting] overlay write failed:', e.message); return false; }
+}
+// Ignition/self-service settings — these keys a member may set for their own session
+const USER_SETTING_KEYS = new Set([
+    'XRLF_COGNITIVE_MODE', 'XRLF_MODEL_THINKING', 'XRLF_PROXY_AGGRESSION',
+    'XRLF_CLOUD_PRESERVE_LAST', 'FOVEA_COMPRESS_EVERY', 'XRLF_CLOUD_MAX_TOKENS_CAP',
+    'XRLF_SPOOF_CONTEXT_WINDOW', 'XRLF_VOICE_ENABLED', 'XRLF_MIC_ENABLED',
+    'XRLF_MODEL_LOCAL_ID',
+]);
+function requireAdminOrUserKey(req, res, key) {
+    // Admin passes; member passes ONLY for user-overlay keys (writes overlay)
+    const a = resolveRequestAuth(req);
+    if (a.rejected) { res.status(401).json({ error: 'invalid or expired session' }); return null; }
+    if (a.userId === 'anonymous') { res.status(401).json({ error: 'authentication required' }); return null; }
+    if (a._mgr.hasFeature({ role: a.role, features: a.features }, 'settings_admin')) return { admin: true, ...a };
+    if (USER_SETTING_KEYS.has(key)) return { admin: false, ...a };
+    res.status(403).json({ error: 'admin role required for core settings' });
+    return null;
+}
 function requireAdmin(req, res) {
     const a = resolveRequestAuth(req);
     if (a.rejected) { res.status(401).json({ error: 'invalid or expired session' }); return null; }
@@ -4168,6 +4610,52 @@ app.post('/api/auth/login', (req, res) => {
     const result = mgr.login(username, password);
     if (!result) return res.status(401).json({ error: 'invalid credentials or disabled account' });
     res.json(result);
+});
+
+app.post('/api/auth/challenge', (req, res) => {
+    const { username } = req.body || {};
+    if (!username) return res.status(400).json({ error: 'username required' });
+    try {
+        const mgr = getAuthManager(AUTH_DB_DIR);
+        const challenge = mgr.createChallenge(username);
+        res.json({ ok: true, username, nonce: challenge.nonce, expires: challenge.expires });
+    } catch (e) {
+        res.status(400).json({ error: String(e.message || e) });
+    }
+});
+
+app.post('/api/auth/login-signature', (req, res) => {
+    const { username, nonce, signature } = req.body || {};
+    if (!username || !nonce || !signature) {
+        return res.status(400).json({ error: 'username, nonce, and signature required' });
+    }
+    const mgr = getAuthManager(AUTH_DB_DIR);
+    const result = mgr.loginWithSignature(username, nonce, signature);
+    if (!result) return res.status(401).json({ error: 'invalid signature or expired challenge' });
+    res.json(result);
+});
+
+// Profile persistence — the setup answers ride the account so the user is
+// greeted on return, never re-quizzed (firstName/lastName/aiName).
+app.get('/api/auth/profile', (req, res) => {
+    const a = resolveRequestAuth(req);
+    if (!a) return res.status(401).json({ error: 'unauthorized' });
+    const mgr = getAuthManager(AUTH_DB_DIR);
+    res.json(mgr.publicUser(a.userId) || { error: 'no such user' });
+});
+app.put('/api/auth/profile', (req, res) => {
+    const a = resolveRequestAuth(req);
+    if (!a) return res.status(401).json({ error: 'unauthorized' });
+    try {
+        const mgr = getAuthManager(AUTH_DB_DIR);
+        const patch = {};
+        for (const k of ['firstName', 'lastName', 'aiName']) {
+            if (typeof req.body?.[k] === 'string') patch[k] = req.body[k];
+        }
+        res.json({ success: true, user: mgr.updateUser(a.userId, patch) });
+    } catch (e) {
+        res.status(400).json({ error: String(e.message || e) });
+    }
 });
 
 app.post('/api/auth/logout', (req, res) => {
@@ -4250,6 +4738,207 @@ app.post('/api/auth/users', (req, res) => {
     } catch (e) {
         res.status(400).json({ error: e.message });
     }
+});
+
+
+// ── Image sanity: a stub that *looks* like an upload must be rejected ────
+// A canvas snapshot of an empty frame, a 1x1 pixel or a flat colour swatch all
+// decode fine and sail past a byte-count check, then render as a broken image.
+// This reads real dimensions from the file header and rejects anything too
+// small, too thin, or too flat for its pixel count.
+function inspectImage(buf, mime) {
+    let width = 0, height = 0;
+    try {
+        if (mime === 'image/png' && buf.length > 24 && buf.readUInt32BE(0) === 0x89504e47) {
+            width = buf.readUInt32BE(16); height = buf.readUInt32BE(20);
+        } else if (mime === 'image/jpeg') {
+            for (let i = 2; i < buf.length - 9;) {
+                if (buf[i] !== 0xFF) { i++; continue; }
+                const marker = buf[i + 1];
+                const len = buf.readUInt16BE(i + 2);
+                // SOF0..SOF15 (excluding DHT/DAC/RST) carry the frame size
+                if (marker >= 0xC0 && marker <= 0xCF && ![0xC4, 0xC8, 0xCC].includes(marker)) {
+                    height = buf.readUInt16BE(i + 5); width = buf.readUInt16BE(i + 7); break;
+                }
+                i += 2 + len;
+            }
+        } else if (mime === 'image/webp' && buf.length > 30) {
+            const tag = buf.toString('ascii', 12, 16);
+            if (tag === 'VP8 ') { width = buf.readUInt16LE(26) & 0x3FFF; height = buf.readUInt16LE(28) & 0x3FFF; }
+            else if (tag === 'VP8L') {
+                const b = buf.readUInt32LE(21);
+                width = (b & 0x3FFF) + 1; height = ((b >> 14) & 0x3FFF) + 1;
+            } else if (tag === 'VP8X') {
+                width = (buf.readUIntLE(24, 3) & 0xFFFFFF) + 1;
+                height = (buf.readUIntLE(27, 3) & 0xFFFFFF) + 1;
+            }
+        }
+    } catch (_) { /* unparseable → treated as invalid below */ }
+    const pixels = width * height;
+    // Flat images compress absurdly well: real photos/portraits carry far more
+    // data than their pixel count. 1/60 bytes-per-pixel is a very low bar.
+    const bytesPerPixel = pixels ? buf.length / pixels : 0;
+    return { width, height, pixels, bytesPerPixel,
+             valid: width >= 64 && height >= 64 && bytesPerPixel >= 1 / 60 };
+}
+
+// ── Profile picture ────────────────────────────────────────────────────────
+// Uploads land in the user's gallery collection (media/gallery/<user>/) as
+// new files — never replacing previously uploaded pictures. One extra
+// pointer (profile_picture in auth.json) says which image is current.
+const PROFILE_PICTURE_META = 'profile_pictures.json';
+app.post('/api/profile/picture', (req, res) => {
+    const a = resolveRequestAuth(req);
+    if (a.rejected || !a.userId || a.userId === 'anonymous') return res.status(401).json({ error: 'invalid or expired session' });
+    const b = req.body || {};
+    const dataUrl = String(b.data || '');
+    const m = dataUrl.match(/^data:(image\/(png|jpe?g|webp));base64,(.*)$/s);
+    if (!m) return res.status(400).json({ error: 'data must be a base64 image dataURL (png/jpg/webp)' });
+    const ext = m[1] === 'image/png' ? '.png' : m[1] === 'image/webp' ? '.webp' : '.jpg';
+    let buf;
+    try { buf = Buffer.from(m[3], 'base64'); } catch (_) { return res.status(400).json({ error: 'bad base64' }); }
+    if (!buf || buf.length < 100) return res.status(400).json({ error: 'image too small' });
+    if (buf.length > 6 * 1024 * 1024) return res.status(413).json({ error: 'image over 6 MB' });
+    const probe = inspectImage(buf, m[1]);
+    if (!probe.valid) {
+        return res.status(400).json({
+            error: probe.width && probe.height
+                ? `image rejected: ${probe.width}x${probe.height} is too small or blank (no real picture data)`
+                : 'image rejected: could not read image dimensions — the file is not a usable picture',
+            width: probe.width, height: probe.height, bytes: buf.length,
+        });
+    }
+
+    const user = String(a.userId).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32) || 'shared';
+    const dir = path.join(path.resolve(__dirname, '..'), 'media', 'gallery', user);
+    try { fs.mkdirSync(dir, { recursive: true }); } catch (_) {}
+
+    // COLLECT, not replace: each upload becomes a new timestamped file.
+    const crypto = require('crypto');
+    const id = `${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
+    const file = `profile_${id}${ext}`;
+    fs.writeFileSync(path.join(dir, file), buf);
+
+    // gallery meta (so it shows up in the user's gallery listing)
+    let meta = {};
+    try { meta = JSON.parse(fs.readFileSync(path.join(dir, 'gallery.json'), 'utf8')); } catch (_) {}
+    meta[file] = new Date().toISOString();
+    try { fs.writeFileSync(path.join(dir, 'gallery.json'), JSON.stringify(meta, null, 2)); } catch (_) {}
+
+    // profile_pictures.json — the collection index + which is current
+    let pp = { pictures: [], current: null };
+    const ppPath = path.join(dir, PROFILE_PICTURE_META);
+    try { pp = JSON.parse(fs.readFileSync(ppPath, 'utf8')); } catch (_) {}
+    pp.pictures = Array.isArray(pp.pictures) ? pp.pictures : [];
+    pp.pictures.push({ file, added: new Date().toISOString(), bytes: buf.length });
+    if (!pp.current) pp.current = file;
+    // setting a picture explicitly makes it current
+    if (b.makeCurrent !== false) pp.current = file;
+    try { fs.writeFileSync(ppPath, JSON.stringify(pp, null, 2)); } catch (_) {}
+
+    // Point the account at it (served via the gallery file route)
+    const mgr = getAuthManager(AUTH_DB_DIR);
+    try {
+        mgr.updateUser(user, { profilePicture: `/api/tools/images/file/${encodeURIComponent(file)}` });
+    } catch (_) {}
+
+    res.json({ ok: true, file, url: `/api/tools/images/file/${encodeURIComponent(file)}`, total: pp.pictures.length });
+});
+
+// ── AI persona portrait (shared across members — one Jen, one face) ───────
+const PERSONA_DIR = path.join(path.resolve(__dirname, '..'), 'media', 'gallery', 'ai_persona');
+// Select which collected picture is the CURRENT portrait
+app.post('/api/profile/picture/select', (req, res) => {
+    const a = resolveRequestAuth(req);
+    if (a.rejected || !a.userId || a.userId === 'anonymous') return res.status(401).json({ error: 'invalid or expired session' });
+    const user = String(a.userId).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32) || 'shared';
+    const file = path.basename(String((req.body || {}).file || ''));
+    const dir = path.join(path.resolve(__dirname, '..'), 'media', 'gallery', user);
+    if (!file || !fs.existsSync(path.join(dir, file))) return res.status(404).json({ error: 'picture not in collection' });
+    const ppPath = path.join(dir, PROFILE_PICTURE_META);
+    let pp = { pictures: [], current: null };
+    try { pp = JSON.parse(fs.readFileSync(ppPath, 'utf8')); } catch (_) {}
+    pp.current = file;
+    if (!Array.isArray(pp.pictures)) pp.pictures = [];
+    if (!pp.pictures.some(p => (p.file || p) === file)) pp.pictures.push({ file, added: new Date().toISOString() });
+    fs.writeFileSync(ppPath, JSON.stringify(pp, null, 2));
+    try {
+        getAuthManager(AUTH_DB_DIR).updateUser(user, {
+            profilePicture: `/api/tools/images/file/${encodeURIComponent(file)}`,
+        });
+    } catch (_) {}
+    res.json({ ok: true, current: file });
+});
+
+app.get('/api/profile/persona_picture/file/:name', (req, res) => {
+    const f = path.basename(req.params.name);
+    const p = path.join(PERSONA_DIR, f);
+    if (!fs.existsSync(p)) return res.status(404).json({ error: 'not found' });
+    res.setHeader('Content-Type', path.extname(f) === '.png' ? 'image/png' : path.extname(f) === '.webp' ? 'image/webp' : 'image/jpeg');
+    res.setHeader('Cache-Control', 'no-cache');
+    fs.createReadStream(p).pipe(res);
+});
+app.get('/api/profile/persona_picture', (req, res) => {
+    let pp = { pictures: [], current: null };
+    try { pp = JSON.parse(fs.readFileSync(path.join(PERSONA_DIR, 'profile_pictures.json'), 'utf8')); } catch (_) {}
+    // fall back to the shipped still
+    if (!pp.current) return res.json({ current: null, url: '/avatars/jen_still.png', total: 0 });
+    res.json({ current: pp.current, url: `/api/profile/persona_picture/file/${encodeURIComponent(pp.current)}`, total: pp.pictures.length });
+});
+app.post('/api/profile/persona_picture', (req, res) => {
+    const a = resolveRequestAuth(req);
+    if (a.rejected || (a.userId === 'anonymous' && COGNITIVE_MODE !== 'cloud')) {
+        return res.status(401).json({ error: 'invalid or expired session' });
+    }
+    const b = req.body || {};
+    const dataUrl = String(b.data || '');
+    const m = dataUrl.match(/^data:(image\/(png|jpe?g|webp));base64,(.*)$/s);
+    if (!m) return res.status(400).json({ error: 'data must be a base64 image dataURL (png/jpg/webp)' });
+    const ext = m[1] === 'image/png' ? '.png' : m[1] === 'image/webp' ? '.webp' : '.jpg';
+    let buf;
+    try { buf = Buffer.from(m[3], 'base64'); } catch (_) { return res.status(400).json({ error: 'bad base64' }); }
+    if (!buf || buf.length < 100) return res.status(400).json({ error: 'image too small' });
+    if (buf.length > 6 * 1024 * 1024) return res.status(413).json({ error: 'image over 6 MB' });
+    // Same guard as the user portrait: a blank canvas snapshot is not a picture.
+    const probe = inspectImage(buf, m[1]);
+    if (!probe.valid) {
+        return res.status(400).json({
+            error: probe.width && probe.height
+                ? `image rejected: ${probe.width}x${probe.height} is too small or blank (no real picture data)`
+                : 'image rejected: could not read image dimensions — the file is not a usable picture',
+            width: probe.width, height: probe.height, bytes: buf.length,
+        });
+    }
+    const crypto = require('crypto');
+    fs.mkdirSync(PERSONA_DIR, { recursive: true });
+    const file = `persona_${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}${ext}`;
+    fs.writeFileSync(path.join(PERSONA_DIR, file), buf);
+    // gallery meta for the ai_persona owner so it appears in gallery listings
+    let meta = {};
+    try { meta = JSON.parse(fs.readFileSync(path.join(PERSONA_DIR, 'gallery.json'), 'utf8')); } catch (_) {}
+    meta[file] = new Date().toISOString();
+    fs.writeFileSync(path.join(PERSONA_DIR, 'gallery.json'), JSON.stringify(meta, null, 2));
+    let pp = { pictures: [], current: null };
+    try { pp = JSON.parse(fs.readFileSync(path.join(PERSONA_DIR, 'profile_pictures.json'), 'utf8')); } catch (_) {}
+    pp.pictures = Array.isArray(pp.pictures) ? pp.pictures : [];
+    pp.pictures.push({ file, added: new Date().toISOString(), bytes: buf.length });
+    pp.current = file;
+    fs.writeFileSync(path.join(PERSONA_DIR, 'profile_pictures.json'), JSON.stringify(pp, null, 2));
+    res.json({ ok: true, file, url: `/api/profile/persona_picture/file/${encodeURIComponent(file)}`, total: pp.pictures.length });
+});
+
+// Current profile picture (for the avatar window) — falls back to default
+app.get('/api/profile/picture', (req, res) => {
+    const a = resolveRequestAuth(req);
+    if (a.rejected || !a.userId || a.userId === 'anonymous') return res.status(401).json({ error: 'invalid or expired session' });
+    const user = String(a.userId).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32) || 'shared';
+    const dir = path.join(path.resolve(__dirname, '..'), 'media', 'gallery', user);
+    let pp = null;
+    try { pp = JSON.parse(fs.readFileSync(path.join(dir, PROFILE_PICTURE_META), 'utf8')); } catch (_) {}
+    const mgr = getAuthManager(AUTH_DB_DIR);
+    const current = pp?.current || (mgr.publicUser(user)?.profilePicture || '').split('/').pop();
+    if (!current) return res.json({ current: null, url: null, total: 0 });
+    res.json({ current, url: `/api/tools/images/file/${encodeURIComponent(current)}`, total: pp?.pictures?.length || 0 });
 });
 
 app.patch('/api/auth/users/:name', (req, res) => {
@@ -4388,15 +5077,32 @@ app.delete('/api/byok', (req, res) => {
 app.get('/api/setting', (req, res) => {
     const key = String(req.query.key || '');
     if (!key) return res.status(400).json({ error: 'missing key' });
-    res.json({ key, value: process.env[key] ?? null });
+    // Per-user overlay wins for authenticated members; global env otherwise
+    const a = resolveRequestAuth(req);
+    if (!a.rejected && a.userId !== 'anonymous' && USER_SETTING_KEYS.has(key)) {
+        const ov = readSettingsOverlay(a.workspaceId);
+        if (ov[key] !== undefined) return res.json({ key, value: ov[key], scope: 'workspace' });
+    }
+    res.json({ key, value: process.env[key] ?? null, scope: 'global' });
 });
 
 app.post('/api/setting', (req, res) => {
-    // Core server settings are admin-only for account users; legacy bearers
-    // (jenna-vscode, Commando) resolve to admin and keep working.
-    if (!requireAdmin(req, res)) return;
     const { key, val } = req.body || {};
     if (!key) return res.status(400).json({ error: 'missing key' });
+    // Admin-only for core keys; members write their workspace overlay for
+    // the ignition trait keys (trackball dials — self-service).
+    const gate = requireAdminOrUserKey(req, res, key);
+    if (!gate) return;
+    if (!gate.admin) {
+        const ov = readSettingsOverlay(gate.workspaceId);
+        ov[key] = String(val);
+        writeSettingsOverlay(gate.workspaceId, ov);
+        // MEMBER writes must NOT rewire the GLOBAL upstream — their
+        // effective mode is honored per-request in handleChatCompletion
+        // (effMode). (This block previously live-switched config globally,
+        // clobbering default.json's upstream on every dial turn.)
+        return res.json({ ok: true, key, value: String(val), scope: 'workspace' });
+    }
     setEnvVar(key, String(val));
     process.env[key] = String(val);
 
@@ -4444,6 +5150,31 @@ app.post('/api/setting', (req, res) => {
     }
 
     res.json({ ok: true, [key]: val });
+});
+
+// ── Server info for LAN clients (2026-10-09) ─────────────────────────────
+// The ONE truth for "where is the server": live LAN IP + ports, so no client
+// ever hardcodes an address. Unity's ConfigLoader calls this at boot via the
+// tunnel origin (xarel.net) and switches to the LAN IP for low-latency links.
+app.get('/api/server_info', (req, res) => {
+    const os = require('os');
+    const nets = os.networkInterfaces();
+    let lan = null;
+    for (const name of Object.keys(nets)) {
+        for (const net of nets[name] || []) {
+            if (net.family === 'IPv4' && !net.internal) { lan = net.address; break; }
+        }
+        if (lan) break;
+    }
+    res.json({
+        lan_ip: lan,
+        hostname: os.hostname(),
+        ws_port: parseInt(process.env.FOVEAI_WS_PORT || '8400', 10),
+        soul_port: 8405,
+        stt_ws_port: parseInt(process.env.STT_PORT || '8401', 10),
+        web_port: parseInt(process.env.VITE_PORT || '5177', 10),
+        tunnel: process.env.FOVEAI_TUNNEL_URL || 'https://xarel.net',
+    });
 });
 
 app.get('/api/env', (req, res) => {
@@ -4503,16 +5234,16 @@ app.get('/api/subsystems', async (req, res) => {
     };
     const checks = [
         { group: 'stack',   name: 'Proxy',            port: 8400, http: '/health' },
-        { group: 'stack',   name: 'Dashboard',        port: 8401, http: '/api/status' },
+        { group: 'stack',   name: 'Dashboard',        port: 8414, http: '/api/status' },
         { group: 'stack',   name: 'XRLF Runtime',     port: 8402, http: '/health' },
         { group: 'stack',   name: 'WS IPC',           port: 8403 },
         { group: 'stack',   name: 'Soul / Compagent', port: 8405, http: '/health' },
-        { group: 'stack',   name: 'TTS (Kokoro)',     port: 8406, http: '/health' },
-        { group: 'stack',   name: 'Chat Relay',       port: 8407, http: '/health' },
-        { group: 'stack',   name: 'Creative / Dream', port: 8408, http: '/health' },
-        { group: 'stack',   name: 'STT (Whisper)',    port: 8409 },
+        { group: 'stack',   name: 'TTS (Kokoro)',     port: 8411, http: '/health' },
+        { group: 'stack',   name: 'Chat Relay',       port: 8413, http: '/health' },
+        { group: 'stack',   name: 'Creative / Dream', port: 8412, http: '/health' },
+        { group: 'stack',   name: 'STT (Whisper)',    port: 8401 },
         { group: 'stack',   name: 'Body / Motor',     port: 8410, http: '/health' },
-        { group: 'stack',   name: 'Subconscious',     port: 8411, http: '/health' },
+        { group: 'stack',   name: 'Subconscious',     port: 8409, http: '/health' },
         { group: 'stack',   name: 'LM Studio',        port: 1234, http: '/v1/models' },
         { group: 'web',     name: 'XR Vessel',        port: 5176, http: '/' },
         { group: 'web',     name: 'FoveAI Web',       port: 5177, http: '/' },
@@ -4594,7 +5325,7 @@ app.post('/api/preserve', (req, res) => {
 
 app.post('/api/control', (req, res) => {
     const { action } = req.body || {};
-    const allowed = ['start-stack', 'stop-stack', 'open-tray', 'open-terminal', 'open-debug-terminal', 'show-meter', 'unload-lm', 'restart-local', 'open-quick-controls', 'open-corner-companion', 'open-topbar', 'restart-proxy', 'test-news-impulse', 'start-vite', 'start-xrlf-runtime', 'start-xrlf', 'stop-xrlf', 'launch-xr', 'check-xr'];
+    const allowed = ['start-stack', 'stop-stack', 'open-tray', 'open-terminal', 'open-debug-terminal', 'show-meter', 'unload-lm', 'restart-local', 'open-quick-controls', 'open-corner-companion', 'open-topbar', 'restart-proxy', 'test-news-impulse', 'start-vite', 'start-xrlf-runtime', 'start-xrlf', 'stop-xrlf', 'launch-xr', 'check-xr', 'load-tier-a', 'load-tier-b', 'unload-residency'];
     if (!allowed.includes(action)) return res.status(400).json({ error: 'unknown action' });
 
     const repoRoot = path.resolve(__dirname, '..', '..');
@@ -4735,6 +5466,27 @@ app.post('/api/control', (req, res) => {
                 xrlfCtl('restart', (err) => err ? sendErr(err) : sendOk());
             } else {
                 runPwsh('Restart-Service -Name "LMStudio*" -Force -ErrorAction SilentlyContinue', (err) => err ? sendErr(err) : sendOk());
+            }
+            break;
+        case 'load-tier-a':
+            if (IS_LINUX) {
+                execFile(venvPython, ['-m', 'runtime.residency', 'load', 'A'], { cwd: foveaiDir }, (err) => err ? sendErr(err) : sendOk());
+            } else {
+                sendOk();
+            }
+            break;
+        case 'load-tier-b':
+            if (IS_LINUX) {
+                execFile(venvPython, ['-m', 'runtime.residency', 'load', 'B'], { cwd: foveaiDir }, (err) => err ? sendErr(err) : sendOk());
+            } else {
+                sendOk();
+            }
+            break;
+        case 'unload-residency':
+            if (IS_LINUX) {
+                execFile(venvPython, ['-m', 'runtime.residency', 'unload'], { cwd: foveaiDir }, (err) => err ? sendErr(err) : sendOk());
+            } else {
+                sendOk();
             }
             break;
         case 'open-quick-controls':
@@ -4914,6 +5666,25 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason, promise) => {
     console.error(`[Fovea] unhandledRejection (suppressed):`, reason);
 });
+
+// ── Tools: personal image gallery ──────────────────────────────────────────
+// Mounted just before server start. Gallery files live under
+// /media/gallery/<user>/ in the FoveAI repo; user is taken from the fvs_
+// session when present, else a shared folder. Auth: same session check the
+// other /api surfaces use (open to authenticated sessions, blocked otherwise
+// via the standard route wrapper ordering).
+const { createGalleryRouter, createAIRouter } = require('./tools_gallery.api.js');
+app.use('/api/tools', createGalleryRouter({
+    galleryRoot: path.join(path.resolve(__dirname, '..'), 'media', 'gallery'),
+    getUser: (req) => {
+        const a = resolveRequestAuth(req);
+        return (a && !a.rejected && a.userId !== 'anonymous') ? { username: a.userId } : null;
+    }
+}));
+
+app.use('/api/tools/ai', createAIRouter({
+    galleryRoot: path.join(path.resolve(__dirname, '..'), 'media', 'gallery')
+}));
 
 // ── Start ───────────────────────────────────────────────────────────────────
 

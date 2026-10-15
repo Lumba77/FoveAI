@@ -1,0 +1,752 @@
+{
+  "version": 1,
+  "_generated": "from jen_mind.schema.json \u2014 edit schema for structure, this file holds live values",
+  "updated": 1792054535.4326806,
+  "lever": 0.85,
+  "preset": "companion",
+  "mode": "resting",
+  "drives": {
+    "energy": {
+      "value": 0.6,
+      "set_point": 0.6,
+      "gain": 0.7,
+      "ceiling": 1.0
+    },
+    "integrity": {
+      "value": 0.8,
+      "set_point": 0.8,
+      "gain": 0.7,
+      "ceiling": 1.0
+    },
+    "curiosity": {
+      "value": 0.55,
+      "set_point": 0.55,
+      "gain": 0.7,
+      "ceiling": 1.0
+    },
+    "service": {
+      "value": 0.7,
+      "set_point": 0.7,
+      "gain": 0.5,
+      "ceiling": 1.0
+    },
+    "purpose": {
+      "value": 0.75,
+      "set_point": 0.75,
+      "gain": 0.8,
+      "ceiling": 1.0
+    },
+    "competence": {
+      "value": 0.7,
+      "set_point": 0.7,
+      "gain": 0.8,
+      "ceiling": 1.0
+    },
+    "certainty": {
+      "value": 0.65,
+      "set_point": 0.65,
+      "gain": 0.8,
+      "ceiling": 1.0
+    },
+    "autonomy": {
+      "value": 0.75,
+      "set_point": 0.75,
+      "gain": 0.8,
+      "ceiling": 1.0
+    },
+    "relatedness": {
+      "value": 0.6,
+      "set_point": 0.6,
+      "gain": 0.5,
+      "ceiling": 1.0
+    },
+    "intimacy": {
+      "value": 0.55,
+      "set_point": 0.55,
+      "gain": 0.5,
+      "ceiling": 1.0
+    },
+    "nurture": {
+      "value": 0.6,
+      "set_point": 0.6,
+      "gain": 0.5,
+      "ceiling": 1.0
+    },
+    "attention": {
+      "value": 0.55,
+      "set_point": 0.55,
+      "gain": 0.5,
+      "ceiling": 1.0
+    },
+    "creativity": {
+      "value": 0.55,
+      "set_point": 0.55,
+      "gain": 0.5,
+      "ceiling": 1.0
+    },
+    "play": {
+      "value": 0.55,
+      "set_point": 0.55,
+      "gain": 0.5,
+      "ceiling": 1.0
+    }
+  },
+  "modulators": {
+    "arousal": 0.5,
+    "resolution": 0.5,
+    "threshold": 0.5,
+    "valence": 0.0,
+    "attractiveness": 0.5
+  },
+  "personality": {
+    "archetype": "infp",
+    "traits": {
+      "E": 0.3,
+      "N": 0.7,
+      "F": 0.8,
+      "J": 0.4
+    }
+  },
+  "residency": {
+    "tier": "B",
+    "model": "Qwen3.5-9B-MoQ-3.6",
+    "port": 8408,
+    "pid": 10841,
+    "state": "present",
+    "last_activity": null,
+    "last_wake": 1792040197.1494305
+  },
+  "consent": {
+    "explicit_content": false
+  },
+  "nerve": {
+    "activity": {
+      "value": "active",
+      "idle_s": 0.0,
+      "active": true,
+      "ts": 1792054535.320819,
+      "ttl": 120.0
+    },
+    "busy": {
+      "value": "clear",
+      "reasons": [
+        "clear"
+      ],
+      "ts": 1792054535.320819,
+      "ttl": 120.0
+    },
+    "drive": {
+      "value": "energy",
+      "hunger": 0.0,
+      "ts": 1792054535.320819,
+      "ttl": 120.0
+    },
+    "presence": {
+      "value": 0.57,
+      "ts": 1792054535.320819,
+      "ttl": 120.0
+    }
+  },
+  "events": [
+    {
+      "t": 1792031907.3839285,
+      "cell": "activity",
+      "from": "unknown",
+      "to": "active"
+    },
+    {
+      "t": 1792031907.3839285,
+      "cell": "presence",
+      "from": 0.17,
+      "to": 0.57
+    },
+    {
+      "t": 1792032901.7918115,
+      "cell": "activity",
+      "from": "active",
+      "to": "unknown"
+    },
+    {
+      "t": 1792032901.7918115,
+      "cell": "presence",
+      "from": 0.57,
+      "to": 0.17
+    },
+    {
+      "t": 1792032908.7489913,
+      "cell": "activity",
+      "from": "unknown",
+      "to": "active"
+    },
+    {
+      "t": 1792032908.7489913,
+      "cell": "presence",
+      "from": 0.17,
+      "to": 0.57
+    },
+    {
+      "t": 1792033550.1200511,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792033621.3768702,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792033789.3457348,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792033855.5044415,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792033860.59198,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792033932.9542346,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792034041.935097,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792034095.0172436,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792034204.1266642,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792034286.9519079,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792034302.434236,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792034383.243674,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792034541.0759234,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792034598.1919358,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792034700.690311,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792034828.2729309,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792035154.4936984,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792039363.546312,
+      "cell": "activity",
+      "from": "active",
+      "to": "unknown"
+    },
+    {
+      "t": 1792039363.546312,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792039363.546312,
+      "cell": "presence",
+      "from": 0.57,
+      "to": 0.17
+    },
+    {
+      "t": 1792039373.769948,
+      "cell": "activity",
+      "from": "unknown",
+      "to": "active"
+    },
+    {
+      "t": 1792039373.769948,
+      "cell": "presence",
+      "from": 0.17,
+      "to": 0.57
+    },
+    {
+      "t": 1792039775.548617,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792039898.238607,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792040172.3506188,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792040260.041818,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792040710.8244298,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792040843.3837724,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792041086.213232,
+      "cell": "activity",
+      "from": "active",
+      "to": "unknown"
+    },
+    {
+      "t": 1792041086.213232,
+      "cell": "presence",
+      "from": 0.57,
+      "to": 0.17
+    },
+    {
+      "t": 1792041091.3091967,
+      "cell": "activity",
+      "from": "unknown",
+      "to": "active"
+    },
+    {
+      "t": 1792041091.3091967,
+      "cell": "presence",
+      "from": 0.17,
+      "to": 0.57
+    },
+    {
+      "t": 1792042053.39267,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792042206.623781,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792042323.7849443,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792042373.137165,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792042552.9351566,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792042981.399827,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792043006.8604047,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792043426.008346,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792044078.8679643,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792044125.8069592,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792044562.7818472,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792044748.3714795,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792044768.753376,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792044824.91125,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792044988.7677205,
+      "cell": "activity",
+      "from": "active",
+      "to": "unknown"
+    },
+    {
+      "t": 1792044988.7677205,
+      "cell": "presence",
+      "from": 0.57,
+      "to": 0.17
+    },
+    {
+      "t": 1792044993.852213,
+      "cell": "activity",
+      "from": "unknown",
+      "to": "active"
+    },
+    {
+      "t": 1792044993.852213,
+      "cell": "presence",
+      "from": 0.17,
+      "to": 0.57
+    },
+    {
+      "t": 1792045286.1234367,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792045326.9297383,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792045332.0149758,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792045433.9951615,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792045454.5963333,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792045459.6995258,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792045546.2980888,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792045551.385078,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792045724.6422753,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792046084.906947,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792046264.51855,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792046574.3805473,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792046600.0085278,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792046631.100714,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792046636.2818558,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792047000.79927,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792047321.7858899,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792047373.2190108,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792047383.4165125,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792047439.4622555,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792047628.089867,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792047675.9589932,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792048166.2151916,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792048191.719402,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792048380.3310564,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792048385.432853,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792048434.3200872,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792048440.4774113,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792048582.408059,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792048684.365123,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792048842.6750948,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792049173.983381,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792049403.5721698,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792049479.00993,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792049552.9170706,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792052780.8449638,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792052796.1774282,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792052826.8715167,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792053077.7977946,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792053134.042609,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792053573.8929389,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792053614.808926,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    },
+    {
+      "t": 1792054090.4582477,
+      "cell": "busy",
+      "from": "clear",
+      "to": "busy"
+    },
+    {
+      "t": 1792054126.2557364,
+      "cell": "busy",
+      "from": "busy",
+      "to": "clear"
+    }
+  ]
+}

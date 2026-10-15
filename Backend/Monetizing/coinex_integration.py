@@ -12,6 +12,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 import aiohttp
@@ -22,6 +23,15 @@ logger = logging.getLogger("coinex_integration")
 class CoinExAPIError(Exception):
     """Custom exception for CoinEx API errors."""
 
+
+try:
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from resilient_client import get_breaker, parse_retry_after, CircuitBreakerOpenError
+except Exception:
+    get_breaker = None
+    parse_retry_after = lambda x: None
+    CircuitBreakerOpenError = Exception
 
 
 @dataclass
@@ -126,6 +136,14 @@ class CoinExV2Client:
 
         logger.info(f"[CoinEx Request Debug] {method} {full_path} | TS: {timestamp}")
 
+        breaker = get_breaker(self.config.base_url) if get_breaker else None
+        if breaker and not breaker.is_available():
+            remaining = breaker.remaining_cooldown()
+            logger.debug(
+                f"[CoinEx Circuit Breaker] Suppressed {method} {full_path} — cooling down ({remaining:.0f}s left)"
+            )
+            raise CoinExAPIError(f"CoinEx circuit breaker active (cooling down for {remaining:.0f}s)")
+
         # Retry logic — create a fresh session per attempt to avoid NoneType crashes
         last_error: Exception | None = None
         for attempt in range(self.config.max_retries):
@@ -154,11 +172,24 @@ class CoinExV2Client:
                             raise CoinExAPIError(
                                 f"CoinEx error {code}: {res_json.get('message')}"
                             )
+                        if breaker:
+                            breaker.record_success()
                         return res_json
-                    err_data = await response.json()
-                    raise CoinExAPIError(
-                        f"CoinEx error {err_data.get('code')}: {err_data.get('message')}"
-                    )
+
+                    # Handle server outage / rate-limiting by tripping the circuit breaker immediately
+                    if response.status in (429, 500, 502, 503, 504):
+                        retry_after = response.headers.get("Retry-After")
+                        cooldown = parse_retry_after(retry_after) if parse_retry_after else None
+                        if breaker:
+                            breaker.trip(cooldown, reason=f"HTTP {response.status}")
+
+                    try:
+                        err_data = await response.json()
+                        err_msg = f"CoinEx error {err_data.get('code')}: {err_data.get('message')}"
+                    except Exception:
+                        err_text = await response.text()
+                        err_msg = f"CoinEx HTTP {response.status}: {err_text[:200]}"
+                    raise CoinExAPIError(err_msg)
             except (asyncio.TimeoutError, aiohttp.ClientError) as e:
                 last_error = e
                 if attempt < self.config.max_retries - 1:
@@ -172,6 +203,9 @@ class CoinExV2Client:
                     and not req_session.closed
                 ):
                     await req_session.close()
+
+        if breaker:
+            breaker.trip(60.0, reason=f"Network/Timeout error: {last_error}")
         raise CoinExAPIError(
             f"Request failed after {self.config.max_retries} attempts: {last_error}"
         )

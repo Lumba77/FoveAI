@@ -1,1 +1,0 @@
-"""FoveAI backend application package."""

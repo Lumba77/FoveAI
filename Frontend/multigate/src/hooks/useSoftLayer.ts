@@ -7,7 +7,8 @@ export function useSoftLayer() {
     useEffect(() => {
         let isMounted = true;
         if (!softLayerRef.current) {
-            const softLayer = new SoftLayerLoader('http://127.0.0.1:8402');
+            // SoftLayer is decorative: a missing module must never stop the app booting.
+            const softLayer = new SoftLayerLoader(window.location.origin);
             softLayerRef.current = softLayer;
             (window as any).foveaiSoftLayer = softLayer;
             

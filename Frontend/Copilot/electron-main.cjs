@@ -119,3 +119,37 @@ ipcMain.handle('download-model', async (event, repoId) => {
     });
   });
 });
+
+// Soul DNA & Command Center Settings IPC
+ipcMain.handle('get-soul-dna', async () => {
+  try {
+    const res = await fetch('http://127.0.0.1:8405/api/soul/soul_dna');
+    return await res.json();
+  } catch (_) {
+    const soulPath = path.join(__dirname, '..', '..', 'Backend', 'Cognition', 'jen_soul.json');
+    if (fs.existsSync(soulPath)) {
+      return { dna: JSON.parse(fs.readFileSync(soulPath, 'utf8')) };
+    }
+    return { error: 'Could not load soul DNA' };
+  }
+});
+
+ipcMain.handle('update-soul', async (event, patch) => {
+  try {
+    const res = await fetch('http://127.0.0.1:8405/api/soul/update_soul', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch)
+    });
+    return await res.json();
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+ipcMain.handle('open-settings', async () => {
+  const { shell } = require('electron');
+  await shell.openExternal('http://127.0.0.1:8414/settings.html#sec-persona');
+  return { status: 'opened' };
+});
+

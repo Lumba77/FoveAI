@@ -35,7 +35,7 @@ namespace FoveAI.UI
             _statusText = textObj.AddComponent<Text>();
             
             // Standard Arial font
-            _statusText.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            _statusText.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             _statusText.color = new Color(1f, 0.8f, 0.2f, 1.0f); // Amber
             _statusText.fontSize = 32;
             _statusText.alignment = TextAnchor.MiddleCenter;

@@ -17,7 +17,7 @@ export class CommsBridge {
     private log: (m: string, c: string) => void;
 
     constructor(logFn?: (m: string, c: string) => void) {
-        this.log = logFn || ((m, c) => console.log('[Comms] ' + m));
+        this.log = logFn || ((m, _c) => console.log('[Comms] ' + m));
     }
 
     // ── EMAIL ──

@@ -103,7 +103,7 @@ export class COMAX {
 ### FoveAI REPO ARCHITECTURE
 - frontend/XR_Vessel/ — Vite web UI (src/main.ts, src/components/, src/senses/)
 - frontend/XR_Vessel/xr_app.py — Python backend + API proxy
-- backend/Soul/ — AI personality service (port 8405) — STT → LLM → TTS voice pipeline
+- backend/Soul/ — AI personality service (port 8411) — STT → LLM → TTS voice pipeline
 - backend/Memory/ — Lumax MCP memory server (port 8002)
 - backend/Cognition/ — Cognitive agents (ag_coder.py=REMAX, compagent.py)
 - backend/Creativity/ — Creative generation

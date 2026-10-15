@@ -46,7 +46,7 @@ import subprocess
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import avatar_profile_store  # type: ignore
 import cloud_repertoire  # type: ignore
@@ -938,8 +938,8 @@ async def _generate_soul_text(
     if slot:
         try:
             user_t = (
-                "Live dialogue transcript (Daniel = human, Jen = you). "
-                "Reply with only Jen's next in-character message — do not write Daniel's lines.\n\n"
+                "Live dialogue transcript (User = human, Jen = you). "
+                "Reply with only Jen's next in-character message — do not write the user's lines.\n\n"
                 + (history_str or "").rstrip()
             )
             out = await cloud_repertoire.generate_via_slot(
@@ -1280,6 +1280,11 @@ async def run_monetizing_loop():
             if _monetizing_swarm:
                 if counter % 5 == 0:
                     await update_actual_balances()
+                if _monetizing_idea_engine and counter % 20 == 0 and counter > 0:
+                    try:
+                        _monetizing_idea_engine.discover_new_ideas()
+                    except Exception as e:
+                        logger.warning(f"Background web scout sweep error: {e}")
                 counter += 1
 
                 # Only tick if swarm is active (has any non-paused/non-error agents)
@@ -4367,9 +4372,27 @@ async def post_monetize_control(ctrl: AgentControl):
 
 
 @app.post("/monetize/add_agent")
-async def post_monetize_add_agent(name: str = Form(...), type: str = Form(...)):
+async def post_monetize_add_agent(
+    request: Request,
+    name: Optional[str] = Form(None),
+    type: Optional[str] = Form(None),
+):
     if not _monetizing_swarm:
         raise HTTPException(status_code=500, detail="Monetizing subsystem offline")
+
+    # If Form data was empty, try JSON body
+    if not name or not type:
+        try:
+            body = await request.json()
+            name = name or body.get("name")
+            type = type or body.get("type")
+        except Exception:
+            pass
+
+    if not name:
+        raise HTTPException(status_code=400, detail="Agent name is required")
+    if not type:
+        type = "crypto_trading"
 
     agent_id = f"agent_{int(time.time())}"
     try:
@@ -4388,8 +4411,14 @@ async def post_monetize_add_agent(name: str = Form(...), type: str = Form(...)):
         from agent_core import CreativeAssetAgent  # type: ignore
 
         agent = CreativeAssetAgent(agent_id, config)
+    elif itype == IncomeType.AFFILIATE_MARKETING:
+        from agent_core import AffiliateMarketingAgent  # type: ignore
+
+        agent = AffiliateMarketingAgent(agent_id, config)
     else:
-        agent = MonetizingAgent(agent_id, config)
+        from agent_core import AutonomousWorkerAgent  # type: ignore
+
+        agent = AutonomousWorkerAgent(agent_id, config)
 
     await _monetizing_swarm.add_agent(agent)
 
@@ -4397,9 +4426,23 @@ async def post_monetize_add_agent(name: str = Form(...), type: str = Form(...)):
 
 
 @app.post("/monetize/remove_agent")
-async def post_monetize_remove_agent(agent_id: str = Form(...)):
+async def post_monetize_remove_agent(
+    request: Request,
+    agent_id: Optional[str] = Form(None),
+):
     if not _monetizing_swarm:
         raise HTTPException(status_code=500, detail="Monetizing subsystem offline")
+
+    if not agent_id:
+        try:
+            body = await request.json()
+            agent_id = body.get("agent_id")
+        except Exception:
+            pass
+
+    if not agent_id:
+        raise HTTPException(status_code=400, detail="agent_id is required")
+
     success = await _monetizing_swarm.remove_agent(agent_id)
     if not success:
         raise HTTPException(status_code=404, detail="Agent not found")
@@ -5868,6 +5911,16 @@ async def handle_compagent_request(request: CompagentRequest):
                 r'<self:edit\s+file=["\']([^"\']+)["\']\s+search=["\']([^"\']+)["\']\s*>(.*?)</self:edit>',
                 re.IGNORECASE | re.DOTALL,
             )
+            rx_ls = re.compile(
+                r'<self:ls(?:\s+(?:path=)?["\']?([^"\'<>]+)["\']?)?\s*\/?>',
+                re.IGNORECASE,
+            )
+            rx_read = re.compile(
+                r'<self:read\s+(?:path=)?["\']?([^"\'<>]+)["\']?(?:\s+(?:start=)?["\']?(\d+)["\']?)?\s*\/?>',
+                re.IGNORECASE,
+            )
+            # filesystem eyes: read-window cap so big files don't flood context
+            _fs_read_lines = 200
 
             agency_triggered = False
             agency_feedback = []
@@ -5885,6 +5938,7 @@ async def handle_compagent_request(request: CompagentRequest):
                         "[SYSTEM_AGENCY_FEEDBACK]: DEVELOPER MODE ACTIVATED. "
                         "You are now in the CODER persona with BUILD_RUN domain. "
                         'You have full permission to search the codebase with <self:search "query">, '
+                        'list directories with <self:ls "path">, read files with <self:read "path">, '
                         'edit files with <self:edit file="path" search="old" >replacement</self:edit>, '
                         'search the web with <self:web "query">, read pages with <self:fetch "url">, and drive a real browser with <self:browse url="..." action="read|click|type|scroll|look"/>. '
                         "Protected-layer edits become proposals for the architect; secrets/system paths are forbidden. "
@@ -5962,6 +6016,7 @@ async def handle_compagent_request(request: CompagentRequest):
                         "[SYSTEM_AGENCY_FEEDBACK]: DEVELOPER MODE ACTIVATED via <self:mode developer>. "
                         "You are now in the CODER persona with BUILD_RUN domain. "
                         'You have full permission to search the codebase with <self:search "query">, '
+                        'list directories with <self:ls "path">, read files with <self:read "path">, '
                         'edit files with <self:edit file="path" search="old" >replacement</self:edit>, '
                         'search the web with <self:web "query">, read pages with <self:fetch "url">, and drive a real browser with <self:browse url="..." action="read|click|type|scroll|look"/>. '
                         "Protected-layer edits become proposals for the architect; secrets/system paths are forbidden. "
@@ -6144,6 +6199,66 @@ async def handle_compagent_request(request: CompagentRequest):
                         "Please try a different query or check the file path."
                     )
                     agency_triggered = True
+
+            # 3b. Filesystem eyes — list directories / read files (repo-jail
+            # enforced by coder_tools; read window capped to keep context lean)
+            for m in rx_ls.finditer(raw_stripped):
+                lp = (m.group(1) or ".").strip() if m and m.group(1) else "."
+                logger.info("SELF-AGENCY: Jen listing directory: %s", lp[:120])
+                try:
+                    from coder_tools import repo_list_dir
+
+                    res = repo_list_dir(lp)
+                    if "error" in res:
+                        res_text = f"list of '{lp}' failed: {res['error']}"
+                    else:
+                        res_text = (
+                            f"{res['dir']}/\n" + "\n".join(res["entries"][:120])
+                        )
+                        if len(res["entries"]) > 120:
+                            res_text += f"\n… (+{len(res['entries']) - 120} more)"
+                except Exception as ls_err:
+                    logger.warning(
+                        f"SELF-AGENCY: directory listing failed: {ls_err}"
+                    )
+                    res_text = f"list of '{lp}' failed: {ls_err}"
+                agency_feedback.append(
+                    f"[SYSTEM_AGENCY_FEEDBACK]: Directory listing of '{lp}':\n{res_text}\n\n"
+                    'Drill deeper with <self:ls "subdir">, open a file with <self:read "path">, '
+                    'or search content with <self:search "query">. '
+                    "When you have explored enough, drop the tags and give your assessment: "
+                    "what is good, what is missing, what you would improve or add."
+                )
+                agency_triggered = True
+
+            for m in rx_read.finditer(raw_stripped):
+                rp = m.group(1).strip()
+                r_start = int(m.group(2) or 1)
+                r_end = r_start + _fs_read_lines - 1
+                logger.info("SELF-AGENCY: Jen reading file: %s (from line %d)", rp[:120], r_start)
+                try:
+                    from coder_tools import repo_read_file
+
+                    res = repo_read_file(rp, start=r_start, end=r_end)
+                    if "error" in res:
+                        res_text = f"read of '{rp}' failed: {res['error']}"
+                    else:
+                        res_text = (
+                            f"{res['file']} ({res['total_lines']} lines total, "
+                            f"window from line {r_start}, ≤{_fs_read_lines} lines):\n"
+                            + res["content"]
+                        )
+                except Exception as r_err:
+                    logger.warning(f"SELF-AGENCY: file read failed: {r_err}")
+                    res_text = f"read of '{rp}' failed: {r_err}"
+                agency_feedback.append(
+                    f"[SYSTEM_AGENCY_FEEDBACK]: File content — {res_text}\n\n"
+                    f'Read the next window with <self:read "{rp}" {r_start + _fs_read_lines}>, '
+                    "or list sibling directories with <self:ls>. "
+                    "Then share your own opinion: what the file does well, what it lacks, "
+                    "and what you would do next with it."
+                )
+                agency_triggered = True
 
             # 4. Web searches
             for m in rx_web.finditer(raw_stripped):
@@ -6433,6 +6548,8 @@ async def handle_compagent_request(request: CompagentRequest):
             text = rx_simple.sub("", text)
             text = rx_mode.sub("", text)
             text = rx_search.sub("", text)
+            text = rx_ls.sub("", text)
+            text = rx_read.sub("", text)
             text = rx_web.sub("", text)
             text = rx_fetch.sub("", text)
             text = rx_browse.sub("", text)
@@ -6444,6 +6561,8 @@ async def handle_compagent_request(request: CompagentRequest):
             thought = rx_simple.sub("", thought)
             thought = rx_mode.sub("", thought)
             thought = rx_search.sub("", thought)
+            thought = rx_ls.sub("", thought)
+            thought = rx_read.sub("", thought)
             thought = rx_web.sub("", thought)
             thought = rx_fetch.sub("", thought)
             thought = rx_browse.sub("", thought)

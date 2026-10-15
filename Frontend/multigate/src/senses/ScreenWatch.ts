@@ -50,7 +50,7 @@ export class ScreenWatch {
   private last: ScreenFrame | null = null;
   private subs: string[] = [];
   private title: string | null = null;
-  private log = (m: string, c: string) => console.log('[SW] ' + m);
+  private log = (m: string, _c: string) => console.log('[SW] ' + m);
 
   constructor(cfg?: Partial<ScreenWatchConfig>, lf?: (m: string, c: string) => void) {
     if (cfg) this.cfg = { ...this.cfg, ...cfg };

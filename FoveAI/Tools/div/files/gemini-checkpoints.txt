@@ -1,1 +1,0 @@
-"gemini --resume '7d42f125-48fd-4fbb-939d-5836c723c704'" 

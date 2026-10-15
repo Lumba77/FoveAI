@@ -10,7 +10,7 @@ namespace FoveAI.Environment
     public class RoomPlasterClient : MonoBehaviour
     {
         [Header("Backend Settings")]
-        public string textureEndpoint = "http://192.168.8.100:8405/api/environment/plaster_texture"; // Overridden in Start
+        public string textureEndpoint = "http://192.168.8.109:8405/api/environment/plaster_texture"; // Overridden in Start
         public float refreshInterval = 5f;
 
         [Header("Materials")]

@@ -1,0 +1,44 @@
+{
+  "themes": [
+    {
+      "id": "foveai-celestial",
+      "name": "FoveAI Celestial",
+      "description": "Astro-instrument × high-tech default theme",
+      "preview": "foveai-celestial.png",
+      "colors": {
+        "bg-dark": "#070b1d",
+        "bg-panel": "rgba(20, 26, 52, 0.55)",
+        "accent-cyan": "#5eead4",
+        "accent-purple": "#a78bfa",
+        "accent-pink": "#f472b6"
+      }
+    },
+    {
+      "id": "cyber-noir",
+      "name": "Cyber Noir",
+      "description": "Dark cyberpunk aesthetic with neon accents",
+      "preview": "cyber-noir.png",
+      "colors": {
+        "bg-dark": "#0a0a0f",
+        "bg-panel": "rgba(15, 15, 25, 0.8)",
+        "accent-cyan": "#00ffff",
+        "accent-purple": "#ff00ff",
+        "accent-pink": "#ff1493"
+      }
+    },
+    {
+      "id": "aurora-borealis",
+      "name": "Aurora Borealis",
+      "description": "Northern lights inspired gradient theme",
+      "preview": "aurora.png",
+      "colors": {
+        "bg-dark": "#0f172a",
+        "bg-panel": "rgba(30, 41, 59, 0.6)",
+        "accent-cyan": "#22d3ee",
+        "accent-purple": "#818cf8",
+        "accent-pink": "#f472b6"
+      }
+    }
+  ],
+  "default": "foveai-celestial"
+}

@@ -1,10 +1,37 @@
+/**
+ * Turn a getUserMedia failure into an actionable sentence.
+ * The two that account for nearly every report: an insecure origin (plain
+ * http on a LAN address — the browser blocks the mic outright) and a denied
+ * permission. Both used to fail silently.
+ */
+function describeMicFailure(err: unknown): string {
+  const name = (err as { name?: string })?.name || 'Error';
+  const msg = String((err as { message?: string })?.message || err);
+  if (!window.isSecureContext) {
+    return `this page is not a secure origin (${location.protocol}//${location.host}). ` +
+      `Browsers block the microphone here. Use https://foveai.xarel.net or http://localhost.`;
+  }
+  switch (name) {
+    case 'NotAllowedError':
+    case 'SecurityError':
+      return 'permission denied — allow the microphone for this site in the browser, then retry.';
+    case 'NotFoundError':
+    case 'OverconstrainedError':
+      return 'no microphone found on this device. (A remote-desktop session often exposes none.)';
+    case 'NotReadableError':
+      return 'the microphone is busy in another application, or the session exposes no capture device.';
+    default:
+      return `${name}: ${msg}`;
+  }
+}
+
 export class AuralAwareness {
   private mediaRecorder: MediaRecorder | null = null;
   private audioChunks: Blob[] = [];
-  private onTranscription: ((text: string) => void) | null = null;
   private isRecording: boolean = false;
   private mediaStream: MediaStream | null = null;
   private currentPlayId: number = 0;
+  private selectedDeviceId: string = '';
 
   // Real-time analysis
   private audioContext: AudioContext | null = null;
@@ -191,9 +218,13 @@ export class AuralAwareness {
 
           gainNode.connect(ctx.destination);
           
-          // Connect to analyser for lip-sync if available
-          if (this.analyser) {
-              source.connect(this.analyser);
+          // Lip sync during PLAYBACK: the analyser used to be created only by
+          // the mic path, so TTS playback published no energy at all and the
+          // avatar never moved its mouth. Create it on demand here.
+          const lipAnalyser = this.ensureAnalyser();
+          if (lipAnalyser) {
+              source.connect(lipAnalyser);
+              this.startEnergyPublisher();
           }
 
           // Track source and gain so they can be stopped when new speech starts
@@ -351,13 +382,18 @@ export class AuralAwareness {
     if (this.isRecording) return;
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const constraints: MediaTrackConstraints = {
+        echoCancellation: true, noiseSuppression: true, autoGainControl: true,
+      };
+      if (this.selectedDeviceId) constraints.deviceId = { exact: this.selectedDeviceId };
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
+      console.log(`[AuralAwareness] capturing from: ${this.getActiveInputLabel()}`);
       
       this.mediaStream = stream;
       
       // Setup Analyser
       this.getOrCreateAudioContext();
-      this.analyser = this.audioContext!.createAnalyser();
+      this.analyser = this.ensureAnalyser()!;
       this.analyser.fftSize = 256;
       this.source = this.audioContext!.createMediaStreamSource(stream);
       this.source.connect(this.analyser);
@@ -385,8 +421,55 @@ export class AuralAwareness {
       this.isRecording = true;
       console.log('[AuralAwareness] Recording & Analysis started');
     } catch (err) {
-      console.error('[AuralAwareness] Failed to start:', err);
+      // A silent catch here is why "the mic never works" had no explanation for
+      // years. Name the actual reason and surface it to the UI.
+      const reason = describeMicFailure(err);
+      console.error(`[AuralAwareness] Microphone unavailable — ${reason}`);
+      window.dispatchEvent(new CustomEvent('foveai_mic_failed', { detail: { reason } }));
     }
+  }
+
+  /** Input devices the browser can actually see. Labels are empty until
+   *  permission is granted, so callers should enumerate again after capture. */
+  public async listInputs(): Promise<MediaDeviceInfo[]> {
+    if (!navigator.mediaDevices?.enumerateDevices) return [];
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    return devs.filter((d) => d.kind === 'audioinput');
+  }
+
+  /** The mic currently in use — the label is what makes "it listens to the
+   *  wrong device" visible instead of a mystery. */
+  public getActiveInputLabel(): string {
+    return this.mediaStream?.getAudioTracks()[0]?.label || '(not capturing)';
+  }
+
+  /** Remember an explicitly chosen input and restart capture on it. */
+  public async selectInput(deviceId: string): Promise<string> {
+    this.selectedDeviceId = deviceId;
+    const wasRecording = this.isRecording;
+    this.cleanupCapture();
+    if (wasRecording) await this.startRecording();
+    return this.getActiveInputLabel();
+  }
+
+  public getChosenDeviceId(): string { return this.selectedDeviceId || ''; }
+
+  /** Release the capture graph so switching devices cannot stack live nodes. */
+  private cleanupCapture(): void {
+    this.mediaStream?.getTracks().forEach((t) => t.stop());
+    this.mediaStream = null;
+    try { this.source?.disconnect(); } catch { /* already detached */ }
+    this.source = null;
+    this.analyser = null;
+    this.isRecording = false;
+  }
+
+  public getContextState(): string { return this.audioContext?.state || 'none'; }
+
+  /** Smoothed 0..1 mic level for a live meter. */
+  public getInputLevel(): number {
+    if (!this.analyser) return 0;
+    return this.getVolume();
   }
 
   public getVolume(): number {
@@ -425,4 +508,40 @@ export class AuralAwareness {
   private dispatchAudio(base64: string) {
     window.dispatchEvent(new CustomEvent('foveai_audio_input', { detail: base64 }));
   }
+
+  /** Returns the shared analyser, creating it on first use. */
+  private ensureAnalyser(): AnalyserNode | null {
+    if (this.analyser) return this.analyser;
+    try {
+      this.getOrCreateAudioContext();
+      if (!this.audioContext) return null;
+      this.analyser = this.audioContext.createAnalyser();
+      this.analyser.fftSize = 256;
+      this.dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+      return this.analyser;
+    } catch (e) {
+      console.warn('[Aural] analyser unavailable:', e);
+      return null;
+    }
+  }
+
+  /** Publishes playback/mic amplitude as 'foveai_tts_energy' events (~30fps)
+      — feeds useLipsync for the talking still-image frames. */
+  public startEnergyPublisher() {
+      if ((this as any)._energyRaf) return;
+      const loop = () => {
+          (this as any)._energyRaf = requestAnimationFrame(loop);
+          if (!this.analyser || !this.dataArray) return;
+          this.analyser.getByteFrequencyData(this.dataArray as any);
+          let sum = 0;
+          for (const v of this.dataArray) sum += v;
+          const energy = Math.min(1, sum / (this.dataArray.length * 140));
+          window.dispatchEvent(new CustomEvent('foveai_tts_energy', { detail: { energy } }));
+      };
+      (this as any)._energyRaf = requestAnimationFrame(loop);
+  }
 }
+
+/** One shared instance: the hook, the mic diagnostics and the recogniser
+ *  must all read the same capture graph, or the meter lies. */
+export const auralAwareness = new AuralAwareness();

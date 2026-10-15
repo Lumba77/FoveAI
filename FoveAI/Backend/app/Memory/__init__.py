@@ -1,1 +1,0 @@
-"""Foveated memory ring package."""

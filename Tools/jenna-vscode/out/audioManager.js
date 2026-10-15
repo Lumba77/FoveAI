@@ -4,7 +4,7 @@
  *
  * Manages the Python-based audio recorder subprocess for voice input.
  * Provides push-to-talk and continuous voice recording modes.
- * Audio is transcribed via the foveated memory proxy (port 8400).
+ * Audio is transcribed via the foveated memory proxy (port 8401).
  */
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;

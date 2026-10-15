@@ -112,12 +112,12 @@ class ServerConfig:
     SOUL_PORT: int = _env_int("SOUL_PORT", 8405)
     AUTONOMOUS_PORT: int = _env_int("FOVEAI_AUTONOMOUS_PORT", 8410)
     MOTOR_DAEMON_PORT: int = _env_int("FOVEAI_MOTOR_PORT", 8410)
-    SUBCONSCIOUS_PORT: int = _env_int("FOVEAI_SUBCONSCIOUS_PORT", 8411)
+    SUBCONSCIOUS_PORT: int = _env_int("FOVEAI_SUBCONSCIOUS_PORT", 8409)
 
     # Service servers
-    CREATIVE_PORT: int = _env_int("FOVEAI_CREATIVE_PORT", 8408)
-    MEMORY_PORT: int = _env_int("FOVEAI_MEMORY_PORT", 8407)
-    STT_PORT: int = _env_int("STT_PORT", 8409)
+    CREATIVE_PORT: int = _env_int("FOVEAI_CREATIVE_PORT", 8412)
+    MEMORY_PORT: int = _env_int("FOVEAI_MEMORY_PORT", 8413)
+    STT_PORT: int = _env_int("STT_PORT", 8412)
     TTS_PORT: int = _env_int("FOVEAI_TTS_PORT", 8403)
     WEBUI_PORT: int = _env_int("WEBUI_PORT", 8080)
     XRLF_API_PORT: int = _env_int("FOVEAI_XRLF_API_PORT", 8300)

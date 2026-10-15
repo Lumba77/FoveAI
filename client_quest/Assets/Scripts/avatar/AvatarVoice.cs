@@ -13,7 +13,7 @@ namespace FoveAI.Audio
     public class AvatarVoice : MonoBehaviour
     {
         [Tooltip("The TTS Server WebSocket URL")]
-        public string websocketUrl = "ws://192.168.8.100:8401";
+        public string websocketUrl = "ws://192.168.8.109:8401";
         public int sampleRate = 24000;
         
         private ClientWebSocket _ws;

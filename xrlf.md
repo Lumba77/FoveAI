@@ -21,8 +21,8 @@ The **eXtensible Neural Representation Format (XRLF v1.5)** is FoveAI's native c
 - **Serving Endpoints**: REST API at `http://127.0.0.1:8402` & WebSocket IPC at `ws://127.0.0.1:8403`
 
 ### Active Neural Audio Daemon & Sound Effects Stack
-- **Audio Daemon / Kokoro TTS**: Neural 24kHz speech synthesizer daemon (`foveai_mouth_kokoro_server.py` on `:8406`, service `foveai-tts.service`)
-- **Audio Daemon / Whisper STT**: Real-time streaming speech-to-text (`stt_whisper_server.py` on `:8409`, service `foveai-stt.service`)
+- **Audio Daemon / Kokoro TTS**: Neural 24kHz speech synthesizer daemon (`foveai_mouth_kokoro_server.py` on `:8411`, service `foveai-tts.service`)
+- **Audio Daemon / Whisper STT**: Real-time streaming speech-to-text (`stt_whisper_server.py` on `:8401`, service `foveai-stt.service`)
 - **Audio Effects App & Soundboard**: Spatial impulse audio, soundboard triggers, and active voice routing
 
 ---
@@ -44,12 +44,12 @@ The **eXtensible Neural Representation Format (XRLF v1.5)** is FoveAI's native c
 | **8402** | HTTP | XRLF Local LLM Server | Main REST API, OpenAI `/v1/chat/completions`, native TTS/STT hooks |
 | **8403** | WS | XRLF WebSocket IPC | Real-time bi-directional streaming conduit for avatar motion & thoughts |
 | **8400** | HTTP/WS | Foveated Memory Proxy | Memory ring manager, context compressor, dynamic HUD injector |
-| **8401** | HTTP | FoveAI Dashboard | Web UI settings & subsystem health monitor |
-| **8406** | HTTP | Audio Daemon (Kokoro TTS) | Neural 24kHz speech synthesizer (`foveai-tts.service`) |
-| **8407** | HTTP/WS | Chat Relay Server | Cross-client message dispatcher (`foveai-chat-relay.service`) |
-| **8409** | WS | Audio Daemon (Whisper STT) | Real-time audio transcription daemon (`foveai-stt.service`) |
+| **8414** | HTTP | FoveAI Dashboard | Web UI settings & subsystem health monitor |
+| **8411** | HTTP | Audio Daemon (Kokoro TTS) | Neural 24kHz speech synthesizer (`foveai-tts.service`) |
+| **8413** | HTTP/WS | Chat Relay Server | Cross-client message dispatcher (`foveai-chat-relay.service`) |
+| **8401** | WS | Audio Daemon (Whisper STT) | Real-time audio transcription daemon (`foveai-stt.service`) |
 | **8410** | HTTP/WS | Motor Cortex Daemon | Avatar pose & agency controller (`foveai-motor.service`) |
-| **8411** | HTTP | Subconscious Daemon | Telemetry evaluation & cognitive dispatch (`foveai-subconscious.service`) |
+| **8409** | HTTP | Subconscious Daemon | Telemetry evaluation & cognitive dispatch (`foveai-subconscious.service`) |
 | **5177** | HTTP | Multigate WebUI | Vite-powered web interface |
 
 ---

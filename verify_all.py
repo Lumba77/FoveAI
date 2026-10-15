@@ -25,14 +25,14 @@ try:
 except Exception as e:
     print(f"  ERROR: {e}")
 
-# 3. Dashboard (8401) - settings page
-print("\n[3] Dashboard (8401/settings.html):")
+# 3. Dashboard (8414) - settings page
+print("\n[3] Dashboard (8414/settings.html):")
 try:
-    with urllib.request.urlopen("http://127.0.0.1:8401/settings.html", timeout=5) as r:
+    with urllib.request.urlopen("http://127.0.0.1:8414/settings.html", timeout=5) as r:
         html = r.read().decode("utf-8")
         checks = {
             "has :8400": ":8400" in html,
-            "has :8401": ":8401" in html,
+            "has :8414": ":8414" in html,
             "has summarizer": "qwen3-0.6b-summarizer" in html,
             "no stale :8200": ":8200" not in html,
             "no stale :8300": ":8300" not in html,
@@ -73,9 +73,9 @@ except Exception as e:
     print(f"  ERROR: {e}")
 
 # 6. Monitor dashboard (index.html)
-print("\n[6] Monitor Dashboard (8401/):")
+print("\n[6] Monitor Dashboard (8414/):")
 try:
-    with urllib.request.urlopen("http://127.0.0.1:8401/", timeout=5) as r:
+    with urllib.request.urlopen("http://127.0.0.1:8414/", timeout=5) as r:
         html = r.read().decode("utf-8")
         checks = {
             "no stale :8300": ":8300" not in html,
@@ -88,10 +88,10 @@ try:
 except Exception as e:
     print(f"  ERROR: {e}")
 
-# 7. Graphtest page (8401)
-print("\n[7] Graphtest Dashboard (8401/graphtest.html):")
+# 7. Graphtest page (8408)
+print("\n[7] Graphtest Dashboard (8414/graphtest.html):")
 try:
-    with urllib.request.urlopen("http://127.0.0.1:8401/graphtest.html", timeout=5) as r:
+    with urllib.request.urlopen("http://127.0.0.1:8414/graphtest.html", timeout=5) as r:
         html = r.read().decode("utf-8")
         checks = {
             "no stale :8200": ":8200" not in html,

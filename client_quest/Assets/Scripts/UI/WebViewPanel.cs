@@ -21,7 +21,7 @@ namespace FoveAI.UI
     public class WebViewPanel : MonoBehaviour
     {
         [Header("Content")]
-        public string url = "http://192.168.8.100:5177/chat";
+        public string url = "http://192.168.8.109:5177/chat";
 
         [Header("Rendering")]
         [SerializeField] private int pixelWidth = 1280;

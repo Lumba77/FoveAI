@@ -12,16 +12,16 @@ Latest developments and session log.
 - Fixed env-key case mismatch: `.env` had `FOVEAI_KOKORO_VOICE`, code reads `FoveAI_KOKORO_VOICE`
 
 ### Voice stack re-pointed to 840x series (old 8001/8004 retired)
-- `foveated-memory/server.js`: `MOUTH_URL`/`PIPER_URL`/`SOUL_URL` → `TTS_URL` (`:8406`) / `STT_URL` (`:8409`); added `/api/tts/voices` passthrough
-- `foveai_mouth_kokoro_server.py` default port 8004→8406; `stt_whisper_server.py` default `STT_PORT` 8001→8409
-- Native `:8402` endpoints (`/v1/audio/speech`, `/v1/audio/transcriptions`) are primary; `:8406` Kokoro is TTS fallback; `:8409` is WebSocket-only STT
-- Proxy `/api/voice/status` now TCP-probes `:8409` (HTTP `/health` is invalid on a WS-only server)
+- `foveated-memory/server.js`: `MOUTH_URL`/`PIPER_URL`/`SOUL_URL` → `TTS_URL` (`:8411`) / `STT_URL` (`:8411`); added `/api/tts/voices` passthrough
+- `foveai_mouth_kokoro_server.py` default port 8004→8411; `stt_whisper_server.py` default `STT_PORT` 8001→8411
+- Native `:8402` endpoints (`/v1/audio/speech`, `/v1/audio/transcriptions`) are primary; `:8401` Kokoro is TTS fallback; `:8411` is WebSocket-only STT
+- Proxy `/api/voice/status` now TCP-probes `:8411` (HTTP `/health` is invalid on a WS-only server)
 - New systemd units: `foveai-tts.service`, `foveai-stt.service` (launchers for existing servers only — no duplicated implementations)
 
 ### Missing services restored (existing implementations, new units)
 - `foveai-motor.service` → `motor_daemon.py` on **:8410**
-- `foveai-subconscious.service` → `subconscious_daemon.py` on **:8411** (added `/health`; only had `POST /telemetry`)
-- `foveai-chat-relay.service` → `chat_relay_server.py` on **:8407**
+- `foveai-subconscious.service` → `subconscious_daemon.py` on **:8409** (added `/health`; only had `POST /telemetry`)
+- `foveai-chat-relay.service` → `chat_relay_server.py` on **:8413**
 - `foveai-multigate.service` → `Frontend/multigate` (Vite dev) on **:5177**
 - Fixed `startViteServer` Windows-only launcher (`C:\Windows\System32\cmd.exe`) → Linux `npm`
 - Installed Node 24 tarball to `~/.local` — Vite 8 requires Node ≥20, system node is 18
@@ -32,7 +32,7 @@ Latest developments and session log.
 - `refresh_network_config()` rewrites both `foveai_network_config.json` snapshots; called from `sleipnir_launcher.sh` startup
 - `autonomous_sentry.py` refreshes stale cached LAN addresses instead of trusting them
 - Cleared stale `FOVEAI_SERVER_IP=192.168.8.100` / `FOVEAI_BACKEND_URL` overrides from `.env` (current LAN: `192.168.8.109`)
-- Multigate browser calls changed to same-origin `/api/...` paths — remote visitors no longer hit their own `127.0.0.1`; LM Studio proxied via `/api/lmstudio`; ignition requires explicit `FOVEAI_IGNITION_URL` (no longer defaults to STT `:8409`)
+- Multigate browser calls changed to same-origin `/api/...` paths — remote visitors no longer hit their own `127.0.0.1`; LM Studio proxied via `/api/lmstudio`; ignition requires explicit `FOVEAI_IGNITION_URL` (no longer defaults to STT `:8401`)
 
 ### Jenna-vscode (IDE bridge)
 - TTS routed through extension host → proxy `/api/tts` → Kokoro (webview CSP blocks direct fetch; browser `speechSynthesis` has no voices in IDE webviews)
@@ -127,7 +127,7 @@ Latest developments and session log.
 - Thinking suppression: `XRLF_MODEL_THINKING=false` now pre-seeds the prompt with an empty `<think></think>` block (Qwen chat-template mechanism) — `/no_think` alone didn't survive a system prompt.
 - Load state: full GPU offload, n_ctx=16384, FA on, KV q8_0, ~4.3 GB VRAM total.
 
-**System diagnostic:** `GET :8402/v1/diagnostics` — verifies sections, XRL layers, prompt gates, memory, MTP, engine config, STT/TTS, and runs a live inference smoke test. Wired into `foveated-memory/public/settings.html` (RUN XRLF DIAGNOSTIC button + `runStackDiagnostic`). Reaches runtime same-origin via `:8401/xrlf` proxy. Current state: WARN-only (expected: no draft model, external STT/TTS).
+**System diagnostic:** `GET :8402/v1/diagnostics` — verifies sections, XRL layers, prompt gates, memory, MTP, engine config, STT/TTS, and runs a live inference smoke test. Wired into `foveated-memory/public/settings.html` (RUN XRLF DIAGNOSTIC button + `runStackDiagnostic`). Reaches runtime same-origin via `:8411/xrlf` proxy. Current state: WARN-only (expected: no draft model, external STT/TTS).
 
 **`foveai` CLI** (`~/.local/bin/foveai`): bare → interactive FoveAI_Console menu; `--start/--stop/--restart/--status/--logs` → `foveai.sh`; `--console <cmd>` / unknown args → console CLI passthrough. On PATH, no sudo.
 
@@ -177,6 +177,6 @@ Loadable packages (disk): qwopus-9b (active), gemma-4-12b-mtp, gemma-4-e2b, qwen
 
 **Netdata installed:** `netdata` apt pkg, enabled+active on 127.0.0.1:19999, reachable via Multigate `/netdata` proxy (200) and metrics.xarel.net.
 
-**Verified stack** (post-hook): xrlf qwopus loaded, proxy :8400, dashboard :8401, relay :8407, stt :8409, tts :8406 (Kokoro takes ~2min I/O-bound load — don't mark dead early), motor :8410, subconscious :8411, multigate :5177, x11vnc :5900, novnc :6080, xrdp :3389, sshd :22, sunshine :47989/47990/48010.
+**Verified stack** (post-hook): xrlf qwopus loaded, proxy :8408, dashboard :8414, relay :8413, stt :8401, tts :8411 (Kokoro takes ~2min I/O-bound load — don't mark dead early), motor :8411, subconscious :8411, multigate :8411, x11vnc :5900, novnc :6080, xrdp :3389, sshd :22, sunshine :47989/47990/48010.
 
 **Remaining:** one real-reboot soak test (hook was verified via manual `PAM_USER=lumba` run — all 10 services came up); SSH key install into `/etc/ssh/authorized_keys.d/lumba` when keys exist; lumax tunnel cleanup; multi-user accounts + settings panel Ignite refactor (next phase).

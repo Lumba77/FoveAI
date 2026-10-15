@@ -289,7 +289,7 @@ namespace FoveAI.UI
             _contentText.color = new Color(0.88f, 0.92f, 0.98f, 1f);
             _contentText.richText = true;
             _contentText.alignment = TextAlignmentOptions.TopLeft;
-            _contentText.enableWordWrapping = true;
+            _contentText.textWrappingMode = TextWrappingModes.Normal;
             var contentRt = _contentText.GetComponent<RectTransform>();
             contentRt.anchorMin = new Vector2(0, 1);
             contentRt.anchorMax = new Vector2(1, 1);
@@ -440,8 +440,8 @@ namespace FoveAI.UI
             // A = Edit server IP (cycle through common IPs)
             if (OVRInput.GetDown(OVRInput.Button.One, OVRInput.Controller.RTouch))
             {
-                _serverIp = _serverIp == "192.168.8.100" ? "127.0.0.1" :
-                            _serverIp == "127.0.0.1" ? "192.168.8.100" : "192.168.8.100";
+                _serverIp = _serverIp == "192.168.8.109" ? "127.0.0.1" :
+                            _serverIp == "127.0.0.1" ? "192.168.8.109" : "192.168.8.109";
                 RefreshDisplay();
             }
 
@@ -520,7 +520,7 @@ namespace FoveAI.UI
 
         private void ResetSettings()
         {
-            _serverIp = "192.168.8.100";
+            _serverIp = "192.168.8.109";
             _wsPort = 8403;
             _httpPort = 8402;
             _avatarModel = "Alicechan.vrm";

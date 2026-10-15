@@ -60,7 +60,7 @@
   },
   "stt": {
     "enabled": true,
-    "port": 8409,
+    "port": 8401,
     "model": "tiny",
     "device": "cpu",
     "compute_type": "int8"

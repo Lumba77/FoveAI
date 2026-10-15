@@ -1,0 +1,437 @@
+{
+ "source": "github.com/garylab/MakeMoneyWithAI (489 repos, fetched 2026-10-15)",
+ "priority": [
+  "compute_or_model_service",
+  "automation_or_crawl",
+  "content_factory",
+  "model_services_or_ft"
+ ],
+ "targets": [
+  {
+   "owner": "re4",
+   "repo": "LibreCode",
+   "url": "https://github.com/re4/LibreCode",
+   "stars": 236619,
+   "business_model": "LibreCode - A Ollama cursor like coding / Reversing Interface",
+   "scout_categories": [
+    "content_factory"
+   ]
+  },
+  {
+   "owner": "obra",
+   "repo": "superpowers",
+   "url": "https://github.com/obra/superpowers",
+   "stars": 233454,
+   "business_model": "An agentic skills framework & software development methodology that works.",
+   "scout_categories": [
+    "assistant_or_rag_stack"
+   ]
+  },
+  {
+   "owner": "Significant-Gravitas",
+   "repo": "AutoGPT",
+   "url": "https://github.com/Significant-Gravitas/AutoGPT",
+   "stars": 178788,
+   "business_model": "Use **autonomous agents**, **task automation**, and extensible **plugin** integrations to build commercially scalable SaaS, automated services, marketplace products, and monetizable workflow solutions via **prompt engineering**.",
+   "scout_categories": [
+    "automation_or_crawl",
+    "assistant_or_rag_stack"
+   ]
+  },
+  {
+   "owner": "AUTOMATIC1111",
+   "repo": "stable-diffusion-webui",
+   "url": "https://github.com/AUTOMATIC1111/stable-diffusion-webui",
+   "stars": 157018,
+   "business_model": "Provides a production-ready **AI-image** web UI with **custom-models**, **batch-processing**, **plugins**, and exportable **commercial-assets**, enabling rapid monetization via services, prints, licensing, merchandise, marketplaces, subscriptions, ads, API-integrations.",
+   "scout_categories": [
+    "content_factory"
+   ]
+  },
+  {
+   "owner": "Snailclimb",
+   "repo": "JavaGuide",
+   "url": "https://github.com/Snailclimb/JavaGuide",
+   "stars": 155812,
+   "business_model": "Comprehensive **Java** and backend interview guide enables monetization via corporate **training**, paid **courses**, developer upskilling, recruitment services, system design consulting, and **AI** product acceleration strategies.",
+   "scout_categories": [
+    "model_services_or_ft"
+   ]
+  },
+  {
+   "owner": "ollama",
+   "repo": "ollama",
+   "url": "https://github.com/ollama/ollama",
+   "stars": 153364,
+   "business_model": "Deploy and monetize private **LLMs** locally or in enterprise: run **gpt-oss**, **DeepSeek-R1**, **Gemma** **3** for low-cost inference, API integration, scaling, billing, analytics, and fine-tuning capabilities.",
+   "scout_categories": [
+    "compute_or_model_service",
+    "model_services_or_ft",
+    "search_or_data"
+   ]
+  },
+  {
+   "owner": "huggingface",
+   "repo": "transformers",
+   "url": "https://github.com/huggingface/transformers",
+   "stars": 150504,
+   "business_model": "Leverages **pretrained** **NLP**, **vision**, **audio**, and **multimodal** models to build, fine-tune, deploy, monetize APIs, SaaS, analytics, automation, and licensing revenue streams, rapidly scale enterprise-grade solutions.",
+   "scout_categories": [
+    "automation_or_crawl",
+    "assistant_or_rag_stack",
+    "model_services_or_ft",
+    "search_or_data"
+   ]
+  },
+  {
+   "owner": "n8n-io",
+   "repo": "n8n",
+   "url": "https://github.com/n8n-io/n8n",
+   "stars": 143678,
+   "business_model": "Leverage the **visual** workflow builder, **native AI**, and **400+ integrations** to automate processes, create **SaaS** products, sell automations, offer managed integrations, and upsell **analytics services**.",
+   "scout_categories": [
+    "automation_or_crawl",
+    "assistant_or_rag_stack",
+    "search_or_data"
+   ]
+  },
+  {
+   "owner": "f",
+   "repo": "awesome-chatgpt-prompts",
+   "url": "https://github.com/f/awesome-chatgpt-prompts",
+   "stars": 143314,
+   "business_model": "Curated **ChatGPT prompts** library enables productization with community **templates**, self hosted **privacy** for enterprises, unlocking **SaaS**, training, consulting, content, API, sales, and partnership revenue opportunities.",
+   "scout_categories": [
+    "model_services_or_ft"
+   ]
+  },
+  {
+   "owner": "shadcn-ui",
+   "repo": "ui",
+   "url": "https://github.com/shadcn-ui/ui",
+   "stars": 125176,
+   "business_model": "Composable, accessible components with thoughtful defaults. Build your own component library with code you can customize, extend, and make your own.",
+   "scout_categories": [
+    "misc_tooling"
+   ]
+  },
+  {
+   "owner": "langchain-ai",
+   "repo": "langchain",
+   "url": "https://github.com/langchain-ai/langchain",
+   "stars": 116508,
+   "business_model": "Accelerates monetization by enabling **LLM**-powered **agents**, reusable **chains**, **retrieval**, **embeddings**, **vector-stores**, connectors, **memory**, monitoring and orchestration for **SaaS** automated workflows, analytics, billing integration, rapid prototyping.",
+   "scout_categories": [
+    "automation_or_crawl",
+    "assistant_or_rag_stack",
+    "search_or_data"
+   ]
+  },
+  {
+   "owner": "langgenius",
+   "repo": "dify",
+   "url": "https://github.com/langgenius/dify",
+   "stars": 115585,
+   "business_model": "Monetize AI workflows with a production-ready platform for building, automating and orchestrating agentic pipelines, offering **scalable**, **integratable**, **low-code**, **monitorable** and **extensible** capabilities across industries globally",
+   "scout_categories": [
+    "automation_or_crawl",
+    "assistant_or_rag_stack"
+   ]
+  },
+  {
+   "owner": "open-webui",
+   "repo": "open-webui",
+   "url": "https://github.com/open-webui/open-webui",
+   "stars": 111356,
+   "business_model": "Offers a **user-friendly** interface for **OpenAI**/**Ollama** and local models, enabling rapid **prototyping**, **deployment**, **self-hosting**, extensions, monetizable **apps**, automation, and **APIs**, white-labeling, scaling, customization, integrations, revenue.",
+   "scout_categories": [
+    "automation_or_crawl",
+    "content_factory"
+   ]
+  },
+  {
+   "owner": "paperclipai",
+   "repo": "paperclip",
+   "url": "https://github.com/paperclipai/paperclip",
+   "stars": 101071,
+   "business_model": "The open-source app everyone uses to manage agents at work",
+   "scout_categories": [
+    "assistant_or_rag_stack"
+   ]
+  },
+  {
+   "owner": "Graphify-Labs",
+   "repo": "graphify",
+   "url": "https://github.com/Graphify-Labs/graphify",
+   "stars": 92380,
+   "business_model": "Turn any codebase, with its docs, SQL schemas, configs, and PDFs, into a queryable knowledge graph. A /graphify skill for Claude Code, Cursor, Codex, and Gemini CLI: local deterministic AST parsing, every edge explained, no vector store.",
+   "scout_categories": [
+    "assistant_or_rag_stack",
+    "search_or_data"
+   ]
+  },
+  {
+   "owner": "comfyanonymous",
+   "repo": "ComfyUI",
+   "url": "https://github.com/comfyanonymous/ComfyUI",
+   "stars": 89754,
+   "business_model": "Turn a **modular** diffusion GUI with **graph/nodes** workflows and **API**/backend into revenue via custom pipelines, automated content generation, SaaS imaging tools, and plugin integration marketplaces.",
+   "scout_categories": [
+    "automation_or_crawl"
+   ]
+  },
+  {
+   "owner": "supabase",
+   "repo": "supabase",
+   "url": "https://github.com/supabase/supabase",
+   "stars": 89361,
+   "business_model": "Monetize apps using **Postgres**, auto-generated **APIs**, **auth**, **realtime**, **storage**, billing, analytics, and integrations to build scalable web, mobile, and **AI** services with low code workflows.",
+   "scout_categories": [
+    "automation_or_crawl",
+    "assistant_or_rag_stack",
+    "search_or_data"
+   ]
+  },
+  {
+   "owner": "x1xhlol",
+   "repo": "system-prompts-and-models-of-ai-tools",
+   "url": "https://github.com/x1xhlol/system-prompts-and-models-of-ai-tools",
+   "stars": 89053,
+   "business_model": "Curated **system prompts** and **AI models** accelerate productization of developer tools, enabling rapid **automation**, improved **code productivity**, and new **SaaS** and consulting revenue streams.",
+   "scout_categories": [
+    "automation_or_crawl"
+   ]
+  },
+  {
+   "owner": "google-gemini",
+   "repo": "gemini-cli",
+   "url": "https://github.com/google-gemini/gemini-cli",
+   "stars": 87636,
+   "business_model": "Open-source **Gemini** **CLI** agent enabling automated terminal workflows, rapid prototyping, API integrations, customer-facing automations and productivity tools to monetize via SaaS, consulting, or plugins, subscriptions.",
+   "scout_categories": [
+    "automation_or_crawl",
+    "assistant_or_rag_stack"
+   ]
+  },
+  {
+   "owner": "unclecode",
+   "repo": "crawl4ai",
+   "url": "https://github.com/unclecode/crawl4ai",
+   "stars": 84269,
+   "business_model": "Open-source web crawler and scraper for LLMs and AI agents: any website into clean, LLM-ready Markdown. Run it yourself, or use Crawl4AI Cloud with one key.",
+   "scout_categories": [
+    "automation_or_crawl",
+    "assistant_or_rag_stack"
+   ]
+  },
+  {
+   "owner": "tt-a1i",
+   "repo": "archify",
+   "url": "https://github.com/tt-a1i/archify",
+   "stars": 77543,
+   "business_model": "Turn any idea, plan, or codebase into a beautiful interactive diagram. An agent skill for Claude Code, Codex, and more.",
+   "scout_categories": [
+    "assistant_or_rag_stack"
+   ]
+  },
+  {
+   "owner": "netdata",
+   "repo": "netdata",
+   "url": "https://github.com/netdata/netdata",
+   "stars": 76259,
+   "business_model": "Delivers real-time **monitoring**, AI-driven **anomaly detection**, lightweight **metrics collection**, scalable **dashboards**, and alerting to reduce downtime, cut costs, and monetize observability via SaaS packaging models.",
+   "scout_categories": [
+    "misc_tooling"
+   ]
+  },
+  {
+   "owner": "hacksider",
+   "repo": "Deep-Live-Cam",
+   "url": "https://github.com/hacksider/Deep-Live-Cam",
+   "stars": 73624,
+   "business_model": "Monetize **real-time** **face-swap** and **one-image** deepfakes by offering personalized entertainment, virtual try-ons, influencer content, live-stream integrations, licensing, and subscription-based APIs, white-label solutions, scalable API monetization.",
+   "scout_categories": [
+    "content_factory"
+   ]
+  },
+  {
+   "owner": "thedaviddias",
+   "repo": "Front-End-Checklist",
+   "url": "https://github.com/thedaviddias/Front-End-Checklist",
+   "stars": 72748,
+   "business_model": "Comprehensive **checklist** covering **performance**, **accessibility**, **SEO**, and **security** enables faster, higher-quality web builds, reducing costs and increasing client revenue opportunities through repeatable, scalable delivery models.",
+   "scout_categories": [
+    "misc_tooling"
+   ]
+  },
+  {
+   "owner": "browser-use",
+   "repo": "browser-use",
+   "url": "https://github.com/browser-use/browser-use",
+   "stars": 70709,
+   "business_model": "Leverage **browser automation**, **web scraping**, and **AI agents** to create monetizable products: automated lead generation, data extraction, testing pipelines, SaaS workflow automation, subscriptions, and integrations.",
+   "scout_categories": [
+    "automation_or_crawl",
+    "assistant_or_rag_stack"
+   ]
+  },
+  {
+   "owner": "lobehub",
+   "repo": "lobe-chat",
+   "url": "https://github.com/lobehub/lobe-chat",
+   "stars": 66142,
+   "business_model": "Monetize private AI agents using **multi-provider** models, **RAG** knowledge bases, one-click **deployment**, MCP **marketplace**, artifact sharing, analytics, and white-label commercialization tools, subscriptions, API sales, licensing.",
+   "scout_categories": [
+    "assistant_or_rag_stack",
+    "search_or_data"
+   ]
+  },
+  {
+   "owner": "infiniflow",
+   "repo": "ragflow",
+   "url": "https://github.com/infiniflow/ragflow",
+   "stars": 65405,
+   "business_model": "Integrates **RAG** with **agent** orchestration to deliver scalable, searchable, fine-tuned context layers enabling fast monetizable products: semantic search, chatbots, knowledge workflows, analytics, customer engagement automation.",
+   "scout_categories": [
+    "automation_or_crawl",
+    "assistant_or_rag_stack",
+    "model_services_or_ft",
+    "search_or_data"
+   ]
+  },
+  {
+   "owner": "All-Hands-AI",
+   "repo": "OpenHands",
+   "url": "https://github.com/All-Hands-AI/OpenHands",
+   "stars": 63895,
+   "business_model": "Provides **low-code** AI **models**, reusable **templates**, production **pipelines**, and deployment **tools** to accelerate productization, reduce costs, and increase revenue via rapid AI offerings commercially scalable.",
+   "scout_categories": [
+    "misc_tooling"
+   ]
+  },
+  {
+   "owner": "firecrawl",
+   "repo": "firecrawl",
+   "url": "https://github.com/firecrawl/firecrawl",
+   "stars": 60748,
+   "business_model": "Provides a scalable **Web Data API** to convert entire websites into **LLM-ready** markdown and **structured data**, enabling rapid productization, search, analytics, and recurring revenue monetization.",
+   "scout_categories": [
+    "search_or_data"
+   ]
+  },
+  {
+   "owner": "hiyouga",
+   "repo": "LLaMA-Factory",
+   "url": "https://github.com/hiyouga/LLaMA-Factory",
+   "stars": 59594,
+   "business_model": "Enables **fine-tuning** for 100+ LLMs and VLMs, enabling rapid **customization** and **deployment** for scalable **SaaS** products, proprietary-model creation, consulting, dataset monetization, faster go-to-market, lower costs.",
+   "scout_categories": [
+    "model_services_or_ft",
+    "search_or_data"
+   ]
+  },
+  {
+   "owner": "vllm-project",
+   "repo": "vllm",
+   "url": "https://github.com/vllm-project/vllm",
+   "stars": 59265,
+   "business_model": "Provides **high-throughput**, **memory-efficient** LLM **inference** and **serving** with scalable batching, reduced GPU costs, low latency, deployment to monetize AI services via SaaS APIs and integrations.",
+   "scout_categories": [
+    "compute_or_model_service"
+   ]
+  },
+  {
+   "owner": "FoundationAgents",
+   "repo": "MetaGPT",
+   "url": "https://github.com/FoundationAgents/MetaGPT",
+   "stars": 58784,
+   "business_model": "Automates **multi-agent** workflows to build and operate revenue-generating **SaaS** products, accelerate go-to-market, cut costs, and deliver monetizable **AI** services at scale with minimal developer overhead.",
+   "scout_categories": [
+    "automation_or_crawl",
+    "assistant_or_rag_stack"
+   ]
+  },
+  {
+   "owner": "zylon-ai",
+   "repo": "private-gpt",
+   "url": "https://github.com/zylon-ai/private-gpt",
+   "stars": 57207,
+   "business_model": "Interact with your documents using the power of GPT, 100% privately, no data leaks",
+   "scout_categories": [
+    "misc_tooling"
+   ]
+  },
+  {
+   "owner": "AntonOsika",
+   "repo": "gpt-engineer",
+   "url": "https://github.com/AntonOsika/gpt-engineer",
+   "stars": 54911,
+   "business_model": "Command-line **codegen** platform enabling rapid **prototype** creation, reproducible **automation**, customizable **templates**, and enterprise **APIs** integration to accelerate productization and generate recurring revenue from AI tools.",
+   "scout_categories": [
+    "automation_or_crawl"
+   ]
+  },
+  {
+   "owner": "meilisearch",
+   "repo": "meilisearch",
+   "url": "https://github.com/meilisearch/meilisearch",
+   "stars": 53437,
+   "business_model": "**Lightning-fast** and **AI-powered hybrid search** API accelerates site/app relevance, measurably boosts conversions, personalizes experiences, increases retention, and enables monetization through analytics, scalability, and easy integrations.",
+   "scout_categories": [
+    "search_or_data"
+   ]
+  },
+  {
+   "owner": "bmad-code-org",
+   "repo": "BMAD-METHOD",
+   "url": "https://github.com/bmad-code-org/BMAD-METHOD",
+   "stars": 53110,
+   "business_model": "Breakthrough Method for Agile Ai Driven Development",
+   "scout_categories": [
+    "misc_tooling"
+   ]
+  },
+  {
+   "owner": "blader",
+   "repo": "humanizer",
+   "url": "https://github.com/blader/humanizer",
+   "stars": 52705,
+   "business_model": "Agent skill that removes signs of AI-generated writing from text",
+   "scout_categories": [
+    "assistant_or_rag_stack"
+   ]
+  },
+  {
+   "owner": "microsoft",
+   "repo": "autogen",
+   "url": "https://github.com/microsoft/autogen",
+   "stars": 50340,
+   "business_model": "Monetize via **agentic AI**: build scalable **automation** products, deploy customizable **AI agents** for enterprise workflows, accelerate time-to-market, reduce operating costs, and capture recurring revenue streams.",
+   "scout_categories": [
+    "automation_or_crawl",
+    "assistant_or_rag_stack"
+   ]
+  },
+  {
+   "owner": "FoundationAgents",
+   "repo": "OpenManus",
+   "url": "https://github.com/FoundationAgents/OpenManus",
+   "stars": 50102,
+   "business_model": "Open-source multi-agent AI toolkit enabling rapid development of autonomous content, automation, and SaaS products for monetization through **APIs**, **plugins**, **workflows**, **scalable**, **cloud** **integrations** to monetize.",
+   "scout_categories": [
+    "automation_or_crawl",
+    "assistant_or_rag_stack"
+   ]
+  },
+  {
+   "owner": "Mintplex-Labs",
+   "repo": "anything-llm",
+   "url": "https://github.com/Mintplex-Labs/anything-llm",
+   "stars": 49596,
+   "business_model": "Turn a local or Docker deployment into revenue by deploying **RAG**, scalable **AI agents**, a **No-code** agent builder, and **MCP**-compatible integrations for monetized apps and subscriptions",
+   "scout_categories": [
+    "assistant_or_rag_stack"
+   ]
+  }
+ ]
+}

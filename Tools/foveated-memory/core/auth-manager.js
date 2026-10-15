@@ -107,6 +107,27 @@ class AuthManager {
         return { error: 'Invalid username or password' };
     }
 
+    /* ══ Profile persistence ══ persona fields (firstName/lastName/aiName)
+       ride the user record so the setup questions answer themselves on the
+       next login — the user should never re-type their name. */
+    getProfile(username) {
+        this.load();
+        const u = this.data.users && this.data.users[username];
+        if (!u) return null;
+        return { username, firstName: u.firstName || '', lastName: u.lastName || '', aiName: u.aiName || '' };
+    }
+
+    setProfile(username, profile) {
+        this.load();
+        const u = this.data.users && this.data.users[username];
+        if (!u) return { error: 'no such user' };
+        for (const k of ['firstName', 'lastName', 'aiName']) {
+            if (typeof profile?.[k] === 'string' && profile[k].trim()) u[k] = profile[k].trim().slice(0, 64);
+        }
+        this.save();
+        return { success: true, profile: this.getProfile(username) };
+    }
+
     resolveToken(token) {
         // First check if it's a registered multi-user token
         if (this.data.tokens && this.data.tokens[token]) {

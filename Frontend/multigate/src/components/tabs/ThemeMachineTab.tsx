@@ -66,19 +66,25 @@ export default function ThemeMachineTab() {
   
   useEffect(() => {
     fetch('/api/themes')
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) throw new Error(`themes HTTP ${res.status}`);
+        return res.json();
+      })
       .then(data => {
-        if (data && data.themes) {
+        if (data && Array.isArray(data.themes)) {
           setGalleryThemes(data.themes);
         }
       })
       .catch(err => console.error('Failed to load gallery', err));
   }, []);
 
-  // Auto-apply on mount
+  // Auto-apply on mount — look up in galleryThemes (which /api/themes may
+  // have replaced), fall back to the static THEMES entry.
   useEffect(() => {
-    const theme = THEMES.find(t => t.theme_name === activeThemeId);
+    const theme = (galleryThemes.find(t => t.theme_name === activeThemeId) ||
+                   THEMES.find(t => t.theme_name === activeThemeId)) as MasterTheme | undefined;
     if (theme) applyMasterTheme(theme, { sound: false }); // no sound until user enables
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleThemeClick = async (theme: MasterTheme) => {
@@ -306,8 +312,9 @@ export default function ThemeMachineTab() {
           const isPaused = prov && prov.status && prov.status.startsWith('paused');
           const isActive = theme.theme_name === activeThemeId;
           const isHovered = theme.theme_name === hoveredId;
-          // Extract color swatches from palette
+          // Extract color swatches from palette — rendered as CSS in the card
           const swatches = [theme.fv_accent, theme.fv_accent_2, theme.fv_warn, theme.fv_danger];
+          void swatches;
           return (
             <div key={theme.theme_name}
               onClick={() => handleThemeClick(theme)}

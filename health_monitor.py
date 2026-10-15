@@ -4,7 +4,7 @@ and auto-healing for the FoveAI runtime stack.
 
 Checks:
   - Proxy (8400): foveated-memory proxy reachability
-  - Dashboard (8401): settings/dashboard
+  - Dashboard (8414): settings/dashboard
   - XRLF Runtime (8402): model loaded, soul bridge, memory
   - WebSocket IPC (8403): Quest client endpoint
   - TTS (Kokoro): speech synthesis available
@@ -49,7 +49,7 @@ FOVEATED_PROXY_LOG = Path.home() / "foveated_proxy.log"
 
 # ─── Ports ──────────────────────────────────────────────────────────
 PORT_PROXY = 8400
-PORT_DASHBOARD = 8401
+PORT_DASHBOARD = 8414
 PORT_XRLF = 8402
 PORT_WS = 8403
 
@@ -191,13 +191,13 @@ def check_proxy() -> CheckResult:
 def check_dashboard() -> CheckResult:
     if not _port_open(PORT_DASHBOARD):
         return CheckResult(
-            "Dashboard :8401",
+            "Dashboard :8414",
             HealthStatus.WARN,
             "Port not listening",
             healable=True,
             heal_action="restart_proxy",
         )
-    return CheckResult("Dashboard :8401", HealthStatus.PASS, "Listening")
+    return CheckResult("Dashboard :8414", HealthStatus.PASS, "Listening")
 
 
 def check_xrlf_runtime() -> CheckResult:

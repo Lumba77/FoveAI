@@ -7,15 +7,15 @@ WebSocket hub that broadcasts chat messages between all participants:
   - Devin (via CLI client)
   - Antigravity (via CLI client)
 
-Port: 8407 (FOVEAI_BACKEND_PORT_CHAT, configurable via .env)
+Port: 8413 (FOVEAI_BACKEND_PORT_CHAT, configurable via .env)
 
 Message format (JSON):
   {"from": "user|jen|devin|antigravity", "text": "...", "time": "ISO timestamp"}
 
 Connect:
-  ws://127.0.0.1:8407/ws   — WebSocket for chat clients
-  http://127.0.0.1:8407/health  — health check
-  http://127.0.0.1:8407/history — recent message history (JSON)
+  ws://127.0.0.1:8413/ws   — WebSocket for chat clients
+  http://127.0.0.1:8413/health  — health check
+  http://127.0.0.1:8413/history — recent message history (JSON)
 """
 
 import asyncio
@@ -30,7 +30,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-PORT_CHAT: int = int(os.getenv("FOVEAI_BACKEND_PORT_CHAT", 8407))
+PORT_CHAT: int = int(os.getenv("FOVEAI_BACKEND_PORT_CHAT", 8413))
 MAX_HISTORY: int = 200
 
 app: FastAPI = FastAPI(title="FoveAI Chat Relay")

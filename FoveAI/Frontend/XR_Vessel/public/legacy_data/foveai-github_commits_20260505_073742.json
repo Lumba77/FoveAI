@@ -1,8 +1,0 @@
-[
-  {
-    "hash": "510f106326d207b4f6cd194ff79a59d9dbd7f35b",
-    "date": "2026-04-14 19:27:34 +0200",
-    "message": "Merge pull request #1 from Lumba77/chore/lumax-cognition-docker-webui-preflight-cleanup",
-    "body": "Stabilize Godot XR flow and stack ops integration"
-  }
-]

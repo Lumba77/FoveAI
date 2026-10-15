@@ -21,6 +21,10 @@ const envDir = path.resolve(process.cwd(), '../..')
 // is deliberately open — it's the cold-boot recovery path and must work
 // while the backend (and thus login) is down.
 const FVS_SHIELDED = ['/remote-api', '/novnc', '/rdp', '/api/agent', '/api/soul', '/api/dream', '/xrlf', '/dash']
+// /api/soul/stt must NOT inherit the soul shield — the mic posts while the
+// app is mid-session; the gate returned its login HTML for the audio POST
+// and the browser STT silently died. (2026-10-08)
+const FVS_SHIELD_EXEMPT = ['/api/soul/stt']
 const FVS_COOKIE = 'fvs_gate'
 
 // Tunnel hostnames repointed to :5177 — everything on these hosts sits
@@ -43,6 +47,7 @@ function fvsGate(authMeUrl: string): Plugin {
 
   const isShielded = (url: string) => {
     const p = url.split('?')[0]
+    if (FVS_SHIELD_EXEMPT.some(s => p === s || p.startsWith(s + '/'))) return false
     return FVS_SHIELDED.some(s => p === s || p.startsWith(s + '/'))
   }
 
@@ -228,6 +233,36 @@ const WEBVM_TYPES: Record<string, string> = {
   '.map': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg',
   '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.txt': 'text/plain',
 }
+function softlayerStatic(): Plugin {
+  // /softlayer/* lives at the repo root (softlayer/modules/*.js). Without this
+  // the SPA fallback answered 200 with index.html, the loader tried to eval
+  // HTML as a module, and every module reported "failed to load".
+  const SOFT = path.resolve(envDir, 'softlayer')
+  return {
+    name: 'softlayer-static',
+    configureServer(server) {
+      server.middlewares.use('/softlayer', (req, res, next) => {
+        if (req.method !== 'GET' && req.method !== 'HEAD') return next()
+        const rel = decodeURIComponent((req.url || '/').split('?')[0])
+        const file = path.normalize(path.join(SOFT, rel === '/' ? 'modules' : rel))
+        if (!file.startsWith(SOFT + path.sep)) { res.writeHead(403); res.end(); return }
+        fs.stat(file, (err, st) => {
+          if (err || !st.isFile()) {
+            // 404, never the SPA fallback — the loader can then skip cleanly
+            res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('not found'); return
+          }
+          res.writeHead(200, {
+            'Content-Type': 'application/javascript; charset=utf-8',
+            'Cache-Control': 'no-cache',
+          })
+          if (req.method === 'HEAD') { res.end(); return }
+          fs.createReadStream(file).pipe(res)
+        })
+      })
+    },
+  }
+}
+
 function webvmStatic(): Plugin {
   return {
     name: 'webvm-static',
@@ -339,13 +374,25 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, envDir, '')
   const proxyUrl = (env.XRLF_MEMORY_PROXY_URL || 'http://127.0.0.1:8400').replace(/\/$/, '')
   const soulUrl = (env.SOUL_URL || 'http://127.0.0.1:8405').replace(/\/$/, '')
-  const mouthUrl = (env.MOUTH_URL || 'http://127.0.0.1:8406').replace(/\/$/, '')
+  const mouthUrl = (env.MOUTH_URL || 'http://127.0.0.1:8411').replace(/\/$/, '')
   const proxyPort = (() => {
     try { return new URL(proxyUrl).port || '8400' } catch { return '8400' }
   })()
 
   return {
     plugins: [
+      /* cache-buster (2026-10-08): the dev server sent no cache headers, so
+         Firefox/Quest kept DAYS-old module graphs even on refresh — the
+         user saw old pages after every fix. Dev responses must revalidate. */
+      {
+        name: 'no-cache-headers',
+        configureServer(server) {
+          server.middlewares.use((_req, res, next) => {
+            res.setHeader('Cache-Control', 'no-store, must-revalidate');
+            next();
+          });
+        },
+      },
       fvsGate(`${proxyUrl}/api/auth/me`),
       {
         name: 'ignition-availability',
@@ -357,20 +404,37 @@ export default defineConfig(({ mode }) => {
           // when the red/grey ball needs it.
           server.middlewares.use('/ignition', async (_req, res) => {
             const units = [
+              // Only units that actually exist in /etc/systemd/system —
+              // naming a dead unit makes systemctl abort the whole batch,
+              // so the "start everything" ignition silently failed with
+              // "Unit not found" for motor/subconscious/chat-relay.
+              // Keep this list in sync with FLEET_UNITS in
+              // sleipnir_launcher.sh. The foveai-llama-* units are
+              // deliberately excluded: they are `disabled`, they are not in
+              // FLEET_UNITS, and they hardcode --n-gpu-layers 999 which
+              // bypasses runtime/vram_guard.py entirely. Starting them
+              // alongside foveai-xrlf oversubscribed the 8GB card and
+              // crash-looped both llama-servers on boot ignition.
               'foveai-backend.service', 'foveai-xrlf.service',
               'foveai-soul.service', 'foveai-tts.service', 'foveai-stt.service',
-              'foveai-motor.service', 'foveai-subconscious.service',
-              'foveai-chat-relay.service',
+              'foveai-creative.service', 'foveai-relay.service',
             ]
-            const r = await exec('systemctl', ['--user', 'start', ...units], 15000)
+            // Units are system-scope on this host (installed under
+            // /etc/systemd/system) — try --user first, then system via
+            // sudo -n (the foveai-remote sudoers drop-in allows start/stop).
+            let r = await exec('systemctl', ['--user', 'start', ...units], 15000)
+            if (r.code !== 0) {
+              r = await exec('sudo', ['-n', 'systemctl', 'start', ...units], 15000)
+            }
             res.writeHead(r.code === 0 ? 202 : 500, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify(r.code === 0
-              ? { ok: true, started: units }
-              : { ok: false, error: r.out || 'systemctl start failed' }))
+              ? { ok: true, started: units, scope: 'system' }
+              : { ok: false, error: r.out || 'systemctl start failed (user+system)' }))
           })
         },
       },
       remoteApi(),
+      softlayerStatic(),
       webvmStatic(),
       react(),
     ],
@@ -392,9 +456,41 @@ export default defineConfig(({ mode }) => {
           ? false
           : undefined,
       proxy: {
+        // Theme manifest + set_active live on the unified proxy :8400 (Node
+        // server.js — /api/themes, /api/theme/set_active). :8415 used to host
+        // a separate theme server that no longer runs (ECONNREFUSED 502s).
+        // Theme Machine API (theme_api.py :8415) — generation, active-theme,
+        // WS sync. Note ordering: '/api/theme' must come BEFORE '/api/themes'
+        // so Vite's first-match wins routes it here, not to :8400.
         '/api/theme': {
           target: 'http://127.0.0.1:8415',
           changeOrigin: true,
+        },
+        // Theme broadcast channel — unified IPC WS (:8403), path /ws/theme.
+        // ws:true so theme_sync.js connects same-origin (tunnel-compatible).
+        '/ws/theme': {
+          target: 'ws://127.0.0.1:8403',
+          ws: true,
+          changeOrigin: true,
+        },
+        // XRL bracket/movement channel — same-origin so nothing in the page
+        // has to hardcode a port that may be offline.
+        // Motor daemon health — same-origin so an offline motor cannot raise a
+        // cross-origin error in the console.
+        '/motor-health': {
+          target: 'http://127.0.0.1:8410',
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/motor-health/, '/health'),
+        },
+        '/ws/xrl': {
+          target: 'ws://127.0.0.1:8403',
+          ws: true,
+          changeOrigin: true,
+        },
+        '/api/themes': {
+          target: proxyUrl,
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/api\/themes/, '/themes')
         },
         ...(env.FOVEAI_IGNITION_URL ? {
           '/ignition': {
@@ -423,7 +519,7 @@ export default defineConfig(({ mode }) => {
           rewrite: (p) => p.replace(/^\/api\/lmstudio/, ''),
         },
         // All API traffic → unified proxy on :8400 (HTTP + WS)
-        // 8400 proxies chat to XRLF :8402, memory to :8407, TTS to :8406, etc.
+        // 8411 proxies chat to XRLF :8402, memory to :8407, TTS to :8406, etc.
         '/api/foveated': {
           target: proxyUrl,
           changeOrigin: true,
@@ -433,9 +529,20 @@ export default defineConfig(({ mode }) => {
           target: soulUrl,
           changeOrigin: true
         },
+        // Browser STT — MediaRecorder webm → whisper HTTP bridge (:8430).
+        // Must precede the generic /api/soul entry? vite matches longest
+        // prefix, so /api/soul/stt wins over /api/soul. (2026-10-08: the
+        // old /api/soul/stt target was the soul service which has no such
+        // route — spoken words were swallowed by a 404.)
+        '/api/soul/stt': {
+          target: env.STT_HTTP_URL || 'http://127.0.0.1:8430',
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/api\/soul\/stt/, '/stt'),
+          timeout: 60000
+        },
         // Creative service (Dreamscape image gen) — /api/dream + /api/dream/catalog
         '/api/dream': {
-          target: env.CREATIVE_URL || 'http://127.0.0.1:8408',
+          target: env.CREATIVE_URL || 'http://127.0.0.1:8412',
           changeOrigin: true,
           timeout: 600000
         },
@@ -482,35 +589,35 @@ export default defineConfig(({ mode }) => {
         // The CF tunnel routes apex hostnames to this port; these entries let
         // the settings panel + full API work through the tunnel with no ports.
         '/settings.html': {
-          target: 'http://127.0.0.1:8401',
+          target: 'http://127.0.0.1:8414',
           changeOrigin: true
         },
         // settings.html's stylesheet must come from :8401 too — without this
         // it falls through to the SPA index.html and the panel renders unstyled
         '/settings.css': {
-          target: 'http://127.0.0.1:8401',
+          target: 'http://127.0.0.1:8414',
           changeOrigin: true
         },
         // beta program intro page — same-origin via tunnel/LAN
         '/beta.html': {
-          target: 'http://127.0.0.1:8401',
+          target: 'http://127.0.0.1:8414',
           changeOrigin: true
         },
         // member-facing settings page — same-origin via tunnel/LAN
         '/user-settings.html': {
-          target: 'http://127.0.0.1:8401',
+          target: 'http://127.0.0.1:8414',
           changeOrigin: true
         },
         // beta downloads (jenna-vscode VSIX etc.) — same-origin via tunnel/LAN
         '/downloads': {
-          target: 'http://127.0.0.1:8401',
+          target: 'http://127.0.0.1:8414',
           changeOrigin: true
         },
         // Whole :8401 public/ surface under one prefix — dashboard, companion,
         // prompt-kiosk, garage, launch — instead of per-file entries above.
         // Shielded: memory/settings panels are private surfaces.
         '/dash': {
-          target: 'http://127.0.0.1:8401',
+          target: 'http://127.0.0.1:8414',
           changeOrigin: true,
           rewrite: (p) => p.replace(/^\/dash/, '') || '/'
         },

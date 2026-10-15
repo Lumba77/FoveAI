@@ -272,7 +272,7 @@ namespace FoveAI.Audio
             }
 
             // 2. HTTP Fallback to Diamond Concordia Ears STT (Port 8001)
-            string serverIp = FoveAI.Config.ConfigLoader.Settings != null ? FoveAI.Config.ConfigLoader.Settings.serverIp : "192.168.8.100";
+            string serverIp = FoveAI.Config.ConfigLoader.Settings != null ? FoveAI.Config.ConfigLoader.Settings.serverIp : "192.168.8.109";
             string fallbackUrl = $"http://{serverIp}:8001/stt";
             string jsonPayload = $"{{\"audio_base64\":\"{base64Wav}\"}}";
             using (UnityWebRequest req = new UnityWebRequest(fallbackUrl, "POST"))

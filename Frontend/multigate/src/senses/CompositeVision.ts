@@ -98,9 +98,9 @@ export class CompositeVision {
     private compositeCtx: CanvasRenderingContext2D;
     private log: (msg: string, color: string) => void;
 
-    constructor(config?: Partial<CompositeConfig>, logFn?: (msg: string, color: string) => void) {
+    constructor(config?: Partial<CompositeConfig>, logFn?: (msg: string, _color: string) => void) {
         this.config = { ...DEFAULT_CONFIG, ...config };
-        this.log = logFn || ((msg, color) => console.log(`[CompositeVision] ${msg}`));
+        this.log = logFn || ((msg, _color) => console.log(`[CompositeVision] ${msg}`));
         this.compositeCanvas = document.createElement('canvas');
         this.compositeCanvas.width = this.config.compositeWidth;
         this.compositeCanvas.height = this.config.compositeHeight;

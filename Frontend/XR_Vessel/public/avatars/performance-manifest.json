@@ -1,0 +1,29 @@
+{
+  "note": "Every entry here was checked with Tools/check_avatar.py \u2014 rigs that cannot animate are deliberately absent.",
+  "avatars": [
+    {
+      "url": "/avatars/schoolgirl.vrm",
+      "label": "School girl (VRM 0.0, lip sync)",
+      "mouth": true,
+      "clips": 0
+    },
+    {
+      "url": "/avatars/tomotomo.vrm",
+      "label": "Tomotomo (VRM 0.0, lip sync)",
+      "mouth": true,
+      "clips": 0
+    },
+    {
+      "url": "/avatars/jen.vrm",
+      "label": "Jen (VRM 1.0, lip sync)",
+      "mouth": true,
+      "clips": 1
+    },
+    {
+      "url": "/avatars/robot-expressive.glb",
+      "label": "Robot (moves, no lip sync)",
+      "mouth": false,
+      "clips": 14
+    }
+  ]
+}

@@ -2872,10 +2872,32 @@ if (typeof dashboardApp !== 'undefined') {
 }
 
 const attachApiRoutes = (expressApp) => {
+    // Profile persistence — GET/PUT /api/auth/profile (Bearer token);
+    // the client saves persona fields on setup so the next login is greeted
+    // instead of quizzed.
+    expressApp.get('/api/auth/profile', (req, res) => {
+        const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+        const ident = token ? authManager.resolveToken(token) : null;
+        if (!ident) return res.status(401).json({ error: 'unauthorized' });
+        const uname = (req.query.username ? String(req.query.username) : ident.userId) || '';
+        res.json(authManager.getProfile(uname) || { username: uname, firstName: '', lastName: '', aiName: '' });
+    });
+    expressApp.put('/api/auth/profile', (req, res) => {
+        const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+        const ident = token ? authManager.resolveToken(token) : null;
+        if (!ident) return res.status(401).json({ error: 'unauthorized' });
+        const uname = (req.body?.username ? String(req.body.username) : ident.userId) || '';
+        const r = authManager.setProfile(uname, req.body || {});
+        if (r.error) return res.status(400).json(r);
+        res.json(r);
+    });
+
     expressApp.post('/v1/auth/login', (req, res) => {
         const { username } = req.body || {};
         const user = username ? String(username).trim() : 'Guest';
-        res.json({ ok: true, username: user, apiKey: `foveai_${user}`, role: user.toLowerCase() === 'admin' ? 'Admin' : 'Beta Tester' });
+        const prof = authManager.getProfile(user) || {};
+        res.json({ ok: true, username: user, apiKey: `foveai_${user}`, role: user.toLowerCase() === 'admin' ? 'Admin' : 'Beta Tester',
+                   firstName: prof.firstName || '', lastName: prof.lastName || '', aiName: prof.aiName || '' });
     });
 
     expressApp.post('/v1/auth/register', (req, res) => {
@@ -2889,6 +2911,28 @@ const attachApiRoutes = (expressApp) => {
             const isRunning = !err && stdout && stdout.trim().length > 0;
             res.json({ ok: true, running: isRunning, details: isRunning ? stdout.trim() : 'Stack stopped' });
         });
+    });
+
+    // GET /api/setting?key=NAME — single env value read (used by trackball
+    // dials, jenna-vscode, and other clients expecting a paired read endpoint
+    // for the POST above). Reads live from process.env first (fast path,
+    // reflects POSTs this boot), then falls back to .env on disk.
+    expressApp.get('/api/setting', (req, res) => {
+        const key = String(req.query.key || '');
+        if (!key) return res.status(400).json({ error: 'missing key' });
+        if (process.env[key] !== undefined && process.env[key] !== '') return res.json({ key, value: process.env[key] });
+        try {
+            const raw = fs.readFileSync(path.resolve(__dirname, '..', '..', '.env'), 'utf8');
+            for (const line of raw.split(/\r?\n/)) {
+                if (!line.includes('=') || line.trim().startsWith('#')) continue;
+                const eq = line.indexOf('=');
+                if (line.slice(0, eq).trim() !== key) continue;
+                let v = line.slice(eq + 1).trim();
+                if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+                return res.json({ key, value: v });
+            }
+        } catch (_) { /* fallthrough */ }
+        res.json({ key, value: null });
     });
 
     expressApp.post('/api/setting', (req, res) => {

@@ -15,6 +15,7 @@ Usage:
     python run_xrlf.py --test
 """
 
+import time
 import argparse
 import os
 import sys
@@ -131,6 +132,17 @@ def run_test(config: dict):
 def main():
     parser = argparse.ArgumentParser(description="XRLF Runtime Launcher")
     parser.add_argument("--model", help="Path to .xrlf file (overrides config)")
+    # 2026-10-10: XRLF is the memory/persona contract, NOT a model host. Any model can
+    # speak the contract. Running with a model made the runtime boot an in-process GGUF —
+    # and when that model was the vision package (smolvlm2-500m) it silently answered as a
+    # degenerate "I am an AI assistant" loop, which is why Jen read as raw Qwen.
+    parser.add_argument(
+        "--llm-url",
+        default=None,
+        help="External OpenAI-compatible LLM (e.g. http://127.0.0.1:8408/v1). "
+             "When set, XRLF hosts no model and forwards persona+memory requests here.",
+    )
+    parser.add_argument("--llm-model", default=None, help="Model name to request from --llm-url")
     parser.add_argument("--port", type=int, help="API port (overrides config)")
     parser.add_argument(
         "--ws-port",
@@ -240,7 +252,11 @@ def main():
     # model and no API. Check the ports BEFORE constructing the runtime so we
     # never touch the guardrail unless we can actually serve.
     def _port_free(host: str, p: int) -> bool:
+        # SO_REUSEADDR to match uvicorn/websockets: without it, TIME_WAIT
+        # sockets from a just-crashed prior instance false-flag this guard
+        # and the unit flapped exit-2 forever (restart-counter loop).
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             s.bind((host, p))
             return True
@@ -260,6 +276,16 @@ def main():
             return None
 
     ws_port_preflight = args.ws_port if args.ws_port else (port + 1)
+    # Teardown lag: a prior instance may linger in TIME_WAIT/VRAM release
+    # when systemd restarts us 15s after a crash. Poll for a while before
+    # declaring a zombie — the exit-2 flap (restart counter climbing) was
+    # exactly this race.
+    for _pf_wait in range(6):
+        if _port_free(api_host, port) and _port_free(ws_host, ws_port_preflight):
+            break
+        if _pf_wait < 5:
+            print(f"  … ports :{port}/:{ws_port_preflight} busy — waiting for prior teardown ({_pf_wait + 2}s)")
+            time.sleep(2)
     if not _port_free(api_host, port) or not _port_free(ws_host, ws_port_preflight):
         h = _health_ping(port)
         if h:
@@ -288,6 +314,8 @@ def main():
         n_ctx=n_ctx,
         persistent_memory=persistent,
         verbose=verbose,
+        llm_url=args.llm_url,
+        llm_model=args.llm_model,
     )
     app = create_app(runtime)
 

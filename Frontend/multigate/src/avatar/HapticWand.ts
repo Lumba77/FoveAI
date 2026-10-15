@@ -11,7 +11,7 @@ import { VRM } from '@pixiv/three-vrm';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const CYAN      = 0x00f3ff;
-const CYAN_STR  = '#00f3ff';
+export const CYAN_STR  = '#00f3ff';
 
 // ── Spring physics constants ─────────────────────────────────────────────────
 const SPRING_K       = 28;   // stiffness  (higher = stiffer)

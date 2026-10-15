@@ -16,7 +16,7 @@ namespace FoveAI.IPC
     {
         [Header("Connection")]
         [Tooltip("The URI of the Python backend (loaded dynamically)")]
-        [SerializeField] private string serverUrl = "ws://192.168.8.100:8403/ws";
+        [SerializeField] private string serverUrl = "ws://192.168.8.109:8403/ws";
         [Tooltip("Initial delay before first connection attempt (seconds). Gives the backend time to start.")]
         [SerializeField] private float initialConnectDelay = 3f;
         [SerializeField] private float reconnectDelay = 2f;

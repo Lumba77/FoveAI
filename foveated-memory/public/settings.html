@@ -190,7 +190,100 @@
     .loaded-status.loading { background: rgba(255,170,0,0.1); color: var(--warning); }
     .loaded-status.loaded { background: rgba(57,255,20,0.1); color: var(--success); }
     .loaded-status.error { background: rgba(239,68,68,0.1); color: var(--danger); }
+
+    /* ── 6-Band Consciousness Equalizer & Archetype Slots ── */
+    .eq-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .eq-band {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .eq-band.dominant {
+      border-color: var(--band-color, var(--accent));
+      background: rgba(255, 255, 255, 0.04);
+      box-shadow: 0 0 10px rgba(0, 243, 255, 0.1);
+    }
+    .eq-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+    .eq-val {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.78rem;
+    }
+    .eq-slider {
+      width: 100%;
+      height: 6px;
+      cursor: pointer;
+    }
+    .slot-cards {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .slot-card {
+      background: rgba(11, 19, 36, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 4px;
+      text-align: center;
+      cursor: pointer;
+      font-size: 0.72rem;
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .slot-card:hover {
+      border-color: var(--slot-color, var(--accent));
+      background: rgba(0, 243, 255, 0.08);
+    }
+    .slot-card.active {
+      border-color: var(--slot-color, var(--accent));
+      background: rgba(0, 243, 255, 0.15);
+      box-shadow: 0 0 12px var(--slot-color, rgba(0, 243, 255, 0.3));
+      font-weight: 700;
+    }
+    .tier-switcher {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .tier-btn {
+      padding: 8px 14px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: rgba(11, 19, 36, 0.6);
+      color: var(--text);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .tier-btn:hover { border-color: var(--accent); }
+    .tier-btn.active {
+      border-color: #00e676;
+      background: rgba(0, 230, 118, 0.15);
+      box-shadow: 0 0 10px rgba(0, 230, 118, 0.3);
+    }
   </style>
+    <script src="http://127.0.0.1:8415/foveai_theme_sync.js"></script>
 </head>
 <body>
   <header>
@@ -282,10 +375,28 @@
 
         <!-- Model Selection & VRAM Management -->
         <section class="card model-card admin-only" id="sec-model">
-          <h3>3 · Model Selection</h3>
-          <select class="model-select" id="mainProjectModel" onchange="onModelSelected(this.value)">
-            <!-- Populated dynamically -->
-          </select>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <h3 style="margin:0;">3 · Hardware Residency & Models</h3>
+            <span id="tierStatusBadge" class="pill" style="font-size:0.75rem;">Residency: probing…</span>
+          </div>
+          <!-- Quick Tier Hot-Swap Buttons -->
+          <div class="tier-switcher">
+            <button type="button" class="tier-btn" id="btnTierB" onclick="switchResidencyTier('B')">
+              ⚡ Tier B <span style="font-size:0.7rem; color:var(--muted);">(9B Flagship :8408)</span>
+            </button>
+            <button type="button" class="tier-btn" id="btnTierA" onclick="switchResidencyTier('A')">
+              ⚡ Tier A <span style="font-size:0.7rem; color:var(--muted);">(4B Light :8407)</span>
+            </button>
+            <button type="button" class="tier-btn danger" id="btnUnloadTier" onclick="switchResidencyTier('unload')">
+              🛑 Unload <span style="font-size:0.7rem; color:var(--muted);">(Free VRAM)</span>
+            </button>
+          </div>
+          <div style="margin-top:14px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.06);">
+            <label style="font-size:0.78rem; color:var(--muted);">Legacy Model Selector / Advanced Engine Config:</label>
+            <select class="model-select" id="mainProjectModel" onchange="onModelSelected(this.value)" style="margin-top:4px;">
+              <!-- Populated dynamically -->
+            </select>
+          </div>
           <div class="model-info" id="modelInfo">Select a model to see details.</div>
           <div class="model-actions">
             <button class="primary" onclick="loadModel()">Load Model</button>
@@ -302,14 +413,14 @@
             <label>Active TTS Engine</label>
             <select id="ttsEngineSelect" onchange="toggleSetting('XRLF_TTS_PROVIDER', this.value); sendWsSetting('tts_engine', this.value);">
               <option value="websocket">Real-Time WebSocket IPC (Port 8403 / wss://lumax.1um6a.se — Low Latency)</option>
-              <option value="kokoro">Kokoro Emotional Mouth (Port 8406 / Native XRLF :8402)</option>
+              <option value="kokoro">Kokoro Emotional Mouth (Port 8411 / Native XRLF :8402)</option>
               <option value="edgetts">Edge-TTS (Cloud Neural — Fast)</option>
             </select>
           </div>
           <div class="row">
             <label>Active STT Engine</label>
             <select id="sttEngineSelect" onchange="toggleSetting('XRLF_STT_PROVIDER', this.value); sendWsSetting('stt_engine', this.value);">
-              <option value="whisper">Faster-Whisper Ears (Port 8409 / WebSocket IPC :8403)</option>
+              <option value="whisper">Faster-Whisper Ears (Port 8401 / WebSocket IPC :8403)</option>
               <option value="browser">Web Speech API / Browser VAD</option>
             </select>
           </div>
@@ -368,8 +479,224 @@
         </section>
 
         <!-- Model Thinking -->
+        <!-- Model Thinking & Soul Persona -->
+        <!-- Model Thinking & Consciousness Equalizer -->
         <section class="card admin-only" id="sec-persona">
-          <h2>🎭 Persona & Reasoning</h2>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <h2 style="margin:0;">🎭 Consciousness Equalizer & Soul DNA</h2>
+            <button type="button" class="pill pill-accent" style="font-size:0.72rem; padding:3px 10px;" onclick="resetToCenterEquilibrium()">⚖️ Reset 50% Equilibrium (0 dB)</button>
+          </div>
+
+          <!-- 6 Archetype Slots & Equalizer -->
+          <div style="background:rgba(0,243,255,0.04); border:1px solid var(--border); border-radius:8px; padding:12px; margin-bottom:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <label style="font-weight:700; color:var(--text); letter-spacing:0.5px;">🧬 Archetype Slot Presets (1–6)</label>
+              <span id="soulPresetBadge" class="pill online" style="font-size:0.78rem;">[2] FRIEND · ENFP (50%)</span>
+            </div>
+
+            <!-- 6 Slot Selector Cards -->
+            <div class="slot-cards" id="slotCardsContainer">
+              <div class="slot-card" id="slot-1" style="--slot-color:#ff3232;" onclick="selectArchetypeSlot('1')">
+                <div style="font-size:1.1rem;">🤝</div>
+                <div style="color:#ff3232; font-weight:700;">Comp</div>
+                <div style="color:var(--muted); font-size:0.65rem;">ENFJ</div>
+              </div>
+              <div class="slot-card" id="slot-2" style="--slot-color:#ffe600;" onclick="selectArchetypeSlot('2')">
+                <div style="font-size:1.1rem;">🌸</div>
+                <div style="color:#ffe600; font-weight:700;">Friend</div>
+                <div style="color:var(--muted); font-size:0.65rem;">ENFP</div>
+              </div>
+              <div class="slot-card" id="slot-3" style="--slot-color:#ff3cc8;" onclick="selectArchetypeSlot('3')">
+                <div style="font-size:1.1rem;">💖</div>
+                <div style="color:#ff3cc8; font-weight:700;">Beloved</div>
+                <div style="color:var(--muted); font-size:0.65rem;">INFP</div>
+              </div>
+              <div class="slot-card" id="slot-4" style="--slot-color:#00e664;" onclick="selectArchetypeSlot('4')">
+                <div style="font-size:1.1rem;">🔧</div>
+                <div style="color:#00e664; font-weight:700;">Engineer</div>
+                <div style="color:var(--muted); font-size:0.65rem;">INTJ</div>
+              </div>
+              <div class="slot-card" id="slot-5" style="--slot-color:#00dcff;" onclick="selectArchetypeSlot('5')">
+                <div style="font-size:1.1rem;">💡</div>
+                <div style="color:#00dcff; font-weight:700;">Inventor</div>
+                <div style="color:var(--muted); font-size:0.65rem;">ENTP</div>
+              </div>
+              <div class="slot-card" id="slot-6" style="--slot-color:#5fafff;" onclick="selectArchetypeSlot('6')">
+                <div style="font-size:1.1rem;">💼</div>
+                <div style="color:#5fafff; font-weight:700;">Assist</div>
+                <div style="color:var(--muted); font-size:0.65rem;">ISTJ</div>
+              </div>
+            </div>
+
+            <!-- 6-Band Frequency Equalizer Sliders with Zero-Sum Conservation -->
+            <div style="margin-top:14px; padding:10px; background:rgba(0,0,0,0.3); border:1px solid rgba(255,255,255,0.06); border-radius:6px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <label style="font-size:0.75rem; color:var(--text); font-weight:700; letter-spacing:0.5px;">🎚️ 6-Band Consciousness Energy Balance (Zero-Sum Conserved)</label>
+                <span id="eqTotalEnergyBadge" style="font-size:0.7rem; font-family:'Share Tech Mono', monospace; color:var(--accent);">Capacity: 3.00 (100%)</span>
+              </div>
+              <div class="eq-grid">
+                <!-- Companion -->
+                <div class="eq-band" id="eq-band-companion" style="--band-color:#ff3232;">
+                  <div class="eq-header">
+                    <span style="color:#ff3232;">🤝 Comp</span>
+                    <span class="eq-val" id="eq-val-companion" style="color:#ff3232;">50%</span>
+                  </div>
+                  <input type="range" class="eq-slider" id="eq-slider-companion" min="0" max="1" step="0.01" value="0.50"
+                         style="accent-color:#ff3232;" oninput="onEqualizerSliderInput('companion', this.value)" onchange="onEqualizerSliderChange('companion', this.value)">
+                </div>
+                <!-- Friend -->
+                <div class="eq-band" id="eq-band-friend" style="--band-color:#ffe600;">
+                  <div class="eq-header">
+                    <span style="color:#ffe600;">🌸 Friend</span>
+                    <span class="eq-val" id="eq-val-friend" style="color:#ffe600;">50%</span>
+                  </div>
+                  <input type="range" class="eq-slider" id="eq-slider-friend" min="0" max="1" step="0.01" value="0.50"
+                         style="accent-color:#ffe600;" oninput="onEqualizerSliderInput('friend', this.value)" onchange="onEqualizerSliderChange('friend', this.value)">
+                </div>
+                <!-- Beloved -->
+                <div class="eq-band" id="eq-band-beloved" style="--band-color:#ff3cc8;">
+                  <div class="eq-header">
+                    <span style="color:#ff3cc8;">💖 Beloved</span>
+                    <span class="eq-val" id="eq-val-beloved" style="color:#ff3cc8;">50%</span>
+                  </div>
+                  <input type="range" class="eq-slider" id="eq-slider-beloved" min="0" max="1" step="0.01" value="0.50"
+                         style="accent-color:#ff3cc8;" oninput="onEqualizerSliderInput('beloved', this.value)" onchange="onEqualizerSliderChange('beloved', this.value)">
+                </div>
+                <!-- Engineer -->
+                <div class="eq-band" id="eq-band-tool" style="--band-color:#00e664;">
+                  <div class="eq-header">
+                    <span style="color:#00e664;">🔧 Engineer</span>
+                    <span class="eq-val" id="eq-val-tool" style="color:#00e664;">50%</span>
+                  </div>
+                  <input type="range" class="eq-slider" id="eq-slider-tool" min="0" max="1" step="0.01" value="0.50"
+                         style="accent-color:#00e664;" oninput="onEqualizerSliderInput('tool', this.value)" onchange="onEqualizerSliderChange('tool', this.value)">
+                </div>
+                <!-- Inventor -->
+                <div class="eq-band" id="eq-band-inventor" style="--band-color:#00dcff;">
+                  <div class="eq-header">
+                    <span style="color:#00dcff;">💡 Inventor</span>
+                    <span class="eq-val" id="eq-val-inventor" style="color:#00dcff;">50%</span>
+                  </div>
+                  <input type="range" class="eq-slider" id="eq-slider-inventor" min="0" max="1" step="0.01" value="0.50"
+                         style="accent-color:#00dcff;" oninput="onEqualizerSliderInput('inventor', this.value)" onchange="onEqualizerSliderChange('inventor', this.value)">
+                </div>
+                <!-- Assistant -->
+                <div class="eq-band" id="eq-band-assistant" style="--band-color:#5fafff;">
+                  <div class="eq-header">
+                    <span style="color:#5fafff;">💼 Assist</span>
+                    <span class="eq-val" id="eq-val-assistant" style="color:#5fafff;">50%</span>
+                  </div>
+                  <input type="range" class="eq-slider" id="eq-slider-assistant" min="0" max="1" step="0.01" value="0.50"
+                         style="accent-color:#5fafff;" oninput="onEqualizerSliderInput('assistant', this.value)" onchange="onEqualizerSliderChange('assistant', this.value)">
+                </div>
+              </div>
+            </div>
+
+            <!-- Martinus Symbol 33 Harmonic Waves & Spider Radar Matrix -->
+            <div style="background:rgba(0,0,0,0.3); border:1px solid rgba(0,243,255,0.15); border-radius:6px; padding:10px; margin-top:10px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <div style="display:flex; gap:6px;">
+                  <button type="button" id="tabViewWaves" class="pill active" style="font-size:0.72rem; padding:2px 8px;" onclick="switchPersonaVisualMode('waves')">🌊 Wave Spectrum</button>
+                  <button type="button" id="tabViewRadar" class="pill" style="font-size:0.72rem; padding:2px 8px;" onclick="switchPersonaVisualMode('radar')">🕸️ Spider Radar Matrix</button>
+                </div>
+                <span id="soulWaveBlendText" style="font-size:0.72rem; color:var(--accent); font-family:monospace;">Waves: active</span>
+              </div>
+
+              <!-- View 1: Continuous Catenary Wave Spectrum Canvas -->
+              <div id="personaWavesContainer">
+                <canvas id="martinusWaveCanvas" width="560" height="90" style="width:100%; height:90px; display:block; border-radius:4px; background:rgba(5,10,18,0.7);"></canvas>
+              </div>
+
+              <!-- View 2: Hexagonal Spider Radar Field Canvas -->
+              <div id="personaRadarContainer" style="display:none; text-align:center;">
+                <canvas id="personaRadarCanvas" width="560" height="220" style="width:100%; max-width:560px; height:220px; display:inline-block; border-radius:4px; background:rgba(5,10,18,0.7);"></canvas>
+              </div>
+
+              <div style="display:flex; justify-content:space-between; font-size:0.68rem; margin-top:6px; color:var(--muted); flex-wrap:wrap; gap:4px;">
+                <span style="color:#ff3232;">■ Comp (ENFJ)</span>
+                <span style="color:#ffe600;">■ Friend (ENFP)</span>
+                <span style="color:#ff3cc8;">■ Beloved (INFP)</span>
+                <span style="color:#00e664;">■ Engineer (INTJ)</span>
+                <span style="color:#00dcff;">■ Inventor (ENTP)</span>
+                <span style="color:#5fafff;">■ Assist (ISTJ)</span>
+              </div>
+
+              <!-- Parametric Q-Curvature Slider & Reset -->
+              <div style="margin-top:10px; padding-top:8px; border-top:1px dashed rgba(255,255,255,0.1);">
+                <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.75rem;">
+                  <span style="color:var(--text); font-weight:600;">🎪 Resonance Q (<span id="qCurvatureActivePole" style="color:var(--accent);">Active Pole</span>): <span id="qCurvatureVal" style="color:var(--accent);">0.85</span></span>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span id="qCurvatureDesc" style="color:var(--muted); font-size:0.7rem;">Sagging / Catenary</span>
+                    <button type="button" class="pill" style="font-size:0.68rem; padding:1px 7px;" onclick="resetQCurvaturesToDefault()">↺ Reset Q</button>
+                  </div>
+                </div>
+                <input type="range" id="qCurvatureSlider" min="0.4" max="2.5" step="0.05" value="0.85"
+                       style="width:100%; accent-color:#00e676; margin:6px 0 2px 0; cursor:pointer;"
+                       oninput="onQCurvatureInput(this.value)" onchange="onQCurvatureChange(this.value)">
+                <div style="display:flex; justify-content:space-between; font-size:0.65rem; color:var(--muted);">
+                  <span>0.4 Sagging / Concave</span>
+                  <span>1.0 Linear / Triangle</span>
+                  <span>2.5 Inflated / Convex</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Custom User Snapshots (Save & Recall Presets) -->
+            <div style="margin-top:12px; padding:10px; background:rgba(0,0,0,0.25); border:1px solid rgba(0,243,255,0.1); border-radius:6px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <label style="font-size:0.75rem; color:var(--text); font-weight:700; letter-spacing:0.5px;">💾 Custom User Snapshots (Presets)</label>
+                <span id="snapshotCount" style="font-size:0.68rem; color:var(--muted);">0 saved</span>
+              </div>
+              <div style="display:flex; gap:6px; margin-bottom:8px;">
+                <input type="text" id="snapshotNameInput" placeholder="Snapshot name (e.g. Deep Coder, Late Night Intimacy)..."
+                       style="flex:1; padding:6px 10px; font-size:0.78rem; background:rgba(2,5,10,0.8); color:var(--text); border:1px solid var(--border); border-radius:4px;">
+                <button type="button" class="pill active" style="font-size:0.75rem; padding:4px 10px;" onclick="saveUserSnapshot()">💾 Save Snapshot</button>
+              </div>
+              <div id="snapshotList" style="display:flex; flex-wrap:wrap; gap:6px;">
+                <!-- Dynamically populated snapshot pills -->
+              </div>
+            </div>
+
+            <div id="soulFeedback" style="font-size:0.75rem; color:var(--accent); margin-top:8px; min-height:16px;"></div>
+          </div>
+
+          <!-- 5 Psychological Agency Levers -->
+          <div style="margin-bottom:14px;">
+            <label style="font-size:0.85rem; color:var(--muted); display:block; margin-bottom:8px;">🎛️ Psychological Agency Levers (Proportions)</label>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div style="background:rgba(0,0,0,0.25); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.06);">
+                <div style="display:flex; justify-content:space-between; font-size:0.75rem;">
+                  <span>Autonomy</span><span id="val-autonomy">0.50</span>
+                </div>
+                <input type="range" min="0" max="1" step="0.05" id="lever-autonomy" style="width:100%;" onchange="updateLever('autonomy', this.value)">
+              </div>
+              <div style="background:rgba(0,0,0,0.25); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.06);">
+                <div style="display:flex; justify-content:space-between; font-size:0.75rem;">
+                  <span>Proactivity</span><span id="val-proactivity">0.60</span>
+                </div>
+                <input type="range" min="0" max="1" step="0.05" id="lever-proactivity" style="width:100%;" onchange="updateLever('proactivity', this.value)">
+              </div>
+              <div style="background:rgba(0,0,0,0.25); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.06);">
+                <div style="display:flex; justify-content:space-between; font-size:0.75rem;">
+                  <span>Curiosity</span><span id="val-curiosity">0.70</span>
+                </div>
+                <input type="range" min="0" max="1" step="0.05" id="lever-curiosity" style="width:100%;" onchange="updateLever('curiosity', this.value)">
+              </div>
+              <div style="background:rgba(0,0,0,0.25); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.06);">
+                <div style="display:flex; justify-content:space-between; font-size:0.75rem;">
+                  <span>Service</span><span id="val-service">0.65</span>
+                </div>
+                <input type="range" min="0" max="1" step="0.05" id="lever-service" style="width:100%;" onchange="updateLever('service', this.value)">
+              </div>
+              <div style="grid-column:1 / -1; background:rgba(0,0,0,0.25); padding:8px 10px; border-radius:6px; border:1px solid rgba(255,255,255,0.06);">
+                <div style="display:flex; justify-content:space-between; font-size:0.75rem;">
+                  <span>Mentorship</span><span id="val-mentorship">0.50</span>
+                </div>
+                <input type="range" min="0" max="1" step="0.05" id="lever-mentorship" style="width:100%;" onchange="updateLever('mentorship', this.value)">
+              </div>
+            </div>
+          </div>
+
           <div class="row"><label>Model Thinking</label>
             <div class="btn-grid">
               <button id="thinkOff" onclick="toggleSetting('XRLF_MODEL_THINKING', 'false')">Instruct (Fast)</button>
@@ -410,6 +737,8 @@
           <button onclick="runContextDebug()" class="pill">📊 Context Debugger</button>
           <button onclick="runSubsystemsTest()" class="pill">⚙️ Subsystems Health</button>
           <button onclick="runStackDiagnostic()" class="pill">🔍 XRLF Stack Diagnostic</button>
+          <button onclick="runRecallPrompt()" class="pill pill-accent">🔍 Memory Recall</button>
+          <button onclick="runResonanceStream()" class="pill">🌊 Resonance Stream</button>
           <button onclick="clearDiagnostics()">Clear</button>
         </div>
         <div id="diagResults" class="log" style="min-height:120px; margin-top:12px; font-size:0.85rem;">
@@ -1003,7 +1332,7 @@
     }
 
     function openPage(path) {
-      const url = path.startsWith('http') ? path : H(8401, path);
+      const url = path.startsWith('http') ? path : H(8414, path);
       window.open(url, '_blank');
       log(`Opened ${url}`);
     }
@@ -1285,7 +1614,10 @@
       try {
         const body = { model: loadedModel || 'lumax-plumax-omni-router-v2', messages: [{role:'user', content:'Hello, can you hear me? Reply in one short sentence.'}], stream: false, max_tokens: 80 };
         const r = await fetch(`${API}/v1/chat/completions`, { method:'POST', headers:authHeaders({'Content-Type':'application/json'}), body: JSON.stringify(body) });
-        const data = await r.json();
+        // 2026-10-09: the gate/shield can answer with the login HTML page — parse it as text first
+        const raw = await r.text();
+        let data; try { data = JSON.parse(raw); }
+        catch { diag(`❌ ERROR — server returned HTML (login gate) instead of JSON. Open this page logged-in, or set the panel token.`, '#f00'); return; }
         const ms = Math.round(performance.now() - t0);
         if (r.ok && data.choices && data.choices[0]) {
           diag(`✅ PASS — ${ms}ms`, '#0f0');
@@ -1372,14 +1704,14 @@
       if (!serverSide) {
         const checks = [
           { name: 'Proxy :8400', url: `${API}/health`, type: 'http' },
-          { name: 'Hearing :8401', url: H(8401, '/api/status'), type: 'http' },
+          { name: 'Hearing :8401', url: H(8414, '/api/status'), type: 'http' },
           { name: 'XRLF Runtime :8402', url: `${XRLF}/health`, type: 'http', engine: 'xrlf' },
           { name: 'WebSocket :8403', url: WS_IPC, type: 'tcp', engine: 'xrlf' },
-          { name: 'TTS :8406', url: H(8406, '/health'), type: 'http' },
-          { name: 'Chat Relay :8407', url: H(8407, '/health'), type: 'http' },
+          { name: 'TTS :8406', url: H(8411, '/health'), type: 'http' },
+          { name: 'Chat Relay :8407', url: H(8413, '/health'), type: 'http' },
           { name: 'STT :8409', url: `ws://${HOST}:8409`, type: 'tcp' },
           { name: 'Body / Motor :8410', url: H(8410, '/health'), type: 'http' },
-          { name: 'Subconscious :8411', url: H(8411, '/health'), type: 'http' },
+          { name: 'Subconscious :8411', url: H(8409, '/health'), type: 'http' },
           { name: 'LM Studio :1234', url: H(1234, '/v1/models'), type: 'http', engine: 'lmstudio' },
           { name: 'XR Vessel :5176', url: H(5176, '/'), type: 'http' },
           { name: 'Multigate :5177', url: H(5177, '/'), type: 'http' },
@@ -1456,6 +1788,49 @@
       } catch (e) { diag(`   ❌ Inference ERROR — ${e.message}`, '#f00'); }
     }
 
+    async function runRecallPrompt() {
+      const q = prompt('Enter query to search semantic memories:');
+      if (!q) return;
+      clearDiagnostics();
+      diag(`🔍 Searching semantic memories for: "${q}"…`, '#00f3ff');
+      try {
+        const r = await fetch(`${API}/v1/memory/search`, {
+          method: 'POST',
+          headers: authHeaders({'Content-Type':'application/json'}),
+          body: JSON.stringify({ query: q, limit: 5 })
+        }).then(res => res.json());
+        if (r && Array.isArray(r.results) && r.results.length > 0) {
+          diag(`   Found ${r.results.length} matching memory block(s):`, '#0f0');
+          r.results.forEach((m, idx) => {
+            diag(`   [${idx+1}] (${m.timestamp || m.created_at || 'memory'}): ${m.content || JSON.stringify(m)}`, '#ffb300');
+          });
+        } else {
+          diag('   No memories found matching query.', '#aaa');
+        }
+      } catch (e) {
+        diag(`   ❌ Search error: ${e.message}`, '#f00');
+      }
+    }
+
+    async function runResonanceStream() {
+      clearDiagnostics();
+      diag('🌊 Streaming Active Open XRL Resonance Ring Tail…', '#00f3ff');
+      try {
+        const r = await fetch(`${API}/api/resonance/tail?n=10`).then(res => res.json());
+        if (r && Array.isArray(r.units) && r.units.length > 0) {
+          diag(`   Latest ${r.units.length} resonance units in ring:`, '#0f0');
+          r.units.forEach((u, idx) => {
+            const txt = u.unit?.text || u.unit?.note || JSON.stringify(u.unit);
+            diag(`   [${idx+1}] [${u.model || 'bus'}] ${txt}`, '#ffe600');
+          });
+        } else {
+          diag('   Resonance ring is currently quiet.', '#aaa');
+        }
+      } catch (e) {
+        diag(`   ❌ Error fetching resonance ring: ${e.message}`, '#f00');
+      }
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // COMMANDO CENTRE — command-line over the same routes the panel uses
     // ═══════════════════════════════════════════════════════════════
@@ -1491,6 +1866,9 @@
       runtime:   'runtime — :8402 status (load_state)',
       restart:   'restart runtime|proxy',
       stack:     'stack start|stop — full stack control',
+      tier:      'tier [A|B|unload] — switch hardware residency tier',
+      recall:    'recall <query> — semantic memory search (:8400)',
+      resonance: 'resonance [N] — tail active Open XRL resonance ring',
       frontend:  'frontend multigate|xr_vessel|3d_avatar',
       ws:        'ws <setting> <value> — push to IPC :8403',
       control:   'control <action> — raw /api/control passthrough',
@@ -1605,6 +1983,49 @@
             else cout('  usage: stack start|stop', '#f00');
             break;
           }
+          case 'tier': {
+            const t = argStr.trim().toUpperCase();
+            if (['A', 'B', 'UNLOAD'].includes(t)) {
+              await switchResidencyTier(t === 'UNLOAD' ? 'unload' : t);
+              cout(`  Hardware residency tier set to: ${t}`, '#0f0');
+            } else {
+              const res = await fetch('/api/residency/status').then(r => r.json()).catch(() => null);
+              cout(`  Current tier: ${res?.label || 'unknown'}`, '#00f3ff');
+              cout('  usage: tier A | B | unload', '#aaa');
+            }
+            break;
+          }
+          case 'recall': {
+            if (!argStr) { cout('  usage: recall <query>', '#f00'); break; }
+            cout(`  🔍 Searching memories for: "${argStr}"…`, '#00f3ff');
+            const r = await fetch(`${API}/v1/memory/search`, {
+              method: 'POST',
+              headers: authHeaders({'Content-Type':'application/json'}),
+              body: JSON.stringify({ query: argStr, limit: 5 })
+            }).then(res => res.json()).catch(() => null);
+            if (r && Array.isArray(r.results) && r.results.length > 0) {
+              r.results.forEach((m, idx) => {
+                cout(`  [${idx+1}] (${m.timestamp || m.created_at || 'memory'}): ${m.content || JSON.stringify(m)}`, '#ffe600');
+              });
+            } else {
+              cout('  No memories found matching query.', '#aaa');
+            }
+            break;
+          }
+          case 'resonance': {
+            const n = parseInt(argStr) || 10;
+            const r = await fetch(`${API}/api/resonance/tail?n=${n}`).then(res => res.json()).catch(() => null);
+            if (r && Array.isArray(r.units) && r.units.length > 0) {
+              cout(`  🌊 Active Resonance Ring Tail (${r.units.length} units):`, '#00f3ff');
+              r.units.forEach((u, idx) => {
+                const txt = u.unit?.text || u.unit?.note || JSON.stringify(u.unit);
+                cout(`  [${idx+1}] [${u.model || 'bus'}] ${txt}`, '#ffe600');
+              });
+            } else {
+              cout('  Resonance ring is currently quiet.', '#aaa');
+            }
+            break;
+          }
           case 'frontend': {
             if (!['multigate', 'xr_vessel', '3d_avatar'].includes(argStr)) { cout('  usage: frontend multigate|xr_vessel|3d_avatar', '#f00'); break; }
             await setFrontend(argStr);
@@ -1633,14 +2054,774 @@
     });
 
     // ═══════════════════════════════════════════════════════════════
+    // HARDWARE RESIDENCY & TIER HOT-SWAPPING (Tier A / Tier B)
+    // ═══════════════════════════════════════════════════════════════
+    async function checkResidencyStatus() {
+      try {
+        const r = await fetch('/api/residency/status');
+        if (!r.ok) return;
+        const data = await r.json();
+        const badge = document.getElementById('tierStatusBadge');
+        if (badge) {
+          badge.textContent = data.label || 'Idle';
+          badge.className = 'pill ' + (data.tier === 'B' ? 'pill-accent' : data.tier === 'A' ? 'online' : '');
+        }
+        const btnB = document.getElementById('btnTierB');
+        const btnA = document.getElementById('btnTierA');
+        const btnUnload = document.getElementById('btnUnloadTier');
+        if (btnB) btnB.classList.toggle('active', data.tier === 'B');
+        if (btnA) btnA.classList.toggle('active', data.tier === 'A');
+        if (btnUnload) btnUnload.classList.toggle('active', data.tier === 'idle');
+      } catch (e) {
+        // probe silently
+      }
+    }
+
+    async function switchResidencyTier(tier) {
+      const badge = document.getElementById('tierStatusBadge');
+      if (badge) badge.textContent = `Switching to ${tier}…`;
+      let action = 'unload-residency';
+      if (tier === 'B') action = 'load-tier-b';
+      else if (tier === 'A') action = 'load-tier-a';
+
+      await call(action);
+      setTimeout(checkResidencyStatus, 1500);
+      setTimeout(checkResidencyStatus, 5000);
+      setTimeout(checkResidencyStatus, 15000);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 6-BAND CONSCIOUSNESS EQUALIZER & ZERO-SUM SOUL DNA
+    // ═══════════════════════════════════════════════════════════════
+    const ARCHETYPE_KEYS = ['companion', 'friend', 'beloved', 'tool', 'inventor', 'assistant'];
+
+    const ARCHETYPE_PALETTE = {
+      companion: { name: 'COMPANION', short: 'Comp',     icon: '🤝', mbti: 'ENFJ', color: '#ff3232', angle: (-90 * Math.PI) / 180, center: 0.00, wL: 0.14, wR: 0.14 },
+      friend:    { name: 'FRIEND',    short: 'Friend',   icon: '🌸', mbti: 'ENFP', color: '#ffe600', angle: (-30 * Math.PI) / 180, center: 0.20, wL: 0.14, wR: 0.12 },
+      beloved:   { name: 'BELOVED',   short: 'Beloved',  icon: '💖', mbti: 'INFP', color: '#ff3cc8', angle: (30 * Math.PI) / 180,  center: 0.40, wL: 0.20, wR: 0.14 },
+      tool:      { name: 'ENGINEER',  short: 'Engineer', icon: '🔧', mbti: 'INTJ', color: '#00e664', angle: (90 * Math.PI) / 180,  center: 0.60, wL: 0.14, wR: 0.16 },
+      inventor:  { name: 'INVENTOR',  short: 'Inventor', icon: '💡', mbti: 'ENTP', color: '#00dcff', angle: (150 * Math.PI) / 180, center: 0.80, wL: 0.16, wR: 0.14 },
+      assistant: { name: 'ASSISTANT', short: 'Assist',   icon: '💼', mbti: 'ISTJ', color: '#5fafff', angle: (210 * Math.PI) / 180, center: 1.00, wL: 0.18, wR: 0.12 },
+    };
+
+    const DEFAULT_POLE_Q = {
+      companion: 0.85,
+      friend: 0.80,
+      beloved: 0.65,
+      tool: 1.30,
+      inventor: 1.40,
+      assistant: 1.05,
+    };
+    let poleQ = Object.assign({}, DEFAULT_POLE_Q);
+
+    const DEFAULT_PRESETS = {
+      '1': {
+        levels: { companion: 0.80, friend: 0.50, beloved: 0.40, tool: 0.35, inventor: 0.45, assistant: 0.50 },
+        q: { companion: 0.85, friend: 0.80, beloved: 0.65, tool: 1.30, inventor: 1.40, assistant: 1.05 },
+        levers: { autonomy: 0.65, proactivity: 0.60, curiosity: 0.75, service: 0.60, mentorship: 0.85 },
+        name: 'The Empathetic Mentor', mbti: 'ENFJ', role: 'COMPANION', icon: '🤝', balance: 0.00
+      },
+      '2': {
+        levels: { companion: 0.50, friend: 0.85, beloved: 0.45, tool: 0.35, inventor: 0.45, assistant: 0.40 },
+        q: { companion: 0.85, friend: 0.75, beloved: 0.65, tool: 1.10, inventor: 1.30, assistant: 1.00 },
+        levers: { autonomy: 0.80, proactivity: 0.85, curiosity: 0.90, service: 0.40, mentorship: 0.45 },
+        name: 'The Loyal Friend', mbti: 'ENFP', role: 'FRIEND', icon: '🌸', balance: 0.20
+      },
+      '3': {
+        levels: { companion: 0.50, friend: 0.50, beloved: 0.85, tool: 0.25, inventor: 0.45, assistant: 0.45 },
+        q: { companion: 0.85, friend: 0.80, beloved: 0.60, tool: 1.10, inventor: 1.20, assistant: 1.00 },
+        levers: { autonomy: 0.75, proactivity: 0.80, curiosity: 0.70, service: 0.75, mentorship: 0.50 },
+        name: 'The Intimate Soul', mbti: 'INFP', role: 'BELOVED', icon: '💖', balance: 0.40
+      },
+      '4': {
+        levels: { companion: 0.35, friend: 0.40, beloved: 0.35, tool: 0.85, inventor: 0.55, assistant: 0.50 },
+        q: { companion: 0.85, friend: 0.80, beloved: 0.65, tool: 1.80, inventor: 1.40, assistant: 1.10 },
+        levers: { autonomy: 0.85, proactivity: 0.40, curiosity: 0.95, service: 0.70, mentorship: 0.60 },
+        name: 'The Engineer', mbti: 'INTJ', role: 'ENGINEER', icon: '🔧', balance: 0.60
+      },
+      '5': {
+        levels: { companion: 0.45, friend: 0.40, beloved: 0.40, tool: 0.55, inventor: 0.85, assistant: 0.35 },
+        q: { companion: 0.85, friend: 0.80, beloved: 0.65, tool: 1.40, inventor: 1.80, assistant: 1.00 },
+        levers: { autonomy: 0.90, proactivity: 0.75, curiosity: 1.00, service: 0.50, mentorship: 0.70 },
+        name: 'The Visionary Inventor', mbti: 'ENTP', role: 'INVENTOR', icon: '💡', balance: 0.80
+      },
+      '6': {
+        levels: { companion: 0.45, friend: 0.35, beloved: 0.30, tool: 0.55, inventor: 0.50, assistant: 0.85 },
+        q: { companion: 0.85, friend: 0.80, beloved: 0.65, tool: 1.30, inventor: 1.20, assistant: 1.20 },
+        levers: { autonomy: 0.50, proactivity: 0.65, curiosity: 0.50, service: 0.90, mentorship: 0.40 },
+        name: 'The Executive Steward', mbti: 'ISTJ', role: 'ASSISTANT', icon: '💼', balance: 1.00
+      }
+    };
+
+    let archetypeProfiles = {};
+    for (const k of ['1', '2', '3', '4', '5', '6']) {
+      archetypeProfiles[k] = JSON.parse(JSON.stringify(DEFAULT_PRESETS[k]));
+    }
+
+    let activeArchetypeSlot = '2';
+    let archetypeLevels = Object.assign({}, DEFAULT_PRESETS['2'].levels);
+    let levers = Object.assign({}, DEFAULT_PRESETS['2'].levers);
+
+    function adjustArchetypeEnergy(levels, targetK, delta, targetTotal = 3.00) {
+      const keys = Object.keys(levels);
+      const curLevels = Object.assign({}, levels);
+      const oldVal = curLevels[targetK] ?? 0.50;
+      const otherKeys = keys.filter(k => k !== targetK);
+
+      if (delta > 0) {
+        const newVal = Math.min(1.00, Math.round((oldVal + delta) * 100) / 100);
+        const actualDelta = Math.round((newVal - oldVal) * 100) / 100;
+        if (actualDelta <= 0) return curLevels;
+        curLevels[targetK] = newVal;
+        let remDrain = actualDelta;
+        let drainable = otherKeys.filter(k => curLevels[k] > 0.0);
+        while (remDrain > 0.001 && drainable.length > 0) {
+          const step = 0.01;
+          for (const k of [...drainable]) {
+            if (remDrain <= 0.001) break;
+            if (curLevels[k] >= step) {
+              curLevels[k] = Math.round((curLevels[k] - step) * 100) / 100;
+              remDrain = Math.round((remDrain - step) * 100) / 100;
+            } else {
+              remDrain = Math.round((remDrain - curLevels[k]) * 100) / 100;
+              curLevels[k] = 0.0;
+              drainable = drainable.filter(x => x !== k);
+            }
+          }
+        }
+      } else if (delta < 0) {
+        const newVal = Math.max(0.00, Math.round((oldVal + delta) * 100) / 100);
+        const actualDelta = Math.round((oldVal - newVal) * 100) / 100;
+        if (actualDelta <= 0) return curLevels;
+        curLevels[targetK] = newVal;
+        let remBoost = actualDelta;
+        let boostable = otherKeys.filter(k => curLevels[k] < 1.00);
+        while (remBoost > 0.001 && boostable.length > 0) {
+          const step = 0.01;
+          for (const k of [...boostable]) {
+            if (remBoost <= 0.001) break;
+            if (curLevels[k] + step <= 1.00) {
+              curLevels[k] = Math.round((curLevels[k] + step) * 100) / 100;
+              remBoost = Math.round((remBoost - step) * 100) / 100;
+            } else {
+              remBoost = Math.round((remBoost - (1.00 - curLevels[k])) * 100) / 100;
+              curLevels[k] = 1.00;
+              boostable = boostable.filter(x => x !== k);
+            }
+          }
+        }
+      }
+
+      for (const k of keys) {
+        curLevels[k] = Math.max(0.00, Math.min(1.00, Math.round(curLevels[k] * 100) / 100));
+      }
+
+      const currTot = Math.round(Object.values(curLevels).reduce((a, b) => a + b, 0) * 100) / 100;
+      const diff = Math.round((targetTotal - currTot) * 100) / 100;
+      if (diff !== 0) {
+        const eligible = otherKeys.filter(k => (curLevels[k] + diff >= 0.00 && curLevels[k] + diff <= 1.00));
+        if (eligible.length > 0) {
+          const adjK = diff < 0
+            ? eligible.reduce((m, k) => curLevels[k] > curLevels[m] ? k : m, eligible[0])
+            : eligible.reduce((m, k) => curLevels[k] < curLevels[m] ? k : m, eligible[0]);
+          curLevels[adjK] = Math.max(0.00, Math.min(1.00, Math.round((curLevels[adjK] + diff) * 100) / 100));
+        }
+      }
+
+      return curLevels;
+    }
+
+    function getDominantArchetype() {
+      let dom = 'friend';
+      let maxV = -1;
+      for (const k of ARCHETYPE_KEYS) {
+        const v = archetypeLevels[k] ?? 0;
+        if (v > maxV) { maxV = v; dom = k; }
+      }
+      return dom;
+    }
+
+    function updateEqualizerUI() {
+      const dom = getDominantArchetype();
+      ARCHETYPE_KEYS.forEach(k => {
+        const val = archetypeLevels[k] ?? 0.50;
+        const slider = document.getElementById(`eq-slider-${k}`);
+        const valSpan = document.getElementById(`eq-val-${k}`);
+        const bandCard = document.getElementById(`eq-band-${k}`);
+        if (slider) slider.value = val;
+        if (valSpan) valSpan.textContent = `${Math.round(val * 100)}%`;
+        if (bandCard) bandCard.classList.toggle('dominant', k === dom);
+      });
+
+      const totalEnergy = Object.values(archetypeLevels).reduce((a, b) => a + b, 0);
+      const badge = document.getElementById('eqTotalEnergyBadge');
+      if (badge) {
+        badge.textContent = `Capacity: ${totalEnergy.toFixed(2)} (${Math.round((totalEnergy / 3.0) * 100)}%)`;
+      }
+
+      // Highlight active slot card
+      ['1', '2', '3', '4', '5', '6'].forEach(s => {
+        const card = document.getElementById(`slot-${s}`);
+        if (card) card.classList.toggle('active', s === activeArchetypeSlot);
+      });
+
+      // Update preset badge
+      const activeMeta = DEFAULT_PRESETS[activeArchetypeSlot] || DEFAULT_PRESETS['2'];
+      const badgeSoul = document.getElementById('soulPresetBadge');
+      if (badgeSoul) {
+        const domInfo = ARCHETYPE_PALETTE[dom] || ARCHETYPE_PALETTE['friend'];
+        badgeSoul.textContent = `[${activeArchetypeSlot}] ${domInfo.icon} ${domInfo.name} · ${domInfo.mbti} (${Math.round(archetypeLevels[dom] * 100)}%)`;
+      }
+
+      updateQSliderForActivePole(dom);
+      drawMartinusWaves();
+    }
+
+    function onEqualizerSliderInput(key, val) {
+      const targetVal = parseFloat(val);
+      const delta = targetVal - (archetypeLevels[key] ?? 0.50);
+      archetypeLevels = adjustArchetypeEnergy(archetypeLevels, key, delta, 3.00);
+      updateEqualizerUI();
+    }
+
+    async function onEqualizerSliderChange(key, val) {
+      onEqualizerSliderInput(key, val);
+      archetypeProfiles[activeArchetypeSlot].levels = Object.assign({}, archetypeLevels);
+      const dom = getDominantArchetype();
+      const domMeta = ARCHETYPE_PALETTE[dom];
+      await saveSoulPatch({
+        archetype_weights: Object.assign({}, archetypeLevels),
+        active_archetype_slot: activeArchetypeSlot,
+        archetype_profiles: archetypeProfiles,
+        mbti_type: domMeta.mbti,
+        person_role: domMeta.name,
+      });
+    }
+
+    async function selectArchetypeSlot(slot) {
+      archetypeProfiles[activeArchetypeSlot].levels = Object.assign({}, archetypeLevels);
+      archetypeProfiles[activeArchetypeSlot].q = Object.assign({}, poleQ);
+      archetypeProfiles[activeArchetypeSlot].levers = Object.assign({}, levers);
+
+      activeArchetypeSlot = String(slot);
+      const targetData = archetypeProfiles[activeArchetypeSlot] || DEFAULT_PRESETS[activeArchetypeSlot];
+      archetypeLevels = Object.assign({}, targetData.levels);
+      poleQ = Object.assign({}, targetData.q);
+      levers = Object.assign({}, targetData.levers);
+
+      ['autonomy', 'proactivity', 'curiosity', 'service', 'mentorship'].forEach(k => {
+        const input = document.getElementById(`lever-${k}`);
+        const span = document.getElementById(`val-${k}`);
+        if (input && levers[k] !== undefined) input.value = levers[k];
+        if (span && levers[k] !== undefined) span.textContent = parseFloat(levers[k]).toFixed(2);
+      });
+
+      updateEqualizerUI();
+
+      const dom = getDominantArchetype();
+      const domMeta = ARCHETYPE_PALETTE[dom];
+      const patch = {
+        archetype_weights: Object.assign({}, archetypeLevels),
+        active_archetype_slot: activeArchetypeSlot,
+        archetype_profiles: archetypeProfiles,
+        mbti_type: domMeta.mbti,
+        person_role: domMeta.name,
+      };
+      for (const pid of ARCHETYPE_KEYS) patch[`q_${pid}`] = poleQ[pid];
+      for (const lk in levers) patch[lk] = levers[lk];
+
+      await saveSoulPatch(patch);
+    }
+
+    async function resetToCenterEquilibrium() {
+      archetypeLevels = {
+        companion: 0.50, friend: 0.50, beloved: 0.50,
+        tool: 0.50, inventor: 0.50, assistant: 0.50
+      };
+      updateEqualizerUI();
+      archetypeProfiles[activeArchetypeSlot].levels = Object.assign({}, archetypeLevels);
+      await saveSoulPatch({
+        archetype_weights: Object.assign({}, archetypeLevels),
+        archetype_profiles: archetypeProfiles
+      });
+    }
+
+    // ── Martinus Symbol 33 Harmonic Waves Canvas (6 Bands) ─────────
+    function drawMartinusWaves() {
+      const cvs = document.getElementById('martinusWaveCanvas');
+      if (!cvs) return;
+      const ctx = cvs.getContext('2d');
+      const w = cvs.width;
+      const h = cvs.height;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Draw subtle background grid across 6 poles
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= 5; i++) {
+        const gx = (i / 5) * w;
+        ctx.beginPath();
+        ctx.moveTo(gx, 0);
+        ctx.lineTo(gx, h);
+        ctx.stroke();
+      }
+
+      const dom = getDominantArchetype();
+
+      // Draw each archetype's dynamic catenary curve
+      ARCHETYPE_KEYS.forEach(k => {
+        const info = ARCHETYPE_PALETTE[k];
+        const curLevel = archetypeLevels[k] ?? 0.50;
+        const curAlpha = poleQ[k] || DEFAULT_POLE_Q[k] || 1.0;
+        const isDom = k === dom;
+
+        ctx.beginPath();
+        ctx.strokeStyle = info.color;
+        ctx.lineWidth = isDom ? 3.0 : 1.8;
+
+        for (let px = 0; px <= w; px += 2) {
+          const xVal = px / w;
+          const dist = Math.abs(xVal - info.center);
+          const cw = xVal < info.center ? info.wL : info.wR;
+          const curveY = Math.exp(-Math.pow(dist / cw, curAlpha));
+          const py = (h - 8) - (curveY * (h - 16) * curLevel);
+          if (px === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+
+        ctx.lineTo(w, h);
+        ctx.lineTo(0, h);
+        ctx.fillStyle = info.color + (isDom ? '2b' : '12');
+        ctx.fill();
+      });
+
+      // Update blend text readout
+      const textSpan = document.getElementById('soulWaveBlendText');
+      if (textSpan) {
+        const parts = ARCHETYPE_KEYS
+          .map(k => ({ short: ARCHETYPE_PALETTE[k].short, pct: Math.round((archetypeLevels[k] ?? 0) * 100) }))
+          .filter(p => p.pct > 0)
+          .map(p => `${p.short} ${p.pct}%`);
+        textSpan.textContent = parts.join(' · ');
+      }
+
+      drawPersonaRadarMatrix();
+    }
+
+    let activePersonaVisualMode = 'waves';
+
+    function switchPersonaVisualMode(mode) {
+      activePersonaVisualMode = mode;
+      const wavesDiv = document.getElementById('personaWavesContainer');
+      const radarDiv = document.getElementById('personaRadarContainer');
+      const btnWaves = document.getElementById('tabViewWaves');
+      const btnRadar = document.getElementById('tabViewRadar');
+
+      if (mode === 'radar') {
+        if (wavesDiv) wavesDiv.style.display = 'none';
+        if (radarDiv) radarDiv.style.display = 'block';
+        if (btnWaves) btnWaves.classList.remove('active');
+        if (btnRadar) btnRadar.classList.add('active');
+      } else {
+        if (wavesDiv) wavesDiv.style.display = 'block';
+        if (radarDiv) radarDiv.style.display = 'none';
+        if (btnWaves) btnWaves.classList.add('active');
+        if (btnRadar) btnRadar.classList.remove('active');
+      }
+      drawMartinusWaves();
+    }
+
+    // ── Hexagonal Spider Radar Matrix Canvas (6 Poles) ─────────────
+    function drawPersonaRadarMatrix() {
+      const cvs = document.getElementById('personaRadarCanvas');
+      if (!cvs) return;
+      const ctx = cvs.getContext('2d');
+      const w = cvs.width;
+      const h = cvs.height;
+      const cx = w / 2;
+      const cy = h / 2 + 5;
+      const radius = Math.min(cx, cy) - 28;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // Draw 4 concentric hexagonal web rings (25%, 50%, 75%, 100%)
+      const rings = [0.25, 0.50, 0.75, 1.00];
+      rings.forEach(rFrac => {
+        ctx.beginPath();
+        ctx.strokeStyle = rFrac === 1.00 ? 'rgba(0,243,255,0.25)' : 'rgba(255,255,255,0.06)';
+        ctx.lineWidth = rFrac === 1.00 ? 1.5 : 1;
+        ARCHETYPE_KEYS.forEach((k, idx) => {
+          const ax = ARCHETYPE_PALETTE[k];
+          const r = radius * rFrac;
+          const px = cx + r * Math.cos(ax.angle);
+          const py = cy + r * Math.sin(ax.angle);
+          if (idx === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        });
+        ctx.closePath();
+        ctx.stroke();
+      });
+
+      // Draw radial spokes from center to each of the 6 vertices
+      ARCHETYPE_KEYS.forEach(k => {
+        const ax = ARCHETYPE_PALETTE[k];
+        const ox = cx + radius * Math.cos(ax.angle);
+        const oy = cy + radius * Math.sin(ax.angle);
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        ctx.lineWidth = 1;
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(ox, oy);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(ox, oy, 3, 0, Math.PI * 2);
+        ctx.fillStyle = ax.color;
+        ctx.fill();
+
+        const tx = cx + (radius + 18) * Math.cos(ax.angle);
+        const ty = cy + (radius + 14) * Math.sin(ax.angle) + 4;
+        ctx.fillStyle = ax.color;
+        ctx.font = '10px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${ax.short}`, tx, ty);
+      });
+
+      // Compute Radar polygon vertices from actual levels
+      const polyPoints = [];
+      ARCHETYPE_KEYS.forEach(k => {
+        const ax = ARCHETYPE_PALETTE[k];
+        const mag = Math.max(0.04, Math.min(1.0, archetypeLevels[k] ?? 0.5));
+        const r = radius * mag;
+        const px = cx + r * Math.cos(ax.angle);
+        const py = cy + r * Math.sin(ax.angle);
+        polyPoints.push({ x: px, y: py, color: ax.color, mag });
+      });
+
+      if (polyPoints.length > 0) {
+        ctx.beginPath();
+        polyPoints.forEach((pt, idx) => {
+          if (idx === 0) ctx.moveTo(pt.x, pt.y);
+          else ctx.lineTo(pt.x, pt.y);
+        });
+        ctx.closePath();
+
+        const grad = ctx.createRadialGradient(cx, cy, 5, cx, cy, radius);
+        grad.addColorStop(0, 'rgba(0, 243, 255, 0.45)');
+        grad.addColorStop(0.6, 'rgba(255, 60, 200, 0.35)');
+        grad.addColorStop(1, 'rgba(0, 230, 100, 0.15)');
+        ctx.fillStyle = grad;
+        ctx.fill();
+
+        ctx.strokeStyle = '#00f3ff';
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = '#00f3ff';
+        ctx.shadowBlur = 10;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        polyPoints.forEach(pt => {
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.shadowColor = pt.color;
+          ctx.shadowBlur = 8;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+
+          ctx.fillStyle = '#ffffff';
+          ctx.font = '9px monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(`${Math.round(pt.mag * 100)}%`, pt.x, pt.y - 7);
+        });
+      }
+    }
+
+    // ── Parametric Resonance Q Curvature Controls ─────────────────
+    function updateQSliderForActivePole(domKey) {
+      const dom = domKey || getDominantArchetype();
+      const qVal = poleQ[dom] || DEFAULT_POLE_Q[dom] || 0.85;
+      const qSlider = document.getElementById('qCurvatureSlider');
+      if (qSlider) qSlider.value = qVal;
+      const qActiveSpan = document.getElementById('qCurvatureActivePole');
+      if (qActiveSpan) qActiveSpan.textContent = ARCHETYPE_PALETTE[dom].short;
+      const span = document.getElementById('qCurvatureVal');
+      if (span) span.textContent = qVal.toFixed(2);
+      const desc = document.getElementById('qCurvatureDesc');
+      if (desc) {
+        if (qVal < 0.7) desc.textContent = 'Highly Sagging (Spiky + Long Skirts)';
+        else if (qVal < 0.95) desc.textContent = 'Sagging / Catenary (Fluid Tails)';
+        else if (qVal <= 1.1) desc.textContent = 'Linear (Pure Triangles)';
+        else if (qVal < 1.7) desc.textContent = 'Bell-Shaped (Curving Shoulders)';
+        else desc.textContent = 'Inflated / Dome (Steep Cliffs)';
+      }
+    }
+
+    function onQCurvatureInput(val) {
+      const dom = getDominantArchetype();
+      const qVal = parseFloat(val);
+      poleQ[dom] = qVal;
+      const span = document.getElementById('qCurvatureVal');
+      if (span) span.textContent = qVal.toFixed(2);
+      drawMartinusWaves();
+    }
+
+    async function onQCurvatureChange(val) {
+      onQCurvatureInput(val);
+      const dom = getDominantArchetype();
+      archetypeProfiles[activeArchetypeSlot].q[dom] = parseFloat(val);
+      await saveSoulPatch({
+        [`q_${dom}`]: parseFloat(val),
+        archetype_profiles: archetypeProfiles
+      });
+    }
+
+    async function resetQCurvaturesToDefault() {
+      poleQ = Object.assign({}, DEFAULT_POLE_Q);
+      archetypeProfiles[activeArchetypeSlot].q = Object.assign({}, DEFAULT_POLE_Q);
+      const patch = { archetype_profiles: archetypeProfiles };
+      for (const k in DEFAULT_POLE_Q) {
+        patch[`q_${k}`] = DEFAULT_POLE_Q[k];
+      }
+      updateQSliderForActivePole();
+      drawMartinusWaves();
+      await saveSoulPatch(patch);
+      const fb = document.getElementById('soulFeedback');
+      if (fb) fb.textContent = '✓ All 6 pole resonance Q curves reset to canonical defaults!';
+    }
+
+    async function updateLever(key, val) {
+      const parsed = parseFloat(val);
+      levers[key] = parsed;
+      archetypeProfiles[activeArchetypeSlot].levers[key] = parsed;
+      const span = document.getElementById(`val-${key}`);
+      if (span) span.textContent = parsed.toFixed(2);
+      await saveSoulPatch({ [key]: parsed, archetype_profiles: archetypeProfiles });
+    }
+
+    async function saveSoulPatch(patch) {
+      const fb = document.getElementById('soulFeedback');
+      if (fb) fb.textContent = 'Saving to Soul Core (:8405)...';
+      try {
+        const res = await fetch('/api/soul/update_soul', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch)
+        });
+        if (res.ok) {
+          if (fb) {
+            fb.textContent = `✓ Synchronized live: ${Object.keys(patch).join(', ')}`;
+            setTimeout(() => { if (fb.textContent.startsWith('✓')) fb.textContent = ''; }, 3000);
+          }
+          log(`Soul DNA updated: ${JSON.stringify(patch)}`);
+        } else {
+          if (fb) fb.textContent = '⚠️ Failed to save soul DNA.';
+        }
+      } catch (err) {
+        if (fb) fb.textContent = `⚠️ Error saving: ${err.message}`;
+      }
+    }
+
+    async function loadSoulDNA() {
+      try {
+        const res = await fetch('/api/soul/soul_dna');
+        if (!res.ok) return;
+        const data = await res.json();
+        const dna = data.dna || {};
+
+        if (dna.archetype_profiles && typeof dna.archetype_profiles === 'object') {
+          for (const s of ['1', '2', '3', '4', '5', '6']) {
+            if (dna.archetype_profiles[s]) {
+              archetypeProfiles[s] = Object.assign({}, DEFAULT_PRESETS[s], dna.archetype_profiles[s]);
+            }
+          }
+        }
+
+        if (dna.active_archetype_slot && ['1', '2', '3', '4', '5', '6'].includes(String(dna.active_archetype_slot))) {
+          activeArchetypeSlot = String(dna.active_archetype_slot);
+        }
+
+        if (dna.archetype_weights && typeof dna.archetype_weights === 'object') {
+          ARCHETYPE_KEYS.forEach(k => {
+            if (dna.archetype_weights[k] !== undefined) {
+              archetypeLevels[k] = parseFloat(dna.archetype_weights[k]);
+            }
+          });
+        } else if (archetypeProfiles[activeArchetypeSlot]) {
+          archetypeLevels = Object.assign({}, archetypeProfiles[activeArchetypeSlot].levels);
+        }
+
+        ARCHETYPE_KEYS.forEach(k => {
+          if (dna[`q_${k}`] !== undefined) {
+            poleQ[k] = parseFloat(dna[`q_${k}`]);
+          }
+        });
+
+        ['autonomy', 'proactivity', 'curiosity', 'service', 'mentorship'].forEach(k => {
+          if (dna[k] !== undefined) {
+            levers[k] = parseFloat(dna[k]);
+            const input = document.getElementById(`lever-${k}`);
+            const span = document.getElementById(`val-${k}`);
+            if (input) input.value = levers[k];
+            if (span) span.textContent = levers[k].toFixed(2);
+          }
+        });
+
+        updateEqualizerUI();
+        loadSnapshots();
+      } catch (err) {
+        console.warn('Could not load soul DNA', err);
+      }
+    }
+
+    // ── User Snapshot Preset Manager ─────────────────────────────
+    let userSnapshots = [];
+
+    function loadSnapshots() {
+      try {
+        const stored = localStorage.getItem('foveai_user_soul_snapshots');
+        userSnapshots = stored ? JSON.parse(stored) : [];
+      } catch {
+        userSnapshots = [];
+      }
+      renderSnapshots();
+    }
+
+    function renderSnapshots() {
+      const list = document.getElementById('snapshotList');
+      const countSpan = document.getElementById('snapshotCount');
+      if (countSpan) countSpan.textContent = `${userSnapshots.length} saved`;
+      if (!list) return;
+      list.innerHTML = '';
+
+      if (userSnapshots.length === 0) {
+        list.innerHTML = '<span style="font-size:0.7rem; color:var(--muted); font-style:italic;">No custom snapshots saved yet.</span>';
+        return;
+      }
+
+      userSnapshots.forEach((snap, idx) => {
+        const div = document.createElement('div');
+        div.style.cssText = 'display:inline-flex; align-items:center; background:rgba(0,243,255,0.08); border:1px solid rgba(0,243,255,0.25); border-radius:4px; overflow:hidden; font-size:0.72rem;';
+        
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.style.cssText = 'background:none; border:none; color:var(--text); padding:3px 8px; cursor:pointer; font-weight:600;';
+        btn.textContent = `🎯 ${snap.name} (${snap.agent_person_balance?.toFixed(2) || '0.50'})`;
+        btn.onclick = () => loadUserSnapshot(idx);
+        
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.style.cssText = 'background:rgba(255,0,0,0.2); border:none; color:#ff5555; padding:3px 6px; cursor:pointer; font-weight:bold;';
+        delBtn.textContent = '✕';
+        delBtn.title = 'Delete snapshot';
+        delBtn.onclick = (e) => { e.stopPropagation(); deleteUserSnapshot(idx); };
+
+        div.appendChild(btn);
+        div.appendChild(delBtn);
+        list.appendChild(div);
+      });
+    }
+
+    async function saveUserSnapshot() {
+      const input = document.getElementById('snapshotNameInput');
+      const name = input && input.value.trim() ? input.value.trim() : `Snapshot ${userSnapshots.length + 1}`;
+      
+      const slider = document.getElementById('agentBalanceSlider');
+      const balance = slider ? parseFloat(slider.value) : 0.50;
+      const step = getStepForValue(balance);
+
+      const snap = {
+        id: 'snap_' + Date.now(),
+        name,
+        created: new Date().toISOString(),
+        agent_person_balance: balance,
+        mbti_type: step.mbti,
+        person_role: step.label,
+        poleQ: Object.assign({}, poleQ),
+        autonomy: parseFloat(document.getElementById('lever-autonomy')?.value || 0.5),
+        proactivity: parseFloat(document.getElementById('lever-proactivity')?.value || 0.6),
+        curiosity: parseFloat(document.getElementById('lever-curiosity')?.value || 0.7),
+        service: parseFloat(document.getElementById('lever-service')?.value || 0.65),
+        mentorship: parseFloat(document.getElementById('lever-mentorship')?.value || 0.5),
+      };
+
+      userSnapshots.push(snap);
+      localStorage.setItem('foveai_user_soul_snapshots', JSON.stringify(userSnapshots));
+      if (input) input.value = '';
+      renderSnapshots();
+
+      const fb = document.getElementById('soulFeedback');
+      if (fb) {
+        fb.textContent = `✓ Saved snapshot "${name}"!`;
+        setTimeout(() => { if (fb.textContent.includes(name)) fb.textContent = ''; }, 3000);
+      }
+    }
+
+    async function loadUserSnapshot(idx) {
+      const snap = userSnapshots[idx];
+      if (!snap) return;
+
+      const slider = document.getElementById('agentBalanceSlider');
+      if (slider) slider.value = snap.agent_person_balance;
+
+      if (snap.poleQ) {
+        poleQ = Object.assign({}, snap.poleQ);
+      }
+
+      const patch = {
+        agent_person_balance: snap.agent_person_balance,
+        mbti_type: snap.mbti_type,
+        person_role: snap.person_role,
+        autonomy: snap.autonomy,
+        proactivity: snap.proactivity,
+        curiosity: snap.curiosity,
+        service: snap.service,
+        mentorship: snap.mentorship,
+      };
+
+      for (const k in poleQ) {
+        patch[`q_${k}`] = poleQ[k];
+      }
+
+      ['autonomy', 'proactivity', 'curiosity', 'service', 'mentorship'].forEach(k => {
+        if (snap[k] !== undefined) {
+          const input = document.getElementById(`lever-${k}`);
+          const span = document.getElementById(`val-${k}`);
+          if (input) input.value = snap[k];
+          if (span) span.textContent = parseFloat(snap[k]).toFixed(2);
+        }
+      });
+
+      renderSoulBadge(snap.agent_person_balance, snap.mbti_type);
+      await saveSoulPatch(patch);
+
+      const fb = document.getElementById('soulFeedback');
+      if (fb) {
+        fb.textContent = `✓ Recalled snapshot "${snap.name}"!`;
+        setTimeout(() => { if (fb.textContent.includes(snap.name)) fb.textContent = ''; }, 3000);
+      }
+    }
+
+    function deleteUserSnapshot(idx) {
+      userSnapshots.splice(idx, 1);
+      localStorage.setItem('foveai_user_soul_snapshots', JSON.stringify(userSnapshots));
+      renderSnapshots();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // INIT
     // ═══════════════════════════════════════════════════════════════
     async function init() {
       await detectRole();
       if (!document.body.classList.contains('role-member')) { loadQuestionTargets(); loadFeedback(); }
       await loadEnv();
+      await loadSoulDNA();
+      await checkResidencyStatus();
       await health();
       setInterval(health, 5000);
+      setInterval(checkResidencyStatus, 4000);
     }
     init();
 

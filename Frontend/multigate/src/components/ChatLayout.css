@@ -9,7 +9,7 @@
 }
 
 .chat-sidebar {
-  width: 200px;
+  width: 290px;
   display: flex;
   flex-direction: column;
   background: rgba(11, 15, 26, 0.85);
@@ -20,24 +20,24 @@
 }
 
 .chat-logotype {
-  padding: 16px 20px;
+  padding: 23.2px 29px;
   font-family: 'Share Tech Mono', monospace;
-  font-size: 1.1rem;
+  font-size: 1.595rem;
   color: var(--accent-cyan);
   border-bottom: 1px solid rgba(0, 243, 255, 0.1);
-  letter-spacing: 2px;
+  letter-spacing: 2.9px;
 }
 
 .chat-menu-items {
   flex: 1;
-  padding: 16px 20px;
+  padding: 23.2px 29px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 17.4px;
 }
 
 .chat-menu-line {
-  height: 2px;
+  height: 2.9px;
   background: rgba(0, 243, 255, 0.2);
   width: 100%;
 }
@@ -50,12 +50,12 @@
 }
 
 .chat-header {
-  height: 44px;
+  height: 63.8px;
   border-bottom: none;
   position: relative;
   display: flex;
   align-items: center;
-  padding: 0 100px 0 20px;
+  padding: 0 145px 0 29px;
   justify-content: space-between;
   background: rgba(11, 15, 26, 0.85);
   backdrop-filter: blur(24px) saturate(150%);
@@ -68,29 +68,29 @@
   position: absolute;
   bottom: 0;
   left: 0;
-  right: 92px; /* Gap for the AI avatar hole */
+  right: 133.4px; /* Gap for the AI avatar hole */
   height: 1px;
   background: rgba(0, 243, 255, 0.15);
 }
 
 .chat-header-boxes {
   display: flex;
-  gap: 12px;
+  gap: 17.4px;
 }
 
 .chat-box-btn {
-  width: 36px;
-  height: 22px;
+  width: 52.2px;
+  height: 31.9px;
   border: 1px solid rgba(0, 243, 255, 0.4);
-  border-radius: 4px;
+  border-radius: 5.8px;
   background: transparent;
 }
 
 .chat-header-right {
-  width: 110px;
-  height: 22px;
+  width: 159.5px;
+  height: 31.9px;
   border: 1px solid rgba(0, 243, 255, 0.4);
-  border-radius: 4px;
+  border-radius: 5.8px;
 }
 
 .chat-content-wrapper {
@@ -106,15 +106,15 @@
 .ai-avatar-window {
   position: absolute;
   top: 0px;
-  right: 20px;
-  width: 72px;  
-  height: 96px;
+  right: 4px;              /* inside the chat column, flush to its right edge */
+  width: 156px;
+  height: 200px;
   background: rgba(11, 15, 26, 0.85);
   backdrop-filter: blur(24px) saturate(150%);
   -webkit-backdrop-filter: blur(24px) saturate(150%);
   /* UI Padding that comes up around it, creating a soft beveled frame */
-  padding: 8px 8px 10px 8px;
-  border-radius: 0 0 24px 24px;
+  padding: 11.6px 11.6px 14.5px 11.6px;
+  border-radius: 0 0 34.8px 34.8px;
   /* "Art nouveau" UI pad that blends into the background frame */
   box-shadow: 
     inset -1px -1px 3px rgba(0, 0, 0, 0.4), 
@@ -131,18 +131,18 @@
   position: fixed;
   z-index: 9999;
   border: 1px solid rgba(0, 243, 255, 0.3);
-  border-radius: 0 0 24px 24px; 
+  border-radius: 0 0 34.8px 34.8px; 
   box-shadow: 0 25px 45px rgba(0,0,0,0.9), 0 0 30px rgba(0, 243, 255, 0.2);
   transform: scale(1.05) translateY(4px);
 }
 
 .ai-avatar-name {
   font-family: 'Share Tech Mono', monospace;
-  font-size: 0.65rem;
+  font-size: 0.943rem;
   color: #00d2ff;
   letter-spacing: 1px;
   text-align: center;
-  margin-bottom: 6px;
+  margin-bottom: 8.7px;
   text-shadow: 0 1px 2px rgba(0,0,0,0.8);
   opacity: 0.8;
 }
@@ -150,7 +150,7 @@
 .ai-avatar-image-container, .AvatarView-container, .ai-avatar-window > div:last-child {
   flex: 1;
   width: 100%;
-  border-radius: 12px;
+  border-radius: 17.4px;
   overflow: hidden;
   /* Sunken "headlight" hole effect */
   box-shadow: 
@@ -170,16 +170,22 @@
 /* User Avatar Window (Bottom Left) */
 .user-avatar-window {
   position: absolute;
-  bottom: 0px;
-  left: 240px; /* Flush with sidebar */
-  width: 72px;
-  height: 96px;
+  bottom: 0px;           /* rests on the PAGE bottom margin (user preference:
+                           portrait sits at the true bottom edge, the
+                           composer visually tucks up against its right) */
+  left: 4px;             /* inside the chat column now — flush with its
+                           left edge; the column itself sits beside the
+                           sidebar, so the portrait tracks the CHAT, not
+                           the viewport (was left:348 viewport units —
+                           drifted at other zooms/widths) */
+  width: 156px;
+  height: 200px;
   background: rgba(11, 15, 26, 0.85);
   backdrop-filter: blur(24px) saturate(150%);
   -webkit-backdrop-filter: blur(24px) saturate(150%);
   /* UI Padding that comes up around it, creating a soft beveled frame */
-  padding: 10px 8px 8px 8px;
-  border-radius: 24px 24px 0 0;
+  padding: 14.5px 11.6px 11.6px 11.6px;
+  border-radius: 34.8px 34.8px 0 0;
   /* "Art nouveau" UI pad that blends into the background frame */
   box-shadow: 
     inset -1px -1px 3px rgba(0, 0, 0, 0.4), 
@@ -193,21 +199,21 @@
 }
 
 .user-avatar-window.pinned {
-  position: fixed;
+  position: absolute;   /* column-anchored (2026-10-08): fixed escaped to the
+                           viewport and dislodged over the sidebar */
   z-index: 9999;
   border: 1px solid rgba(255, 184, 0, 0.3);
-  border-radius: 24px 24px 0 0;
-  box-shadow: 0 -25px 45px rgba(0,0,0,0.9), 0 0 30px rgba(255, 184, 0, 0.2);
-  transform: scale(1.05) translateY(-4px);
+  border-radius: 34.8px 34.8px 0 0;
+  box-shadow: 0 -12px 30px rgba(0,0,0,.75), 0 0 22px rgba(255, 184, 0, 0.14);
 }
 
 .user-avatar-name {
   font-family: 'Share Tech Mono', monospace;
-  font-size: 0.65rem;
+  font-size: 0.943rem;
   color: #ffb800;
   letter-spacing: 1px;
   text-align: center;
-  margin-top: 6px;
+  margin-top: 8.7px;
   text-shadow: 0 1px 2px rgba(0,0,0,0.8);
   /* Embossed look */
   opacity: 0.8;
@@ -216,7 +222,7 @@
 .user-avatar-image {
   flex: 1;
   width: 100%;
-  border-radius: 12px;
+  border-radius: 17.4px;
   object-fit: cover;
   /* Sunken "headlight" hole effect */
   box-shadow: 
@@ -230,91 +236,127 @@
 .chat-messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 92px 20px 92px; /* Make room for the absolute positioned avatars */
+  padding: 29px 176px 29px 176px; /* clear the widened avatar windows */
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 29px;
   border-left: 1px solid rgba(0, 243, 255, 0.15); /* Completes the C shape inner border */
   background: transparent;
 }
 
+/* conversation threads REMOVED (2026-10-08, later the same day): the
+   vertical ::before/::after line on EVERY bubble row read as stray
+   drafting lines beside all bubbles. The intended design — one line from
+   each PORTRAIT to its speaker's bubbles — needs SVG-in-space, not
+   per-bubble CSS. Timestamps at the elbow stay. */
 .chat-bubble-row {
   display: flex;
   width: 100%;
 }
-
-.chat-bubble-row.ai {
+.chat-bubble-row.assistant, .chat-bubble-row.ai {
   justify-content: flex-end;
 }
-
 .chat-bubble-row.user {
   justify-content: flex-start;
 }
 
+
+/* name tag inside the bubble — replaces the initial-avatar columns */
+.bubble-name { font-size: 0.72rem; letter-spacing: 1.2px; color: var(--text-muted);
+  margin-bottom: 5px; text-transform: uppercase; font-family: 'Share Tech Mono', monospace; }
+.chat-bubble.assistant .bubble-name, .chat-bubble.ai .bubble-name { color: rgba(0, 243, 255, 0.75); }
+.chat-bubble.user .bubble-name { color: rgba(255, 170, 90, 0.75); }
+
 .chat-bubble {
-  max-width: 70%;
-  padding: 16px 20px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(11, 15, 26, 0.6);
+  /* 2026-10-08: soft glass bubbles — generous radius (one small corner
+     keeps the speaker direction cue), gradient glass background, faint
+     glow. Replaces the 1998 square boxes. */
+  max-width: 92%;
+  padding: 20px 26px;
+  border: 1px solid rgba(148, 168, 220, 0.18);
+  background:
+    linear-gradient(165deg, rgba(200, 214, 255, 0.05), rgba(11, 15, 26, 0.62) 42%),
+    rgba(11, 15, 26, 0.6);
   position: relative;
-  font-size: 0.95rem;
-  line-height: 1.5;
+  /* 2026-10-08: chat text sized UNDER the menu (user: text was almost
+     bigger than menu items — disproportional). Menu ≈ 1.23rem, chat 1.1. */
+  font-size: 1.1rem;
+  line-height: 1.55;
+  border-radius: 22px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
-.chat-bubble.ai {
-  border-color: rgba(0, 243, 255, 0.4);
-  border-top-right-radius: 0;
-  margin-right: 20px;
+.chat-bubble.assistant, .chat-bubble.ai {
+  border-color: rgba(0, 243, 255, 0.35);
+  border-top-right-radius: 6px;
+  margin-right: 12px;
   margin-left: auto;
 }
 
-.chat-bubble.ai::after {
+/* comic tail — GLUED to the bubble: a rotated square of the same glass,
+   joined on the speaker's edge so bubble and tail read as one shape. */
+.chat-bubble.assistant::after, .chat-bubble.ai::after {
   content: '';
   position: absolute;
-  top: -1px;
-  right: -20px;
-  border-width: 10px 0 0 20px;
-  border-style: solid;
-  border-color: rgba(0, 243, 255, 0.4) transparent transparent transparent;
+  top: 14px;
+  right: -8px;
+  width: 18px; height: 18px;
+  background: inherit;
+  background: linear-gradient(165deg, rgba(200, 214, 255, 0.05), rgba(11, 15, 26, 0.62) 42%);
+  border-right: 1px solid rgba(0, 243, 255, 0.35);
+  border-bottom: 1px solid rgba(0, 243, 255, 0.35);
+  border-radius: 0 0 6px 0;
+  transform: rotate(-45deg) skew(-8deg, -8deg);
+  z-index: -1;
 }
 
 .chat-bubble.user {
-  border-color: rgba(255, 106, 0, 0.4);
-  border-bottom-left-radius: 0;
-  margin-left: 20px;
+  border-color: rgba(255, 170, 90, 0.32);
+  border-bottom-left-radius: 6px;
+  margin-left: 12px;
   margin-right: auto;
 }
 
 .chat-bubble.user::before {
   content: '';
   position: absolute;
-  bottom: -1px;
-  left: -20px;
-  border-width: 0 20px 10px 0;
-  border-style: solid;
-  border-color: transparent rgba(255, 106, 0, 0.4) transparent transparent;
+  bottom: 16px;
+  left: -8px;
+  width: 18px; height: 18px;
+  background: linear-gradient(165deg, rgba(200, 214, 255, 0.05), rgba(11, 15, 26, 0.62) 42%);
+  border-left: 1px solid rgba(255, 170, 90, 0.32);
+  border-top: 1px solid rgba(255, 170, 90, 0.32);
+  border-radius: 6px 0 0 0;
+  transform: rotate(-45deg) skew(8deg, 8deg);
+  z-index: -1;
 }
 
-/* Input Area */
+/* Input Area — 2026-10-08: slimmer padding; the input field runs BEHIND the
+   round send button (socket overlap), classic chat-app composer. The left
+   clearance only avoids the user portrait; the right side lets the input
+   slide under the send circle. */
 .chat-input-area {
-  height: 56px;
+  height: 81.2px;
   border-top: none;
   display: flex;
   align-items: center;
-  padding: 0 20px 0 92px; /* Offset for the user avatar window */
-  gap: 16px;
+  padding: 0 24px 0 176px; /* left: clear the user portrait; right: slim */
+  gap: 0;
   position: relative;
   background: rgba(11, 15, 26, 0.85);
   backdrop-filter: blur(24px) saturate(150%);
   -webkit-backdrop-filter: blur(24px) saturate(150%);
 }
+/* input wrapper flows under the socket circle */
+.chat-input-area .input-wrapper { padding-right: 0; }
+.chat-input-area .chat-input { border-radius: 40.6px 0 0 40.6px; }
 
 /* Perfect inner border for the bottom wing */
 .chat-input-area::before {
   content: '';
   position: absolute;
   top: 0;
-  left: 72px; /* Gap for the User avatar hole */
+  left: 104.4px; /* Gap for the User avatar hole */
   right: 0;
   height: 1px;
   background: rgba(0, 243, 255, 0.15);
@@ -322,16 +364,16 @@
 
 .chat-mode-selector {
   position: absolute;
-  right: 170px;
-  bottom: 25px;
+  right: 246.5px;
+  bottom: 36.25px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 17.4px;
   z-index: 20;
 }
 
 .mode-icon {
-  font-size: 1.2rem;
+  font-size: 1.74rem;
   opacity: 0.5;
   transition: opacity 0.2s;
   cursor: pointer;
@@ -357,15 +399,15 @@
   transform: translate(-50%, -50%);
   transition: top 0.4s cubic-bezier(0.16, 1, 0.3, 1), left 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 1s ease-in;
   z-index: 9998;
-  padding: 14px 24px;
-  border-radius: 20px;
+  padding: 20.3px 34.8px;
+  border-radius: 29px;
   background: rgba(11, 15, 26, 0.7);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(0, 243, 255, 0.3);
   color: #fff;
   font-family: 'Syndra', sans-serif;
-  font-size: 1.1rem;
+  font-size: 1.595rem;
   max-width: 60%;
   text-align: center;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
@@ -390,7 +432,7 @@
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 20px;
+  width: 29px;
   height: 1px;
   background: rgba(0, 243, 255, 0.15);
 }
@@ -401,70 +443,101 @@
   }
 }
 
+/* Blueprint seam-lines removed (2026-10-08): the 1px ::before/::after
+   rules around the avatar windows read as stuck construction lines —
+   the framing should flow as soft curved glass, no draftsman edges. */
 .chat-messages-container {
   border-left: none !important;
   position: relative;
 }
-.chat-messages-container::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 40px; /* 96px avatar - 56px input area = 40px overlap */
-  left: 0;
-  width: 1px;
-  background: rgba(0, 243, 255, 0.15);
-}
-
-.user-avatar-window {
-  border-right: none !important;
-}
-.user-avatar-window::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 56px;
-  right: 0;
-  width: 1px;
-  background: rgba(0, 243, 255, 0.15);
-}
-
-.ai-avatar-window {
+.user-avatar-window, .ai-avatar-window {
   border-left: none !important;
   border-right: none !important;
 }
-.ai-avatar-window::before {
-  content: '';
-  position: absolute;
-  top: 44px;
-  bottom: 0;
-  left: 0;
-  width: 1px;
-  background: rgba(0, 243, 255, 0.15);
+
+/* Composer pinned to the chat column bottom — never above the sidebar (z10). */
+.chat-input-area { position: sticky; bottom: 0; z-index: 9; }
+
+/* ══ clickable portraits (2026-10-08) ══
+   Click either window → file picker swaps the picture (user portrait or
+   AI persona still) — no settings-page hunt. */
+.avatar-clickable { flex: 1; width: 100%; min-height: 0; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+  transition: filter .2s; }
+.avatar-clickable:hover { filter: brightness(1.12); }
+.avatar-clickable img { width: 100%; height: 100%; object-fit: cover; }
+.ai-avatar-window, .user-avatar-window { user-select: none; }
+
+/* voice-reactive portrait: the user's window glows while the mic hears
+   them — proof she's listening on any tab (2026-10-08 user rule) */
+.avatar-clickable.speaking { filter: brightness(1.18); }
+.user-avatar-window:has(.avatar-clickable.speaking) {
+  border-color: rgba(0, 243, 255, 0.55);
+  box-shadow: 0 0 18px rgba(0, 243, 255, 0.28), inset 0 0 22px rgba(0, 243, 255, 0.10);
+  animation: listening-pulse 1.6s ease-in-out infinite;
 }
-.ai-avatar-window::after {
-  content: '';
-  position: absolute;
-  top: 44px;
-  bottom: 0;
-  right: 0;
-  width: 1px;
-  background: rgba(0, 243, 255, 0.15);
+@keyframes listening-pulse {
+  0%, 100% { box-shadow: 0 0 14px rgba(0,243,255,.22), inset 0 0 18px rgba(0,243,255,.08); }
+  50%      { box-shadow: 0 0 26px rgba(0,243,255,.38), inset 0 0 26px rgba(0,243,255,.14); }
 }
 
-.user-avatar-window {
-  border-left: none !important;
+/* transient speech preview — floats by the user portrait while the words
+   are being heard/transcribed; disappears when the message is sent */
+.transient-voice-bubble {
+  position: fixed;
+  left: 200px; bottom: 210px;
+  max-width: 320px;
+  padding: 10px 16px;
+  border-radius: 16px 4px 16px 16px;
+  background: rgba(255, 170, 90, 0.14);
+  border: 1px solid rgba(255, 170, 90, 0.4);
+  color: #ffe3c9;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 28px rgba(0,0,0,.4);
+  z-index: 9500;
+  animation: tv-in .25s ease-out;
+  pointer-events: none;
 }
-.user-avatar-window::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 56px;
-  left: 0;
-  width: 1px;
-  background: rgba(0, 243, 255, 0.15);
-}
+.transient-voice-bubble .tv-send-hint { margin-left: 8px; opacity: .55; font-size: .8rem; }
+@keyframes tv-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
-.ai-avatar-window.pinned::before, .ai-avatar-window.pinned::after,
-.user-avatar-window.pinned::before, .user-avatar-window.pinned::after {
-  display: none !important;
+/* ══ vocal-mode composer (2026-10-08) ══
+   When the mode is vocal there is NO dead input box — a chip carries the
+   status; the round ball (mode regulator) is the only control. */
+.vocal-mode-chip {
+  flex: 1;
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 22px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.95rem;
+  color: var(--text-muted, #8a94b8);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(148, 168, 220, 0.22);
+  border-radius: 40.6px 0 0 40.6px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.mic-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(148, 168, 220, 0.4); transition: all .25s; }
+.mic-dot.live { background: #2dff6a; box-shadow: 0 0 12px rgba(45,255,106,.8);
+  animation: mic-breathe 1.4s ease-in-out infinite; }
+@keyframes mic-breathe { 0%,100% { transform: scale(1); opacity:.8; } 50% { transform: scale(1.3); opacity:1; } }
+
+/* thread elbow timestamp — where the vertical thread turns horizontal
+   into the bubble, the line carries the message time (user idea 2026-10-08) */
+.thread-stamp {
+  align-self: center;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: .8px;
+  color: rgba(138, 148, 184, 0.85);
+  padding: 2px 8px;
+  background: rgba(7, 11, 29, 0.7);
+  border-radius: 8px;
+  border: 1px solid rgba(148, 168, 220, 0.14);
+  flex-shrink: 0;
+}
+.chat-bubble-row.assistant .thread-stamp { margin-right: 10px; order: -1; border-color: rgba(0, 243, 255, 0.22); color: rgba(160, 224, 255, 0.8); }
+.chat-bubble-row.user .thread-stamp { margin-left: 10px; order: 9; border-color: rgba(255, 170, 90, 0.25); color: rgba(255, 214, 178, 0.8); }

@@ -229,7 +229,7 @@ namespace FoveAI.UI
                 chatText.color = Color.white;
                 chatText.richText = true;
                 chatText.alignment = TextAlignmentOptions.BottomLeft;
-                chatText.enableWordWrapping = true;
+                chatText.textWrappingMode = TextWrappingModes.Normal;
                 var textRect = chatText.rectTransform;
                 textRect.anchorMin = new Vector2(0.05f, 0.24f);
                 textRect.anchorMax = new Vector2(0.95f, 0.94f);

@@ -31,6 +31,16 @@ interface Props {
   onRollStep?: (dir: number) => void; // ball rolled a step (1 or -1)
   holdMs?: number;      // press duration that counts as a hold (default 280ms)
   pressHint?: string;   // tooltip for the press action
+  pressSlopFactor?: number; // fraction of ball diameter accepted as press drift (default 0.12; raise for easier press)
+  lcd?: React.ReactNode;   // content of the LCD screen rendered inside the ball
+  lcdStyle?: 'warm' | 'cool'; // lamp color while LCD shows (warm=amber default, cool=green)
+  coreItems?: { id: string; label: string; val: string; onBump: (dir: 1 | -1) => void }[];
+  // when set, the ball's LCD becomes the ACTIVE control surface: roll steps
+  // through coreItems, press = save/enter — perimeter pips stay cosmetic.
+  onCoreH?: (dir: 1 | -1) => void; // LOCKED horizontal feed: next/prev core item
+  onCoreSelect?: (idx: number) => void; // tap an inner planet → select that core row
+  coreSel?: number; // selected core index for the .sel highlight
+  autoLock?: boolean; // parent-forced plunger state (stage2 = locked/horizontal)
 }
 
 /* ── synthesized mechanics — tiny WebAudio, no assets ── */
@@ -64,6 +74,18 @@ function rollTick(strength = 1) {
   g.gain.setValueAtTime(0.10 * strength, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
   o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.08);
+}
+/** horizontal planet step — lighter, glassier tick */
+function horizontalTick() {
+  const c = audio(); if (!c) return;
+  const t = c.currentTime;
+  noiseBurst(c, t, 10, 3400, 0.05, c.destination);
+  const o = c.createOscillator(), g = c.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(420, t);
+  o.frequency.exponentialRampToValueAtTime(260, t + 0.05);
+  g.gain.setValueAtTime(0.07, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+  o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + 0.07);
 }
 /** pip armed — solid brass thunk */
 function armThunk() {
@@ -109,17 +131,23 @@ interface Drag {
   vx: number; vy: number; lastT: number; latch: number;
 }
 
-export default function Trackball({ store, size: sizeProp = 360, sizeParentRef, ballScale = 0.596, compact = false, bare = false, health = null, onPress, onHoldStart, onHoldEnd, onRollStep, holdMs = 280, pressHint }: Props) {
+export default function Trackball({ store, size: sizeProp = 360, sizeParentRef, ballScale = 0.596, compact = false, bare = false, health = null, onPress, onHoldStart, onHoldEnd, onRollStep, holdMs = 280, pressHint, pressSlopFactor, lcd, lcdStyle = 'cool', coreItems, onCoreH, onCoreSelect: _onCoreSelect, coreSel = 0, autoLock }: Props) {
   const [parentSize, setParentSize] = useState<number | null>(null);
   useEffect(() => {
     if (!sizeParentRef?.current) return;
     const el = sizeParentRef.current;
+    let settle: ReturnType<typeof setTimeout> | null = null;
     const ro = new ResizeObserver(() => {
-      const r = el.getBoundingClientRect();
-      setParentSize(Math.min(r.width, r.height));
+      /* offsetWidth/Height = LAYOUT size — immune to ancestor transform
+         scales (the hover contract scales the wrap; rect-based measuring
+         made the instrument re-lay out at wrong sizes → displaced ball,
+         stuck zoom). Debounced: the scale transition fires a burst of
+         observer hits; we take the last one only. */
+      if (settle) clearTimeout(settle);
+      settle = setTimeout(() => setParentSize(Math.min(el.offsetWidth, el.offsetHeight)), 250);
     });
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => { if (settle) clearTimeout(settle); ro.disconnect(); };
   }, [sizeParentRef]);
   const size = sizeParentRef ? (parentSize ?? 0) || sizeProp : sizeProp;
 
@@ -137,10 +165,10 @@ export default function Trackball({ store, size: sizeProp = 360, sizeParentRef, 
       const z = probe.getBoundingClientRect().width || 1;
       probe.remove();
       zoomRef.current = z;
-      // re-derive size in *real* px from the zoomed rect
+      // re-derive size in *real* px: layout box / effective zoom
       if (sizeParentRef?.current) {
-        const r = sizeParentRef.current.getBoundingClientRect();
-        setParentSize(Math.min(r.width, r.height) / z);
+        const el = sizeParentRef.current;
+        setParentSize(Math.min(el.offsetWidth, el.offsetHeight));
       }
     };
     measure();
@@ -154,12 +182,15 @@ export default function Trackball({ store, size: sizeProp = 360, sizeParentRef, 
   const ballDia = bare ? size * 0.87 : size * ballScale;    // ball px — independent of plate
   const socketDia = bare ? size : ballDia * 15.4 / 13.4;
   const ballR = ballDia / 2;
-  const pipR = 132 * s;                       // pip orbit radius — inside the ring so pips never clip
+  /* pip orbit — OUT on the ring's outer brass band, matching the dial face:
+     pips sit ON the perimeter ring of the plate, never protruding into the
+     central control area. 165*s of 360-reference ≈ 0.458 of root radius. */
+  const pipR = Math.min(size * 0.459, (size / 2) - (2.2 * em));
   const detent = bare ? Math.max(8, size * 0.16) : 34 * s;  // px of roll per step — faceted, not slippery
   /* press tolerance — physical trackballs drift a few px while the ball is
      pressed; net displacement (not travelled path) decides press vs roll,
      and a quick tap forgives twice the slop. Scales with the ball. */
-  const pressSlop = Math.max(14, ballDia * 0.12);
+  const pressSlop = Math.max(14, ballDia * (pressSlopFactor ?? 0.12));
   const tapMs = 450;
 
   const ringRef = useRef<HTMLDivElement>(null);
@@ -168,6 +199,11 @@ export default function Trackball({ store, size: sizeProp = 360, sizeParentRef, 
   const speckRef = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
   const coast = useRef(0);
+  /* LOCKED horizontal-console state: accumulator over dx with its own
+     detent (a touch tighter than the vertical detent) */
+  const hAcc = useRef(0);
+  const hDetent = Math.max(10, size * 0.115);
+  const coreHDir = useRef(true);
   const dialDrag = useRef(false);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const holding = useRef(false);
@@ -233,6 +269,19 @@ export default function Trackball({ store, size: sizeProp = 360, sizeParentRef, 
     const grip = 1 - 0.55 * Math.cos(2 * Math.PI * frac);   // 0.45 in wells, 1.55 on crests
     st.acc -= dy * grip;
     
+    if (coreItems && coreItems.length > 0) {
+      /* CORE MODE — the LCD-in-ball is the control surface. Vertical roll
+         steps through the core settings; horizontal roll bumps the selected
+         one is left to the parent via onRollStep+ latch semantics. Here we
+         keep the classic detent feel: each detent = next/prev item. */
+      while (Math.abs(st.acc) >= detent) {
+        const dir = Math.sign(st.acc);
+        st.acc -= dir * detent;
+        if (onRollStep) onRollStep(dir);
+        rollTick();
+      }
+      return;
+    }
     if (bare) {
       while (Math.abs(st.acc) >= detent) {
         const dir = Math.sign(st.acc);
@@ -258,7 +307,7 @@ export default function Trackball({ store, size: sizeProp = 360, sizeParentRef, 
         rollTick();
       }
     }
-  }, [bare, detent, armedTrait, bd, setTrait, bumpTrait, onRollStep]);
+  }, [bare, coreItems, detent, armedTrait, bd, setTrait, bumpTrait, onRollStep]);
 
   /* flick momentum — the ball keeps rolling, but the net grips it:
      faster spin-down, and once slow it snaps into the nearest well */
@@ -321,6 +370,13 @@ export default function Trackball({ store, size: sizeProp = 360, sizeParentRef, 
     rollTick(1.3);
   }, []);
 
+  useEffect(() => {
+    if (autoLock === undefined) return;
+    locked.current = autoLock;
+    lockRef.current?.classList.toggle('tb-on', autoLock);
+    ballRef.current?.classList.toggle('tb-locked', autoLock);
+  }, [autoLock]);
+
   const onBallMove = useCallback((e: React.PointerEvent) => {
     const d = drag.current;
     if (!d) return;
@@ -332,10 +388,23 @@ export default function Trackball({ store, size: sizeProp = 360, sizeParentRef, 
     d.vx = d.vx * 0.65 + (dx / dt) * 0.35;         // smoothed flick velocity
     d.vy = d.vy * 0.65 + (dy / dt) * 0.35;
     if (d.moved >= pressSlop) cancelHold();        // became a roll — not a hold
-    if (locked.current) return;                    // frozen — plunger is in
+    if (locked.current) {
+      /* LOCKED = horizontal console: vertical is frozen, horizontal feed
+         is ALIVE — spin left/right to move between the inner planets (core
+         settings) and (on the selected planet's row) change its value. */
+      rotateBall(dx, 0);                           // visually rolls sideways only
+      hAcc.current += dx * (coreHDir.current ? 1 : -1);
+      while (Math.abs(hAcc.current) >= hDetent) {
+        const dir = Math.sign(hAcc.current);
+        hAcc.current -= dir * hDetent;
+        onCoreH?.(dir as 1 | -1);                  // parent: select next item / bump value
+        horizontalTick();
+      }
+      return;
+    }
     rotateBall(dx, dy);                            // ball follows the finger in both axes…
     feedRoll(d, dy);                               // …but only the vertical feed turns dials
-  }, [rotateBall, feedRoll, cancelHold, pressSlop]);
+  }, [rotateBall, feedRoll, cancelHold, pressSlop, hDetent, onCoreH]);
 
   const onBallUp = useCallback(() => {
     cancelHold();
@@ -436,15 +505,51 @@ export default function Trackball({ store, size: sizeProp = 360, sizeParentRef, 
           <div className="tb-seam" ref={seamRef} />
           <div className="tb-dot" ref={dotRef} />
           <div className="tb-speck" ref={speckRef} />
+
           {size >= 140 && (
             <div
               className="tb-lock" ref={lockRef}
-              onPointerDown={toggleLock}
-              title="lock ball — rolling disabled, press still clicks"
+              onPointerDown={(e) => { e.stopPropagation(); toggleLock(e); }}
+              title="lock = horizontal console (core settings) · unlock = vertical (ring settings)"
             />
+          )}
+          {/* axis guides: how to spin in the current mode.
+              Unlocked → ▲▼ (vertical feed = ring pips); locked → ◀▶ */}
+          <span className="tb-axis-hint up">▲</span>
+          <span className="tb-axis-hint down">▼</span>
+          <span className="tb-axis-hint left">◀</span>
+          <span className="tb-axis-hint right">▶</span>
+          {/* inner planets — tappable core-setting seats. Tap = select
+              (parent bumps value on horizontal spin). */}
+          {/* planetary system — VISUAL ONLY (no hit targets): a faint orbit
+              ring + tiny planets riding it, painted behind the glass like a
+              miniature solar system. Manipulating values is done by TILTING
+              THE BALL (stage1 ▲▼, stage2 ◀▶) — nothing on the glass is
+              clickable, so the ball surface stays clean to handle. */}
+          {size >= 200 && (
+            <div className="tb-orbit" aria-hidden>
+              <span className="tb-orbit-ring" />
+              {[
+                { cls: 'p1', a: 20 },  { cls: 'p2', a: 75 },
+                { cls: 'p3', a: 130 }, { cls: 'p4', a: 250 },
+                { cls: 'p5', a: 305 },
+              ].map((p, i) => (
+                <span key={p.cls}
+                      className={`tb-orbit-planet ${p.cls} ${coreItems && i === (coreSel % Math.max(1, coreItems.length)) ? 'sel' : ''}`}
+                      style={{ ['--pa' as any]: `${p.a}deg` }} />
+              ))}
+            </div>
           )}
         </div>
       </div>
+
+      {/* LCD console — BELOW the glass ball (in the socket's lower rim),
+          never on the manipulation surface. */}
+      {lcd != null && (
+        <div className={`tb-lcd tb-lcd-${lcdStyle} tb-lcd-below`} aria-live="polite">
+          {lcd}
+        </div>
+      )}
 
       {/* hemisphere divider — etched midline + ▲▼ rim glyphs when a
           two-option setting is armed; the lit glyph marks the live side */}

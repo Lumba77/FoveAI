@@ -99,31 +99,33 @@ class ForgeQuantizer:
     """
 
     def __init__(self, models_dir: str = None):
-        self.models_dir = models_dir or os.path.join(
-            os.path.expanduser("~"), ".cache", "huggingface", "hub"
+        self.models_dir = models_dir or os.environ.get(
+            "FORGE_NURSERY_MODELS_DIR", "/opt/foveai-models"
         )
-        self.output_base = os.path.join(self.models_dir, "lumax-forge")
+        self.output_base = os.path.join(self.models_dir, "forge-nursery", "quantized")
         self.jobs: dict[str, QuantizeJob] = {}
+        os.makedirs(self.output_base, exist_ok=True)
 
         # Locate llama.cpp binaries (bundled with Unsloth)
         self._llama_cpp_dir = self._find_llama_cpp()
 
     def _find_llama_cpp(self) -> str | None:
-        """Find llama.cpp binaries from Unsloth installation."""
-        # Check Unsloth's bundled llama.cpp
+        """Find llama.cpp binaries from native FoveAI Tools or Unsloth installation."""
         candidates = [
+            "/home/lumba/FoveAI/Tools/llama-b11053-cuda/llama-b11053",
+            os.path.join(os.path.expanduser("~"), "FoveAI", "Tools", "llama-b11053-cuda", "llama-b11053"),
             os.path.join(os.path.expanduser("~"), ".unsloth", "llama.cpp"),
             os.path.join(os.path.expanduser("~"), ".cache", "unsloth", "llama.cpp"),
-            # Fallback: system-installed
             "C:\\llama.cpp",
         ]
 
         for candidate in candidates:
             convert_py = os.path.join(candidate, "convert_hf_to_gguf.py")
+            quantize_bin = os.path.join(candidate, "llama-quantize")
             quantize_exe = os.path.join(
                 candidate, "build", "bin", "Release", "quantize.exe"
             )
-            if os.path.exists(convert_py) or os.path.exists(quantize_exe):
+            if os.path.exists(convert_py) or os.path.exists(quantize_bin) or os.path.exists(quantize_exe):
                 logger.info(f"Found llama.cpp at: {candidate}")
                 return candidate
 
@@ -269,12 +271,12 @@ class ForgeQuantizer:
         # Find quantize binary
         quantize_exe = None
         for candidate in [
-            os.path.join(
-                self._llama_cpp_dir, "build", "bin", "Release", "quantize.exe"
-            ),
+            os.path.join(self._llama_cpp_dir, "llama-quantize"),
+            os.path.join(self._llama_cpp_dir, "build", "bin", "Release", "quantize.exe"),
             os.path.join(self._llama_cpp_dir, "build", "bin", "quantize.exe"),
             os.path.join(self._llama_cpp_dir, "quantize.exe"),
             os.path.join(self._llama_cpp_dir, "build", "bin", "quantize"),
+            os.path.join(self._llama_cpp_dir, "quantize"),
         ]:
             if os.path.exists(candidate):
                 quantize_exe = candidate
@@ -293,7 +295,9 @@ class ForgeQuantizer:
         cmd = [quantize_exe, input_path, output_path, quant_type]
 
         logger.info(f"Quantizing: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=7200)
+        env = os.environ.copy()
+        env["LD_LIBRARY_PATH"] = f"{self._llama_cpp_dir}:{env.get('LD_LIBRARY_PATH', '')}"
+        result = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=7200)
 
         if result.returncode != 0:
             logger.error(f"Quantization failed: {result.stderr}")

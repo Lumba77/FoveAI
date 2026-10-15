@@ -8,7 +8,7 @@
 #   2. xrdp              (system, already enabled)
 #   3. Sunshine/Moonlight (user service, already enabled)
 #   4. Chrome Remote Desktop
-#   5. FoveAI Sleipnir stack (8400-8409, 5176, 5177, 8888)
+#   5. FoveAI Sleipnir stack (8400-8414, 5176, 5177, 8888)
 #   6. Caddy reverse proxy (xarel.net → local services)
 #
 set -euo pipefail
@@ -86,7 +86,10 @@ log "Starting frontend..."
 # Multigate (:5177) — single frontend, serves XR features when XR client detected
 if ! ss -tlnp | grep -q ':5177 '; then
     cd "$FOVEAI/Frontend/multigate"
-    nohup npx vite --host 0.0.0.0 --port 5177 >> "$LOG" 2>&1 &
+    # HMR must ride the tunnel as wss on 443. Without it Vite dials localhost,
+    # the upgrade fails behind cloudflared, and every page load shouts
+    # "failed to connect to websocket" at the user.
+    VITE_HMR_MODE=tunnel nohup npx vite --host 0.0.0.0 --port 5177 >> "$LOG" 2>&1 &
     log "  Multigate: started on 0.0.0.0:5177 (PID $!)"
 else
     log "  Multigate: already running"
@@ -123,7 +126,7 @@ fi
 log "Checking firewall..."
 if command -v firewall-cmd &>/dev/null; then
     # Open all FoveAI ports for LAN access
-    PORTS="3389 47989 47990 48010 5176 5177 8400 8401 8402 8403 8409 8888"
+    PORTS="3389 47989 47990 48010 5176 5177 8400 8408 8402 8403 8414 8888"
     for port in $PORTS; do
         if ! sudo firewall-cmd --list-ports 2>/dev/null | grep -q "$port/"; then
             sudo firewall-cmd --add-port="$port/tcp" --permanent 2>/dev/null && \

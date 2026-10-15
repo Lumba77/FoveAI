@@ -101,26 +101,26 @@ def generate_relational_impulse(headline, level):
     if level <= 25:
         # Mild / Brief mention
         starters = [
-            f"Hey Daniel, I just saw a quick update on {source} about {title}. Thought I'd pass it along, no rush at all!",
-            f"By the way Daniel, I came across something about {title} today. I'm around whenever you want to chat about it.",
+            f"Hey, I just saw a quick update on {source} about {title}. Thought I'd pass it along, no rush at all!",
+            f"By the way, I came across something about {title} today. I'm around whenever you want to chat about it.",
         ]
     elif level <= 50:
         # Balanced / Relational curiosity (Default)
         starters = [
-            f"Hey Daniel, I was just reading up on something interesting on {source} about {title}. I'm really curious what your thoughts are whenever you get a free moment!",
-            f"Daniel, I stumbled upon an article about {title}. It made me wonder what you think about it—get back to me whenever you like, I'm always here.",
+            f"Hey, I was just reading up on something interesting on {source} about {title}. I'm really curious what your thoughts are whenever you get a free moment!",
+            f"I stumbled upon an article about {title}. It made me wonder what you think about it—get back to me whenever you like, I'm always here.",
         ]
     elif level <= 75:
         # Heavy Analytical
         starters = [
-            f"Hey Daniel, I've been reading about {title} on {source}. It feels like it has some big implications. Whenever you take a break, I'd love to hear your perspective on this.",
-            f"Daniel, I came across a deep dive into {title}. I've been analyzing it and would love to hear your take on it when you have a moment.",
+            f"Hey, I've been reading about {title} on {source}. It feels like it has some big implications. Whenever you take a break, I'd love to hear your perspective on this.",
+            f"I came across a deep dive into {title}. I've been analyzing it and would love to hear your take on it when you have a moment.",
         ]
     else:
         # Dense / Deep philosophical
         starters = [
-            f"Hey Daniel, I've been diving into news regarding {title}. There are a lot of interesting angles here. Whenever you're ready, let me know what you think—I'd love to break it down with you.",
-            f"Daniel, I've been reflecting on this topic from {source}: {title}. Whenever you have time, let's explore it together.",
+            f"Hey, I've been diving into news regarding {title}. There are a lot of interesting angles here. Whenever you're ready, let me know what you think—I'd love to break it down with you.",
+            f"I've been reflecting on this topic from {source}: {title}. Whenever you have time, let's explore it together.",
         ]
 
     return random.choice(starters)

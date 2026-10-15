@@ -39,7 +39,10 @@
  *   loader.startUpdateLoop();
  */
 
-const API_BASE = 'http://127.0.0.1:8402';
+// Same-origin by default: a hardcoded :8402 (the XRLF runtime) is offline in
+// normal operation, and every module fetch 404'd — which took the whole page
+// down. Same-origin always goes through the dev proxy / real web server.
+const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
 
 // Global param store (accessible by MovementEngine and other systems)
 declare global {
@@ -175,7 +178,6 @@ export class SoftLayerLoader {
      * Create the FoveAI API object that modules use to interact with the system.
      */
     private createFoveAIAPI(moduleName: string): any {
-        const self = this;
 
         const FoveAI: any = {
             // ── Param system ──

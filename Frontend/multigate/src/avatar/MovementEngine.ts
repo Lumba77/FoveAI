@@ -176,8 +176,8 @@ const EMOTION_ANIM_MAP: Record<string, string> = {
 
 // ─── Micro-gesture pool by context ───────────────────────────────────
 const IDLE_GESTURES    = ['nod', 'tilt', 'look_away', 'double_take'];
-const SOCIAL_GESTURES = ['nod', 'tilt'];
-const CURIOUS_GESTURES = ['double_take', 'look_away', 'tilt'];
+export const SOCIAL_GESTURES = ['nod', 'tilt'];
+export const CURIOUS_GESTURES = ['double_take', 'look_away', 'tilt'];
 
 export class MovementEngine {
     // ── Configuration ──
@@ -186,7 +186,8 @@ export class MovementEngine {
     // ── State ──
     private behaviorState: BehaviorState = 'calm_idle';
     private emotionalState: string = 'neutral';
-    private emotionalIntensity: number = 0;
+    /** last set emotion intensity (0..1) — surfaced via getEmotionalIntensity() */
+    private _emotionalIntensity: number = 0;
 
     // ── Drives ──
     private drives: DriveState = {
@@ -210,14 +211,12 @@ export class MovementEngine {
     // ── Spatial ──
     private homePosition: THREE.Vector3 = new THREE.Vector3(0, -0.8, -2.0);
     private moveTarget: THREE.Vector3 | null = null;
-    private currentDestination: THREE.Vector3 | null = null;
     private isWalking: boolean = false;
     private isReturningHome: boolean = false;
     private intentionalGoal: THREE.Vector3 | null = null;
     private intentionalExpiry: number = 0; // ms timestamp
 
     // ── Animation category queue ──
-    private pendingAnimation: string | null = null;
 
     // ── Soft params (from SoftLayer modules, hot-reloadable) ──
     private softParams: Record<string, any> = {};
@@ -255,9 +254,27 @@ export class MovementEngine {
         this.connectMotorCortex();
     }
 
-    private connectMotorCortex() {
+    private async connectMotorCortex() {
+        // The motor daemon is optional and usually idle. Probe it first so a
+        // dead port produces silence instead of a CORS/connection error storm.
         try {
-            const motorStream = new EventSource("http://127.0.0.1:8110/stream");
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), 1200);
+            const r = await fetch('/motor-health', { signal: ctrl.signal });
+            clearTimeout(t);
+            if (!r.ok) { if (this.onLog) this.onLog('[Motor Cortex] daemon not up — running autonomous-only', 'pink'); return; }
+        } catch {
+            if (this.onLog) this.onLog('[Motor Cortex] unreachable — running autonomous-only', 'pink');
+            return;
+        }
+        try {
+            const motorStream = new EventSource("http://127.0.0.1:8410/stream");
+            let attempts = 0;
+            motorStream.onerror = () => {
+                // The motor daemon is optional; stop hammering a dead port.
+                attempts += 1;
+                if (attempts >= 3) { try { motorStream.close(); } catch { /* already closed */ } }
+            };
             motorStream.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
@@ -311,7 +328,7 @@ export class MovementEngine {
     /** Called when AI emotion is detected (self-puppeteering bridge) */
     public setEmotion(emotion: string, intensity: number = 1.0) {
         this.emotionalState = emotion.toLowerCase();
-        this.emotionalIntensity = intensity;
+        this._emotionalIntensity = intensity;
         this.awareness.timeInSameEmotion = 0;
         // Strong emotions can trigger state transitions immediately
         if (['happy', 'excited', 'sad', 'angry', 'surprised'].includes(this.emotionalState)) {
@@ -484,7 +501,7 @@ export class MovementEngine {
         const minStateElapsed = this.awareness.timeInCurrentState >= this.config.minStateDuration;
 
         if (autonomousEnabled && idleLongEnough && noIntentionalGoal && minStateElapsed && soulReachable) {
-            const decision = this.makeDecision(cameraPosition);
+            const decision = this.makeDecision();
             this.awareness.lastDecision = 0;
             if (decision.animation) animationCategory = decision.animation;
             if (decision.gesture) microGesture = decision.gesture;
@@ -576,7 +593,7 @@ export class MovementEngine {
     // hasn't sent a movement command recently. Produces gentle, natural
     // behaviors: micro-gestures, curious steps, short wanders, rest.
 
-    private makeDecision(cameraPosition?: THREE.Vector3): {
+    private makeDecision(_cameraPosition?: THREE.Vector3): {
         animation?: string;
         gesture?: string;
         newState?: BehaviorState;
@@ -727,6 +744,7 @@ export class MovementEngine {
         return {
             state: this.behaviorState,
             emotionalState: this.emotionalState,
+            emotionalIntensity: this._emotionalIntensity,
             drives: { ...this.drives },
             awareness: { ...this.awareness },
             isWalking: this.isWalking,

@@ -75,7 +75,6 @@ export interface OutdoorSurround {
 // ── Config ────────────────────────────────────────────────────────────
 
 const LOCAL_STORAGE_KEY = 'foveai_spatial_environment';
-const COMPRESSION_LEVEL = 0.6; // JPEG quality for stored textures
 
 export class SpatialEnvironment {
     private rooms: Map<string, SpatialData> = new Map();
@@ -87,7 +86,6 @@ export class SpatialEnvironment {
     // Three.js mesh representations
     private roomMeshGroup: THREE.Group | null = null;
     private wallMeshes: THREE.Mesh[] = [];
-    private floorMesh: THREE.Mesh | null = null;
 
     // ── Live webcam plaster ──
     // Projects the room webcam (portrait or landscape) as a live VideoTexture
@@ -99,8 +97,8 @@ export class SpatialEnvironment {
     private webcamPlasterOpacity: number = 0.85;
     private plasteredMeshCount: number = 0;
 
-    constructor(logFn?: (msg: string, color: string) => void) {
-        this.log = logFn || ((msg, color) => console.log(`[SpatialEnv] ${msg}`));
+    constructor(logFn?: (msg: string, _color: string) => void) {
+        this.log = logFn || ((msg, _color) => console.log(`[SpatialEnv] ${msg}`));
         this.load(); // Restore from localStorage
         window.addEventListener('beforeunload', () => {
             this.save(true); // Force immediate save on page exit

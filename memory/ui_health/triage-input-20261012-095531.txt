@@ -1,0 +1,71 @@
+FoveAI UI health triage — 2026-10-12T09:56:17+02:00
+
+Port linter (dead references: 173):
+  ── DEAD REFERENCES (these break pages when the service is down)
+    :5173  Backend/Cognition/soul_core.py:102  http
+            "http://127.0.0.1:5173",
+    :5173  Backend/Cognition/soul_core.py:103  http
+            "http://localhost:5173",
+    :7272  Backend/Cognition/soul_core.py:178  http
+            r = httpx.get("http://127.0.0.1:7272/v1/models", timeout=2.0)
+    :7272  Backend/Cognition/soul_core.py:1143  http
+            r = httpx.get("http://127.0.0.1:7272/v1/models", timeout=2.0)
+    :7272  Backend/Cognition/system_probe.py:42  http
+            "lmstudio": "http://127.0.0.1:7272/v1/models",
+    :7272  foveated-memory/bin/foveated-memory.js:25  http
+            .option('-u, --upstream <url>',   'Upstream LLM base URL (e.g. http://127.0.0.1:7272/v1)', 'http://127.0.0.1:7272/v1')
+    :7272  foveated-memory/bin/foveated-memory.js:25  http
+            .option('-u, --upstream <url>',   'Upstream LLM base URL (e.g. http://127.0.0.1:7272/v1)', 'http://127.0.0.1:7272/v1')
+    :8000  Backend/autonomous_sentry.py:81  http
+            running the sentry on the host (http://127.0.0.1:8000/...). Long /compagent work can block the Soul
+    :8000  Frontend/multigate/src/components/SettingsOverlay.tsx:18  http
+            const [wsUrl, setWsUrl] = useState('ws://127.0.0.1:8000');
+    :8000  Frontend/multigate/src/components/SettingsOverlay.tsx:18  ws
+            const [wsUrl, setWsUrl] = useState('ws://127.0.0.1:8000');
+    :8001  Frontend/XR_Vessel/src/components/SettingsTab.ts:16  http
+            { id: 'ears',     label: 'Ears (STT)',             emoji: '👂', healthUrl: 'http://localhost:8001/health', restartUrl: nu
+    :8002  Backend/Cognition/tokenslayer_proxy_server.py:306  http
+            "http://127.0.0.1:8002/v1/chat/completions",
+    :8002  Frontend/XR_Vessel/src/components/COMAX.ts:245  http
+            wrapper.querySelector('#db-health')?.addEventListener('click', async () => { dbOut.textContent = 'HEALTH: Checking...'; 
+    :8003  Backend/Cognition/generate_high_fidelity_map.py:8  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/generate_master_blueprint.py:7  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/generate_tiled_map.py:8  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/generate_weaver_map.py:7  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/visualize_architecture.py:8  http
+            url = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/visualize_relay.py:7  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Creativity/start_creative_with_env.py:80  http
+
+UI smoke report:
+
+  verdict : FAIL
+   ✓ page loads (4ms) FoveAI
+   ✓ no error boundary (1ms) clean
+   ✓ authenticate (4296ms) session token accepted
+   ✓ persona setup (5137ms) configured
+   ✗ ignition present (1ms) Error: no ignition/start affordance found
+   ✓ press start (9061ms) clicked
+   ✓ reaches app shell (4003ms) FoveAI 💬 Copilot Chat 🧠 Memory Vault 📰 Latest News ⚡ AGENCY & INTELLIGENCE ▾ 
+   ✗ mic diagnostics visible (1ms) Error: mic diagnostics strip missing — mic state is invisible again
+   ✓ lightweight boot (2ms) still-frame mode (no VRM decoded)
+   ✓ images render (44ms) 4 images OK
+   ✓ avatar asset reachable (44ms) HTTP 200
+   ✓ softlayer modules served as JS (44ms) 5 modules
+  errors  : 0
+  failed requests: 4
+    NS_BINDING_ABORTED http://127.0.0.1:5177/api/setting?key=XRLF_COGNITIVE_MODE
+    NS_BINDING_ABORTED http://127.0.0.1:5177/api/setting?key=XRLF_COGNITIVE_MODE
+    NS_BINDING_ABORTED http://127.0.0.1:5177/api/tools/images/file/profile_mv02i0xj-e65d27.png
+    NS_BINDING_ABORTED http://127.0.0.1:5177/api/profile/persona_picture/file/persona_mv08tjxe-f2204e.png
+  report  : /home/lumba/FoveAI/memory/ui_health/run-20261012-095531.json
+
+
+List the distinct root causes above. For each: (1) one-line cause, (2) the exact
+file:line to change, (3) the minimal fix. Prefer same-origin paths and existing
+services over new ones. Do not invent new subsystems. Be brief and concrete.

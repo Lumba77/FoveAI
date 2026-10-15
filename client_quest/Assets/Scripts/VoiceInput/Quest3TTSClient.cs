@@ -11,7 +11,7 @@ namespace Lumax.Quest3Bridge
     {
         [Header("WebSocket Connection")]
         [Tooltip("WebSocket URL of the unified WS server. Overridden by AppConfig.json at startup.")]
-        public string TtsServerUrl = "ws://192.168.8.100:8403/ws";
+        public string TtsServerUrl = "ws://192.168.8.109:8403/ws";
 
         [Header("TTS Settings")]
         public string DefaultVoice = "af_bella";

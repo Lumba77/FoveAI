@@ -10,8 +10,8 @@ Usage (run once on your PC, add to Windows startup if desired):
 The Quest sends a UDP broadcast {"cmd":"wake","client":"AliceVR_Quest3"}.
 This script responds by starting:
   - Backend/app/main.py          (FoveAI soul, port 8400)
-  - Backend/stt_whisper_server.py (STT Whisper, port 8402)
-  - Backend/tts_stream_server.py  (TTS Edge,    port 8403)
+  - Backend/stt_whisper_server.py (STT Whisper, port 8401)
+  - Backend/tts_stream_server.py  (TTS Edge,    port 8411)
 """
 
 import json
@@ -54,9 +54,9 @@ VENV_PYTHON = Path(r"C:\Users\danie\program\LUMAX\.venv\Scripts\python.exe")
 # Flag: MEMORY_PERSISTENT  → SQLite re-packed into .xrlf on session end
 #
 # The separate stt_whisper_server.py is a BRIDGE only:
-#   Quest mic (PCM) → port 8402 WebSocket → forward to XRLF core (native STT)
+#   Quest mic (PCM) → port 8401 WebSocket → forward to XRLF core (native STT)
 # The tts_stream_server.py is a BRIDGE only:
-#   XRLF Kokoro hook output → port 8403 WebSocket → Quest speaker
+#   XRLF Kokoro hook output → port 8411 WebSocket → Quest speaker
 #
 # The foveated-memory Node.js proxy (port 8200) is OPTIONAL / ADDITIVE.
 # When running: Soul → 8200 → 8300 (adds in-flight compression for very long sessions)
@@ -143,7 +143,7 @@ SERVICES = [
     },
     # ④ STT bridge — Quest mic PCM → XRLF native STT
     {
-        "name": "STT Bridge (8402)",
+        "name": "STT Bridge (8401)",
         "type": "python",
         "script": BACKEND_DIR / "stt_whisper_server.py",
         "probe_port": 8402,
@@ -153,7 +153,7 @@ SERVICES = [
     },
     # ⑤ TTS bridge — XRLF Kokoro output → Quest speaker
     {
-        "name": "TTS Kokoro Bridge (8403)",
+        "name": "TTS Kokoro Bridge (8411)",
         "type": "python",
         "script": BACKEND_DIR / "tts_stream_server.py",
         "probe_port": 8403,
@@ -187,8 +187,8 @@ FOVEATED_MEMORY_ENTRY = FOVEATED_MEMORY_DIR / "server.js"
 #  8400  FoveAI Soul           — Cognitive engine / WebSocket hub for Quest 3
 #                               Routes all LLM calls → 8200 → 8300 → XRLF bundle
 #
-#  8402  STT WebSocket Bridge  — Quest 3 mic audio → 8300 Whisper adapter (I/O bridge)
-#  8403  TTS WebSocket Bridge  — 8300 Kokoro output → Quest 3 speaker (I/O bridge)
+#  8401  STT WebSocket Bridge  — Quest 3 mic audio → 8300 Whisper adapter (I/O bridge)
+#  8411  TTS WebSocket Bridge  — 8300 Kokoro output → Quest 3 speaker (I/O bridge)
 # ──────────────────────────────────────────────────────────────────────────────
 SERVICES = [
     {
@@ -241,7 +241,7 @@ SERVICES = [
         "startup_delay": 0.0,
     },
     {
-        "name": "STT Whisper Bridge (8402)",
+        "name": "STT Whisper Bridge (8401)",
         "type": "python",
         "script": BACKEND_DIR / "stt_whisper_server.py",
         "probe_port": 8402,
@@ -250,7 +250,7 @@ SERVICES = [
         "startup_delay": 0.0,
     },
     {
-        "name": "TTS Kokoro Bridge (8403)",
+        "name": "TTS Kokoro Bridge (8411)",
         "type": "python",
         "script": BACKEND_DIR / "tts_stream_server.py",
         "probe_port": 8403,

@@ -12,7 +12,12 @@ public class BuildAPKBatch
 
         PlayerSettings.companyName = "FoveAI";
         PlayerSettings.productName = "AliceVR";
-        PlayerSettings.SetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.Android, "com.foveai.alicevr");
+        // 2026-10-09: bumped from com.foveai.alicevr. The Quest still holds an alicevr signed with
+        // the ORIGINAL pre-migration key; keystore/alicevr.keystore was minted 2026-10-09 01:14, so
+        // every build is a signature mismatch and the install is refused as "conflicts with an
+        // existing package" — no amount of re-signing can match that lost key. A new package id
+        // installs as a separate app alongside the old one.
+        PlayerSettings.SetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.Android, "com.foveai.alicevr2");
 
         PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel32;
         PlayerSettings.SetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
@@ -20,6 +25,32 @@ public class BuildAPKBatch
 
         PlayerSettings.insecureHttpOption = InsecureHttpOption.AlwaysAllowed;
         PlayerSettings.Android.forceInternetPermission = true;
+
+        // ── Deterministic signing (2026-10-09) ─────────────────────────────────
+        // One dedicated keystore for every build — the install conflict the user
+        // hit ("something already installed in the way") came from builds made
+        // with different debug keys (machine migration). Release-signed with a
+        // fixed key: upgrades install cleanly over prior installs, forever.
+        string projectRoot0 = Directory.GetParent(Application.dataPath).FullName;
+        string ksPath = Path.Combine(projectRoot0, "keystore", "alicevr.keystore");
+        if (File.Exists(ksPath))
+        {
+            // 2026-10-09: useCustomKeystore is the flag Unity actually gates signing on. Setting
+            // keystoreName/pass/alias via script does NOT set it — Unity only auto-sets it when a
+            // keystore is chosen through the Inspector. With it false, Unity silently ignored every
+            // value above and debug-signed the APK ("CN=Android Debug"), which is what caused the
+            // install conflict on the Quest.
+            PlayerSettings.Android.useCustomKeystore = true;
+            PlayerSettings.Android.keystoreName = ksPath;
+            PlayerSettings.Android.keystorePass = "foveai-alicevr";
+            PlayerSettings.Android.keyaliasName = "alicevr";
+            PlayerSettings.Android.keyaliasPass = "foveai-alicevr";
+            Debug.Log($"[BuildAPKBatch] Release keystore wired (useCustomKeystore=true): {ksPath}");
+        }
+        else
+        {
+            Debug.LogWarning("[BuildAPKBatch] keystore/alicevr.keystore missing — falling back to debug signing");
+        }
 
         // Disable managed stripping to prevent IL2CPP from stripping Jint and other third-party assemblies
         PlayerSettings.SetManagedStrippingLevel(UnityEditor.Build.NamedBuildTarget.Android, ManagedStrippingLevel.Disabled);

@@ -17,7 +17,7 @@
 set -euo pipefail
 
 FOVEAI_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PANEL_URL="http://localhost:8401/memory/settings.html"
+PANEL_URL="http://localhost:8414/memory/settings.html"
 MULTIGATE_URL="http://localhost:5177"
 
 log()  { echo "🎛️  [FoveAI] $*"; }
@@ -36,7 +36,7 @@ open_panel() {
 cmd_status() {
     systemctl --user list-units 'foveai*' --no-pager --no-legend 2>/dev/null || true
     echo
-    for p in 8400 8401 8402 8403 5176 5177; do
+    for p in 8400 8408 8402 8403 5176 5177; do
         if ss -tln "sport = :$p" 2>/dev/null | grep -q LISTEN; then
             echo "  ✅ :$p listening"
         else

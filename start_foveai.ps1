@@ -2,8 +2,8 @@
 # FOVEAI ONE-COMMAND LAUNCHER
 # ═══════════════════════════════════════════════════════
 # Starts the full FoveAI companion stack:
-#   1. XRLF Runtime (Gemma 4 12B + CUDA + Kokoro TTS) → :8402
-#   2. Foveated Memory Proxy + Dashboard              → :8400/:8401
+#   1. XRLF Runtime (Gemma 4 12B + CUDA + Kokoro TTS) → :8411
+#   2. Foveated Memory Proxy + Dashboard              → :8414/:8414
 #
 # Usage:
 #   .\start_foveai.ps1              # Start everything
@@ -37,7 +37,7 @@ function Get-StackStatus {
     $services = @(
         @{ Name = "XRLF Runtime";    Port = 8402; Type = "python" },
         @{ Name = "WebSocket IPC";   Port = 8403; Type = "python" },
-        @{ Name = "Proxy/Dashboard"; Port = 8400; Type = "node" }
+        @{ Name = "Proxy/Dashboard"; Port = 8414; Type = "node" }
     )
     $allRunning = $true
     foreach ($svc in $services) {
@@ -56,7 +56,7 @@ function Get-StackStatus {
 # ── Stop mode ──────────────────────────────────────────
 if ($Stop) {
     Write-Host "`n  Stopping FoveAI stack..." -ForegroundColor Yellow
-    foreach ($port in @(8400, 8401, 8402, 8403)) {
+    foreach ($port in @(8400, 8408, 8402, 8403)) {
 
         $conn = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -eq $port }
         if ($conn) {
@@ -87,8 +87,8 @@ $proxyRunning   = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContin
 if ($runtimeRunning -and $proxyRunning) {
     Write-Host "  Stack is already running." -ForegroundColor Yellow
     Get-StackStatus | Out-Null
-    Write-Host "`n  Companion:  http://127.0.0.1:8401/companion.html" -ForegroundColor Cyan
-    Write-Host "  Dashboard:   http://127.0.0.1:8401`n" -ForegroundColor Cyan
+    Write-Host "`n  Companion:  http://127.0.0.1:8414/companion.html" -ForegroundColor Cyan
+    Write-Host "  Dashboard:   http://127.0.0.1:8414`n" -ForegroundColor Cyan
     return
 }
 
@@ -153,7 +153,7 @@ if (-not $proxyRunning) {
 
     $proxyConn = Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue | Where-Object { $_.LocalPort -eq 8400 }
     if ($proxyConn) {
-        Write-Host "        Proxy ready on :8400, Dashboard on :8401" -ForegroundColor Green
+        Write-Host "        Proxy ready on :8400, Dashboard on :8414" -ForegroundColor Green
     } else {
         Write-Host "        Proxy failed to start. Check node server.js manually." -ForegroundColor Red
         return
@@ -167,8 +167,8 @@ Write-Host "`n  ═══ Stack Ready ═══" -ForegroundColor Green
 Write-Host ""
 Get-StackStatus | Out-Null
 Write-Host ""
-Write-Host "  Companion:  http://127.0.0.1:8401/companion.html" -ForegroundColor Cyan
-Write-Host "  Dashboard:   http://127.0.0.1:8401" -ForegroundColor Cyan
+Write-Host "  Companion:  http://127.0.0.1:8414/companion.html" -ForegroundColor Cyan
+Write-Host "  Dashboard:   http://127.0.0.1:8414" -ForegroundColor Cyan
 Write-Host "  API:         http://127.0.0.1:8400/v1/chat/completions" -ForegroundColor Cyan
 Write-Host "  Runtime:     http://127.0.0.1:8402/health" -ForegroundColor Cyan
 Write-Host "  WebSocket:   ws://<your-pc-ip>:8403/ws  (Quest/multigate)" -ForegroundColor Cyan

@@ -93,10 +93,10 @@ class ForgeFineTuner:
     """
 
     def __init__(self, models_dir: str = None):
-        self.models_dir = models_dir or os.path.join(
-            os.path.expanduser("~"), ".cache", "huggingface", "hub"
+        self.models_dir = models_dir or os.environ.get(
+            "FORGE_NURSERY_MODELS_DIR", "/opt/foveai-models"
         )
-        self.output_base = os.path.join(self.models_dir, "lumax-forge")
+        self.output_base = os.path.join(self.models_dir, "forge-nursery", "runs")
         self.jobs: dict[str, TrainingJob] = {}
         self._lock = threading.Lock()
         os.makedirs(self.output_base, exist_ok=True)

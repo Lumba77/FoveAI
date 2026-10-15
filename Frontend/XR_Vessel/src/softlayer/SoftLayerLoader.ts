@@ -39,7 +39,7 @@
  *   loader.startUpdateLoop();
  */
 
-const API_BASE = 'http://127.0.0.1:8402';
+const API_BASE = typeof window !== 'undefined' ? window.location.origin : '';
 
 // Global param store (accessible by MovementEngine and other systems)
 declare global {

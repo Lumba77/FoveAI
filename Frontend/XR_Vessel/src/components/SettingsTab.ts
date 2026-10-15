@@ -88,7 +88,7 @@ export class SettingsTab {
   <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
     <h2 style="color:#00f3ff; margin:0; font-size:1.3rem; letter-spacing:2px;">⚙ GLOBAL CONTROL PANEL</h2>
     <div style="display:flex; gap:12px; align-items:center;">
-      <a href="http://127.0.0.1:8401/settings.html" target="_blank" style="background:rgba(0,243,255,0.15); border:1px solid #00f3ff; color:#00f3ff; padding:6px 14px; border-radius:4px; text-decoration:none; font-size:0.75rem; letter-spacing:1px; transition:all 0.2s;">🔗 OPEN WEB SETTINGS (PORT 8401)</a>
+      <a href="/settings.html" target="_blank" style="background:rgba(0,243,255,0.15); border:1px solid #00f3ff; color:#00f3ff; padding:6px 14px; border-radius:4px; text-decoration:none; font-size:0.75rem; letter-spacing:1px; transition:all 0.2s;">🔗 OPEN WEB SETTINGS (PORT 8414)</a>
       <span style="color:#aaa; font-size:0.75rem;">OMEGA_361 · Settings persist to .env</span>
     </div>
   </div>

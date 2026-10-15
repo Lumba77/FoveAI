@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&family=Inter:wght@300;400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="settings.css">
+    <script src="http://127.0.0.1:8415/foveai_theme_sync.js"></script>
 </head>
 <body>
   <header>
@@ -54,14 +55,14 @@
           <label>Active TTS Engine</label>
           <select id="ttsEngineSelect" onchange="toggleSetting('XRLF_TTS_PROVIDER', this.value); sendWsSetting('tts_engine', this.value);">
             <option value="websocket">Real-Time WebSocket IPC (Port 8403 / wss://lumax.1um6a.se — Low Latency)</option>
-            <option value="kokoro">Kokoro Emotional Mouth (Port 8406 / Native XRLF :8402)</option>
+            <option value="kokoro">Kokoro Emotional Mouth (Port 8411 / Native XRLF :8402)</option>
             <option value="edgetts">Edge-TTS (Cloud Neural — Fast)</option>
           </select>
         </div>
         <div class="row">
           <label>Active STT Engine</label>
           <select id="sttEngineSelect" onchange="toggleSetting('XRLF_STT_PROVIDER', this.value); sendWsSetting('stt_engine', this.value);">
-            <option value="whisper">Faster-Whisper Ears (Port 8405 / WebSocket IPC :8403)</option>
+            <option value="whisper">Faster-Whisper Ears (Port 8401 / WebSocket IPC :8403)</option>
             <option value="browser">Web Speech API / Browser VAD</option>
           </select>
         </div>

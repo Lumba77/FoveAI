@@ -15,7 +15,18 @@ MonoBehaviour:
   boolProperties:
     keys:
     - Meta.XR.SDK.Project Setup Tool.ProduceReportOnBuild
-    values: 01
+    - Meta.XR.SDK.31736735fee7ab217bea57cc359d9f23.MarkedAsFixed.Standalone
+    - Meta.XR.SDK.edfb6eef6866b340551639f2f2c3213d.MarkedAsFixed.Standalone
+    - Meta.XR.SDK.5c7289ec557af63ae9fe7dc8bb186ecb.Ignored.Standalone
+    - Meta.XR.SDK.31736735fee7ab217bea57cc359d9f23.MarkedAsFixed.Android
+    - Meta.XR.SDK.5c7289ec557af63ae9fe7dc8bb186ecb.Ignored.Android
+    - Meta.XR.SDK.edfb6eef6866b340551639f2f2c3213d.MarkedAsFixed.Android
+    - Meta.XR.SDK.edfb6eef6866b340551639f2f2c3213d.Ignored.Android
+    - Meta.XR.SDK.31736735fee7ab217bea57cc359d9f23.Ignored.Android
+    - Meta.XR.SDK.31736735fee7ab217bea57cc359d9f23.Ignored.Standalone
+    - Meta.XR.SDK.226a9612d32145259b2743a716f9fba3.Ignored.Standalone
+    - Meta.XR.SDK.edfb6eef6866b340551639f2f2c3213d.Ignored.Standalone
+    values: 010101010101010101010101
   intProperties:
     keys: []
     values: 

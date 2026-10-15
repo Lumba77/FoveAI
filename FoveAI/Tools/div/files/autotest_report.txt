@@ -1,5 +1,0 @@
-AUTOTEST REPORT - 2026-04-05T23:46:29
-ProjectRoot: C:\Users\lumba\Program\Lumax_current
-Docker: docker compose unavailable or no services
-
-Final screenshot: C:\Users\lumba\Program\Lumax_current\div\\image\auto_test_final_20260405_234629.png

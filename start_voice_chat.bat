@@ -18,7 +18,7 @@ if not exist "%VENV_PYTHON%" (
 )
 
 echo [1/2] Starting XRLF Plumax engine on port 8400...
-start "XRLF Engine" /B "%VENV_PYTHON%" "%PLUMAX_DIR%\api\server.py" --model "%PLUMAX_DIR%\lumax-plumax-omni-router.xrlf" --port 8400
+start "XRLF Engine" /B "%VENV_PYTHON%" "%PLUMAX_DIR%\api\server.py" --model "%PLUMAX_DIR%\lumax-plumax-omni-router.xrlf" --port 8406
 
 echo Waiting for engine to start (30s)...
 timeout /t 30 /nobreak >nul
