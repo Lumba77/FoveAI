@@ -74,5 +74,7 @@ def main_v4(vers=5):
 
 PAWN_V4 = "/tmp/opencode/kqat"
 
-if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] in ("v4", "v5"):
-    main_v4(4 if sys.argv[1] == "v4" else 5)
+if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] in ("v4", "v5") or \
+        len(sys.argv) > 1 and sys.argv[1].startswith("v") and sys.argv[1][1:].isdigit():
+    _arg = sys.argv[1][1:]
+    main_v4(int(_arg))

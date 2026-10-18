@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Multigate <-> Nova collegium bridge.
 
-Serves an OpenAI-compatible API on 127.0.0.1:8400 (what Multigate's vite dev
-proxy expects at /api/foveated). Backed entirely by the shipped Project 1
+Serves an OpenAI-compatible API on 127.0.0.1:8416 (the foveai-backend
+proxy on :8400 forwards nova model requests here). Backed entirely by the shipped Project 1
 cartridge (nova.collegium, 6-bit): pawn answers decision questions, knight
 binds goal answers. All inference on CPU (GPU reserved for QAT probes).
 
@@ -26,8 +26,9 @@ import collegium as col
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-PORT = 8400
-CARTRIDGE = "/tmp/opencode/nova_kqatt_lz_v5.collegium"
+PORT = 8416
+CARTRIDGE = os.environ.get("FOVEAI_NOVA_CARTRIDGE",
+                           "/tmp/opencode/nova_kqatt_lz_v5.collegium")
 MODELS = ["nova", "nova-k8", "nova-k32", "nova-k1"]
 
 _state = {"pawn": None, "knight": None, "tok": None, "ledger": None,
@@ -106,19 +107,29 @@ def _answer(text, model):
         rng = random.Random(len(entry["name"]) * 131 + k)
         seeds += rng.sample([s for s in pool if s != entry["gold_seed"]], k - 1)
         rng.shuffle(seeds)
-    stack = "\n".join(seeds)
     tok = _state["tok"]
 
-    qd = col.DEC_Q.format(n=entry["name"])
-    pawn = _pawn()
-    ad = col.gen(pawn, tok, "cpu", f"{stack}\n<Q>{qd}</Q>\n<A>")
-    if qtype == "dec":
-        return ad
-    qg = col.GOAL_Q.format(n=entry["name"])
-    knight = _knight()
-    ag = col.gen(knight, tok, "cpu",
-                 f"{stack}\n<Q>{qd}</Q>\n<A>{ad}</A>\n<Q>{qg}</Q>\n<A>")
-    return ag
+    # per-entry verification: only THIS member's registered fields count.
+    # (A global "known" universe would pass through another member's dec —
+    # exactly the failure mode k32 produced on 2026-10-18: 'shelve the beta'.)
+    accepted = {entry["goal"].strip().lower(), entry["dec"].strip().lower()}
+
+    def gen_stack(seeds):
+        s = "\n".join(seeds)
+        qd = col.DEC_Q.format(n=entry["name"])
+        ad = col.gen(_pawn(), tok, "cpu", f"{s}\n<Q>{qd}</Q>\n<A>")
+        if qtype == "dec":
+            return ad
+        return col.gen(_knight(), tok, "cpu",
+                       f"{s}\n<Q>{qd}</Q>\n<A>{ad}</A>\n<Q>"
+                       + col.GOAL_Q.format(n=entry["name"]) + "</Q>\n<A>")
+
+    ans = gen_stack(seeds)
+    # speculative-style verify: if the k>1 draft is not a registered field,
+    # re-draft from the member's own seed only (k=1 profile, ~96% accurate)
+    if k > 1 and ans.strip().lower() not in accepted:
+        ans = gen_stack([entry["gold_seed"]])
+    return ans
 
 
 class H(BaseHTTPRequestHandler):
@@ -164,6 +175,29 @@ class H(BaseHTTPRequestHandler):
             reply = _answer(text, model)
         except Exception as e:
             return self._send(500, {"error": {"message": repr(e)}})
+        now = int(__import__("time").time())
+        if req.get("stream"):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            first = {"id": "nova-chat", "object": "chat.completion.chunk",
+                     "created": now, "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant"},
+                                  "finish_reason": None}]}
+            rest = {"id": "nova-chat", "object": "chat.completion.chunk",
+                    "created": now, "model": model,
+                    "choices": [{"index": 0, "delta": {"content": reply},
+                                 "finish_reason": None}]}
+            stop = {"id": "nova-chat", "object": "chat.completion.chunk",
+                    "created": now, "model": model,
+                    "choices": [{"index": 0, "delta": {},
+                                 "finish_reason": "stop"}]}
+            for chunk in (first, rest, stop):
+                self.wfile.write(b"data: " + json.dumps(chunk).encode()
+                                 + b"\n\n")
+            self.wfile.write(b"data: [DONE]\n\n")
+            return
         return self._send(200, {
             "id": "nova-chat", "object": "chat.completion", "model": model,
             "choices": [{"index": 0, "finish_reason": "stop",

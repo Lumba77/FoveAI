@@ -655,6 +655,14 @@ const isOllamaModel   = (m) => typeof m === 'string' && m.startsWith(OLLAMA_PREF
 const OLLAMA_MODELS   = (process.env.XRLF_OLLAMA_MODELS || '')
     .split(',').map(s => s.trim()).filter(Boolean);
 
+// ── Nova collegium side-route (:8416 bridge) ────────────────────────────────
+// The tiny seed-memory swarm (Project XRL: kqatt pawn + k6 knight) runs as an
+// OpenAI-compatible bridge on 127.0.0.1:8416. 'nova', 'nova-k1', 'nova-k8',
+// 'nova-k32' pin one turn to the bridge, same mechanics as nvidia/*. No keys,
+// no auth gates — purely local. /v1/models merges the bridge's live list.
+const NOVA_URL = process.env.FOVEAI_NOVA_URL || 'http://127.0.0.1:8416';
+const isNovaModel = (m) => typeof m === 'string' && /^(nova|nova-(k1|k8|k32))$/.test(m);
+
 // Cloud providers reject the XRLF-specific fields the local runtime tolerates
 // (HTTP 400 on strict schema validation). Applied to every cloud side-route.
 function stripCloudParams(b) {
@@ -1941,6 +1949,7 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
     // compact persona, memory protocol and resume context: the runtime merges
     // them into its system message. Cloud/LLM-studio paths get the full ring.
     const nvidiaRequested = isNvidiaModel(body.model || '');
+    const novaRequested = isNovaModel(body.model || '');
     const freeCloudRequested = isFreeCloudModel(body.model || '');
     const ollamaRequested = isOllamaModel(body.model || '');
     const byokRequested = isByokModel(body.model || '');
@@ -2064,7 +2073,7 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
     }
 
     const shouldOverride = !nvidiaRequested && !byokRequested && !freeCloudRequested &&
-        !ollamaRequested &&
+        !ollamaRequested && !novaRequested &&
         ((isLocalLMStudio && !isEffCloud) || originalModel === 'auto' || !originalModel);
     if (nvidiaRequested) {
         body.model = originalModel.slice(NVIDIA_PREFIX.length);
@@ -2106,6 +2115,7 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
     }
     _log.route = nvidiaRequested ? 'nvidia' : freeCloudRequested ? 'nvidia-free'
         : ollamaRequested ? 'ollama'
+        : novaRequested ? 'nova'
         : byokRequested ? 'byok' : (config._cloud_mode ? 'cloud' : 'local');
     _log.model = body.model;
 
@@ -2134,6 +2144,7 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
             const requiredCapability = swarmRouter.detectCapability(body.messages);
             let targetUpstream = (nvidiaRequested || freeCloudRequested) ? NVIDIA_BASE_URL
                 : ollamaRequested ? OLLAMA_CLOUD_URL
+                : novaRequested ? NOVA_URL
                 : byokRequested ? (byokCfg.baseUrl || BYOK_PROVIDER_URLS[byokCfg.provider])
                 : config.upstream_url;
 
@@ -2146,7 +2157,7 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
 // ollama/* must be excluded like the other explicit side-routes: the swarm picks a
 // LOCAL node, which silently replaced the Ollama Cloud upstream and sent the
 // request to the local runtime — surfacing as a confusing context-overflow 500.
-if (!nvidiaRequested && !freeCloudRequested && !byokRequested && !ollamaRequested &&
+if (!nvidiaRequested && !freeCloudRequested && !byokRequested && !ollamaRequested && !novaRequested &&
         !isEffCloud && REPO_ENABLED && REPO_CONTEXT_OVERRIDE) {
                 const bestNode = swarmRouter.route(requiredCapability);
                 if (bestNode) {
@@ -2163,7 +2174,7 @@ if (!nvidiaRequested && !freeCloudRequested && !byokRequested && !ollamaRequeste
             // Serialize concurrent requests to the local runtime — overlapping
             // decode frees trip llama.cpp's CUDA pool assert → SIGABRT (see
             // runtime_stderr.log). Slot is released when the response body ends.
-            const isLocalTarget = !nvidiaRequested && !freeCloudRequested && !byokRequested && !(config._cloud_mode && config._api_key) && !isEffCloud;
+            const isLocalTarget = !nvidiaRequested && !freeCloudRequested && !byokRequested && !novaRequested && !(config._cloud_mode && config._api_key) && !isEffCloud;
             // ── Residency gate ──────────────────────────────────────────
             // A managed local port with no tier resident is not a failure —
             // it is Jen asleep. Wake her and tell the caller, don't 502.
@@ -4073,6 +4084,26 @@ app.get(['/v1/models', '/models'], async (req, res) => {
             }
         } catch (profileErr) {
             console.warn(`[Fovea] /v1/models profile injection failed: ${profileErr.message}`);
+        }
+
+        // ── Nova collegium models (side-route to :8416 bridge) ─────────────
+        // Merge the bridge's live list so the swarm shows up in every client's
+        // picker as soon as it is awake, and vanishes when it is not.
+        try {
+            data = data || { object: 'list', data: [] };
+            if (!Array.isArray(data.data)) data.data = [];
+            const nr = await fetch(`${NOVA_URL}/v1/models`, { signal: AbortSignal.timeout(1500) });
+            if (nr.ok) {
+                const nj = await nr.json();
+                const haveNova = new Set(data.data.map(m => m.id));
+                for (const m of (nj.data || [])) {
+                    if (!haveNova.has(m.id)) {
+                        data.data.push({ id: m.id, object: 'model', created: Math.floor(Date.now() / 1000), owned_by: 'nova-collegium' });
+                    }
+                }
+            }
+        } catch (novaErr) {
+            console.warn(`[Fovea] /v1/models nova merge skipped: ${novaErr.message}`);
         }
 
         // ── Cloud models ────────────────────────────────────────────────────
