@@ -395,10 +395,20 @@ function App() {
   useEffect(() => { typingRef.current = isTyping; }, [isTyping]);
   const [proxyStatus, setProxyStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [activeSimulation, setActiveSimulation] = useState<any | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string>('auto');
+  const [selectedModel, setSelectedModel] = useState<string>(() => {
+    try { return localStorage.getItem('foveai_selected_model') || 'auto'; } catch { return 'auto'; }
+  });
   const [availableModels, setAvailableModels] = useState<any[]>([]);
   const [swappingModel, setSwappingModel] = useState<string | null>(null);
-  const [chatProvider, setChatProvider] = useState<'xrlf_proxy' | 'lmstudio' | 'cloud'>('xrlf_proxy');
+  const [chatProvider, setChatProvider] = useState<'xrlf_proxy' | 'lmstudio' | 'cloud'>(() => {
+    try {
+      const saved = localStorage.getItem('foveai_chat_provider');
+      return saved === 'cloud' || saved === 'lmstudio' || saved === 'xrlf_proxy' ? saved : 'cloud';
+    } catch { return 'cloud'; }
+  });
+
+  useEffect(() => { try { localStorage.setItem('foveai_selected_model', selectedModel); } catch {} }, [selectedModel]);
+  useEffect(() => { try { localStorage.setItem('foveai_chat_provider', chatProvider); } catch {} }, [chatProvider]);
 
   // Provider-isolated model fleets
   // XRLF Proxy = default (local XRLF runtime on :8402)
@@ -574,7 +584,20 @@ function App() {
           });
           if (res.ok) {
             const data = await res.json();
-            if (data && data.data) setAvailableModels(data.data);
+            if (data && data.data) {
+              // Dedupe by id — upstream lists can carry duplicates and the
+              // picker keys options by id (React hates dupe keys).
+              const seen = new Set();
+              data.data = data.data.filter((m: any) => m && m.id && !seen.has(m.id) && seen.add(m.id));
+              setAvailableModels(data.data);
+              // Auto-load: keep a remembered model, else default to the nova
+              // swarm's base model when the bridge offers it, else 'auto'.
+              setSelectedModel(prev => {
+                if (data.data.some((m: any) => m.id === prev)) return prev;
+                if (data.data.some((m: any) => m.id === 'nova')) return 'nova';
+                return 'auto';
+              });
+            }
           }
         } else if (chatProvider === 'lmstudio') {
           // LM Studio models from :1234
