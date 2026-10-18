@@ -102,10 +102,13 @@
   overflow: hidden;
 }
 
-/* AI Avatar Window (Top Right) */
+/* AI Avatar Window (Bottom Right) — 2026-10-18: crossed the gate. The AI
+   portrait now rests on the bottom edge opposite the user's, mirroring it
+   so each sits on their own side of Babylon's gate; the composer carves
+   room on both flanks. */
 .ai-avatar-window {
   position: absolute;
-  top: 0px;
+  bottom: 0px;
   right: 4px;              /* inside the chat column, flush to its right edge */
   width: 156px;
   height: 200px;
@@ -113,27 +116,29 @@
   backdrop-filter: blur(24px) saturate(150%);
   -webkit-backdrop-filter: blur(24px) saturate(150%);
   /* UI Padding that comes up around it, creating a soft beveled frame */
-  padding: 11.6px 11.6px 14.5px 11.6px;
-  border-radius: 0 0 34.8px 34.8px;
+  padding: 14.5px 11.6px 11.6px 11.6px;
+  border-radius: 34.8px 34.8px 0 0;
   /* "Art nouveau" UI pad that blends into the background frame */
   box-shadow: 
     inset -1px -1px 3px rgba(0, 0, 0, 0.4), 
     inset 1px 1px 2px rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(0, 243, 255, 0.15);
-  border-top: none;
+  border-bottom: none;
   z-index: 10;
   display: flex;
-  flex-direction: column;
+  flex-direction: column-reverse;
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .ai-avatar-window.pinned {
-  position: fixed;
+  /* 2026-10-18: mirrored seat — absolute (column-anchored, like the user's
+     pinned variant; fixed escapes to the viewport and hangs past the fold),
+     top corners rounded, no scale drift that shoved it 9px off the page. */
+  position: absolute;
   z-index: 9999;
   border: 1px solid rgba(0, 243, 255, 0.3);
-  border-radius: 0 0 34.8px 34.8px; 
-  box-shadow: 0 25px 45px rgba(0,0,0,0.9), 0 0 30px rgba(0, 243, 255, 0.2);
-  transform: scale(1.05) translateY(4px);
+  border-radius: 34.8px 34.8px 0 0;
+  box-shadow: 0 -12px 30px rgba(0,0,0,.9), 0 0 22px rgba(0, 243, 255, 0.15);
 }
 
 .ai-avatar-name {
@@ -161,10 +166,13 @@
   position: relative;
 }
 
-.ai-avatar-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+/* 2026-10-18: the still PORTRAIT spins down side up. The rotation lives on
+   the wrapper, not the img: AvatarView animates the img's transform inline
+   (jaw-bounce scaleY), and inline style would always override a stylesheet
+   rule. Flipping only when the still image is shown (:has) keeps the live
+   3D avatar upright. */
+.ai-avatar-window .avatar-clickable:has(.ai-avatar-image) {
+  transform: rotate(180deg);
 }
 
 /* User Avatar Window (Bottom Left) */
@@ -331,16 +339,16 @@
   z-index: -1;
 }
 
-/* Input Area — 2026-10-08: slimmer padding; the input field runs BEHIND the
-   round send button (socket overlap), classic chat-app composer. The left
-   clearance only avoids the user portrait; the right side lets the input
-   slide under the send circle. */
+/* Input Area — 2026-10-18: symmetric composer between the two portrait
+   windows: left clearance avoids the user portrait, right clearance now
+   carves room for the AI portrait (moved to the bottom-right edge). The
+   input never hides under the send circle anymore — it ends before her. */
 .chat-input-area {
   height: 81.2px;
   border-top: none;
   display: flex;
   align-items: center;
-  padding: 0 24px 0 176px; /* left: clear the user portrait; right: slim */
+  padding: 0 176px 0 176px; /* both sides: one portrait-width of gate room */
   gap: 0;
   position: relative;
   background: rgba(11, 15, 26, 0.85);
