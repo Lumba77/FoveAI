@@ -985,5 +985,13 @@ Coder models' `todo_add/todo_list/todo_done` (coder_tools) were a parallel `code
 - Root cause of the recurring "WebVM is dead" reports: not the bundle, not the proxy — the **password gate** in `vite.config.ts` intercepts every path outside its allowlist (`/api/`, `/v1/`, `/xrlf/`, `/health`) and returns the `Xarel — Enter` login HTML, which mimics a broken-proxy/SPA-fallback symptom.
 - `/webvm` is now served by the `webvmStatic` plugin — a `configureServer` middleware that runs before Vite's internal stack and streams `Frontend/XR_Vessel/public/webvm` with `Cross-Origin-Opener-Policy: same-origin` + `Cross-Origin-Embedder-Policy: require-corp` on every response (SharedArrayBuffer requirement). compagent also exposes `/webvm/{path}` with the same headers for direct soul-API access.
 
-> **Last updated:** 2026-09-20
+## XRLF/XRLB Motherboard — 1000-Model "TSD Legion" Architecture (2026-10-16)
+- **Principle:** a model is a *file* (XRLF); many small specialists form a *band* (XRLB). One shared nano trunk (smollm2-135m-xrl / smolvlm2-500m) is combined with tiny `.xrlb` seeds that are folded on demand, so ~1,000 virtual specialists cost about one core model in VRAM; the rest sit on disk.
+- **Topology:** 1 core (verifier/synthesizer) · 10 dirigents (section leaders) · 4 heads · 16 arms (tools) · battery beds of `.xrlb` bundles with epigenetic crystals; tetra/penta faces (`TETRA_4`, `PENTA_5`) lock together per task.
+- **Storage:** `/mnt/foveai/motherboard/` on `sdb2` (`00_core_500m`, `01_dirigents_10`, `02_heads_4`, `03_arms_16`, `04_battery_beds`, `motherboard_manifest.json`).
+- **Runtime:** `runtime/xrl_swarm.py`, `runtime/xrl_dense_format.py`; cloud/local pairing via `Backend/Creativity/tandem.py --legion`; HTTP surface `/api/tsd/*` (`api/server.py`, `foveated-memory/server.js`, Multigate vite proxy); UI `tsd_blaster.html`.
+- **Design note:** `Docs/XRL_HIVE_MIND.md`. **Session archive:** `/mnt/foveai/sessions/xrlfb-1000-model-architecture_2026-10-16/`.
+
+
+> **Last updated:** 2026-10-16
 > **Maintainer:** LUMAX / FoveAI Unified Architecture

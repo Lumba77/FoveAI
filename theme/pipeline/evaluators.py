@@ -45,5 +45,26 @@ class ThemeEvaluator:
         else:
             scores["feasibility_score"] = 0.5
             
-        scores["overall"] = (scores["accessibility_score"] + scores["completeness_score"] + scores["feasibility_score"]) / 3.0
+        canv = float(0.2126 * int(bg[1:3], 16) + 0.7152 * int(bg[3:5], 16)
+                     + 0.0722 * int(bg[5:7], 16)) / 255 if bg.startswith("#") and len(bg) == 7 else 0.5
+        scores["canvas_calmscore"] = 1.0 if canv < 0.45 else 0.4
+
+        # accent identities must be distinct — the FUI lollipop needs separation
+        accents = [theme_data.get("fv_accent", ""), theme_data.get("fv_accent_2", ""),
+                   theme_data.get("fv_ok", ""), theme_data.get("fv_danger", "")]
+        dists = [contrast_ratio(a, b) for a, b in zip(accents, accents[1:])] if len(accents) == 4 else []
+        scores["identity_distinction"] = round(min(1.0, (sum(dists) / len(dists)) / 3.0), 2) if dists else 0.5
+
+        # ── CHIEF AESTHETIAN — the satisfaction verdict ──
+        # The gate that must be satisfied: nothing renders before the chief
+        # signs. Access + completeness are table stakes; the chief weighs
+        # calm canvas and distinct identity above cleverness.
+        chief = (0.30 * scores["accessibility_score"]
+                 + 0.25 * scores["canvas_calmscore"]
+                 + 0.25 * scores["identity_distinction"]
+                 + 0.10 * scores["completeness_score"]
+                 + 0.10 * scores["feasibility_score"])
+        scores["chief_aesthetian"] = round(chief, 2)
+        scores["chief_satisfied"] = bool(chief >= 0.75)
+        scores["overall"] = round((scores["accessibility_score"] + scores["completeness_score"] + scores["feasibility_score"]) / 3.0, 2)
         return scores

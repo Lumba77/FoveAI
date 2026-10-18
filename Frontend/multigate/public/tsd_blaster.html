@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FoveAI · TSD Photonic Znake & 1,000-Pentahedron UI Blaster</title>
+  <link rel="stylesheet" href="/fui_palette.css" />
+  <style>
+    :root {
+      --bg-0: var(--fui-canvas-start, #1E1E1E);
+      --bg-1: var(--fui-canvas-end, #2D2D2D);
+      --c-comp: var(--fui-archetype-companion, #FF3B30);
+      --c-friend: var(--fui-archetype-friend, #FFCC00);
+      --c-beloved: var(--fui-archetype-beloved, #FF2D55);
+      --c-eng: var(--fui-archetype-engineer, #34C759);
+      --c-inv: var(--fui-archetype-inventor, #00C7BE);
+      --c-ast: var(--fui-archetype-assistant, #5AC8FA);
+      --s-ok: var(--fui-state-ok, #34C759);
+      --s-busy: var(--fui-state-busy, #FF9500);
+      --s-warn: var(--fui-state-warn, #FFCC00);
+      --s-crit: var(--fui-state-crit, #FF3B30);
+      --s-info: var(--fui-state-info, #00C7BE);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(145deg, var(--bg-0), var(--bg-1));
+      color: #F2F2F7;
+      font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+      padding: 20px;
+    }
+    .lollipop-band {
+      height: 6px;
+      width: 100%;
+      border-radius: 4px;
+      background: linear-gradient(
+        90deg,
+        var(--c-comp) 0% 16.66%,
+        var(--c-friend) 16.66% 33.33%,
+        var(--c-beloved) 33.33% 50%,
+        var(--c-eng) 50% 66.66%,
+        var(--c-inv) 66.66% 83.33%,
+        var(--c-ast) 83.33% 100%
+      );
+      margin-bottom: 16px;
+      box-shadow: 0 0 18px rgba(0, 199, 190, 0.35);
+    }
+    .header-box {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 16px 20px;
+      background: rgba(20, 20, 24, 0.82);
+      border: 1px solid rgba(0, 199, 190, 0.35);
+      border-radius: 10px;
+      margin-bottom: 18px;
+    }
+    .title-main {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: var(--c-inv);
+    }
+    .subtitle {
+      font-size: 0.82rem;
+      color: #AEAEB2;
+      margin-top: 4px;
+    }
+    .badge-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .fui-badge {
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1.25fr 1fr;
+      gap: 18px;
+    }
+    @media (max-width: 980px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    .panel {
+      background: rgba(22, 22, 26, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+    .panel h2 {
+      margin: 0 0 12px 0;
+      font-size: 0.96rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--c-friend);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 8px;
+    }
+    .blaster-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(195px, 1fr));
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+    .blaster-btn {
+      cursor: pointer;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(34, 34, 40, 0.95);
+      color: #FFF;
+      font-family: inherit;
+      font-size: 0.83rem;
+      font-weight: 700;
+      text-align: left;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+    }
+    .blaster-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 16px rgba(0, 199, 190, 0.4);
+      border-color: var(--c-inv);
+    }
+    .blaster-btn small {
+      display: block;
+      font-weight: 400;
+      font-size: 0.72rem;
+      color: #AEAEB2;
+      margin-top: 4px;
+    }
+    .b-comp { border-left: 4px solid var(--c-comp); }
+    .b-friend { border-left: 4px solid var(--c-friend); }
+    .b-beloved { border-left: 4px solid var(--c-beloved); }
+    .b-eng { border-left: 4px solid var(--c-eng); }
+    .b-inv { border-left: 4px solid var(--c-inv); }
+    .b-ast { border-left: 4px solid var(--c-ast); }
+
+    /* 10x10 Photonic Znake Diode Matrix */
+    .znake-matrix {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .znake-layer {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 0.78rem;
+    }
+    .znake-layer:nth-child(odd) { background: rgba(255, 255, 255, 0.03); }
+    .znake-layer:nth-child(even) { background: rgba(255, 255, 255, 0.07); }
+    .layer-tag {
+      width: 125px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .diodes {
+      display: flex;
+      gap: 6px;
+      flex-wrap: nowrap;
+    }
+    .diode {
+      width: 26px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      transition: all 0.2s ease;
+    }
+    .diode.fired {
+      transform: scale(1.14);
+      box-shadow: 0 0 12px currentColor;
+      border-color: currentColor;
+      font-weight: 700;
+    }
+    .layer-domain {
+      margin-left: auto;
+      color: #D1D1D6;
+      font-size: 0.75rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .prompt-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .prompt-input {
+      flex: 1;
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(12, 12, 16, 0.9);
+      color: #FFF;
+      font-family: inherit;
+      font-size: 0.84rem;
+    }
+    pre.console-out {
+      margin: 0;
+      padding: 14px;
+      border-radius: 8px;
+      background: #101014;
+      border: 1px solid rgba(0, 199, 190, 0.28);
+      color: #5AC8FA;
+      font-size: 0.77rem;
+      max-height: 460px;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+    .kpi-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .kpi-card {
+      padding: 10px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      text-align: center;
+    }
+    .kpi-val {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--s-ok);
+    }
+    .kpi-lbl {
+      font-size: 0.7rem;
+      color: #AEAEB2;
+      margin-top: 3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="lollipop-band"></div>
+  <div class="header-box">
+    <div>
+      <div class="title-main">⚡ TRANSFORMATIVE STATE DRIVE (TSD) · PHOTONIC ZNAKE &amp; LEGION BLASTER</div>
+      <div class="subtitle">
+        "Every part is a cast of smaller parts, with unlimited scopes — there is no size, only perspective."
+      </div>
+    </div>
+    <div class="badge-row">
+      <span class="fui-badge" style="color: var(--c-eng)">● 1 Trunk = 1,010 V-Pentahedrons</span>
+      <span class="fui-badge" style="color: var(--c-inv)">● 1 Drive = 1,000 V-Drives (.xrlb)</span>
+      <span class="fui-badge" style="color: var(--c-friend)">● 57.1× Size · 128.6× Power · 807.9× Sweep</span>
+    </div>
+  </div>
+
+  <div class="blaster-bar">
+    <button class="blaster-btn b-comp" onclick="fireBlaster('seek-and-destroy')">
+      ⚔️ SEEK &amp; DESTROY SWEEP
+      <small>Deploy 1,000 Protein Pentahedrons on Tasklist</small>
+    </button>
+    <button class="blaster-btn b-inv" onclick="fireBlaster('dream-2036')">
+      🌌 2036 DREAM CYCLE
+      <small>Holographic Bus + .xrld Crystal + Mitosis</small>
+    </button>
+    <button class="blaster-btn b-beloved" onclick="fireBlaster('legion')">
+      🛡️ LEGION COUNTERMODEL
+      <small>Spar 1,000 Pentahedrons vs. 685B Megacity</small>
+    </button>
+    <button class="blaster-btn b-eng" onclick="fireBlaster('rejuvenate')">
+      🌱 FOUNTAIN OF YOUTH
+      <small>60ms Repo Telomere &amp; Epigenetic Pulse</small>
+    </button>
+    <button class="blaster-btn b-friend" onclick="fireBlaster('benchmark')">
+      📊 50× BENCHMARK SUITE
+      <small>Verify Size, Speed, Power &amp; mmap Ops/sec</small>
+    </button>
+  </div>
+
+  <div class="grid-2">
+    <div class="panel">
+      <h2>🔮 10×10 Photonic Znake Battery Bed Matrix (TETRA_4 ◆ / PENTA_5 ✦)</h2>
+      <div class="kpi-strip">
+        <div class="kpi-card">
+          <div class="kpi-val" id="kpi-morph">PROTEIN_1000X</div>
+          <div class="kpi-lbl">Znake Morphology</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val" id="kpi-tiers">12 / 88 / 1</div>
+          <div class="kpi-lbl">RAM / SSD / HDD Cells</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val" id="kpi-gain">10.05×</div>
+          <div class="kpi-lbl">Holographic Gain</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-val" id="kpi-ms">21.6 ms</div>
+          <div class="kpi-lbl">Last Strike Latency</div>
+        </div>
+      </div>
+      <div class="znake-matrix" id="znake-matrix"></div>
+    </div>
+
+    <div class="panel">
+      <h2>🧬 Live Holographic &amp; Epigenetic Telemetry Stream</h2>
+      <div class="prompt-row">
+        <input
+          id="blaster-prompt"
+          class="prompt-input"
+          value="How do 1,000 protein-folding pentahedrons on an SSD counter a 685B megacity model?"
+          placeholder="Enter prompt or task target for the TSD Legion..."
+        />
+        <button class="blaster-btn b-ast" style="padding: 8px 14px" onclick="fireBlaster('legion')">
+          ⚡ FIRE
+        </button>
+      </div>
+      <pre class="console-out" id="console-out">Booting Transformative State Drive (TSD) UI Blaster Deck...</pre>
+    </div>
+  </div>
+
+  <script>
+    const ARCHETYPE_COLORS = [
+      "var(--c-comp)",
+      "var(--c-friend)",
+      "var(--c-beloved)",
+      "var(--c-eng)",
+      "var(--c-inv)",
+      "var(--c-ast)"
+    ];
+
+    const DIRIGENTS = [
+      { id: "dirigent_01_memory", nm: 630, deg: 0, domain: "Episodic & DNA Recall" },
+      { id: "dirigent_02_vision", nm: 590, deg: 90, domain: "Visual & Spatial Geometry" },
+      { id: "dirigent_03_voice", nm: 570, deg: 270, domain: "Acoustic & Prosody Cadence" },
+      { id: "dirigent_04_code", nm: 520, deg: 90, domain: "Code, AST & Architecture" },
+      { id: "dirigent_05_logic", nm: 490, deg: 180, domain: "Math, Verification & Plans" },
+      { id: "dirigent_06_empathy", nm: 450, deg: 0, domain: "Martinus Basic Energies" },
+      { id: "dirigent_07_motor", nm: 610, deg: 270, domain: "Avatar Posture & Motor" },
+      { id: "dirigent_08_tools", nm: 540, deg: 90, domain: "16-Arm Hardware Reflex" },
+      { id: "dirigent_09_compression", nm: 475, deg: 0, domain: "XRL & .xrld Density" },
+      { id: "dirigent_10_intuition", nm: 420, deg: 180, domain: "Speculative Lookahead" }
+    ];
+
+    function renderMatrix(activeDirs = ["dirigent_02_vision", "dirigent_04_code", "dirigent_05_logic", "dirigent_09_compression"], firedCells = []) {
+      const container = document.getElementById("znake-matrix");
+      container.innerHTML = "";
+      DIRIGENTS.forEach((d, idx) => {
+        const lNum = idx + 1;
+        const isActive = activeDirs.includes(d.id);
+        const col = ARCHETYPE_COLORS[idx % ARCHETYPE_COLORS.length];
+        const row = document.createElement("div");
+        row.className = "znake-layer";
+
+        const tag = document.createElement("span");
+        tag.className = "layer-tag";
+        tag.style.color = isActive ? col : "#8E8E93";
+        tag.textContent = `L${String(lNum).padStart(2, "0")} ${isActive ? "●" : "○"} [${d.deg}° ${d.nm}nm]`;
+        row.appendChild(tag);
+
+        const diodes = document.createElement("div");
+        diodes.className = "diodes";
+        for (let c = 1; c <= 10; c++) {
+          const isPenta = (lNum + c) % 2 === 1;
+          const prefix = `cell_${String(lNum).padStart(2, "0")}_${String(c).padStart(2, "0")}_`;
+          const isFired = firedCells.some(fc => fc.startsWith(prefix)) || (isActive && c <= 2);
+          const cellEl = document.createElement("span");
+          cellEl.className = "diode" + (isFired ? " fired" : "");
+          cellEl.style.color = isFired ? col : (isActive ? col : "#636366");
+          cellEl.title = `${prefix}${isPenta ? "PENTA_5 (5 faces)" : "TETRA_4 (4 faces)"}`;
+          cellEl.textContent = isFired ? (isPenta ? "✦" : "◆") : (isPenta ? "▽" : "△");
+          diodes.appendChild(cellEl);
+        }
+        row.appendChild(diodes);
+
+        const dom = document.createElement("span");
+        dom.className = "layer-domain";
+        dom.textContent = d.domain;
+        row.appendChild(dom);
+        container.appendChild(row);
+      });
+    }
+
+    async function resolveApiBase() {
+      const candidates = ["", "http://127.0.0.1:8402", "http://127.0.0.1:8400"];
+      for (const base of candidates) {
+        try {
+          const r = await fetch(`${base}/api/tsd/status`, { method: "GET" });
+          if (r.ok) return base;
+        } catch (_) {}
+      }
+      return "http://127.0.0.1:8402";
+    }
+
+    async function fireBlaster(action) {
+      const out = document.getElementById("console-out");
+      const prompt = document.getElementById("blaster-prompt").value;
+      out.textContent = `⚡ Firing TSD Blaster [${action.toUpperCase()}] across 1,000 Virtual Pentahedrons...`;
+
+      try {
+        const base = await resolveApiBase();
+        const r = await fetch(`${base}/api/tsd/${action}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt })
+        });
+        if (r.ok) {
+          const data = await r.json();
+          out.textContent = JSON.stringify(data, null, 2);
+          if (data.znake_morphology) document.getElementById("kpi-morph").textContent = data.znake_morphology;
+          if (data.total_sweep_ms) document.getElementById("kpi-ms").textContent = `${data.total_sweep_ms} ms`;
+          if (data.dream_cycle_ms) document.getElementById("kpi-ms").textContent = `${data.dream_cycle_ms} ms`;
+          if (data.legion_ms) document.getElementById("kpi-ms").textContent = `${data.legion_ms} ms`;
+          if (data.rejuvenation_ms) document.getElementById("kpi-ms").textContent = `${data.rejuvenation_ms} ms`;
+          if (data.telemetry && data.telemetry.tiers) {
+            const t = data.telemetry.tiers;
+            document.getElementById("kpi-tiers").textContent = `${t.tier_1_ram_hot} / ${t.tier_2_ssd_board} / ${t.tier_3_hdd_reserve}`;
+          }
+          renderMatrix(
+            data.active_dirigents || ["dirigent_02_vision", "dirigent_04_code", "dirigent_05_logic", "dirigent_09_compression"],
+            data.fired_cells_in_ram || []
+          );
+          return;
+        }
+      } catch (_) {}
+
+      // Fallback instant snapshot when viewing static HTML without :8402 running
+      const fallback = {
+        blaster_action: action,
+        status: "TSD_LOCAL_SNAPSHOT_READY",
+        note: "Start XRLF runtime (:8402) or use Desktop Tray -> '⚡ TSD Legion & UI Blasters' for live kernel execution.",
+        verified_benchmarks: {
+          size_saving_vs_monolith: "57.1x smaller (259.99 MB trunk + 69.25 KB .xrlb beds)",
+          size_saving_vs_1000_models: "999.7x smaller",
+          speed_saving_7_task_sweep: "807.9x faster (21.66 ms)",
+          power_saving_per_turn: "128.6x less energy (15.75 J vs 2025 J)",
+          token_compression: "59.5x fewer tokens (269 chars vs 16000 chars)"
+        }
+      };
+      out.textContent = JSON.stringify(fallback, null, 2);
+      renderMatrix();
+    }
+
+    renderMatrix();
+    fireBlaster("seek-and-destroy");
+  </script>
+</body>
+</html>

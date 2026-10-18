@@ -31,7 +31,7 @@ export const TRAITS: Trait[] = [
   { id: 'keep',     label: 'KEEP',     key: 'XRLF_CLOUD_PRESERVE_LAST',  min: 0, max: 64,    step: 4 },
   { id: 'cadence',  label: 'CADENCE',  key: 'FOVEA_COMPRESS_EVERY',      min: 2, max: 64,    step: 2 },
   { id: 'tokcap',   label: 'TOK CAP',  key: 'XRLF_CLOUD_MAX_TOKENS_CAP', min: 0, max: 32768, step: 2048 },
-  { id: 'ctx',      label: 'CTX',      key: 'XRLF_SPOOF_CONTEXT_WINDOW', options: ['8192', '16384', '32768', '65536', '131072'] },
+  { id: 'ctx',      label: 'CTX',      key: 'XRLF_SPOOF_CONTEXT_WINDOW', options: ['4000', '8000', '16000', '32000', '64000'] },
   { id: 'voice',    label: 'VOICE',    key: 'XRLF_VOICE_ENABLED',        options: ['true', 'false'], up: 'true' },
   { id: 'mic',      label: 'MIC',      key: 'XRLF_MIC_ENABLED',          options: ['false', 'true'], up: 'true' },
   { id: 'finish',   label: 'FINISH',   key: null,                        options: FINISHES },

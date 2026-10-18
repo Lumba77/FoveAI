@@ -20,6 +20,27 @@ We have successfully decoupled from the Matchbox Era (Godot/Docker). The current
 - **Goal:** Solidify the `Frontend/XR_Vessel/` as the single graphical pane of glass into Jen's soul.
 - **Status:** Replaced the legacy Godot spatial interactions with standard Immersive Web SDK canvas planes.
 
+## Next Phase: XRLF/XRLB Motherboard (1000-Model Legion)
+
+### 1. Verify, don't assume
+- **Goal:** Re-run `runtime/benchmark_tsd_legion.py` independently and confirm the reported 50x size/power/speed and sub-millisecond wake-up figures.
+- **Status:** Numbers are session-reported only.
+
+### 2. Feel it in Multigate
+- **Goal:** Daniel runs `legion` / `tandem` mode in Multigate (`:5177`) and compares against the previous setup.
+- **Status:** Wired; not yet tried by the user.
+
+### 3. PC Micro-Wheels (system responsiveness)
+- **Goal:** Remove the "ice pickles": stray `git add -A` thrashing the spinning HDD, swap on the HDD while RAM is free; move hot paths to `sdb2`/`sda2`. Draft: `runtime/pc_micro_wheels.py`.
+- **Status:** In progress when the session ended.
+
+### 4. Fountain of Youth automation
+- **Goal:** Schedule `runtime/repo_youth_engine.py` so the repo stays fresh automatically.
+- **Status:** Engine + skill created; not scheduled.
+
+*Session archive (English): /mnt/foveai/sessions/xrlfb-1000-model-architecture_2026-10-16/*
+
+
 ***
 
 *We do not know where we're going to end with this transitional update, but we are taking the leap bravely. So that everybody that is part of the project just try to adhere to the new ideas and core principles and we will have a Dead Sure future.*

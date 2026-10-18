@@ -13,39 +13,18 @@ import json
 app = FastAPI()
 
 ACTIVE_THEME_FILE = "/home/lumba/FoveAI/theme/active_theme.json"
+GALLERY_DIR = "/home/lumba/FoveAI/theme/gallery"
 
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: list[WebSocket] = []
+# ── Canonical binding — shared module (theme/fui_bind.py) ───────────────────
+# All generators coincide there: image accents (identity), FUI canvas rule,
+# sound fingerprint + Dirigent-specified soundscape (economy-encoded OGG).
+import sys as _sys
 
-    async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.append(websocket)
-        # Immediately push the active theme to new clients upon connection
-        if os.path.exists(ACTIVE_THEME_FILE):
-            try:
-                with open(ACTIVE_THEME_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                await websocket.send_json({"type": "theme_update", "theme": data})
-            except Exception as e:
-                print(f"Error reading active theme on connect: {e}")
+_sys.path.insert(0, "/home/lumba/FoveAI")
+from theme.fui_bind import fui_bind_theme, _dirigent_spec  # noqa: E402,F401
+from theme.soundscape import render_soundscape as _render_soundscape  # noqa: E402,F401
 
-    def disconnect(self, websocket: WebSocket):
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
-
-    async def broadcast(self, message: dict):
-        # Broadcast to all connected clients (webpages, dashboards, etc)
-        disconnected = []
-        for connection in self.active_connections:
-            try:
-                await connection.send_json(message)
-            except Exception:
-                disconnected.append(connection)
-        for d in disconnected:
-            self.disconnect(d)
-
-manager = ConnectionManager()
+GALLERY_DIR = "/home/lumba/FoveAI/theme/gallery"
 
 
 @app.get("/foveai_theme_sync.js")
@@ -65,15 +44,28 @@ async def generate_theme(file: UploadFile = File(...)):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT
         )
-        
+
         while True:
             line = await process.stdout.readline()
             if not line:
                 break
             yield line.decode('utf-8')
-            
+
         await process.wait()
-        
+        # Post-processing: bind the freshly rendered blueprint to the
+        # canonical FUI vocabulary + sound fingerprint from the source image.
+        try:
+            blueprint = _newest_gallery_theme()
+            if blueprint:
+                theme = fui_bind_theme(blueprint, image_path=file_path)
+                slug = theme.get("theme_name", "fui-theme").lower().replace(" ", "-")[:40]
+                out = os.path.join(GALLERY_DIR, f"fui-{slug}-{os.urandom(3).hex()}.json")
+                with open(out, "w", encoding="utf-8") as f:
+                    json.dump(theme, f, indent=2)
+                yield f"\n[FUI] bound + sounded: {out}\n"
+        except Exception as e:
+            yield f"\n[FUI] bind failed: {e}\n"
+
     return StreamingResponse(stream_generator(), media_type="text/plain")
 
 
@@ -131,9 +123,10 @@ FoveAI.log("Global Theme '{theme_data.get('theme_name', 'Unknown')}' applied via
 
     await manager.broadcast({"type": "theme_update", "theme": theme_data})
 
-    # Relay to the unified WebSocket (:8413 /ws/theme) — the ecosystem port.
+    # Relay to the unified WebSocket — the ecosystem port (:8403 IPC server,
+    # whose /internal/theme-broadcast fans out to /ws/theme listeners).
     # :8415 stays as the generator/API; clients no longer dial 8415 directly.
-    relay = os.getenv("FOVEAI_WS_RELAY_URL", "http://127.0.0.1:8413")
+    relay = os.getenv("FOVEAI_WS_RELAY_URL", "http://127.0.0.1:8403")
     try:
         import urllib.request
         req = urllib.request.Request(
@@ -176,6 +169,19 @@ async def get_aurora_css():
         if os.path.exists(p):
             return FileResponse(p, media_type="text/css", headers={"Cache-Control": "no-cache"})
     raise HTTPException(status_code=404, detail="aurora css not found")
+
+
+@app.get("/theme/audio/{fname}")
+async def theme_audio(fname: str):
+    """Serve rendered theme soundscapes (OGG loops). Same-origin proxied by
+    :8400 at /api/theme/sound/{fname}."""
+    if "/" in fname or "\\" in fname or ".." in fname:
+        raise HTTPException(status_code=400, detail="bad filename")
+    path = os.path.join("/home/lumba/FoveAI/theme/audio", fname)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="no such soundscape")
+    return FileResponse(path, media_type="audio/ogg",
+                        headers={"Cache-Control": "no-cache"})
 
 
 @app.websocket("/ws/theme")

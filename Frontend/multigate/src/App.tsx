@@ -17,6 +17,7 @@ import { AgencyTab } from './components/tabs/AgencyTab';
 import { MonetizationTab } from './components/tabs/MonetizationTab';
 import { PersonaTab } from './components/tabs/PersonaTab';
 import { SoundboardTab } from './components/tabs/SoundboardTab';
+import { AudioFxTab } from './components/tabs/AudioFxTab';
 import { RoleplayTab } from './components/tabs/RoleplayTab';
 import { RemoteTab } from './components/tabs/RemoteTab';
 import { NewsTab } from './components/tabs/NewsTab';
@@ -433,7 +434,7 @@ function App() {
     ],
   };
   const [deepThink, setDeepThink] = useState(true);
-  const [contextBudget, setContextBudget] = useState(16000);
+  const [contextBudget, setContextBudget] = useState(4000);
   const [compressionLevel, setCompressionLevel] = useState(3);
 
   // Audio input mode — TXT (text only) / PTT (hold ball to talk) / VAD (hands-free)
@@ -1274,6 +1275,7 @@ function App() {
       items: [
         { id: 'Canvas', label: 'Canvas (Dreamscape)', icon: '🎨' },
         { id: 'Soundboard', label: 'Voice & Soundboard', icon: '🔊' },
+        { id: 'AudioFx', label: 'Audio FX (PipeWire EQ)', icon: '🎚️' },
         { id: 'Monetization', label: 'Monetization', icon: '💰' }
       ]
     },
@@ -1495,6 +1497,9 @@ function App() {
               <button className={`icon-btn ${activeTab === 'Soundboard' ? 'active' : ''}`} title="Voice & Soundboard" onClick={() => setActiveTab('Soundboard')}>
                 🔊
               </button>
+              <button className={`icon-btn ${activeTab === 'AudioFx' ? 'active' : ''}`} title="Audio FX — PipeWire EQ & mic FX" onClick={() => setActiveTab('AudioFx')}>
+                🎚️
+              </button>
               <button className={`icon-btn ${deepThink ? 'active' : ''}`} title="Turbo — extra reasoning effort (burns more tokens)" onClick={() => setDeepThink(!deepThink)} style={deepThink ? { color: 'var(--accent-magenta)', textShadow: '0 0 12px rgba(232,182,76,.7)' } : {}}>
                 ⚡
               </button>
@@ -1509,11 +1514,11 @@ function App() {
                 onChange={e => {
                   const v = parseInt(e.target.value, 10);
                   setContextBudget(v);
-                  setCompressionLevel(v <= 4000 ? 5 : v <= 8000 ? 4 : v <= 16000 ? 3 : v <= 32000 ? 2 : 1);
+                  setCompressionLevel(v <= 4000 ? 5 : v <= 8192 ? 4 : v <= 16384 ? 3 : v <= 32768 ? 2 : 1);
                 }}
                 style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.7)', borderRadius: '4px', padding: '6px 12px', fontSize: '0.72rem', fontFamily: 'Share Tech Mono', cursor: 'pointer' }}
               >
-                <option value={4000}>4K Max</option>
+                <option value={4096}>4K Canonical</option>
                 <option value={8000}>8K Small</option>
                 <option value={16000}>16K Normal</option>
                 <option value={32000}>32K Large</option>
@@ -1642,6 +1647,8 @@ function App() {
           <MonetizationTab />
         ) : activeTab === 'Soundboard' ? (
           <SoundboardTab />
+        ) : activeTab === 'AudioFx' ? (
+          <AudioFxTab />
         ) : activeTab === 'News' ? (
           <NewsTab />
         ) : activeTab === 'Statistics' ? (

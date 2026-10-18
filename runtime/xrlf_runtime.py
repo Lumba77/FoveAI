@@ -67,6 +67,9 @@ from runtime.cognitive_steering import (
 from runtime.memory_planner import MemoryPlanner, MemoryTier, ModelPriority
 from runtime.soul_bridge import SoulBridge
 from runtime.triad_pipeline import TriadPipeline
+from runtime.foveated_rationalia import FoveatedRationalia, get_default_rationalia
+from runtime.xrl_context_compressor import XRLContextCompressor
+from runtime.xrl_principia import XRLPrincipiaCompiler
 
 # Tools/ is a folder of standalone scripts (capital T on disk).
 # Import mm_hooks lazily only if needed.
@@ -231,6 +234,8 @@ class XRLFRuntime:
         self._triad: TriadPipeline | None = None
         self._planner: Any | None = None  # MemoryPlanner
         self._soul: SoulBridge | None = None
+        self._context_compressor: XRLContextCompressor | None = None
+        self._rationalia: FoveatedRationalia | None = None
 
         # Helper model paths (resolved from env or disk)
         self._router_gguf_path: str | None = None
@@ -254,6 +259,8 @@ class XRLFRuntime:
         self.load_state = "idle"  # idle | loading | ready | error
         self.load_error: str | None = None
         self.model_name = ""
+        self.xrl_degree: int = 0
+        self.compression_profile: str = ""
         self._mm_hooks: dict = {}
         self._mm_registry: MMHookRegistry | None = None
         self._memory_schema: dict = {}
@@ -300,6 +307,16 @@ class XRLFRuntime:
         hdr = self._parser.manifest.header
         self.model_name = hdr.base_model_name
         print(f"\n{self._parser.manifest.summary()}\n")
+
+        # 1a. Load compression metadata
+        if self._parser.has_section(SectionType.RUNTIME_META):
+            meta = self._parser.get_runtime_meta()
+            self.xrl_degree = max(0, min(9, meta.get("xrl_degree", 0)))
+            self.compression_profile = meta.get("compression_profile", "")
+            print(
+                f"  XRL compression: degree={self.xrl_degree} "
+                f"profile={self.compression_profile!r}"
+            )
 
         # 2. Set up cache workspace next to the .xrlf file
         xrlf_base = os.path.splitext(self.xrlf_path)[0]
@@ -433,6 +450,35 @@ class XRLFRuntime:
 
         # 5. Load XRL cognitive artifacts
         self._load_xrl_layers()
+
+        # 5.5. Load XRL context compressor
+        self._context_compressor = XRLContextCompressor(
+            degree=self.xrl_degree,
+            compression_profile=self.compression_profile,
+            target_tokens=self.n_ctx if self.n_ctx > 0 else 4000,
+        )
+        print(
+            f"  XRL context compressor: degree={self.xrl_degree} "
+            f"profile={self.compression_profile!r}"
+        )
+
+        # 5.6. Load foveated rationalia (XRLated principia red threads)
+        try:
+            compiler = XRLPrincipiaCompiler(
+                plan_path=os.path.join(self._foveai_dir, "Plans", "Kimi-principia-plan.MD"),
+                repo_path=os.path.join(self._foveai_dir, "repo-principia.md"),
+            )
+            principia_seed = compiler.compile()
+            self._rationalia = get_default_rationalia()
+            self._rationalia.set_principia(principia_seed)
+            print(
+                f"  Foveated rationalia loaded: "
+                f"{len(principia_seed.principles)} principles, "
+                f"{len(principia_seed.derived_state)} state lines"
+            )
+        except Exception as e:
+            print(f"  ⚠️  Foveated rationalia not loaded: {e}")
+            self._rationalia = None
 
         # 6. Load memory schema & hooks
         if self._parser.has_section(SectionType.XRL_MEMORY_SCHEMA):
@@ -997,6 +1043,31 @@ class XRLFRuntime:
             print(f"  [XRL] profile={profile_name}  clusters={activated_clusters}")
             print(f"  [XRL] graph_concepts={graph_concepts}")
 
+        # ── XRL context compression with foveated rationalia ─────────────────
+        # Convert assembled context into a compact XRL seed and decode it back
+        # into a minimal but sufficient prompt. Phase 0 is pass-through.
+        rationalia_seed = None
+        if self._rationalia is not None and not utility:
+            rationalia_seed = self._rationalia.get_composite_seed(user_msg)
+            if self.verbose:
+                print(
+                    f"  [Rationalia] red thread length="
+                    f"{len(self._rationalia.weave_red_thread(user_msg))} chars"
+                )
+
+        if self._context_compressor is not None and not utility:
+            steered_messages = self._context_compressor.fit_context(
+                steered_messages,
+                user_msg,
+                profile=profile_name,
+                concepts=graph_concepts,
+                rationalia_seed=rationalia_seed,
+            )
+
+        # Feed the user/assistant turns into rationalia for future red threads
+        if self._rationalia is not None and not utility:
+            self._rationalia.ingest_turn("user", user_msg)
+
         # ── Generate ──────────────────────────────────────────────────────────
 
         temp = (
@@ -1026,6 +1097,10 @@ class XRLFRuntime:
         # Evolve cognitive state
         if self._soul:
             self._soul.evolve(user_msg, response, has_image=has_image)
+
+        # Feed assistant turn into rationalia too
+        if self._rationalia is not None and not utility:
+            self._rationalia.ingest_turn("assistant", response)
 
         return response
 
@@ -1069,6 +1144,9 @@ class XRLFRuntime:
         self._memory.store_turn("user", user_msg)
         self._memory.store_turn("assistant", response)
         self._resolve_constellation_refs(response)
+        if self._rationalia is not None:
+            self._rationalia.ingest_turn("user", user_msg)
+            self._rationalia.ingest_turn("assistant", response)
 
     def generate(
         self,

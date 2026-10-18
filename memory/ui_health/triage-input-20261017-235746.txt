@@ -1,0 +1,78 @@
+FoveAI UI health triage — 2026-10-17T23:59:35+02:00
+
+Port linter (dead references: 284):
+  ── DEAD REFERENCES (these break pages when the service is down)
+    :5173  Backend/Cognition/soul_core.py:102  http
+            "http://127.0.0.1:5173",
+    :5173  Backend/Cognition/soul_core.py:103  http
+            "http://localhost:5173",
+    :5176  Frontend/XR_Vessel/src/components/SettingsTab.ts:20  http
+            { id: 'vite',     label: 'Vite Dev Server',        emoji: '⚡', healthUrl: 'http://localhost:5176/',    restartUrl: null,
+    :7272  Backend/Cognition/soul_core.py:178  http
+            r = httpx.get("http://127.0.0.1:7272/v1/models", timeout=2.0)
+    :7272  Backend/Cognition/soul_core.py:1143  http
+            r = httpx.get("http://127.0.0.1:7272/v1/models", timeout=2.0)
+    :7272  Backend/Cognition/system_probe.py:42  http
+            "lmstudio": "http://127.0.0.1:7272/v1/models",
+    :7272  foveated-memory/bin/foveated-memory.js:25  http
+            .option('-u, --upstream <url>',   'Upstream LLM base URL (e.g. http://127.0.0.1:7272/v1)', 'http://127.0.0.1:7272/v1')
+    :7272  foveated-memory/bin/foveated-memory.js:25  http
+            .option('-u, --upstream <url>',   'Upstream LLM base URL (e.g. http://127.0.0.1:7272/v1)', 'http://127.0.0.1:7272/v1')
+    :8000  Backend/autonomous_sentry.py:81  http
+            running the sentry on the host (http://127.0.0.1:8000/...). Long /compagent work can block the Soul
+    :8000  Frontend/multigate/src/components/SettingsOverlay.tsx:18  http
+            const [wsUrl, setWsUrl] = useState('ws://127.0.0.1:8000');
+    :8000  Frontend/multigate/src/components/SettingsOverlay.tsx:18  ws
+            const [wsUrl, setWsUrl] = useState('ws://127.0.0.1:8000');
+    :8001  Frontend/XR_Vessel/src/components/SettingsTab.ts:16  http
+            { id: 'ears',     label: 'Ears (STT)',             emoji: '👂', healthUrl: 'http://localhost:8001/health', restartUrl: nu
+    :8002  Backend/Cognition/tokenslayer_proxy_server.py:306  http
+            "http://127.0.0.1:8002/v1/chat/completions",
+    :8002  Frontend/XR_Vessel/src/components/COMAX.ts:245  http
+            wrapper.querySelector('#db-health')?.addEventListener('click', async () => { dbOut.textContent = 'HEALTH: Checking...'; 
+    :8003  Backend/Cognition/generate_high_fidelity_map.py:8  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/generate_master_blueprint.py:7  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/generate_tiled_map.py:8  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/generate_weaver_map.py:7  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/visualize_architecture.py:8  http
+            url = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/visualize_relay.py:7  http
+
+UI smoke report:
+file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/common/CallbackRegistry.js:79
+            this._reject(callback, new TargetCloseError('Target closed'));
+                                   ^
+
+TargetCloseError: Protocol error (session.new): Target closed
+    at CallbackRegistry.clear (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/common/CallbackRegistry.js:79:36)
+    at BidiConnection.unbind (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/bidi/Connection.js:134:25)
+    at WebSocket.<anonymous> (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/node/NodeWebSocketTransport.js:42:30)
+    at callListener (/home/lumba/FoveAI/Tools/node_modules/ws/lib/event-target.js:290:14)
+    at WebSocket.onClose (/home/lumba/FoveAI/Tools/node_modules/ws/lib/event-target.js:220:9)
+    at WebSocket.emit (node:events:514:28)
+    at WebSocket.emitClose (/home/lumba/FoveAI/Tools/node_modules/ws/lib/websocket.js:292:10)
+    at Socket.socketOnClose (/home/lumba/FoveAI/Tools/node_modules/ws/lib/websocket.js:1374:15)
+    at Socket.emit (node:events:514:28)
+    at TCP.<anonymous> (node:net:362:12) {
+  cause: ProtocolError
+      at <instance_members_initializer> (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/common/CallbackRegistry.js:99:14)
+      at new Callback (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/common/CallbackRegistry.js:103:16)
+      at CallbackRegistry.create (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/common/CallbackRegistry.js:22:26)
+      at BidiConnection.send (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/bidi/Connection.js:70:32)
+      at Session.from (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/bidi/core/Session.js:70:49)
+      at BidiBrowser.create (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/bidi/Browser.js:89:43)
+      at FirefoxLauncher.createBiDiBrowser (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/node/BrowserLauncher.js:255:39)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async FirefoxLauncher.launch (file:///home/lumba/FoveAI/Tools/node_modules/puppeteer-core/lib/esm/puppeteer/node/BrowserLauncher.js:97:27)
+      at async file:///home/lumba/FoveAI/Tools/smoke_ui.mjs:44:17
+}
+
+Node.js v24.21.0
+
+List the distinct root causes above. For each: (1) one-line cause, (2) the exact
+file:line to change, (3) the minimal fix. Prefer same-origin paths and existing
+services over new ones. Do not invent new subsystems. Be brief and concrete.

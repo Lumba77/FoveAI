@@ -93,32 +93,49 @@ def main():
         # 3. Critique
         critique = stages.critique_concept(pitch)
         
-        # 4. Visionary Refine
-        refined = stages.refine_concept(pitch, pitch, critique)
-        
-        # 5. Master Builder
-        raw_json = stages.build_json(colors_hex, refined, schema_json)
-        
-        if raw_json:
+        # 4-6. The council: refiner builds, chief judges, iterate segments
+        # until the Chief Aesthetian is satisfied (bounded budget — the
+        # process is allowed to take time, not forever).
+        refined = None
+        theme_spec = None
+        for iteration in range(1, 4):  # 3 rounds max
+            refined = stages.refine_concept(pitch, pitch, critique)
+            raw_json = stages.build_json(colors_hex, refined, schema_json)
+            if not raw_json:
+                print(f"\n❌ Master Builder failed (round {iteration}) — retrying with sharper critique")
+                critique += "\nPrevious build returned nothing buildable. Simplify and commit."
+                continue
             try:
-                # Pydantic validation
                 theme_spec = ThemeSpec(**raw_json)
-                
-                # 6. Evaluate
-                scores = ThemeEvaluator.evaluate(theme_spec.model_dump())
-                theme_spec.scores = scores
-                
-                # Attach provenance
-                theme_spec._vlm_text = image_description
-                theme_spec._visionary_text = refined
-                theme_spec._critic_text = critique
-                
-                candidates.append(theme_spec)
-                print(f"\n✅ Variant '{archetype}' generated and scored: {scores.get('overall', 0):.2f}/1.0")
             except Exception as e:
-                print(f"\n❌ Validation failed for variant '{archetype}': {e}")
-        else:
-            print(f"\n❌ Master Builder failed to return JSON for '{archetype}'.")
+                print(f"\n❌ Validation failed (round {iteration}): {e} — iterating")
+                critique += f"\nRound {iteration} was invalid: {e}"
+                theme_spec = None
+                continue
+            scores = ThemeEvaluator.evaluate(theme_spec.model_dump())
+            theme_spec.scores = scores
+            print(f"\n⚖️ Chief Aesthetian (round {iteration}): "
+                  f"{scores.get('chief_aesthetian', 0):.2f} "
+                  f"({'SATISFIED' if scores.get('chief_satisfied') else 'iterate'})"
+                  f" | calm={scores.get('canvas_calmscore', 0):.1f} "
+                  f"identity={scores.get('identity_distinction', 0):.1f}")
+            theme_spec._vlm_text = image_description
+            theme_spec._visionary_text = refined
+            theme_spec._critic_text = critique
+            if scores.get("chief_satisfied"):
+                break
+            # the chief returns segment notes — feed them back into the critique
+            critique += (f"\nChief Aesthetian round {iteration} verdict: NOT satisfied "
+                         f"(calm={scores.get('canvas_calmscore', 0)}, "
+                         f"identity={scores.get('identity_distinction', 0)}). "
+                         "Fix the flagged segments: calm the canvas, distinct the identity colors.")
+            theme_spec = None
+        if not theme_spec:
+            print(f"\n❌ Variant '{archetype}' never satisfied the chief — skipping")
+            continue
+
+        candidates.append(theme_spec)
+        print(f"\n✅ Variant '{archetype}' accepted: overall {theme_spec.scores.get('overall', 0):.2f}/1.0")
 
     if not candidates:
         print("\n❌ Failed to generate any valid candidates. Exiting.")
@@ -158,6 +175,40 @@ def main():
     with open(provenance_file, "w", encoding="utf-8") as f:
         json.dump(prov_dict, f, indent=2)
     print(f"✅ Saved Provenance Record to: {provenance_file}")
+
+    # ── THE GENERATORS COINCIDE — audio joins the theme ──
+    try:
+        from theme.sound_fingerprint import fingerprint
+        from theme.soundscape import render_soundscape
+        from theme.fui_bind import _dirigent_spec
+
+        sound = fingerprint(args.image_path)
+        spec = _dirigent_spec(best_candidate.model_dump())
+        spec["name"] = best_candidate.theme_name
+        if sound.get("acoustic"):
+            spec["sector"] = sound["acoustic"].get("sector", spec.get("sector"))
+        ogg = render_soundscape(spec)
+        if ogg and os.path.exists(ogg):
+            # audio_assets is the schema's audio slot: fingerprint + loop URL
+            import soundfile as _sf
+            loop_s = round(_sf.info(ogg).duration, 1)
+            best_candidate.audio_assets = {
+                "generative_audio": sound,
+                "soundscape_url": f"/api/theme/sound/{os.path.basename(ogg)}",
+                "soundscape_loop_seconds": loop_s,
+                "dirigent_spec": spec,
+            }
+            with open(provenance_file, "r", encoding="utf-8") as f:
+                prov_dict = json.load(f)
+            prov_dict["audio_assets"] = best_candidate.audio_assets
+            with open(provenance_file, "w", encoding="utf-8") as f:
+                json.dump(prov_dict, f, indent=2)
+            print(f"🎹 Soundscape rendered: {ogg} "
+                  f"({os.path.getsize(ogg)} bytes)")
+        else:
+            print("🔇 Soundscape render skipped (economy ceiling)")
+    except Exception as snd_err:
+        print(f"🔇 Audio stage failed (theme still valid): {snd_err}")
     
     # Save all candidates for inspection
     candidates_dir = os.path.join(Config.GALLERY_DIR, f"foveai-{name}-{uid}_candidates")

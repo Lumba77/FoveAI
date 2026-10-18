@@ -37,7 +37,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from nim_juggle import race, extract, env, load_state, PoolEntry, save_state  # noqa: E402
+from nim_juggle import race, extract, env, load_state, PoolEntry, save_state, get_pool  # noqa: E402
 
 import urllib.request
 
@@ -60,8 +60,9 @@ _load_google()
 GEMINI_URL = ("https://generativelanguage.googleapis.com/v1beta/"
               "models/{model}:generateContent?key={k}")
 
-PLANNER_MODEL = "gemini-2.5-flash"       # cheap, fast, quota-friendly
-SYNTH_MODEL = PLANNER_MODEL
+PLANNER_MODEL = env("FOVEAI_TANDEM_PLANNER") or env("FOVEAI_CLOUD_MODEL") or "gemini-2.5-flash"
+SYNTH_MODEL = env("FOVEAI_TANDEM_SYNTH_MODEL") or PLANNER_MODEL
+TANDEM_SYNTH_MODE = (env("FOVEAI_TANDEM_SYNTH") or "auto").lower()
 
 ROUTINE_MARKERS = ("hi", "hello", "thanks", "ok", "ping", "who are you",
                    "what time", "status", "health")
@@ -228,9 +229,7 @@ def run_tandem(prompt: str, verbose: bool = False,
         if verbose: print("[tandem] prefilter: ROUTINE (0 paid tokens)",
                           file=sys.stderr)
         if dry_run: print("ROUTINE (prefilter)"); return 0
-        model, body, codes = race(["openai/gpt-oss-20b",
-                                   "nvidia/nemotron-3-super-120b-a12b"],
-                                  convo)
+        model, body, codes = race(get_pool()[:2], convo)
         if model:
             free_pool_used.append(model)
             print(extract(body))
@@ -319,7 +318,12 @@ def run_tandem(prompt: str, verbose: bool = False,
     # user prompt itself is the only real leg we can trust
     legs = [l for l in legs if l and (len(str(l)) >= 12
             and not str(l).lower().startswith("leg"))] or [prompt]
-    relay_best = (parsed.get("m") == 1) and len(legs) == 1
+    if TANDEM_SYNTH_MODE == "best_leg":
+        relay_best = True
+    elif TANDEM_SYNTH_MODE == "synthesize":
+        relay_best = False
+    else:
+        relay_best = (parsed.get("m") == 1) and len(legs) == 1
     if dry_run:
         print(f"PLAN: {len(legs)} legs → free pool")
         for i, l in enumerate(legs):
@@ -368,14 +372,21 @@ def run_tandem(prompt: str, verbose: bool = False,
         else:
             # race legs: instruction goes in the SYSTEM role — baking it
             # into the user text made the leaker models recite it back
+            leg_sys = (
+                "Answer directly, final answer only, no "
+                "thinking out loud, no reasoning traces. "
+                "Max 120 words. Start with the substance. "
+                "Use the earlier turns for context."
+            )
+            if os.environ.get("FOVEAI_TANDEM_LEGION") == "1":
+                leg_sys += (
+                    " Context: 1,000 virtual pentahedron specialist cells (33M-135M) "
+                    "on a 250GB Transformative State Drive (.xrlb mmap battery beds) "
+                    "fold like proteins to verify and counter a 685B megacity model."
+                )
             model, body, codes = race(
-                ["openai/gpt-oss-20b", "nvidia/nemotron-3-super-120b-a12b",
-                 "moonshotai/kimi-k3"],
-                [{"role": "system",
-                  "content": "Answer directly, final answer only, no "
-                             "thinking out loud, no reasoning traces. "
-                             "Max 120 words. Start with the substance. "
-                             "Use the earlier turns for context."}]
+                get_pool(),
+                [{"role": "system", "content": leg_sys}]
                 + _leg_convo(convo, legtext))
             ans = extract(body) if model else ""
         if model: free_pool_used.append(model)
@@ -392,12 +403,15 @@ def run_tandem(prompt: str, verbose: bool = False,
     good = [a for a in leg_answers if a]
     if relay_best and good:
         print(good[0])
+        _tsd_fold_universe(prompt, good[0], verbose)
         _report(time.time() - t0, paid_tokens, free_pool_used, verbose)
         return 0
     if not good:
         # every leg leaked thinking → relay the raw first leg stripped
         raw = extract(body) if 'body' in dir() else ''
-        print(raw[:600] or "all legs failed this round")
+        out_txt = raw[:600] or "all legs failed this round"
+        print(out_txt)
+        _tsd_fold_universe(prompt, out_txt, verbose)
         _report(time.time() - t0, paid_tokens, free_pool_used, verbose)
         return 0
     leg_answers = good
@@ -409,13 +423,37 @@ def run_tandem(prompt: str, verbose: bool = False,
         # synthesis failed → relay best leg as graceful fallback
         best = max(leg_answers, key=len)
         print(best)
+        _tsd_fold_universe(prompt, best, verbose)
         paid_tokens += 4 + len(legs_blob) // 4
         _report(time.time() - t0, paid_tokens, free_pool_used, verbose)
         return 0
     paid_tokens += 4 + len(legs_blob) // 4 + 300
     print(txt)
+    _tsd_fold_universe(prompt, txt, verbose)
     _report(time.time() - t0, paid_tokens, free_pool_used, verbose)
     return 0
+
+
+def _tsd_fold_universe(prompt: str, synthesis: str, verbose: bool = False) -> None:
+    """Fold a Macrocosmic Megacity synthesis into a new Microcosmic .xrld building block on the TSD."""
+    try:
+        root_dir = str(HERE.parent.parent)
+        if root_dir not in sys.path:
+            sys.path.insert(0, root_dir)
+        from runtime.xrl_swarm import get_tsd_motherboard
+        mb = get_tsd_motherboard()
+        if os.environ.get("FOVEAI_TANDEM_LEGION") == "1":
+            legion = mb.legion_countermodel(prompt, synthesis)
+            print("\n╔══ ⚔️ TSD LEGION COUNTERMODEL (1,000 Virtual Pentahedrons vs. Megacity) ══╗", file=sys.stderr)
+            print(json.dumps(legion, indent=2), file=sys.stderr)
+            print("╚══════════════════════════════════════════════════════════════════════════╝", file=sys.stderr)
+        else:
+            res = mb.fold_universe_into_microcosmos(f"Q: {prompt}\nA: {synthesis}")
+            if verbose:
+                print(f"   [TSD Spiral Octave] Universe → {res['new_microcosmic_block']} "
+                      f"({res['compression_ratio']}, {res['enfold_ms']}ms)", file=sys.stderr)
+    except Exception:
+        pass
 
 def _parse_plan(txt: str) -> dict | None:
     t = txt.strip()
@@ -485,13 +523,16 @@ if __name__ == "__main__":
     args = [a for a in sys.argv[1:]]
     verbose = "--verbose" in args or "-v" in args
     dry = "--dry-run" in args
+    if "--legion" in args:
+        os.environ["FOVEAI_TANDEM_LEGION"] = "1"
+        verbose = True
     history: list[dict] = []
     if "--history" in args:
         i = args.index("--history")
         if i + 1 < len(args):
             history = _parse_history(args[i + 1])
             del args[i:i + 2]
-    args = [a for a in args if a not in ("--verbose", "-v", "--dry-run")]
+    args = [a for a in args if a not in ("--verbose", "-v", "--dry-run", "--legion")]
     if not args:
         print(__doc__)
         sys.exit(1)

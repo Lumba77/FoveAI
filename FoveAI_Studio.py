@@ -23,6 +23,10 @@ import asyncio
 import json
 import websockets
 
+import sys as _sys
+_sys.path.insert(0, str(Path(__file__).resolve().parent))
+from runtime.fui_colors import state_hex  # noqa: E402  — FUI color language
+
 import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib, Gdk  # noqa: E402
@@ -329,13 +333,15 @@ class Studio(Gtk.Window):
 
     def _apply_dynamic_theme(self, theme_data: dict) -> None:
         # Generate GTK CSS based on the incoming theme_data dict.
+        # Fallbacks bound to the FUI color language (runtime/fui_colors.py):
+        # info = INVENTOR cyan, danger = COMPANION red, warn = busy orange.
         bg = theme_data.get("fv_bg_dark", "#1E1E1E")
         bg_mid = theme_data.get("fv_bg_panel", "#2D2D2D")
-        accent = theme_data.get("fv_accent", "#00A3FF")
+        accent = theme_data.get("fv_accent", state_hex("info"))
         text = theme_data.get("fv_text_main", "#E0E0E0")
         text_dim = theme_data.get("fv_text_muted", "#888888")
-        danger = theme_data.get("fv_danger", "#ff4444")
-        warn = theme_data.get("fv_warn", "#ffaa00")
+        danger = theme_data.get("fv_danger", state_hex("crit"))
+        warn = theme_data.get("fv_warn", state_hex("busy"))
 
         css = f"""
         window, dialog, box {{

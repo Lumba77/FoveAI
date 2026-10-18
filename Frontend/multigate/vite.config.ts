@@ -433,6 +433,62 @@ export default defineConfig(({ mode }) => {
           })
         },
       },
+      {
+        name: 'tsd-blaster-api',
+        configureServer(server) {
+          server.middlewares.use('/api/tsd', (req: any, res: any) => {
+            const action = (req.url || '').replace(/^\/+/, '').split('?')[0] || 'status'
+            const pyBin = path.join(envDir, '.venv', 'bin', 'python')
+            let bodyRaw = ''
+            req.on('data', (chunk: Buffer) => { bodyRaw += chunk.toString('utf8') })
+            req.on('end', () => {
+              let prompt = 'Verify 1,000 Virtual Pentahedrons on TSD'
+              try {
+                const parsed = bodyRaw ? JSON.parse(bodyRaw) : {}
+                if (parsed.prompt) prompt = parsed.prompt
+              } catch {}
+
+              let pyCode = ''
+              if (action === 'status') {
+                pyCode = 'import json; from runtime.xrl_swarm import get_tsd_motherboard; mb=get_tsd_motherboard(); print(json.dumps({"status":"ok","telemetry":mb.telemetry(),"biosphere":mb.biosphere_scale_hierarchy()}))'
+              } else if (action === 'seek-and-destroy') {
+                pyCode = 'import json; from runtime.xrl_swarm import get_tsd_motherboard; mb=get_tsd_motherboard(); r=mb.seek_and_destroy_tasks(); r.pop("lightshow",None); r["telemetry"]=mb.telemetry(); print(json.dumps(r))'
+              } else if (action === 'dream-2036') {
+                pyCode = 'import json; from runtime.xrl_swarm import get_tsd_motherboard; mb=get_tsd_motherboard(); print(json.dumps(mb.dream_cycle_evolution()))'
+              } else if (action === 'legion') {
+                pyCode = 'import json, sys; from runtime.xrl_swarm import get_tsd_motherboard; mb=get_tsd_motherboard(); r=mb.legion_countermodel(sys.argv[1]); r["telemetry"]=mb.telemetry(); print(json.dumps(r))'
+              } else if (action === 'rejuvenate') {
+                pyCode = 'import json; from runtime.repo_youth_engine import RepoYouthEngine; print(json.dumps(RepoYouthEngine().rejuvenate()))'
+              } else if (action === 'benchmark') {
+                pyCode = 'import json; from runtime.benchmark_tsd_legion import run_comprehensive_benchmark; print(json.dumps(run_comprehensive_benchmark()))'
+              } else {
+                res.writeHead(404, { 'Content-Type': 'application/json' })
+                res.end(JSON.stringify({ error: `Unknown TSD action: ${action}` }))
+                return
+              }
+
+              execFile(
+                pyBin,
+                ['-c', pyCode, prompt],
+                { cwd: envDir, env: { ...process.env, PYTHONPATH: envDir }, timeout: 30000 },
+                (err, stdout, stderr) => {
+                  res.writeHead(err ? 500 : 200, { 'Content-Type': 'application/json' })
+                  if (err) {
+                    res.end(JSON.stringify({ error: err.message, stderr: (stderr || '').slice(0, 400) }))
+                    return
+                  }
+                  try {
+                    const lines = stdout.trim().split('\n')
+                    res.end(lines[lines.length - 1])
+                  } catch {
+                    res.end(JSON.stringify({ raw_output: stdout }))
+                  }
+                }
+              )
+            })
+          })
+        },
+      },
       remoteApi(),
       softlayerStatic(),
       webvmStatic(),
@@ -558,6 +614,14 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true
         },
         '/api/voice': {
+          target: proxyUrl,
+          changeOrigin: true
+        },
+        // PipeWire audio FX (EQ + mic FX): GET /state, POST /preset,
+        // POST /bypass — all on server.js :8400, which shells to
+        // Tools/audio-variator-eq. Same-origin so a down engine is an
+        // explicit OFFLINE state in the tab, not a cross-origin console error.
+        '/api/audio-fx': {
           target: proxyUrl,
           changeOrigin: true
         },

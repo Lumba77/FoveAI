@@ -147,6 +147,35 @@ def _load_agent_pubkeys(model_name: str) -> list[str]:
         return []
 
 
+def _load_contract_grant(model_name: str) -> dict | None:
+    """Load the server-issued XRL contract grant for an agent, if one exists.
+
+    A grant is the only thing that admits a client onto the XRL memory contract.
+    An enrolled SSH key proves *identity*; it does not confer a contract.
+    Returns the grant dict, or None when no valid grant exists (deny by default).
+    """
+    try:
+        grant_file = Path("/home/lumba/FoveAI/Backend/app/IPC/xrl_grants.json")
+        if not grant_file.is_file():
+            logger.error("[XRL grant] registry missing - denying all contracts")
+            return None
+        data = json.loads(grant_file.read_text())
+        grant = data.get("grants", {}).get(model_name.lower())
+        if not grant:
+            return None
+        if not grant.get("enabled", False):
+            logger.warning(f"[XRL grant] contract disabled for {model_name}")
+            return None
+        expires = grant.get("expires")
+        if expires and float(expires) < time.time():
+            logger.warning(f"[XRL grant] contract expired for {model_name}")
+            return None
+        return grant
+    except Exception as e:
+        logger.error(f"[XRL grant] failed to load grant for {model_name}: {e}")
+        return None
+
+
 class IPCServer:
     """
     WebSocket IPC server that bridges clients directly to the XRLF runtime.
@@ -1587,9 +1616,35 @@ class IPCServer:
         """
         import secrets
         model = str(payload.get("model", "unknown"))[:64]
-        mode = payload.get("mode", "both")
-        caps = payload.get("caps", [])
+        grant = _load_contract_grant(model)
+        if grant is None:
+            logger.warning(f"[XRL hook] DENIED - no contract grant for {model!r}")
+            await self._send(ws, "xrl.memory.denied", {
+                "contract": "xrl-memory/1.0",
+                "reason": "no-grant",
+                "model": model,
+                "message": "No XRL contract is granted to this agent. Contracts are "
+                           "issued by the arbiter, never self-asserted.",
+            })
+            return
+
+        # Server-authoritative: the grant decides scope, never the client payload.
+        mode = grant.get("mode", "both")
+        caps = list(grant.get("caps", []))
         pubkeys = _load_agent_pubkeys(model)
+
+        if not pubkeys:
+            logger.warning(
+                f"[XRL hook] DENIED - {model} holds a grant but has no enrolled SSH "
+                f"key; identity cannot be proven over the socket."
+            )
+            await self._send(ws, "xrl.memory.denied", {
+                "contract": "xrl-memory/1.0",
+                "reason": "no-identity",
+                "model": model,
+                "message": "Grant exists but no enrolled SSH key to verify against.",
+            })
+            return
 
         if pubkeys:
             nonce = secrets.token_hex(32)
@@ -1620,24 +1675,6 @@ class IPCServer:
                 "message": f"xrl-challenge:{model}:{nonce}",
             })
             return
-
-        self._xrl_clients[ws] = {
-            "model": model,
-            "mode": mode,
-            "caps": caps,
-            "since": time.time(),
-            "verified": False,
-            "accepted": True,
-        }
-        logger.info(f"[XRL hook] model registered (unverified): {model} ({len(self._xrl_clients)} total)")
-        await self._send(ws, "xrl.memory.hello", {
-            "contract": "xrl-memory/1.0",
-            "lanes": ["xrl.memory", "xrl.telepathy"],
-            "endpoints": {
-                "resonant_ingest": "http://127.0.0.1:8400/api/resonance/ingest",
-            },
-            "you": {"model": model, "accepted": True, "verified": False},
-        })
 
     async def _handle_xrl_memory(self, ws, payload):
         """xrl.memory ops: register | verify | recall | deposit | ping."""

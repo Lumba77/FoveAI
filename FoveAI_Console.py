@@ -37,6 +37,21 @@ VENV_PYTHON = os.path.join(FOVEAI_DIR, ".venv", "bin", "python")
 if not os.path.exists(VENV_PYTHON):
     VENV_PYTHON = sys.executable
 
+# ─── FUI color language (runtime/fui_colors.py is the single source) ──
+from runtime.fui_colors import (  # noqa: E402
+    ANSI_DIM,
+    ANSI_RESET,
+    archetype_ansi,
+    colorize,
+    colorize_state,
+    rainbow_band,
+    state_ansi,
+    staircase_ansi,
+    use_color,
+)
+
+USE_COLOR = use_color()
+
 SLEIPNIR_SH = os.path.join(FOVEAI_DIR, "sleipnir_launcher.sh")
 SETTINGS_URL = "http://127.0.0.1:5177/settings.html"
 DASHBOARD_URL = "http://127.0.0.1:8414/memory/settings.html"
@@ -382,9 +397,12 @@ def print_status() -> None:
 
     lan_ip = env.get("FOVEAI_SERVER_IP", "").strip() or detect_lan_ip()
     print("\n─── FoveAI Fleet ─────────────────────────────────")
+    if USE_COLOR:
+        print(f" {rainbow_band(50, '-')}")
     for name, port, path in SERVICES:
         st = http_ok(port, path)
-        mark = {"up": "●", "dormant": "◐", "down": "○"}[st]
+        mk_state = {"up": "ok", "dormant": "busy", "down": "idle"}[st]
+        mark = colorize_state({"up": "●", "dormant": "◐", "down": "○"}[st], mk_state, USE_COLOR)
         extra = ""
         if port == 8402:
             h = http_get_json(f"{XRLF_API}/health", timeout=1.5) or {}
@@ -393,10 +411,13 @@ def print_status() -> None:
                 extra = f" [{state}{' — ' + h['model'] if h.get('model') else ''}]"
             if h.get("load_error"):
                 extra += f" ERR:{h['load_error'][:60]}"
-        print(f"  {mark} :{port:<5} {name:<18} {st}{extra}")
+        name_c = colorize(f":{port:<5} {name:<18}", state_ansi("info") if st == "up" else "", USE_COLOR)
+        print(f"  {mark} {name_c} {st}{extra}")
     if total:
         pct = used / total * 100
-        print(f"\n  VRAM: {used:.1f}/{total:.0f} GB ({pct:.0f}%)")
+        vram_state = "ok" if pct < 55 else ("busy" if pct < 75 else ("warn" if pct < 88 else "crit"))
+        vram_line = f"VRAM: {used:.1f}/{total:.0f} GB ({pct:.0f}%)"
+        print(f"\n  {colorize_state(vram_line, vram_state, USE_COLOR)}")
     if lan_ip:
         print(f"  LAN IP (Quest): {lan_ip}   panel: http://{lan_ip}:8414/settings.html")
     print(
@@ -415,7 +436,9 @@ def print_status() -> None:
     print(
         f"  frontend: {env.get('XRLF_FRONTEND_UI_PRESET', env.get('FOVEAI_FRONTEND_UI', '3d_avatar'))}"
     )
-    print("──────────────────────────────────────────────────\n")
+    if USE_COLOR:
+        print(f" {rainbow_band(50, '-')}")
+    print()
 
 
 # ─── Menus ──────────────────────────────────────────────────────────
@@ -424,10 +447,13 @@ def print_status() -> None:
 def menu(title: str, items: list) -> None:
     """items: list of (label, callable). 0/back returns."""
     while True:
-        print(f"\n== {title} ==")
+        print(striped(f"\n== {title} ==", state_ansi("info"), "", USE_COLOR))
         for i, (label, _) in enumerate(items, 1):
-            print(f"  {i}. {label}")
-        print("  0. back")
+            num = colorize(f"{i:>2}.", staircase_ansi(i - 1), USE_COLOR)
+            row = f"  {num} {label}"
+            print(row)
+        back = colorize("0.", ANSI_DIM, USE_COLOR)
+        print(f"  {back} back")
         choice = input("> ").strip()
         if choice in ("0", "q", "back"):
             return

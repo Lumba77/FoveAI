@@ -21,7 +21,7 @@ def _get_hub_dirs() -> list[str]:
         "/opt/foveai-models/datasets",
         os.path.join(os.path.expanduser("~"), ".cache", "huggingface", "hub"),
         "/home/lumba/Models/hub",
-        os.path.join(os.path.dirname(__file__), "datasets"),
+        os.path.join(os.path.dirname(__file__), "corpus"),
     ])
     return [d for d in dirs if os.path.isdir(d)]
 

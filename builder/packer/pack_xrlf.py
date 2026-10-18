@@ -83,12 +83,32 @@ def main():
         help="Output .xrlf file path",
     )
     parser.add_argument(
+        "--xrl-degree",
+        type=int,
+        default=3,
+        help="XRL semantic compression degree 0-9 (default: 3, the efficiency sweet spot)",
+    )
+    parser.add_argument(
+        "--compression-profile",
+        default="",
+        help="Human-readable compression recipe (e.g. 'MoQ-3.5 + MTP + standard XRL artifacts')",
+    )
+    parser.add_argument(
+        "--auto-name",
+        action="store_true",
+        help="Stamp -XRL-<degree> into the output filename before the extension",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Print the section table without writing the file",
     )
 
     args = parser.parse_args()
+
+    output_path = args.output
+    if args.auto_name:
+        output_path = XRLFPacker.stamp_name(output_path, args.xrl_degree)
 
     print("\n" + "=" * 60)
     print("  XRLF PACKER")
@@ -98,7 +118,9 @@ def main():
     print(f"  XRL dir      : {args.xrl_dir}")
     print(f"  MMPROJ       : {args.mmproj or '(none)'}")
     print(f"  Memory DB    : {args.memory_db or '(none — empty seed)'}")
-    print(f"  Output       : {args.output}")
+    print(f"  XRL degree   : {args.xrl_degree}")
+    print(f"  Compression  : {args.compression_profile or '(default)'}")
+    print(f"  Output       : {output_path}")
     print(f"  Dry run      : {args.dry_run}")
     print("=" * 60 + "\n")
 
@@ -107,6 +129,8 @@ def main():
     packer = XRLFPacker(
         base_model_name=args.base_model,
         xrl_source_model=args.xrl_source,
+        xrl_degree=args.xrl_degree,
+        compression_profile=args.compression_profile,
     )
 
     # 1. Register GGUF core (optional for stub/testing)
@@ -161,7 +185,7 @@ def main():
     packer.add_runtime_meta()
 
     # 6. Write
-    output = packer.write(args.output, dry_run=args.dry_run)
+    output = packer.write(output_path, dry_run=args.dry_run)
 
     elapsed = time.time() - t0
     if not args.dry_run:

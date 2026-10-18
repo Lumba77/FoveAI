@@ -56,12 +56,22 @@ def env(key: str) -> str:
 API_KEY = env("FOVEAI_NVIDIA_API_KEY")
 BASE_URL = env("FOVEAI_NVIDIA_NIM_BASE_URL") or "https://integrate.api.nvidia.com/v1"
 
-# the race pool: fast responder first, reasoning model, then wildcard
-DEFAULT_POOL = [
+# the race pool: read from FOVEAI_JUGGLER_POOL in .env, fallback to defaults
+_FALLBACK_POOL = [
     "openai/gpt-oss-20b",                    # warm fast responder
     "nvidia/nemotron-3-super-120b-a12b",     # reasoning, medium
     "moonshotai/kimi-k3",                    # slow starter, strong
 ]
+
+def get_pool() -> list[str]:
+    raw = env("FOVEAI_JUGGLER_POOL")
+    if raw:
+        items = [m.strip() for m in raw.split(",") if m.strip()]
+        if items:
+            return items
+    return list(_FALLBACK_POOL)
+
+DEFAULT_POOL = get_pool()
 
 REASONING_FLOOR = 300          # min max_tokens for reasoning models
 COLD_AFTER = 240               # seconds until a HOT model is considered cold

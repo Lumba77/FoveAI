@@ -92,6 +92,8 @@
             <option value="nvidia">NVIDIA NIM (free tier)</option>
             <option value="ollama">Ollama Cloud</option>
             <option value="openrouter">OpenRouter</option>
+            <option value="gemini">Google Gemini</option>
+            <option value="opencode">OpenCode Zen</option>
             <option value="custom">Custom (OpenAI-compatible)</option>
           </select>
         </div>
@@ -205,6 +207,8 @@
     nvidia:     'e.g. nvidia/nemotron-3-super-120b-a12b — free key at build.nvidia.com',
     ollama:     'e.g. gpt-oss:120b-cloud — ollama.com → Settings → Keys',
     openrouter: 'e.g. openai/gpt-4o-mini — openrouter.ai/keys (some models free)',
+    gemini:     'e.g. gemini-2.5-flash — aistudio.google.com/apikey (free tier available)',
+    opencode:   'space-bunny-free or big-pickle — both FREE — key at opencode.ai/zen',
     custom:     'any OpenAI-compatible endpoint — set Base URL above',
   };
   function byokProviderChanged() {

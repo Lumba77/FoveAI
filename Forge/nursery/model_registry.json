@@ -8,6 +8,25 @@
       "datasets": [],
       "training_config": {},
       "quant_type": "moq-3.6",
+      "xrl_degree": 4,
+      "compression_profile": "MoQ-3.6 mixed quantization + MTP + Eagle3 draft + standard XRL artifacts",
+      "xrl_training": {
+        "objective": "semantic-and-logic-steering",
+        "curriculum": ["self-converting-context", "rubble-to-principa", "membronic-benign-artifacts"],
+        "base_model_tier": "optimal-medium",
+        "lora_r": 32,
+        "lora_alpha": 64,
+        "epochs": 5,
+        "learning_rate": 1e-4,
+        "context_window": 8192,
+        "datasets": [
+          "xrl-context-seed-pairs",
+          "principa-alignment",
+          "membrane-bridge-conversations"
+        ],
+        "output_stamp": "XRL-3",
+        "quality_gate": "MoQ-3.6 equivalent at 2.6x compression on 1B-2B models"
+      },
       "created_at": "2026-10-14T19:00:00",
       "status": "active"
     },
@@ -19,13 +38,15 @@
       "datasets": [],
       "training_config": {},
       "quant_type": "q4_0",
+      "xrl_degree": 5,
+      "compression_profile": "q4_0 uniform quantization + native multimodal + standard XRL artifacts",
       "created_at": "2026-10-14T19:00:00",
       "status": "active"
     },
     "qwen25_coder_05b": {
       "id": "qwen25_coder_05b",
-      "name": "Qwen 2.5 Coder 0.5B (Test Scout)",
-      "description": "Open XRL Adopted: Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF/qwen2.5-coder-0.5b-instruct-q4_k_m.gguf (0.46 GB)",
+      "name": "Qwen 2.5 Coder 0.5B (Test Scout / Hyperspeed Nano Candidate)",
+      "description": "Open XRL Adopted: Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF/qwen2.5-coder-0.5b-instruct-q4_k_m.gguf (0.46 GB). Candidate for XRLated-principia hyperdrive: fed XRL seeds it can act like a much larger model with infinite foveated memory.",
       "base_model": "Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF",
       "datasets": [],
       "training_config": {
@@ -34,8 +55,206 @@
         "size_gb": 0.46
       },
       "quant_type": "q4_k_m",
+      "xrl_degree": 5,
+      "compression_profile": "Q4_K_M uniform quantization + standard XRL artifacts",
+      "xrl_training": {
+        "objective": "xrlated-principia-hyperdrive",
+        "curriculum": [
+          "seed-decode",
+          "seed-encode",
+          "autoencode",
+          "rubble-to-principa",
+          "red-thread-weaving",
+          "foveated-rationalia"
+        ],
+        "base_model_tier": "nano-hyperspeed",
+        "lora_r": 4,
+        "lora_alpha": 8,
+        "epochs": 1,
+        "learning_rate": 0.001,
+        "context_window": 512,
+        "datasets": [
+          "xrl-principia-seeds",
+          "red-thread-pairs",
+          "foveated-rationalia-samples"
+        ],
+        "output_stamp": "XRL-3",
+        "quality_gate": "Fed XRLated principia, answers at >=90% of full-context baseline while context seed <=1.5K tokens"
+      },
       "created_at": "2026-10-14T19:53:23.546877",
       "status": "active"
+    },
+    "hymba_350m": {
+      "id": "hymba_350m",
+      "name": "Hymba 350M (Hybrid Mamba + Attention)",
+      "description": "NVIDIA Hymba-350M — hybrid Mamba SSM + full attention blocks. Sub-quadratic long context, strong recall over long sequences. Ideal XRL red-thread host.",
+      "base_model": "nvidia/Hymba-350M",
+      "architecture": "hybrid-mamba-attn",
+      "datasets": [],
+      "training_config": {},
+      "quant_type": "q4_k_m",
+      "xrl_degree": 3,
+      "compression_profile": "hybrid-mamba-attn + XRL red-thread native seeding",
+      "xrl_training": {
+        "objective": "xrlated-principia-hyperdrive",
+        "curriculum": ["seed-decode", "red-thread-weaving", "foveated-rationalia"],
+        "base_model_tier": "nano-hyperspeed",
+        "output_stamp": "XRL-3",
+        "quality_gate": "Long-context XRL seed retention at >=90% of full-context baseline"
+      },
+      "created_at": "2026-10-16T00:00:00",
+      "status": "defined"
+    },
+    "hymba_350m_mamba2": {
+      "id": "hymba_350m_mamba2",
+      "name": "Hymba 350M + Mamba2 SSD (Research Target)",
+      "description": "Hymba hybrid with the SSM half upgraded to Mamba2 (SSD). Constant-size state = persistent XRL seed substrate (infinite memory).",
+      "base_model": "hymba-350m-mamba2-research",
+      "architecture": "mamba2-ssd",
+      "datasets": [],
+      "training_config": {},
+      "quant_type": "q4_k_m",
+      "xrl_degree": 3,
+      "compression_profile": "mamba2-ssd persistent XRL seed state + attention recall",
+      "xrl_training": {
+        "objective": "xrlated-principia-hyperdrive",
+        "curriculum": ["seed-decode", "persistent-seed-state", "foveated-rationalia"],
+        "base_model_tier": "nano-hyperspeed",
+        "output_stamp": "XRL-3",
+        "quality_gate": "Persistent XRL seed state across sessions without re-feeding tokens"
+      },
+      "created_at": "2026-10-16T00:00:00",
+      "status": "defined"
+    },
+    "jamba_moe": {
+      "id": "jamba_moe",
+      "name": "Jamba MoE (Hybrid Mamba + MoE)",
+      "description": "AI21 Jamba — hybrid Mamba SSM + Mixture-of-Experts transformer. Long context (256K) with sparse expert routing. Candidate for high-capacity XRL compression with sub-quadratic cost.",
+      "base_model": "ai21labs/Jamba-v0.1",
+      "architecture": "hybrid-mamba-moe",
+      "datasets": [],
+      "training_config": {},
+      "quant_type": "moq-3.6",
+      "xrl_degree": 3,
+      "compression_profile": "hybrid-mamba-moe + MoQ + XRL semantic steering",
+      "xrl_training": {
+        "objective": "semantic-and-logic-steering",
+        "curriculum": ["self-converting-context", "rubble-to-principa", "membronic-benign-artifacts"],
+        "base_model_tier": "optimal-medium",
+        "output_stamp": "XRL-3",
+        "quality_gate": "2.6x compression on 1B-2B models at MoQ 3.6-equivalent quality"
+      },
+      "created_at": "2026-10-16T00:00:00",
+      "status": "defined"
+    },
+    "jamba_moe_mini": {
+      "id": "jamba_moe_mini",
+      "name": "Jamba-Mini MoE (Nano Hypermind Candidate)",
+      "description": "Small hybrid Mamba+MoE for the hypermind draft-core. Sparse experts give capacity at nano size; Mamba gives long-context XRL seed handling.",
+      "base_model": "ai21labs/Jamba-mini",
+      "architecture": "hybrid-mamba-moe",
+      "datasets": [],
+      "training_config": {},
+      "quant_type": "q4_k_m",
+      "xrl_degree": 3,
+      "compression_profile": "hybrid-mamba-moe nano + XRL draft-core",
+      "xrl_training": {
+        "objective": "xrlated-principia-hyperdrive",
+        "curriculum": ["seed-decode", "seed-encode", "draft-core", "red-thread-weaving"],
+        "base_model_tier": "nano-hyperspeed",
+        "output_stamp": "XRL-3",
+        "quality_gate": "Draft-core feeding at >=90% of full-context baseline"
+      },
+      "created_at": "2026-10-16T00:00:00",
+      "status": "defined"
+    },
+    "smollm2_135m_instruct": {
+      "id": "smollm2_135m_instruct",
+      "name": "SmolLM2-135M-XRL (Trained — Nano Seed Trunk)",
+      "description": "HuggingFaceTB/SmolLM2-135M-Instruct trained for 3 epochs on 22 <XRL-SEED> vocabulary tokens (vocab_size=49174, final_loss=0.1394). Active shared nano trunk on the Transformative State Drive (TSD).",
+      "base_model": "HuggingFaceTB/SmolLM2-135M-Instruct",
+      "trained_path": "/home/lumba/Models/foveai-labs/nano-xrl-runs/smollm2-135m-xrl",
+      "architecture": "dense-transformer",
+      "datasets": [],
+      "training_config": {
+        "adopted_from": "HuggingFaceTB/SmolLM2-135M-Instruct",
+        "snapshot": "12fd25f77366fa6b3b4b768ec3050bf629380bac",
+        "trained_checkpoint": "/home/lumba/Models/foveai-labs/nano-xrl-runs/smollm2-135m-xrl",
+        "size_mb": 257
+      },
+      "quant_type": "fp16",
+      "xrl_degree": 3,
+      "compression_profile": "dense-transformer base + XRL red-thread seed training",
+      "xrl_training": {
+        "objective": "xrlated-principia-hyperdrive",
+        "curriculum": ["seed-decode", "seed-encode", "red-thread-weaving", "foveated-rationalia"],
+        "base_model_tier": "nano-hyperspeed",
+        "lora_r": 4,
+        "lora_alpha": 8,
+        "epochs": 3,
+        "learning_rate": 0.00015,
+        "context_window": 512,
+        "datasets": ["xrl-principia-seeds", "red-thread-pairs"],
+        "output_stamp": "XRL-3",
+        "quality_gate": "Fed XRLated principia, answers at >=90% of full-context baseline while context seed <=1.5K tokens"
+      },
+      "created_at": "2026-10-16T00:00:00",
+      "status": "trained_xrl"
+    },
+    "qwopus_9b_coder_xrlf": {
+      "id": "qwopus_9b_coder_xrlf",
+      "name": "Qwopus 3.5 9B Coder MTP MoQ (.xrlf)",
+      "description": "Local XRLF coding and reasoning specialist package in xrl_encoded/qwopus3.5-9b-coder-mtp-moq.xrlf (4.4 GB).",
+      "base_model": "xrl_encoded/qwopus3.5-9b-coder-mtp-moq.xrlf",
+      "architecture": "qwen3.5-mtp-moq",
+      "datasets": [],
+      "training_config": {},
+      "quant_type": "moq",
+      "xrl_degree": 4,
+      "compression_profile": "MoQ mixed quantization + MTP + XRLF container",
+      "created_at": "2026-10-16T19:00:00",
+      "status": "active"
+    },
+    "tsd_xrlb_battery_pack": {
+      "id": "tsd_xrlb_battery_pack",
+      "name": "Transformative State Drive (TSD) 10x10 .xrlb Photonic Znake Battery Pack",
+      "description": "10 sealed .xrlb Battery Beds on 250GB SSD (/mnt/foveai/motherboard/04_battery_beds) containing 100 Tetra-Pentahedral (TETRA_4/PENTA_5) specialist cells, 4 Heads, 10 Dirigents, and 16 Arms.",
+      "base_model": "smolvlm2-500m-multimodal-v1.0.xrlf + smollm2-135m-xrl",
+      "architecture": "tsd-photonic-znake-xrlb",
+      "datasets": [],
+      "training_config": {
+        "ssd_root": "/mnt/foveai/motherboard",
+        "ram_hot_bus": "/dev/shm/foveai_motherboard",
+        "hdd_reserve": "/home/lumba/Models/motherboard_reserves",
+        "layers": 10,
+        "cells": 100
+      },
+      "quant_type": "xrlb-mmap",
+      "xrl_degree": 3,
+      "compression_profile": "TetraPak space-filling .xrlb battery beds + zero-copy mmap",
+      "created_at": "2026-10-16T19:20:00",
+      "status": "active"
+    },
+    "mamba2_ssd_nano": {
+      "id": "mamba2_ssd_nano",
+      "name": "Mamba2 SSD Nano (Persistent Seed State)",
+      "description": "Pure Mamba2 (SSD) nano model. Constant-memory recurrent state is the native substrate for persistent, always-on XRL seeds — the closest match to 'infinite memory'.",
+      "base_model": "state-spaces/mamba2-nano",
+      "architecture": "mamba2-ssd",
+      "datasets": [],
+      "training_config": {},
+      "quant_type": "q4_k_m",
+      "xrl_degree": 3,
+      "compression_profile": "mamba2-ssd persistent state + XRL seed native",
+      "xrl_training": {
+        "objective": "xrlated-principia-hyperdrive",
+        "curriculum": ["seed-decode", "persistent-seed-state", "infinite-memory"],
+        "base_model_tier": "nano-hyperspeed",
+        "output_stamp": "XRL-3",
+        "quality_gate": "Persistent XRL seed state with constant memory across long sessions"
+      },
+      "created_at": "2026-10-16T00:00:00",
+      "status": "defined"
     }
   }
 }

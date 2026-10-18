@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using UnityEngine;
@@ -11,9 +12,21 @@ namespace Lumax.Quest3Bridge
     [RequireComponent(typeof(AudioSource))]
     public class Quest3STTClient : MonoBehaviour
     {
+        /// <summary>
+        /// Standalone faster-whisper STT bridge (Backend/stt_whisper_server.py,
+        /// foveai-stt.service). WebSocket path is /ws or /. Source of truth:
+        /// STT_PORT in /home/lumba/FoveAI/.env and ARCHITECTURE.md's port map.
+        /// </summary>
+        public const int DefaultSttWsPort = 8401;
+
+        /// <summary>Identifier used by the shared AudioSource claim table.</summary>
+        private const string AudioRole = "stt";
+
         [Header("WebSocket Connection")]
-        [Tooltip("WebSocket URL of the unified WS server. Leave empty to use AppConfig.json wsPort.")]
+        [Tooltip("EFFECTIVE STT WebSocket URL. Rebuilt at startup from AppConfig.json serverIp + SttPort. The STT service (Backend/stt_whisper_server.py, foveai-stt.service) is a STANDALONE faster-whisper bridge on :8401 path /ws — it is NOT the unified IPC/WebSocket on :8403.")]
         public string SttServerUrl = "";
+        [Tooltip("Port of the standalone faster-whisper STT WebSocket bridge (foveai-stt.service). Matches STT_PORT in /home/lumba/FoveAI/.env.")]
+        public int SttPort = 8401;
 
         [Header("Microphone Capture")]
         [Tooltip("Target sample rate sent to server (Hz). Quest 3 mic typically 48000, resampled to 16000.")]
@@ -22,6 +35,12 @@ namespace Lumax.Quest3Bridge
         public float RecordingBufferSeconds = 1.0f;
         [Tooltip("Send chunk size in milliseconds.")]
         public int SendChunkMs = 200;
+
+        [Header("Audio Routing")]
+        [Tooltip("Play the mic back through the headset speakers. OFF by default — monitoring the mic through the speakers re-enters the STT model (acoustic feedback / echo) and desynchronises the transcript.")]
+        public bool monitorMicToSpeakers = false;
+        [Tooltip("Headset volume used ONLY when monitorMicToSpeakers is on.")]
+        [Range(0f, 1f)] public float micMonitorVolume = 0.5f;
 
         [Header("Settings")]
         public string Language = "en";
@@ -47,6 +66,7 @@ namespace Lumax.Quest3Bridge
         private bool _turnPending;
         public bool ManualDictationMode { get; private set; }
         private float _lastFinalTranscriptTime;
+        private int _finalIndex;
         private readonly StringBuilder _pendingTranscript = new StringBuilder();
         private int _serverSampleRate = 16000;
 
@@ -61,7 +81,7 @@ namespace Lumax.Quest3Bridge
 
         private void Awake()
         {
-            _audioSource = GetComponent<AudioSource>();
+            _audioSource = AcquireAudioSource(AudioRole);
             _micBufferSize = Mathf.CeilToInt(TargetSampleRate * RecordingBufferSeconds);
             _chunkSampleCount = TargetSampleRate * SendChunkMs / 1000;
             _micBuffer = new float[_micBufferSize];
@@ -84,8 +104,14 @@ namespace Lumax.Quest3Bridge
             yield return new WaitUntil(() => loadTask.IsCompleted);
 
             var settings = FoveAI.Config.ConfigLoader.Settings;
-            SttServerUrl = $"ws://{settings.serverIp}:{settings.wsPort}/ws";
-            Debug.Log($"[Quest3STTClient] STT URL: {SttServerUrl} (unified WebSocket)");
+            int sttPort = SttPort > 0 ? SttPort : DefaultSttWsPort;
+            SttServerUrl = $"ws://{settings.serverIp}:{sttPort}/ws";
+            Debug.Log($"[Quest3STTClient] STT URL: {SttServerUrl} (standalone faster-whisper bridge, foveai-stt.service)");
+            if (settings.wsPort == sttPort)
+            {
+                Debug.LogWarning($"[Quest3STTClient] AppConfig wsPort ({settings.wsPort}) equals the STT port. " +
+                                 "The unified IPC server does NOT speak the whisper STT protocol — set wsPort back to the IPC port.");
+            }
 
 #if UNITY_ANDROID && !UNITY_EDITOR
             // 2. Request Android mic permission - MUST be in a coroutine, not async
@@ -186,11 +212,14 @@ namespace Lumax.Quest3Bridge
             {
                 Microphone.End(_micDevice);
             }
+            ReleaseMicSource();
 
             if (_ws != null && _ws.State == WebSocketState.Open)
             {
                 try
                 {
+                    // "stop" on THIS server means "finalize the buffer and transcribe",
+                    // not "stop the TTS" — safe to use before closing.
                     await SendTextAsync("{\"type\":\"stop\"}");
                     await _ws.Close();
                 }
@@ -205,7 +234,13 @@ namespace Lumax.Quest3Bridge
 
         private void OnWsOpen()
         {
-            _ = SendTextAsync($"{{\"type\":\"config\",\"sample_rate\":{TargetSampleRate},\"language\":\"{Language}\"}}");
+            // The STT bridge speaks ONLY: binary PCM16 frames + {start|stop|reset|ping}.
+            // There is no "config" message — the old {"type":"config",...} was silently
+            // ignored by the server (its handler falls through with no ack). "ping" is a
+            // real control message that answers {"type":"pong"}, so it doubles as a
+            // liveness probe. Server-side VAD drives utterance boundaries; we do NOT send
+            // "start" here because that would pin is_recording and disable pre-roll trimming.
+            _ = SendTextAsync("{\"type\":\"ping\"}");
         }
 
         private void OnWsMessage(byte[] data)
@@ -228,43 +263,105 @@ namespace Lumax.Quest3Bridge
 
         private void ParseServerMessage(string json)
         {
+            if (string.IsNullOrEmpty(json)) return;
+            string trimmed = json.TrimStart();
+            if (trimmed.Length == 0 || trimmed[0] != '{')
+            {
+                Debug.LogWarning($"[STT] Non-JSON frame ignored ({trimmed[0]}): {trimmed}");
+                return;
+            }
+
+            SttMessage msg = null;
             try
             {
-                var msg = JsonUtility.FromJson<SttMessage>(json);
-                if (msg == null) return;
-
-                switch (msg.type)
-                {
-                    case "ready":
-                        _serverSampleRate = msg.sample_rate > 0 ? msg.sample_rate : TargetSampleRate;
-                        _isConnected = true;
-                        OnConnected?.Invoke();
-                        if (AutoStartOnEnable) StartRecording();
-                        break;
-                    case "speech_start":
-                        _speechActive = true;
-                        OnListeningStart?.Invoke();
-                        break;
-                    case "speech_end":
-                        _speechActive = false;
-                        OnListeningEnd?.Invoke();
-                        break;
-                    case "partial":
-                        OnPartialTranscript?.Invoke(msg.text ?? "", msg.segment);
-                        break;
-                    case "final":
-                        OnFinalTranscript?.Invoke(msg.text ?? "", msg.segment);
-                        AppendTranscriptSegment(msg.text);
-                        break;
-                    case "error":
-                        OnError?.Invoke(msg.message ?? "unknown");
-                        break;
-                }
+                msg = JsonUtility.FromJson<SttMessage>(trimmed);
             }
             catch (Exception ex)
             {
-                Debug.LogWarning($"[STT] Failed to parse message: {ex.Message}\n  raw: {json}");
+                Debug.LogWarning($"[STT] Failed to parse message: {ex.Message}\n  raw: {trimmed}");
+                return;
             }
+            if (msg == null) return;
+
+            // Tolerant field aliases: the bridge emits "text", but wrappers/proxies
+            // have historically used "transcription" or "transcript".
+            string text = !string.IsNullOrEmpty(msg.text) ? msg.text
+                        : !string.IsNullOrEmpty(msg.transcription) ? msg.transcription
+                        : msg.transcript;
+            string type = msg.type;
+
+            // No "type" at all but there is text → treat as a final transcript.
+            if (string.IsNullOrEmpty(type))
+            {
+                if (!string.IsNullOrEmpty(text))
+                {
+                    Debug.Log($"[STT] Untyped frame treated as final transcript.");
+                    HandleFinal(text, msg);
+                }
+                else
+                {
+                    Debug.LogWarning($"[STT] Untyped frame with no text ignored: {trimmed}");
+                }
+                return;
+            }
+
+            switch (type)
+            {
+                case "ready":
+                    _serverSampleRate = msg.sample_rate > 0 ? msg.sample_rate : TargetSampleRate;
+                    _isConnected = true;
+                    Debug.Log($"[STT] Bridge ready (sample_rate={_serverSampleRate})");
+                    OnConnected?.Invoke();
+                    if (AutoStartOnEnable) StartRecording();
+                    break;
+                case "pong":
+                    break;
+                case "ack":
+                    Debug.Log($"[STT] ack: {msg.status}");
+                    break;
+                case "speech_start":
+                case "vad_start":
+                case "listening":
+                    _speechActive = true;
+                    OnListeningStart?.Invoke();
+                    break;
+                case "speech_end":
+                case "vad_end":
+                case "stopped_speaking":
+                    _speechActive = false;
+                    OnListeningEnd?.Invoke();
+                    break;
+                case "partial":
+                    OnPartialTranscript?.Invoke(text ?? "", msg.segment);
+                    break;
+                case "final":
+                case "transcription":
+                case "transcript":
+                case "result":
+                case "text":
+                    HandleFinal(text, msg);
+                    break;
+                case "error":
+                    OnError?.Invoke(!string.IsNullOrEmpty(msg.error) ? msg.error
+                                  : !string.IsNullOrEmpty(msg.message) ? msg.message
+                                  : "unknown");
+                    break;
+                default:
+                    // Loudly surface protocol drift instead of failing silently again.
+                    Debug.LogWarning($"[STT] Unknown message type \"{type}\" — backend protocol drift?\n  raw: {trimmed}");
+                    break;
+            }
+        }
+
+        private void HandleFinal(string text, SttMessage msg)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+            // The bridge does not number utterances — keep a local monotonic index so
+            // the int argument of OnFinalTranscript is a useful utterance counter.
+            if (msg.segment > 0) _finalIndex = msg.segment;
+            else _finalIndex++;
+            OnFinalTranscript?.Invoke(text, _finalIndex);
+            AppendTranscriptSegment(text);
         }
 
         private void AppendTranscriptSegment(string text)
@@ -309,6 +406,12 @@ namespace Lumax.Quest3Bridge
             _micDevice = Microphone.devices[0];
             _audioSource.clip = Microphone.Start(_micDevice, true, (int)RecordingBufferSeconds, TargetSampleRate);
             _audioSource.loop = true;
+            // Capture requires the clip to be PLAYED, but the playback must stay
+            // silent: routing the mic to the headset speakers re-enters the STT
+            // model (acoustic feedback) and desyncs the transcript.
+            _audioSource.volume = monitorMicToSpeakers ? micMonitorVolume : 0f;
+            _audioSource.mute = !monitorMicToSpeakers;
+            _audioSource.spatialBlend = 0f;   // monitoring is never spatializer-relevant
             _audioSource.Play();
 
             _lastMicPos = 0;
@@ -326,8 +429,13 @@ namespace Lumax.Quest3Bridge
             {
                 Microphone.End(_micDevice);
             }
+            ReleaseMicSource();
             if (_isConnected)
             {
+                // On the STT bridge "stop" = finalize + transcribe the buffered audio,
+                // then clear it and drop the VAD latch — one message is enough (a
+                // following "reset" would be redundant, and two fire-and-forget sends
+                // can race). Pre-roll trimming resumes once the server clears the buffer.
                 _ = SendTextAsync("{\"type\":\"stop\"}");
             }
             OnListeningEnd?.Invoke();
@@ -339,6 +447,9 @@ namespace Lumax.Quest3Bridge
             while (_sendQueue.TryDequeue(out _)) { }
             if (_isConnected)
             {
+                // "reset" drops the buffered audio AND re-arms the server VAD /
+                // pre-roll trimming, so speech captured while paused is never
+                // transcribed.
                 _ = SendTextAsync("{\"type\":\"reset\"}");
             }
             OnListeningEnd?.Invoke();
@@ -353,8 +464,59 @@ namespace Lumax.Quest3Bridge
             _capturePaused = false;
             if (_isConnected)
             {
+                // Re-arm the server buffer after a PauseCapture "reset".
                 _ = SendTextAsync("{\"type\":\"start\"}");
             }
+        }
+
+        private void ReleaseMicSource()
+        {
+            if (_audioSource == null) return;
+            _audioSource.Stop();
+            _audioSource.clip = null;
+        }
+
+        private void OnDestroy()
+        {
+            if (_audioSource != null)
+            {
+                VoiceAudioSourceRegistry.Release(_audioSource);
+                _audioSource = null;
+            }
+        }
+
+        /// <summary>
+        /// Resolves the AudioSource this client owns. Both Quest3STTClient and
+        /// Quest3TTSClient are [RequireComponent(typeof(AudioSource))] and in
+        /// FoveAI.unity they sit on the SAME GameObject, so GetComponent() would
+        /// hand both of them the one shared instance — the STT mic clip would be
+        /// assigned to it, and TTS would then "play" the mic. The claim table
+        /// guarantees exactly one owner per AudioSource; a loser creates its own
+        /// child GameObject + AudioSource.
+        /// </summary>
+        private AudioSource AcquireAudioSource(string role)
+        {
+            var existing = GetComponent<AudioSource>();
+            if (existing != null && VoiceAudioSourceRegistry.TryClaim(existing, role))
+            {
+                return existing;
+            }
+
+            if (existing != null)
+            {
+                string owner = VoiceAudioSourceRegistry.OwnerOf(existing);
+                Debug.LogWarning($"[Quest3STTClient] Shared AudioSource on '{name}' is already claimed by " +
+                                 $"'{owner}' — creating a dedicated 'Audio_{role}' child so the mic never " +
+                                 "collides with TTS playback.");
+            }
+
+            var host = new GameObject("Audio_" + role);
+            host.transform.SetParent(transform, false);
+            var dedicated = host.AddComponent<AudioSource>();
+            dedicated.playOnAwake = false;
+            dedicated.loop = false;
+            VoiceAudioSourceRegistry.ForceClaim(dedicated, role);
+            return dedicated;
         }
 
         private void CaptureAndQueueAudio()
@@ -415,9 +577,13 @@ namespace Lumax.Quest3Bridge
         {
             public string type;
             public string text;
+            public string transcription;
+            public string transcript;
             public int segment;
             public int sample_rate;
+            public string status;
             public string message;
+            public string error;
         }
     }
 
@@ -440,6 +606,79 @@ namespace Lumax.Quest3Bridge
                 bytes[i * 2 + 1] = (byte)((val >> 8) & 0xFF);
             }
             return bytes;
+        }
+    }
+
+    /// <summary>
+    /// Process-wide claim table that guarantees two <c>[RequireComponent(typeof(AudioSource))]</c>
+    /// voice clients sharing one GameObject never resolve to the same AudioSource instance.
+    /// Without it, Quest3STTClient assigns the mic clip to the shared source and
+    /// Quest3TTSClient then "plays" the mic instead of the TTS stream.
+    /// Static (not a MonoBehaviour) so no extra component type enters the scene/prefab set.
+    /// </summary>
+    public static class VoiceAudioSourceRegistry
+    {
+        private struct Claim
+        {
+            public AudioSource source;
+            public string role;
+        }
+
+        private static readonly Dictionary<int, Claim> _claims = new Dictionary<int, Claim>();
+
+        public static bool TryClaim(AudioSource source, string role)
+        {
+            if (source == null) return false;
+            PurgeDestroyed();
+
+            int id = source.GetInstanceID();
+            if (_claims.TryGetValue(id, out Claim existing))
+            {
+                if (existing.source == null || existing.role == role)
+                {
+                    _claims[id] = new Claim { source = source, role = role };
+                    return true;
+                }
+                return false;
+            }
+
+            _claims[id] = new Claim { source = source, role = role };
+            return true;
+        }
+
+        public static void ForceClaim(AudioSource source, string role)
+        {
+            if (source == null) return;
+            PurgeDestroyed();
+            _claims[source.GetInstanceID()] = new Claim { source = source, role = role };
+        }
+
+        public static void Release(AudioSource source)
+        {
+            if (source == null) return;
+            _claims.Remove(source.GetInstanceID());
+        }
+
+        public static string OwnerOf(AudioSource source)
+        {
+            if (source == null) return "none";
+            PurgeDestroyed();
+            return _claims.TryGetValue(source.GetInstanceID(), out Claim c) ? c.role : "unclaimed";
+        }
+
+        private static void PurgeDestroyed()
+        {
+            List<int> dead = null;
+            foreach (var kv in _claims)
+            {
+                if (kv.Value.source == null)
+                {
+                    if (dead == null) dead = new List<int>();
+                    dead.Add(kv.Key);
+                }
+            }
+            if (dead == null) return;
+            foreach (int id in dead) _claims.Remove(id);
         }
     }
 }

@@ -1,0 +1,52 @@
+
+==============================================================================
+SceneHealProbe  scene=Assets/Scenes/FoveAI.unity  unity=6000.4.9f1
+==============================================================================
+  PASS  sceneLoaded: opened FoveAI
+  PASS  oneMainCamera: enabled MainCamera-tagged cameras = 1 (need exactly 1). All: [Main Camera(on), Main Camera(off)]
+  ·       active main camera 'Main Camera' depth=0 clear=Skybox bg=RGBA(0.192, 0.302, 0.475, 0.000) near=0,01 fov=60
+  ·       camera parent rig = 'Camera Offset'
+  PASS  oneAudioListener: enabled AudioListeners = 1 (need <= 1)
+  ·       surface 'ChatCanvas' active=True renderMode=WorldSpace distance=1,37m depthAlongView=-0,05m
+  FAIL  surfaceInFront[ChatCanvas]: 'ChatCanvas' is 0,05m BEHIND the camera — authored at +Z but the camera looks down -Z
+  ·       surface 'AppSettings_Panel' active=True renderMode=WorldSpace distance=1,98m depthAlongView=0,25m
+  PASS  surfaceInFront[AppSettings_Panel]: 'AppSettings_Panel' is 0,25m BEHIND the camera — authored at +Z but the camera looks down -Z
+  ·       surface 'WebUIPanel': absent
+  PASS  surfaceVisible: no chat/settings surface active at boot — the headset shows bare passthrough
+  ·     active render pipeline = Built-in
+  PASS  pipelineBuiltIn: probe expectation: this project is Built-in RP; if you migrated to URP, update MaterialGenerator's branch instead of relying on reflection
+  ·     distinct shaders on scene mesh renderers = (none — no geometry)
+  PASS  avatarFiles: *.vrm found in StreamingAssets = 5
+  ·       Alicechan.vrm: meshes=3 bounds=(0.21, 0.23, 0.15) animator=yes human=yes
+  PASS  avatarHasGeometry: Alicechan.vrm produced no measurable geometry
+  PASS  avatarAnimator[Alicechan.vrm]: no Animator in the VRM hierarchy
+  PASS  avatarHumanoid[Alicechan.vrm]: Animator.isHuman=True avatar=set — VRMA body retargeting silently no-ops without a Humanoid avatar
+  PASS  avatarMaterials[Alicechan.vrm]: URP shaders on a Built-in RP avatar: 
+  ·       Large_pupils.vrm: meshes=3 bounds=(0.22, 0.23, 0.15) animator=NO human=no
+  PASS  avatarHasGeometry: Large_pupils.vrm produced no measurable geometry
+  FAIL  avatarAnimator[Large_pupils.vrm]: no Animator in the VRM hierarchy
+  PASS  avatarMaterials[Large_pupils.vrm]: URP shaders on a Built-in RP avatar: 
+  ·       SchoolGirl.vrm: meshes=3 bounds=(0.21, 0.23, 0.14) animator=yes human=yes
+  PASS  avatarHasGeometry: SchoolGirl.vrm produced no measurable geometry
+  PASS  avatarAnimator[SchoolGirl.vrm]: no Animator in the VRM hierarchy
+  PASS  avatarHumanoid[SchoolGirl.vrm]: Animator.isHuman=True avatar=set — VRMA body retargeting silently no-ops without a Humanoid avatar
+  PASS  avatarMaterials[SchoolGirl.vrm]: URP shaders on a Built-in RP avatar: 
+  ·       SchoolUniform.vrm: meshes=3 bounds=(0.21, 0.23, 0.15) animator=yes human=yes
+  PASS  avatarHasGeometry: SchoolUniform.vrm produced no measurable geometry
+  PASS  avatarAnimator[SchoolUniform.vrm]: no Animator in the VRM hierarchy
+  PASS  avatarHumanoid[SchoolUniform.vrm]: Animator.isHuman=True avatar=set — VRMA body retargeting silently no-ops without a Humanoid avatar
+  PASS  avatarMaterials[SchoolUniform.vrm]: URP shaders on a Built-in RP avatar: 
+  ·       avatar.vrm: meshes=3 bounds=(0.20, 0.23, 0.14) animator=yes human=yes
+  PASS  avatarHasGeometry: avatar.vrm produced no measurable geometry
+  PASS  avatarAnimator[avatar.vrm]: no Animator in the VRM hierarchy
+  PASS  avatarHumanoid[avatar.vrm]: Animator.isHuman=True avatar=set — VRMA body retargeting silently no-ops without a Humanoid avatar
+  PASS  avatarMaterials[avatar.vrm]: URP shaders on a Built-in RP avatar: 
+  ·     AppConfig: ip=192.168.8.100 ws=8403 avatar=Alicechan.vrm
+  ·       endpoint sttWhisper 192.168.8.100:8401 → CLOSED
+  FAIL  endpointDown: sttWhisper 192.168.8.100:8401 is closed — voice/chat will be dead in the headset
+  ·       endpoint ipcServer 192.168.8.100:8403 → CLOSED
+  FAIL  endpointDown: ipcServer 192.168.8.100:8403 is closed — voice/chat will be dead in the headset
+  ·       endpoint chatHttp 192.168.8.100:8402 → CLOSED
+  FAIL  endpointDown: chatHttp 192.168.8.100:8402 is closed — voice/chat will be dead in the headset
+  ·     render: opaquePixels=0/262144 (0,0%) meanLuma=74,2 lumaRange=74..74 → Logs/scene-heal-probe.png
+  FAIL  rendersPixels: only 0/262144 pixels are opaque — the frame is passthrough-only (nothing drawn; this is the exact reported symptom)

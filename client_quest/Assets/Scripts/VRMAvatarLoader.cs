@@ -47,6 +47,15 @@ namespace FoveAI.Avatar
 
         private async void Start()
         {
+            // Pre-imported prefab wins: it is a real scene asset, so the avatar is
+            // visible in the editor, renderable headlessly, and needs no async
+            // file read (StreamingAssets on Android lives inside the APK jar).
+            if (preImportedPrefab != null)
+            {
+                InstantiatePrefab();
+                return;
+            }
+
             // Ensure ConfigLoader has finished loading AppConfig.json (using UnityWebRequest on Android)
             await FoveAI.Config.ConfigLoader.LoadConfigAsync();
             var settings = FoveAI.Config.ConfigLoader.Settings;
@@ -226,18 +235,25 @@ namespace FoveAI.Avatar
                 return CreatePlaceholder();
             }
 
-            Avatar = _instance.Root;
             _instance.EnableUpdateWhenOffscreen();
             _instance.ShowMeshes();
+            return await AdoptAvatar(_instance.Root, Path.GetFileNameWithoutExtension(filePath));
+        }
 
-            Avatar.name = Path.GetFileNameWithoutExtension(filePath);
+        /// <summary>
+        /// Position, ground-correct and wire an already-instantiated avatar root.
+        /// Shared by the runtime VrmUtility path and the pre-imported prefab path.
+        /// </summary>
+        private async Task<GameObject> AdoptAvatar(GameObject root, string displayName)
+        {
+            Avatar = root;
+            Avatar.name = displayName;
             Avatar.transform.SetParent(transform, true);
             // Scale avatar to natural VRM proportions (1.0 = ~1.6m tall for standard VRM)
             Avatar.transform.localScale = Vector3.one;
 
             // 2.0m in front of the user, facing them
-            Camera mainCam = Camera.main;
-            if (mainCam == null) mainCam = FindAnyObjectByType<Camera>();
+            Camera mainCam = ResolveRenderCamera();
             if (mainCam != null)
             {
                 Vector3 forward = mainCam.transform.forward;
@@ -333,14 +349,14 @@ namespace FoveAI.Avatar
 
             // Wire to VisionGrabber
             var visionGrabber = UnityEngine.Object.FindAnyObjectByType<FoveAI.Senses.VisionGrabber>();
-            if (visionGrabber == null && Camera.main != null)
+            if (visionGrabber == null && mainCam != null)
             {
-                visionGrabber = Camera.main.transform.root.gameObject.AddComponent<FoveAI.Senses.VisionGrabber>();
+                visionGrabber = mainCam.transform.root.gameObject.AddComponent<FoveAI.Senses.VisionGrabber>();
             }
             if (visionGrabber != null)
             {
                 if (avatarCam != null) visionGrabber.avatarCamera = avatarCam;
-                visionGrabber.userCamera = Camera.main;
+                visionGrabber.userCamera = mainCam;
             }
 
             // Wire to Central WebSocket Client
@@ -392,19 +408,80 @@ namespace FoveAI.Avatar
         /// <summary>
         /// Material generator callback — tries MToon 1.0 if available, falls back to URP/Standard.
         /// </summary>
-        private static IMaterialDescriptorGenerator MaterialGenerator(VRM.glTF_VRM_extensions vrm)
+        /// <summary>
+        /// Instantiate the pre-imported VRM prefab and wire it exactly like the
+        /// runtime-loaded one. Fire-and-forget from Start(); AdoptAvatar is async
+        /// because the floor clamp waits a few frames for skinned-mesh bounds.
+        /// </summary>
+        private void InstantiatePrefab()
         {
-            // BuiltInVrmMToonMaterialImporter handles MToon on Built-in RP;
-            // UrpVrmMaterialDescriptorGenerator is used for URP.
-            // If neither applies, VRMImporterContext falls back to standard materials.
             try
             {
-                var urpType = System.Type.GetType("VRM.UrpVrmMaterialDescriptorGenerator, VRM");
-                if (urpType != null)
-                    return (IMaterialDescriptorGenerator)Activator.CreateInstance(urpType, vrm);
+                var inst = Instantiate(preImportedPrefab, transform);
+                inst.name = preImportedPrefab.name;
+                FoveAI.DebugOverlay.QuestDebugOverlay.Log(
+                    $"[VRMAvatarLoader] Instantiated pre-imported prefab '{preImportedPrefab.name}'");
+                _ = AdoptAvatar(inst, preImportedPrefab.name);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                FoveAI.DebugOverlay.QuestDebugOverlay.LogError(
+                    $"[VRMAvatarLoader] preImportedPrefab instantiate failed: {ex.Message}");
+                Debug.LogError($"[VRMAvatarLoader] preImportedPrefab failed: {ex.Message}\n{ex.StackTrace}");
+            }
+        }
+
+        /// <summary>
+        /// Material generator callback.
+        ///
+        /// MUST match the project's active render pipeline: the URP descriptor
+        /// generator is compiled into the VRM assembly regardless of which
+        /// pipeline the project uses, so asking for it by reflection succeeds on
+        /// a Built-in-RP project and yields URP shaders the Built-in renderer
+        /// cannot draw — a magenta/invisible avatar. Ask Built-in first and only
+        /// reach for URP when URP is genuinely active.
+        /// </summary>
+        private static IMaterialDescriptorGenerator MaterialGenerator(VRM.glTF_VRM_extensions vrm)
+        {
+            bool urpActive = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline != null;
+            if (urpActive)
+            {
+                try
+                {
+                    var urpType = System.Type.GetType("VRM.UrpVrmMaterialDescriptorGenerator, VRM");
+                    if (urpType != null)
+                        return (IMaterialDescriptorGenerator)Activator.CreateInstance(urpType, vrm);
+                }
+                catch { }
+            }
+            Debug.Log($"[VRMAvatarLoader] Using BuiltIn MToon material generator (URP active: {urpActive}).");
             return new VRM.BuiltInVrmMaterialDescriptorGenerator(vrm);
+        }
+
+        /// <summary>
+        /// Resolve the camera that is actually rendering.
+        ///
+        /// The scene historically carried TWO GameObjects named "Main Camera" and
+        /// BOTH tagged MainCamera, so Camera.main returned an arbitrary one. If the
+        /// avatar was placed 2m ahead of the camera that never renders, it stood
+        /// somewhere the user could never see — passthrough and nothing else.
+        /// Prefer a live main camera, else the enabled camera with the greatest
+        /// depth (the last one to render wins the framebuffer).
+        /// </summary>
+        private static Camera ResolveRenderCamera()
+        {
+            var main = Camera.main;
+            if (main != null && main.isActiveAndEnabled) return main;
+
+            var cams = FindObjectsByType<Camera>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+            Camera best = null;
+            foreach (var c in cams)
+            {
+                if (!c.isActiveAndEnabled) continue;
+                if (best == null || c.depth > best.depth) best = c;
+            }
+            if (best != null) return best;
+            return main != null ? main : FindAnyObjectByType<Camera>();
         }
 
         /// <summary>
@@ -414,8 +491,7 @@ namespace FoveAI.Avatar
         {
             var go = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             go.name = "AvatarPlaceholder";
-            Camera mainCam = Camera.main;
-            if (mainCam == null) mainCam = FindAnyObjectByType<Camera>();
+            Camera mainCam = ResolveRenderCamera();
             if (mainCam != null)
             {
                 Vector3 forward = mainCam.transform.forward;

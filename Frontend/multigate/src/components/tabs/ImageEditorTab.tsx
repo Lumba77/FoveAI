@@ -113,8 +113,8 @@ export const ImageEditorTab: React.FC = () => {
   const ballState = (() => {
     const agg = +(dials.compress || 0);
     const ctx = +(dials.ctx || 0);
-    if (agg >= 4 && ctx < 16384) return 'warn';   // pushed past what ctx supports
-    if (agg >= 2 && (dials.think === 'true' || ctx >= 16384)) return 'green';
+    if (agg >= 4 && ctx < 16000) return 'warn';   // pushed past what ctx supports
+    if (agg >= 2 && (dials.think === 'true' || ctx >= 16000)) return 'green';
     if (agg >= 0) return 'ok';
     return 'warn';
   })();
@@ -1648,7 +1648,7 @@ const rulerMid = () => {
                 lineHeight: 1.6, background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.06)',
                 borderRadius: '6px', padding: '8px 10px'
               }}>
-                {ballState === 'warn' && +(dials.compress || 0) >= 4 && + (dials.ctx || 8192) < 16384 && (
+                {ballState === 'warn' && +(dials.compress || 0) >= 4 && + (dials.ctx || 8000) < 16000 && (
                   <span style={{ color: '#ff9a6a' }}>⚠ compression {dials.compress} with {dials.ctx} context — raise CTX or ease COMPRESS for a coherent result.</span>
                 )}
                 {ballState !== 'warn' && (

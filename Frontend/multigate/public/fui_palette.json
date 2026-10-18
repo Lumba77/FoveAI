@@ -1,0 +1,233 @@
+{
+  "version": 1,
+  "source": "runtime/fui_colors.py",
+  "archetypes": {
+    "companion": {
+      "name": "COMPANION",
+      "icon": "\ud83e\udd1d",
+      "mbti": "ENFJ",
+      "desc": "Teacher & Co-op Partner [ENFJ]",
+      "hex": "#FF3232",
+      "rgb": [
+        255,
+        50,
+        50
+      ],
+      "ansi": "\u001b[1;31m"
+    },
+    "friend": {
+      "name": "FRIEND",
+      "icon": "\ud83c\udf38",
+      "mbti": "ENFP",
+      "desc": "Deep Bonds & Protector [ENFP]",
+      "hex": "#FFE600",
+      "rgb": [
+        255,
+        230,
+        0
+      ],
+      "ansi": "\u001b[1;33m"
+    },
+    "beloved": {
+      "name": "BELOVED",
+      "icon": "\ud83d\udc96",
+      "mbti": "INFP",
+      "desc": "Romance, Lust & Initiative [INFP]",
+      "hex": "#FF3CC8",
+      "rgb": [
+        255,
+        60,
+        200
+      ],
+      "ansi": "\u001b[1;35m"
+    },
+    "tool": {
+      "name": "ENGINEER",
+      "icon": "\ud83d\udd27",
+      "mbti": "INTJ",
+      "desc": "Coder, Engineer & Architect [INTJ]",
+      "hex": "#00E664",
+      "rgb": [
+        0,
+        230,
+        100
+      ],
+      "ansi": "\u001b[1;32m"
+    },
+    "inventor": {
+      "name": "INVENTOR",
+      "icon": "\ud83d\udca1",
+      "mbti": "ENTP",
+      "desc": "Inventor, Idealist & Visionary [ENTP]",
+      "hex": "#00DCFF",
+      "rgb": [
+        0,
+        220,
+        255
+      ],
+      "ansi": "\u001b[1;36m"
+    },
+    "assistant": {
+      "name": "ASSISTANT",
+      "icon": "\ud83d\udcbc",
+      "mbti": "ISTJ",
+      "desc": "Planner & Helper [ISTJ]",
+      "hex": "#5FAFFF",
+      "rgb": [
+        95,
+        175,
+        255
+      ],
+      "ansi": "\u001b[38;5;75m"
+    }
+  },
+  "states": {
+    "ok": {
+      "hex": "#00E664",
+      "rgb": [
+        0,
+        230,
+        100
+      ],
+      "ansi": "\u001b[1;32m",
+      "glyph": "\u25cf",
+      "word": "ACTIVE"
+    },
+    "busy": {
+      "hex": "#FF9E1F",
+      "rgb": [
+        255,
+        158,
+        31
+      ],
+      "ansi": "\u001b[1;33m",
+      "glyph": "\u25d0",
+      "word": "BUSY"
+    },
+    "warn": {
+      "hex": "#FFE600",
+      "rgb": [
+        255,
+        230,
+        0
+      ],
+      "ansi": "\u001b[1;33m",
+      "glyph": "\u26a0",
+      "word": "WARN"
+    },
+    "crit": {
+      "hex": "#FF3232",
+      "rgb": [
+        255,
+        50,
+        50
+      ],
+      "ansi": "\u001b[1;31m",
+      "glyph": "\u2716",
+      "word": "CRITICAL"
+    },
+    "idle": {
+      "hex": "#888888",
+      "rgb": [
+        136,
+        136,
+        136
+      ],
+      "ansi": "\u001b[2m",
+      "glyph": "\u25cb",
+      "word": "IDLE"
+    },
+    "info": {
+      "hex": "#00DCFF",
+      "rgb": [
+        0,
+        220,
+        255
+      ],
+      "ansi": "\u001b[1;36m",
+      "glyph": "\u2139",
+      "word": "INFO"
+    },
+    "select": {
+      "hex": "#00DCFF",
+      "rgb": [
+        0,
+        220,
+        255
+      ],
+      "ansi": "\u001b[7m",
+      "glyph": "\u25b6",
+      "word": "SELECT"
+    }
+  },
+  "canvas": {
+    "base": "#1E1E1E",
+    "panel": "#2D2D2D",
+    "fg": "#E0E0E0",
+    "fg_dim": "#888888"
+  },
+  "unity": {
+    "states": [
+      {
+        "key": "ok",
+        "hex": "#00E664"
+      },
+      {
+        "key": "busy",
+        "hex": "#FF9E1F"
+      },
+      {
+        "key": "warn",
+        "hex": "#FFE600"
+      },
+      {
+        "key": "crit",
+        "hex": "#FF3232"
+      },
+      {
+        "key": "idle",
+        "hex": "#888888"
+      },
+      {
+        "key": "info",
+        "hex": "#00DCFF"
+      },
+      {
+        "key": "select",
+        "hex": "#00DCFF"
+      }
+    ],
+    "archetypes": [
+      {
+        "key": "companion",
+        "hex": "#FF3232"
+      },
+      {
+        "key": "friend",
+        "hex": "#FFE600"
+      },
+      {
+        "key": "beloved",
+        "hex": "#FF3CC8"
+      },
+      {
+        "key": "tool",
+        "hex": "#00E664"
+      },
+      {
+        "key": "inventor",
+        "hex": "#00DCFF"
+      },
+      {
+        "key": "assistant",
+        "hex": "#5FAFFF"
+      }
+    ],
+    "canvas": {
+      "base": "#1E1E1E",
+      "panel": "#2D2D2D",
+      "fg": "#E0E0E0",
+      "fg_dim": "#888888"
+    }
+  }
+}

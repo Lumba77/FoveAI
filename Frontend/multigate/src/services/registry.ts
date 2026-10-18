@@ -22,6 +22,7 @@ export const SERVICES = {
   creative:  { path: '/api/creative',                     port: 8412, label: 'dreamscape' },
   dashboard: { path: '/',                                 port: 8414, label: 'eyes' },
   ignition:  { path: '/api/ignition',                     port: 8416, label: 'spark' },
+  audiofx:   { path: '/api/audio-fx',                     port: 8400, label: 'voicechain' },
   bridge:    { ws: '/ws/xrl',                             port: 8403, label: 'touch' },
 } as const;
 
@@ -114,14 +115,17 @@ function recordSuccess(name: ServiceName) {
  * - honours the breaker (fails fast while a service is known-down)
  * - bounded retries with backoff
  * - returns a discriminated result; never throws
+ * - `suffix` addresses a sub-route of the service (e.g. '/state' on
+ *   /api/audio-fx) without anyone re-hardcoding a URL
  */
 export async function safeFetch(
   name: ServiceName,
-  init: RequestInit & { retries?: number; timeoutMs?: number } = {},
+  init: RequestInit & { retries?: number; timeoutMs?: number; suffix?: string } = {},
 ): Promise<{ ok: boolean; status: number; data: any; error?: string }> {
-  const { retries = 1, timeoutMs = 8000, ...rest } = init;
-  const url = resolve(name);
-  if (!url) return { ok: false, status: 0, data: null, error: `no route for ${name}` };
+  const { retries = 1, timeoutMs = 8000, suffix = '', ...rest } = init;
+  const base = resolve(name);
+  if (!base) return { ok: false, status: 0, data: null, error: `no route for ${name}` };
+  const url = base + suffix;
   if (breakerOpen(name)) return { ok: false, status: 0, data: null, error: `${name} breaker open` };
 
   let lastError = 'unknown';

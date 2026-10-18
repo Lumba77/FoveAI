@@ -210,6 +210,8 @@ def create_app(runtime: XRLFRuntime) -> "FastAPI":
             "loading": load_state == "loading",
             "load_state": load_state,
             "load_error": getattr(runtime, "load_error", None),
+            "xrl_degree": getattr(runtime, "xrl_degree", 0),
+            "compression_profile": getattr(runtime, "compression_profile", ""),
         }
 
     # ── SoftLayer: serve hot-reloadable JS modules ────────────────────────────
@@ -1404,6 +1406,71 @@ def create_app(runtime: XRLFRuntime) -> "FastAPI":
             "model": getattr(runtime, "model_name", "xrlf-model"),
             "runtime": "xrlf-1.0",
         }
+
+    # ── Transformative State Drive (TSD) · Photonic Znake & Legion UI Blasters ─
+    @app.get("/tsd")
+    @app.get("/api/tsd/ui")
+    async def tsd_ui_blaster_page():
+        from fastapi.responses import HTMLResponse
+        ui_path = Path(ROOT) / "foveated-memory" / "public" / "tsd_blaster.html"
+        if ui_path.exists():
+            return HTMLResponse(content=ui_path.read_text(encoding="utf-8"))
+        return PlainTextResponse("tsd_blaster.html not found", status_code=404)
+
+    @app.get("/api/tsd/status")
+    async def tsd_status():
+        from runtime.xrl_swarm import get_tsd_motherboard
+        mb = get_tsd_motherboard()
+        return {
+            "status": "ok",
+            "telemetry": mb.telemetry(),
+            "biosphere": mb.biosphere_scale_hierarchy(),
+        }
+
+    @app.post("/api/tsd/seek-and-destroy")
+    async def tsd_seek_and_destroy(request: Request):
+        from runtime.xrl_swarm import get_tsd_motherboard
+        body = {}
+        try:
+            body = await request.json()
+        except Exception:
+            pass
+        tasks = body.get("tasks") if isinstance(body, dict) else None
+        mb = get_tsd_motherboard()
+        res = mb.seek_and_destroy_tasks(tasks)
+        res["telemetry"] = mb.telemetry()
+        return res
+
+    @app.post("/api/tsd/dream-2036")
+    async def tsd_dream_2036():
+        from runtime.xrl_swarm import get_tsd_motherboard
+        mb = get_tsd_motherboard()
+        return mb.dream_cycle_evolution()
+
+    @app.post("/api/tsd/legion")
+    async def tsd_legion_counter(request: Request):
+        from runtime.xrl_swarm import get_tsd_motherboard
+        body = {}
+        try:
+            body = await request.json()
+        except Exception:
+            pass
+        prompt = (body.get("prompt") if isinstance(body, dict) else None) or "Verify 1,000 Virtual Pentahedrons on TSD"
+        thesis = (body.get("thesis") if isinstance(body, dict) else None) or ""
+        mb = get_tsd_motherboard()
+        res = mb.legion_countermodel(prompt, thesis)
+        res["telemetry"] = mb.telemetry()
+        return res
+
+    @app.post("/api/tsd/rejuvenate")
+    async def tsd_rejuvenate():
+        from runtime.repo_youth_engine import RepoYouthEngine
+        return RepoYouthEngine().rejuvenate()
+
+    @app.post("/api/tsd/benchmark")
+    async def tsd_benchmark():
+        from runtime.benchmark_tsd_legion import run_comprehensive_benchmark
+        return run_comprehensive_benchmark()
 
     return app
 

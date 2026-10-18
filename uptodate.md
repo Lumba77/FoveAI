@@ -786,3 +786,8 @@ a real 1.9MB photo → accepted.
 - Locked bottom Cinnamon dock to 80px height, 64px icon size, and 48px symbolic size via `gsettings`.
 - Restored FoveAI high-resolution desktop icon and system tray indicator (`FoveAI_Taskbar_Linux.py`).
 
+## 2026-10-16 — XRLF/XRLB Motherboard (1000-Model "TSD Legion") Status
+- **What it is:** shared nano trunk + `.xrlb` pentahedron seeds folded on demand from disk; 4 heads, 16 arms, 10 dirigents around a ~500 MB core (SmolVLM2-500M XRLF).
+- **Where it lives:** `/mnt/foveai/motherboard/` on `sdb2` (`foveai-ssd`). Full session archive: `/mnt/foveai/sessions/xrlfb-1000-model-architecture_2026-10-16/`.
+- **Live surfaces:** `http://127.0.0.1:5177/tsd_blaster.html` (also `:8414`), `/api/tsd/*`, chat modes `juggle`/`tandem`/`legion`, tray submenu "TSD Legion & UI Blasters".
+- **Caveat:** performance claims are session-reported, not yet independently benchmarked. Concept note `Docs/XRL_HIVE_MIND.md` still says "concept note".

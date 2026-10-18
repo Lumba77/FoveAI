@@ -1,9 +1,165 @@
 {
   "themes": [
     {
+      "id": "fui-daylight",
+      "name": "Signum Daylight",
+      "fui_family": true,
+      "fui_variant": "daylight",
+      "fui_mode": "light",
+      "authoritative": false,
+      "description": "-fui light canvas, minimal finish",
+      "colors": {
+        "bg": "#ECEFF3",
+        "panel": "#FFFFFF",
+        "accent": "#009EB8",
+        "accent-2": "#B8A600",
+        "ok": "#00A648",
+        "warn": "#B87216",
+        "danger": "#B82424"
+      },
+      "theme_name": "Signum Daylight",
+      "fv_accent": "#009EB8",
+      "fv_accent_2": "#B8A600",
+      "fv_ok": "#00A648",
+      "fv_warn": "#B87216",
+      "fv_danger": "#B82424",
+      "fv_bg_dark": "#ECEFF3",
+      "fv_bg_panel": "#FFFFFF",
+      "fv_text_main": "#17202A",
+      "fv_text_muted": "#5A6B7B",
+      "background_prompt": "Light airy #ECEFF3 gradient canvas with a #009EB8 guiding bloom, large calm surface, no objects, 8k. FoveAI Signum Daylight \u2014 balanced guiding colors, readability ordered.",
+      "ui_structure": {
+        "menu_position": "left",
+        "border_radius": "8px",
+        "glass_opacity": 0.12,
+        "shadow_intensity": "soft",
+        "light_angle": "315deg",
+        "time_of_day_sync": false,
+        "animation_style": "breathe",
+        "ornamentation": "minimal"
+      }
+    },
+    {
+      "id": "fui-screamer",
+      "name": "Signum Screamer",
+      "fui_family": true,
+      "fui_variant": "screamer",
+      "fui_mode": "dark",
+      "authoritative": false,
+      "description": "-fui dark canvas, cyber-lines finish",
+      "colors": {
+        "bg": "#1E1E1E",
+        "panel": "#2D2D2D",
+        "accent": "#00E8FF",
+        "accent-2": "#FFEF00",
+        "ok": "#00EF41",
+        "warn": "#FFC014",
+        "danger": "#FF2020"
+      },
+      "theme_name": "Signum Screamer",
+      "fv_accent": "#00E8FF",
+      "fv_accent_2": "#FFEF00",
+      "fv_ok": "#00EF41",
+      "fv_warn": "#FFC014",
+      "fv_danger": "#FF2020",
+      "fv_bg_dark": "#1E1E1E",
+      "fv_bg_panel": "#2D2D2D",
+      "fv_text_main": "#E0E0E0",
+      "fv_text_muted": "#888888",
+      "background_prompt": "Dark soft #1E1E1E gradient canvas with a #00E8FF guiding bloom, large calm surface, no objects, 8k. FoveAI Signum Screamer \u2014 very screamy guiding colors, readability ordered.",
+      "ui_structure": {
+        "menu_position": "left",
+        "border_radius": "10px",
+        "glass_opacity": 0.25,
+        "shadow_intensity": "glowing",
+        "light_angle": "135deg",
+        "time_of_day_sync": false,
+        "animation_style": "breathe",
+        "ornamentation": "cyber-lines"
+      }
+    },
+    {
+      "id": "fui-whisper",
+      "name": "Signum Whisper",
+      "fui_family": true,
+      "fui_variant": "whisper",
+      "fui_mode": "dark",
+      "authoritative": false,
+      "description": "-fui dark canvas, minimal finish",
+      "colors": {
+        "bg": "#1E1E1E",
+        "panel": "#2D2D2D",
+        "accent": "#3AB3C6",
+        "accent-2": "#C6B83A",
+        "ok": "#3AB871",
+        "warn": "#C6904B",
+        "danger": "#C65555"
+      },
+      "theme_name": "Signum Whisper",
+      "fv_accent": "#3AB3C6",
+      "fv_accent_2": "#C6B83A",
+      "fv_ok": "#3AB871",
+      "fv_warn": "#C6904B",
+      "fv_danger": "#C65555",
+      "fv_bg_dark": "#1E1E1E",
+      "fv_bg_panel": "#2D2D2D",
+      "fv_text_main": "#E0E0E0",
+      "fv_text_muted": "#888888",
+      "background_prompt": "Dark soft #1E1E1E gradient canvas with a #3AB3C6 guiding bloom, large calm surface, no objects, 8k. FoveAI Signum Whisper \u2014 discreet guiding colors, readability ordered.",
+      "ui_structure": {
+        "menu_position": "left",
+        "border_radius": "4px",
+        "glass_opacity": 0.03,
+        "shadow_intensity": "soft",
+        "light_angle": "135deg",
+        "time_of_day_sync": false,
+        "animation_style": "breathe",
+        "ornamentation": "minimal"
+      }
+    },
+    {
+      "id": "fui-signum",
+      "name": "FoveAI Signum",
+      "fui_family": true,
+      "fui_variant": "signum",
+      "fui_mode": "dark",
+      "authoritative": true,
+      "description": "-fui dark canvas, the authoritative default finish",
+      "colors": {
+        "bg": "#1E1E1E",
+        "panel": "#2D2D2D",
+        "accent": "#00DCFF",
+        "accent-2": "#FFE600",
+        "ok": "#00E664",
+        "warn": "#FF9E1F",
+        "danger": "#FF3232"
+      },
+      "theme_name": "FoveAI Signum",
+      "fv_accent": "#00DCFF",
+      "fv_accent_2": "#FFE600",
+      "fv_ok": "#00E664",
+      "fv_warn": "#FF9E1F",
+      "fv_danger": "#FF3232",
+      "fv_bg_dark": "#1E1E1E",
+      "fv_bg_panel": "#2D2D2D",
+      "fv_text_main": "#E0E0E0",
+      "fv_text_muted": "#888888",
+      "background_prompt": "Dark soft #1E1E1E gradient canvas with a #00DCFF guiding bloom, large calm surface, no objects, 8k. FoveAI FoveAI Signum \u2014 balanced guiding colors, readability ordered.",
+      "ui_structure": {
+        "menu_position": "left",
+        "border_radius": "6px",
+        "glass_opacity": 0.1,
+        "shadow_intensity": "soft",
+        "light_angle": "135deg",
+        "time_of_day_sync": false,
+        "animation_style": "breathe",
+        "ornamentation": "minimal"
+      }
+    },
+    {
       "id": "foveai-celestial",
       "name": "FoveAI Celestial",
-      "description": "Astro-instrument × high-tech default theme",
+      "description": "Astro-instrument \u00d7 high-tech default theme [FROZEN reference \u2014 do not edit; author new -fui themes instead]",
       "preview": "foveai-celestial.png",
       "colors": {
         "bg-dark": "#070b1d",
@@ -11,12 +167,13 @@
         "accent-cyan": "#5eead4",
         "accent-purple": "#a78bfa",
         "accent-pink": "#f472b6"
-      }
+      },
+      "legacy": true
     },
     {
       "id": "cyber-noir",
       "name": "Cyber Noir",
-      "description": "Dark cyberpunk aesthetic with neon accents",
+      "description": "Dark cyberpunk aesthetic with neon accents [FROZEN reference \u2014 do not edit; author new -fui themes instead]",
       "preview": "cyber-noir.png",
       "colors": {
         "bg-dark": "#0a0a0f",
@@ -24,12 +181,13 @@
         "accent-cyan": "#00ffff",
         "accent-purple": "#ff00ff",
         "accent-pink": "#ff1493"
-      }
+      },
+      "legacy": true
     },
     {
       "id": "aurora-borealis",
       "name": "Aurora Borealis",
-      "description": "Northern lights inspired gradient theme",
+      "description": "Northern lights inspired gradient theme [FROZEN reference \u2014 do not edit; author new -fui themes instead]",
       "preview": "aurora.png",
       "colors": {
         "bg-dark": "#0f172a",
@@ -37,8 +195,9 @@
         "accent-cyan": "#22d3ee",
         "accent-purple": "#818cf8",
         "accent-pink": "#f472b6"
-      }
+      },
+      "legacy": true
     }
   ],
-  "default": "foveai-celestial"
+  "default": "fui-signum"
 }

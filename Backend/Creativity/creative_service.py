@@ -1763,6 +1763,33 @@ async def startup_event():
         else "None (SD1.5 required for base generation)",
     )
 
+    # ── STARTUP PREHEAT — load the SD1.5 pipes in the background so the
+    # FIRST editor press is warm. Without this, every restart makes the
+    # first /api/dream block ~5-8 min (HDD reads) and the UI proxy times
+    # out with a 502 before the pipe is even loaded. Disk-only work,
+    # sequential, never throws.
+    import asyncio as _aio_preheat
+
+    async def _startup_preheat():
+        def _warm():
+            try:
+                _load_sd15_txt2img()
+                logger.info("PREHEAT: txt2img pipe resident (paint ready)")
+            except Exception as e:
+                logger.warning("PREHEAT: txt2img failed: %s", e)
+            try:
+                _load_sd15_img2img()
+                logger.info("PREHEAT: img2img pipe resident (outpaint ready)")
+            except Exception as e:
+                logger.warning("PREHEAT: img2img failed: %s", e)
+
+        import asyncio as _aio
+
+        loop = _aio.get_running_loop()
+        await loop.run_in_executor(None, _warm)
+
+    _aio_preheat.get_running_loop().create_task(_startup_preheat())
+
 
 def get_safe_image(b64_str: str) -> Image.Image | None:
 

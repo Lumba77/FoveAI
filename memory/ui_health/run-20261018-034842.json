@@ -1,0 +1,120 @@
+{
+  "generated_at": "2026-10-18T01:49:42.073Z",
+  "url": "http://127.0.0.1:5177/",
+  "verdict": "FAIL",
+  "steps": [
+    {
+      "name": "page loads",
+      "ok": true,
+      "ms": 11,
+      "detail": "FoveAI"
+    },
+    {
+      "name": "no error boundary",
+      "ok": true,
+      "ms": 6,
+      "detail": "clean"
+    },
+    {
+      "name": "authenticate",
+      "ok": true,
+      "ms": 4695,
+      "detail": "session token accepted"
+    },
+    {
+      "name": "persona setup",
+      "ok": true,
+      "ms": 5876,
+      "detail": "configured"
+    },
+    {
+      "name": "ignition present",
+      "ok": false,
+      "ms": 154,
+      "detail": "Error: no ignition/start affordance found"
+    },
+    {
+      "name": "press start",
+      "ok": true,
+      "ms": 10537,
+      "detail": "clicked"
+    },
+    {
+      "name": "reaches app shell",
+      "ok": true,
+      "ms": 5070,
+      "detail": "FoveAI 💬 Copilot Chat 🧠 Memory Vault 📰 Latest News ⚡ AGENCY & INTELLIGENCE ▾ "
+    },
+    {
+      "name": "mic diagnostics visible",
+      "ok": false,
+      "ms": 358,
+      "detail": "Error: mic diagnostics strip missing — mic state is invisible again"
+    },
+    {
+      "name": "lightweight boot",
+      "ok": true,
+      "ms": 197,
+      "detail": "still-frame mode (no VRM decoded)"
+    },
+    {
+      "name": "images render",
+      "ok": true,
+      "ms": 315,
+      "detail": "4 images OK"
+    },
+    {
+      "name": "avatar asset reachable",
+      "ok": true,
+      "ms": 44,
+      "detail": "HTTP 200"
+    },
+    {
+      "name": "softlayer modules served as JS",
+      "ok": true,
+      "ms": 45,
+      "detail": "5 modules"
+    }
+  ],
+  "error_count": 0,
+  "errors": [],
+  "warnings": [],
+  "failed_requests": [
+    {
+      "url": "http://127.0.0.1:8415/foveai_theme_sync.js",
+      "reason": "NS_ERROR_CONNECTION_REFUSED"
+    },
+    {
+      "url": "http://127.0.0.1:8415/foveai_theme_sync.js",
+      "reason": "NS_ERROR_CONNECTION_REFUSED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/motor-health",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/api/setting?key=XRLF_COGNITIVE_MODE",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/api/setting?key=XRLF_COGNITIVE_MODE",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/avatars/jen_still.png",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/avatars/user_fallback.png",
+      "reason": "NS_BINDING_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:8415/foveai_theme_sync.js",
+      "reason": "NS_ERROR_CONNECTION_REFUSED"
+    },
+    {
+      "url": "http://127.0.0.1:5177/api/status",
+      "reason": "NS_BINDING_ABORTED"
+    }
+  ]
+}

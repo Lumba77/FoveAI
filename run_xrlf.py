@@ -87,6 +87,8 @@ def run_test(config: dict):
     packer = XRLFPacker(
         base_model_name="gemma-4-12b-it-qat-GGUF-MoQ",
         xrl_source_model="qwen3.5-4b",
+        xrl_degree=3,
+        compression_profile="XRL self-test stub, degree 3",
     )
     packer.add_xrl_json_dir("xrl_encoded")
     packer.add_multimodal_hooks()
@@ -163,6 +165,17 @@ def main():
     )
     parser.add_argument("--whisper", help="Path to Whisper GGUF model (used in --pack)")
     parser.add_argument("--kokoro", help="Path to Kokoro ONNX model (used in --pack)")
+    parser.add_argument(
+        "--xrl-degree",
+        type=int,
+        default=None,
+        help="XRL semantic compression degree 0-9 for --pack (default: 3)",
+    )
+    parser.add_argument(
+        "--compression-profile",
+        default=None,
+        help="Compression recipe for --pack",
+    )
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
 
@@ -181,9 +194,21 @@ def main():
         output = args.model or config.get("model", "gemma-4-12b-xrl.xrlf")
         memory_db = config.get("memory_db_source", None)
 
+        xrl_degree = args.xrl_degree if args.xrl_degree is not None else config.get("xrl_degree", 3)
+        compression_profile = (
+            args.compression_profile
+            if args.compression_profile is not None
+            else config.get("compression_profile", "")
+        )
+        # Stamp -XRL-<degree> into the filename if not already present
+        if "-XRL-" not in output:
+            output = XRLFPacker.stamp_name(output, xrl_degree)
+
         packer = XRLFPacker(
             base_model_name="gemma-4-12b-it-qat-GGUF-MoQ",
             xrl_source_model="qwen3.5-4b",
+            xrl_degree=xrl_degree,
+            compression_profile=compression_profile,
         )
         if gguf and os.path.exists(gguf):
             packer.add_gguf(gguf)

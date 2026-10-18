@@ -1,8 +1,9 @@
 {
-  "base_model": "gemma-4-12b",
-  "base_path": "C:/Users/danie/.cache/huggingface/hub/w-ahmad/Gemma-4-12B-it-qat-GGUF-MoQ/MoQ-3.0.gguf",
-  "models_dir": "C:/Users/danie/.cache/huggingface/hub",
-  "output_dir": "C:/Users/danie/.cache/huggingface/hub/lumax-forge",
+  "base_model": "gemma-4-e2b-multimodal-v1.0.xrlf",
+  "base_path": "/home/lumba/FoveAI/xrl_encoded/gemma-4-e2b-multimodal-v1.0.xrlf",
+  "models_dir": "/home/lumba/Models/hub",
+  "output_dir": "/home/lumba/Models/foveai-labs",
+  "tsd_battery_dir": "/mnt/foveai/motherboard/04_battery_beds",
   "variants": {
     "companion": {
       "id": "gemma-4-12b-companion-uncensored",
@@ -12,6 +13,8 @@
       "mtp_model": null,
       "context_size": 8192,
       "quantization": "MoQ-3.0",
+      "xrl_degree": 6,
+      "compression_profile": "MoQ-3.0 mixed quantization, no MTP, standard XRL artifacts",
       "datasets": [
         {
           "id": "AI-companionship/INTIMA",
@@ -78,6 +81,8 @@
       "mtp_model": "mtp-gemma-4-12B-it.gguf",
       "context_size": 8192,
       "quantization": "MoQ-3.5",
+      "xrl_degree": 5,
+      "compression_profile": "MoQ-3.5 mixed quantization + MTP + standard XRL artifacts",
       "datasets": [
         {
           "id": "garage-bAInd/Open-Platypus",

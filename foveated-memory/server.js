@@ -604,7 +604,22 @@ console.log(`[XRLF] Proxy port: ${config.proxy_port}`);
 // When XRLF_COGNITIVE_MODE=cloud, override upstream to Ollama Cloud with API key.
 // Compression checkpoints (context-compressor.js) stay local on LM Studio — hybrid routing.
 const COGNITIVE_MODE = (process.env.XRLF_COGNITIVE_MODE || 'local').toLowerCase();
-const OLLAMA_CLOUD_URL = process.env.XRLF_PROXY_TARGET || 'https://ollama.com/v1';
+// Ollama Cloud upstream. Deliberately NOT aliased to XRLF_PROXY_TARGET: that
+// key names the *global* upstream, which in local mode is the local XRLF
+// runtime. Sharing it meant 'ollama/<id>' silently inherited the local runtime
+// as its target. FOVEAI_OLLAMA_URL is the per-route override; XRLF_PROXY_TARGET
+// is still honoured as a fallback so cloud-mode deployments keep working.
+const OLLAMA_CLOUD_URL = (() => {
+    const dedicated = process.env.FOVEAI_OLLAMA_URL;
+    if (dedicated) return dedicated.replace(/\/+$/, '');
+    const proxied = process.env.XRLF_PROXY_TARGET;
+    if (proxied) {
+        console.warn('[OLLAMA] no FOVEAI_OLLAMA_URL set — falling back to XRLF_PROXY_TARGET. ' +
+            'Set FOVEAI_OLLAMA_URL=https://ollama.com/v1 so ollama/* cannot inherit the local runtime.');
+        return proxied.replace(/\/+$/, '');
+    }
+    return 'https://ollama.com/v1';
+})();
 const OLLAMA_API_KEY = process.env.XRLF_PROXY_API_KEY || process.env.OLLAMA_API_KEY || '';
 
 // ── NVIDIA NIM side-route ─────────────────────────────────────────────────────
@@ -626,6 +641,34 @@ const FREE_CLOUD_ID    = 'nvidia-free';
 const FREE_CLOUD_MODEL = process.env.FOVEAI_CLOUD_FREE_MODEL || 'nvidia/nemotron-3-super-120b-a12b';
 const isFreeCloudModel = (m) => m === FREE_CLOUD_ID;
 
+// ── Ollama Cloud per-model side-route ────────────────────────────────────────
+// Cloud mode makes Ollama the *global* upstream, so a request cannot choose a
+// specific Ollama model while local models stay reachable. 'ollama/<id>' is the
+// per-model equivalent of 'nvidia/<id>': it pins one turn to Ollama Cloud using
+// the owner's key, leaving every other route untouched. Both surfaces benefit —
+// Multigate's chat and the Quest/voice clients post to the same
+// /v1/chat/completions. Unlike the NVIDIA route this is permissive: the id is
+// passed through to Ollama, which validates it, so we never hard-code a model
+// catalog that would rot. XRLF_OLLAMA_MODELS only seeds /v1/models discovery.
+const OLLAMA_PREFIX   = 'ollama/';
+const isOllamaModel   = (m) => typeof m === 'string' && m.startsWith(OLLAMA_PREFIX);
+const OLLAMA_MODELS   = (process.env.XRLF_OLLAMA_MODELS || '')
+    .split(',').map(s => s.trim()).filter(Boolean);
+
+// Cloud providers reject the XRLF-specific fields the local runtime tolerates
+// (HTTP 400 on strict schema validation). Applied to every cloud side-route.
+function stripCloudParams(b) {
+    delete b.session_id;
+    delete b._tasks;
+    delete b.tasks;
+    delete b.persona;
+    delete b.workspaceId;
+    delete b.workspace_id;
+    delete b.xrlf_headless;
+    delete b.xrlf_thinking;
+    return b;
+}
+
 // ── BYOK side-route ─────────────────────────────────────────────────────────
 // Model name 'byok' or 'byok/<model>' routes through the caller's own stored
 // cloud key (set on /user-settings.html). The full XRLF pipeline — memory,
@@ -635,6 +678,8 @@ const BYOK_PROVIDER_URLS = {
     nvidia:     'https://integrate.api.nvidia.com/v1',
     ollama:     'https://ollama.com/v1',
     openrouter: 'https://openrouter.ai/api/v1',
+    gemini:     'https://generativelanguage.googleapis.com/v1beta/openai',
+    opencode:   'https://opencode.ai/zen/v1',   // Zen: space-bunny-free, big-pickle (both free)
     lmstudio:   null, // requires user-supplied baseUrl
 };
 const isByokModel = (m) => typeof m === 'string' && /^byok(\/|$)/.test(m);
@@ -1617,8 +1662,8 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
     // juggle race + gemini plan/synth). Answer is relayed as one OpenAI-shaped
     // completion. The memory pipeline above stays untouched.
     const juggleRequested =
-        body.model === 'juggle' || body.model === 'tandem'
-        || effMode === 'juggle';
+        body.model === 'juggle' || body.model === 'tandem' || body.model === 'legion'
+        || effMode === 'juggle' || effMode === 'legion';
     if (juggleRequested && !injectMessages) {
         const convo = (body.messages || [])
             .filter(m => m && (m.role === 'user' || m.role === 'assistant' || m.role === 'system'))
@@ -1635,13 +1680,13 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
         // History travels with the prompt — Jen must not answer blind.
         const historyJson = JSON.stringify(convo.slice(-12));
         if (prompt) {
-            console.log(`[Juggle] ▶️ tandem run for: ${prompt.slice(0, 80)}… (${convo.length} msgs of context)`);
+            console.log(`[Juggle+Legion] ▶️ tandem+legion run for: ${prompt.slice(0, 80)}… (${convo.length} msgs of context)`);
             const pyBin = process.env.FOVEAI_VENV_PYTHON || '/home/lumba/FoveAI/.venv/bin/python';
             try {
                 const { stdout, stderr } = await new Promise((resolve) => {
                     const { execFile } = require('child_process');
                     const child = execFile(pyBin,
-                        ['-u', '/home/lumba/FoveAI/Backend/Creativity/tandem.py', prompt, '--history', historyJson],
+                        ['-u', '/home/lumba/FoveAI/Backend/Creativity/tandem.py', '--legion', prompt, '--history', historyJson],
                         { timeout: 180000, maxBuffer: 4 * 1024 * 1024,   // ms, not python-seconds!
                           cwd: '/home/lumba/FoveAI/Backend/Creativity' },
                         (err, stdout, stderr) => resolve({ err, stdout, stderr }));
@@ -1662,7 +1707,7 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
                     const { execFile: exec2 } = require('child_process');
                     const r2 = await new Promise((resolve) => {
                         exec2(pyBin,
-                            ['-u', '/home/lumba/FoveAI/Backend/Creativity/tandem.py', prompt, '--history', historyJson],
+                            ['-u', '/home/lumba/FoveAI/Backend/Creativity/tandem.py', '--legion', prompt, '--history', historyJson],
                             { timeout: 180000, maxBuffer: 4 * 1024 * 1024,
                               cwd: '/home/lumba/FoveAI/Backend/Creativity' },
                             (err, so, se) => resolve({ err, so, se }));
@@ -1897,6 +1942,7 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
     // them into its system message. Cloud/LLM-studio paths get the full ring.
     const nvidiaRequested = isNvidiaModel(body.model || '');
     const freeCloudRequested = isFreeCloudModel(body.model || '');
+    const ollamaRequested = isOllamaModel(body.model || '');
     const byokRequested = isByokModel(body.model || '');
     const patchRing = isXrlfServer ? hudBlock : ringBlock;
     body.messages = (REPO_ENABLED && REPO_CAPABILITY_OVERRIDE) ? patchMessages(baseMessages, patchRing, scaledConfig, body) : baseMessages;
@@ -1905,8 +1951,16 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
     // ── Self-Healing Context Guard ────────────────────────────────────────
     // Auto-scaling context budget that shrinks on upstream failure and
     // gradually recovers. Replaces the old static CTX_MAX_CHARS truncation.
+    // Agentic door: coding clients (opencode) speak the -agentic alias —
+    // the ride expands to the engine's full capacity (64000 signs) and the
+    // suffix is stripped before the engine sees the model name.
     const CTX_KEEP_LAST = parseInt(process.env.XRLF_CTX_KEEP_LAST || '6', 10);
-    const requestBudget = parseInt(req.headers['x-context-budget'] || '0', 10);
+    const isAgentic = !!(body.model && body.model.endsWith('-agentic'));
+    if (isAgentic) {
+        body.model = body.model.slice(0, body.model.length - '-agentic'.length);
+    }
+    const requestBudget = parseInt(req.headers['x-context-budget'] || '0', 10)
+        || (isAgentic ? 64000 : 0);
     const budgetResult = (REPO_ENABLED && REPO_CONTEXT_OVERRIDE) ? applyBudget(body.messages, CTX_KEEP_LAST, requestBudget) : { messages: body.messages, truncated: false, originalChars: 0, finalChars: 0, warning: '' };
     const { messages: budgetedMessages, truncated, originalChars, finalChars, warning } = budgetResult;
     body.messages = budgetedMessages;
@@ -1998,31 +2052,38 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
         console.log(`[BYOK] user=${req.userId} provider=${byokCfg.provider} model=${body.model}`);
     }
 
+    if (ollamaRequested) {
+        if (!OLLAMA_API_KEY) {
+            return res.status(400).json({ error: 'no Ollama Cloud key configured (OLLAMA_API_KEY / XRLF_PROXY_API_KEY)' });
+        }
+        const oMgr = getAuthManager(AUTH_DB_DIR);
+        const oNa = resolveRequestAuth(req);
+        if (!oMgr.hasFeature({ role: oNa.role, features: oNa.features }, 'cloud')) {
+            return res.status(403).json({ error: 'cloud models are not enabled for this account' });
+        }
+    }
+
     const shouldOverride = !nvidiaRequested && !byokRequested && !freeCloudRequested &&
+        !ollamaRequested &&
         ((isLocalLMStudio && !isEffCloud) || originalModel === 'auto' || !originalModel);
     if (nvidiaRequested) {
         body.model = originalModel.slice(NVIDIA_PREFIX.length);
         body.messages = injectNvidiaContext(body.messages);
         // Strip custom client parameters that strict NVIDIA NIM schema validation rejects (HTTP 400)
-        delete body.session_id;
-        delete body._tasks;
-        delete body.tasks;
-        delete body.persona;
-        delete body.workspaceId;
-        delete body.workspace_id;
-        delete body.xrlf_headless; delete body.xrlf_thinking;
+        stripCloudParams(body);
         console.log(`[NVIDIA] Routing '${originalModel}' → NVIDIA NIM as '${body.model}'`);
     } else if (freeCloudRequested) {
         body.model = FREE_CLOUD_MODEL;
         body.messages = injectNvidiaContext(body.messages);
-        delete body.session_id;
-        delete body._tasks;
-        delete body.tasks;
-        delete body.persona;
-        delete body.workspaceId;
-        delete body.workspace_id;
-        delete body.xrlf_headless; delete body.xrlf_thinking;
+        stripCloudParams(body);
         console.log(`[NVIDIA] Routing '${FREE_CLOUD_ID}' → NVIDIA NIM as '${body.model}'`);
+    } else if (ollamaRequested) {
+        body.model = originalModel.slice(OLLAMA_PREFIX.length);
+        if (!body.model) {
+            return res.status(400).json({ error: 'Ollama Cloud needs a model — request ollama/<model>' });
+        }
+        stripCloudParams(body);
+        console.log(`[OLLAMA] Routing '${originalModel}' → Ollama Cloud as '${body.model}'`);
     }
     if (nvidiaRequested || freeCloudRequested) {
         // NIM reasoning control + output cap. kimi-k3 defaults to
@@ -2044,6 +2105,7 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
         console.log(`[Model] Passthrough model: '${body.model}' (no override). Cognitive mode: ${COGNITIVE_MODE}`);
     }
     _log.route = nvidiaRequested ? 'nvidia' : freeCloudRequested ? 'nvidia-free'
+        : ollamaRequested ? 'ollama'
         : byokRequested ? 'byok' : (config._cloud_mode ? 'cloud' : 'local');
     _log.model = body.model;
 
@@ -2061,6 +2123,8 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
                 upstreamHeaders['Authorization'] = `Bearer ${NVIDIA_API_KEY}`;
             } else if (byokRequested) {
                 upstreamHeaders['Authorization'] = `Bearer ${byokCfg.apiKey}`;
+            } else if (ollamaRequested) {
+                upstreamHeaders['Authorization'] = `Bearer ${OLLAMA_API_KEY}`;
             } else if (config._cloud_mode && config._api_key) {
                 upstreamHeaders['Authorization'] = `Bearer ${config._api_key}`;
             }
@@ -2069,6 +2133,7 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
             const swarmRouter = getSwarmRouter(path.resolve(__dirname, 'memory_data'));
             const requiredCapability = swarmRouter.detectCapability(body.messages);
             let targetUpstream = (nvidiaRequested || freeCloudRequested) ? NVIDIA_BASE_URL
+                : ollamaRequested ? OLLAMA_CLOUD_URL
                 : byokRequested ? (byokCfg.baseUrl || BYOK_PROVIDER_URLS[byokCfg.provider])
                 : config.upstream_url;
 
@@ -2077,7 +2142,12 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
             }
 
             // Only use Swarm Router in local Cognitive Mode and when repo context override is enabled
-            if (!nvidiaRequested && !freeCloudRequested && !byokRequested && !isEffCloud && REPO_ENABLED && REPO_CONTEXT_OVERRIDE) {
+            // Only use Swarm Router in local Cognitive Mode and when repo context override is enabled.
+// ollama/* must be excluded like the other explicit side-routes: the swarm picks a
+// LOCAL node, which silently replaced the Ollama Cloud upstream and sent the
+// request to the local runtime — surfacing as a confusing context-overflow 500.
+if (!nvidiaRequested && !freeCloudRequested && !byokRequested && !ollamaRequested &&
+        !isEffCloud && REPO_ENABLED && REPO_CONTEXT_OVERRIDE) {
                 const bestNode = swarmRouter.route(requiredCapability);
                 if (bestNode) {
                     targetUpstream = bestNode;
@@ -2116,7 +2186,7 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
                     }
                 }
             }
-            let releaseSlot = null;
+let releaseSlot = null;
             if (isLocalTarget) {
                 releaseSlot = await acquireLocalUpstream();
             }
@@ -2169,7 +2239,7 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
             console.error(`[ContextHealer] ❌ Giving up after ${retryCount} retries. Budget=${getBudget()}.`);
             const isCtx = reason && reason.includes('context');
             const errorContent = isCtx
-                ? `⚠️ Context overflow: The upstream model could not process this request even after auto-shrinking the context to ${getBudget()} chars. Please reduce the input size or increase XRLF_CTX_MAX_CHARS. (Upstream: ${upstreamRes.status})`
+                ? `⚠️ Context overflow: The upstream model could not process this request even after auto-shrinking the context to ${getBudget()} chars. Please reduce the input size or increase XRLF_CANONICAL_CTX. (Upstream: ${upstreamRes.status})`
                 : `⚠️ Upstream error ${upstreamRes.status}: ${(lastErrorText || reason || 'Unknown error').slice(0, 300)}`;
             return res.status(upstreamRes.status).json({
                 id: `chatcmpl-${uuidv4().slice(0, 8)}`,
@@ -2808,6 +2878,15 @@ app.post('/api/theme/set_active', express.json({ limit: '2mb' }), (req, res) => 
         } catch (e) {
             console.warn('[themes] active-theme persist failed:', e.message);
         }
+        // Conductor hand-off: the theme engine (:8415) is the end authority —
+        // it does Unity SoftLayer injection + ecosystem broadcast + relay.
+        // fire-and-forget: local persistence already succeeded.
+        fetch('http://127.0.0.1:8415/api/theme/set_active', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(theme),
+            signal: AbortSignal.timeout(8000),
+        }).catch(e => console.warn('[themes] :8415 conductor hand-off failed:', e.message));
         res.json({ ok: true, active: theme.theme_name });
     } catch (e) {
         res.status(500).json({ ok: false, error: String(e && e.message || e) });
@@ -2820,6 +2899,99 @@ app.post('/api/theme/set_active', express.json({ limit: '2mb' }), (req, res) => 
 // The store: data/resonance.jsonl (append-only), tail endpoint for recall.
 const RESONANCE_FILE = path.join(__dirname, 'data', 'resonance.jsonl');
 let RESONANCE_OVERFLOW = null;   // set when default lane is blocked
+
+// Theme soundscape proxy — rendered OGG loops live on the theme engine :8415
+// Image-drop generation — multipart → theme engine :8415 (the council pipeline)
+app.post('/api/theme/generate', (req, res) => {
+    const http2 = require('http');
+    const up = http2.request({
+        host: '127.0.0.1', port: 8415, path: '/api/theme/generate',
+        method: 'POST',
+        headers: {
+            'Content-Type': req.headers['content-type'] || 'multipart/form-data',
+            'Transfer-Encoding': 'chunked',
+        },
+    }, (ur) => {
+        res.status(ur.statusCode || 500);
+        res.setHeader('Content-Type', ur.headers['content-type'] || 'text/plain');
+        ur.pipe(res);   // the engine's terminal stream flows to the UI live
+    });
+    up.on('error', (e) => {
+        console.error('[themes] generate pipe error:', e.message);
+        if (!res.headersSent) res.status(502).json({ error: `theme engine unreachable: ${e.message}` });
+    });
+    req.pipe(up);
+});
+
+// Theme soundscape proxy — rendered OGG loops live on the theme engine :8415
+// Image-drop generation — multipart → theme engine :8415 (the council pipeline)
+app.post('/api/theme/generate', (req, res) => {
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
+    req.on('end', async () => {
+        try {
+            const upstream = await fetch('http://127.0.0.1:8415/api/theme/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': req.headers['content-type'] || 'multipart/form-data' },
+                body: Buffer.concat(chunks),
+                signal: AbortSignal.timeout(600000),
+            });
+            res.status(upstream.status);
+            res.setHeader('Content-Type', upstream.headers.get('content-type') || 'text/plain');
+            // stream the engine's terminal output through to the UI
+            const reader = upstream.body.getReader();
+            const pump = () => reader.read().then(({ done, value }) => {
+                if (done) { res.end(); return; }
+                res.write(Buffer.from(value));
+                return pump();
+            });
+            await pump();
+        } catch (e) {
+            res.status(502).json({ error: `theme engine unreachable: ${e.message}` });
+        }
+    });
+});
+
+// Theme soundscape proxy — rendered OGG loops live on the theme engine :8415
+app.get('/api/theme/sound/:fname', (req, res) => {
+    (async () => {
+        try {
+            const upstream = await fetch(`http://127.0.0.1:8415/theme/audio/${encodeURIComponent(req.params.fname)}`);
+            if (!upstream.ok) { res.status(upstream.status).end(); return; }
+            res.type('audio/ogg').set('Cache-Control', 'no-cache');
+            const buf = Buffer.from(await upstream.arrayBuffer());
+            res.send(buf);
+        } catch (e) {
+            res.status(502).end();
+        }
+    })();
+});
+
+// ── FUI theme render endpoint (the authoritative -fui engine) ───────────────
+// POST /api/theme/fui {variant: signum|whisper|screamer|daylight, image_url?}
+// Shells to runtime/fui_colors.py --render: writes the variant stylesheet +
+// palette artifacts into every frontend public dir, refreshes the theme
+// manifest (fui family), and live-applies via /api/theme/set_active.
+const FUI_VARIANTS = ['signum', 'whisper', 'screamer', 'daylight'];
+app.post('/api/theme/fui', express.json({ limit: '2mb' }), (req, res) => {
+    const variant = FUI_VARIANTS.includes(req.body?.variant) ? req.body.variant : 'signum';
+    const bgImage = typeof req.body?.image_url === 'string' && req.body.image_url.startsWith('http')
+        ? req.body.image_url : null;
+    const args = [path.resolve(__dirname, '..', 'runtime', 'fui_colors.py'), '--render', variant];
+    if (bgImage) args.push('--bg-image', bgImage);
+    const py = fs.existsSync(path.resolve(__dirname, '..', '.venv', 'bin', 'python'))
+        ? path.resolve(__dirname, '..', '.venv', 'bin', 'python') : 'python3';
+    execFile(py, args, { timeout: 30000, cwd: path.resolve(__dirname, '..') },
+        (err, stdout) => {
+            if (err) {
+                console.error('[fui] render failed:', err.message);
+                return res.status(500).json({ ok: false, error: String(err.message).slice(0, 200) });
+            }
+            const written = String(stdout).trim().split('\n')
+                .filter(l => l.includes('→')).map(l => l.split('→')[1].trim());
+            res.json({ ok: true, variant, applied: true, written });
+        });
+});
 
 // Telepathy overflow: when the WS lane backs up, HTTP POST here instead
 app.post(['/api/resonance/ingest', '/api/resonance/telepathy'], (req, res) => {
@@ -3203,6 +3375,136 @@ app.get('/api/voice/status', async (req, res) => {
         } catch {}
     }
     res.json(status);
+});
+
+// ── PipeWire Audio FX (EQ + mic FX) ─────────────────────────────────────────
+// The Multigate "Audio FX" surface. Everything here drives the audio-variator-eq
+// CLIs, which modulate PipeWire DSP nodes live — so the contract is strict:
+//   • preset names are USER INPUT → allowlist regex AND existence check before
+//     anything is executed (a 400 never reaches the CLI);
+//   • execFile with an ARGS ARRAY + explicit cwd, never a shell string, so a
+//     name can never become syntax;
+//   • every exec is bounded by a timeout (execFile's timeout is MILLISECONDS)
+//     and a failure is a 500 with a useful message — a request never hangs;
+//   • the GET is strictly read-only (`--json` / `--presets-json` only): reading
+//     state must never move a dial.
+const os = require('os');
+const AUDIO_FX_DIR = path.resolve(__dirname, '..', 'Tools', 'audio-variator-eq');
+const AUDIO_FX_SET_EQ = path.join(AUDIO_FX_DIR, 'set-eq');
+const AUDIO_FX_SET_MIC_FX = path.join(AUDIO_FX_DIR, 'set-mic-fx');
+const AUDIO_FX_PRESETS_FILE = path.join(os.homedir(), '.config', 'pipewire', 'eq-presets.json');
+const AUDIO_FX_EXEC_MS = 8000;        // execFile timeout — MILLISECONDS
+const AUDIO_FX_MAX_BUFFER = 8 * 1024 * 1024;   // --presets-json is the fat one
+// Letters, digits, space, underscore, dash. Nothing else: no quotes, no
+// metacharacters, no path separators, no NUL — belt on top of the args array.
+const AUDIO_FX_NAME_RE = /^[A-Za-z0-9 _-]{1,64}$/;
+
+// Read-only exec wrapper. Never throws an exec error into the request.
+function audioFxRun(tool, args) {
+    return new Promise((resolve, reject) => {
+        execFile(tool, args, {
+            cwd: AUDIO_FX_DIR,
+            timeout: AUDIO_FX_EXEC_MS,
+            maxBuffer: AUDIO_FX_MAX_BUFFER,
+            windowsHide: true,
+        }, (err, stdout) => {
+            if (err) return reject(new Error(String(err.message || err).slice(0, 200)));
+            resolve(String(stdout));
+        });
+    });
+}
+
+/**
+ * Every preset name the CLI would accept: the factory scenes it ships, plus
+ * the user scenes in ~/.config/pipewire/eq-presets.json. The allowlist regex
+ * alone is not enough — a name can be well-formed and still resolve to
+ * nothing, and that must be a 400 rather than a shell round-trip.
+ */
+async function audioFxKnownPresets() {
+    const known = new Map();
+    let cli = {};
+    try {
+        cli = JSON.parse(await audioFxRun(AUDIO_FX_SET_EQ, ['--presets-json']));
+    } catch (e) {
+        console.warn('[audio-fx] preset listing unavailable:', e.message);
+    }
+    for (const [name, scene] of Object.entries(cli.scenes || {})) {
+        known.set(name, (scene && scene.cat) || null);
+    }
+    let file = null;
+    try { file = JSON.parse(fs.readFileSync(AUDIO_FX_PRESETS_FILE, 'utf8')); } catch { file = null; }
+    for (const [name, scene] of Object.entries((file && file.scenes) || {})) {
+        known.set(name, (scene && scene.cat) || null);
+    }
+    return known;
+}
+
+// GET /api/audio-fx/state — read-only snapshot: EQ + mic FX + preset list.
+app.get('/api/audio-fx/state', async (req, res) => {
+    try {
+        const [eqRaw, micRaw, presetsRaw] = await Promise.all([
+            audioFxRun(AUDIO_FX_SET_EQ, ['--json']),
+            audioFxRun(AUDIO_FX_SET_MIC_FX, ['--json']),
+            audioFxRun(AUDIO_FX_SET_EQ, ['--presets-json']),
+        ]);
+        const known = new Map();
+        for (const [name, scene] of Object.entries(JSON.parse(presetsRaw).scenes || {})) {
+            known.set(name, (scene && scene.cat) || null);
+        }
+        let file = null;
+        try { file = JSON.parse(fs.readFileSync(AUDIO_FX_PRESETS_FILE, 'utf8')); } catch { file = null; }
+        for (const [name, scene] of Object.entries((file && file.scenes) || {})) {
+            known.set(name, (scene && scene.cat) || null);
+        }
+        res.json({
+            ok: true,
+            output: JSON.parse(eqRaw),            // set-eq --json
+            input: JSON.parse(micRaw),            // set-mic-fx --json
+            presets: [...known.entries()]
+                .map(([name, cat]) => ({ name, cat }))
+                .sort((a, b) => a.name.localeCompare(b.name)),
+        });
+    } catch (e) {
+        console.warn('[audio-fx] state read failed:', e.message);
+        res.status(500).json({ ok: false, error: `audio FX unavailable: ${e.message}` });
+    }
+});
+
+// POST /api/audio-fx/preset {preset} — apply a scene preset by name.
+app.post('/api/audio-fx/preset', async (req, res) => {
+    const auth = resolveRequestAuth(req);
+    if (auth.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+    const name = String((req.body && (req.body.preset || req.body.name)) || '');
+    if (!AUDIO_FX_NAME_RE.test(name)) {
+        return res.status(400).json({ error: 'preset name must be 1-64 characters of [A-Za-z0-9 _-]' });
+    }
+    try {
+        const known = await audioFxKnownPresets();
+        if (!known.has(name)) {
+            return res.status(400).json({ error: `unknown preset: ${name}` });
+        }
+        const log = await audioFxRun(AUDIO_FX_SET_EQ, ['--preset', name]);
+        const output = JSON.parse(await audioFxRun(AUDIO_FX_SET_EQ, ['--json']));
+        res.json({ ok: true, applied: name, output, log: log.trim().slice(-400) });
+    } catch (e) {
+        console.warn(`[audio-fx] preset "${name}" failed:`, e.message);
+        res.status(500).json({ error: `could not apply preset "${name}": ${e.message}` });
+    }
+});
+
+// POST /api/audio-fx/bypass {bypass} — master FX bypass on/off (boolean).
+app.post('/api/audio-fx/bypass', async (req, res) => {
+    const auth = resolveRequestAuth(req);
+    if (auth.rejected) return res.status(401).json({ error: 'invalid or expired session' });
+    const want = !!(req.body && req.body.bypass);
+    try {
+        await audioFxRun(AUDIO_FX_SET_EQ, ['--bypass', want ? 'on' : 'off']);
+        const output = JSON.parse(await audioFxRun(AUDIO_FX_SET_EQ, ['--json']));
+        res.json({ ok: true, bypass: !!output.bypass, output });
+    } catch (e) {
+        console.warn('[audio-fx] bypass failed:', e.message);
+        res.status(500).json({ error: `could not set bypass: ${e.message}` });
+    }
 });
 
 // ── Memory Continuity API ──────────────────────────────────────────────────
@@ -3669,8 +3971,14 @@ app.post(['/v1/chat/completions', '/chat/completions'], (req, res) => {
     // bearers all resolve through the same path so memory scoping is consistent
     // across every endpoint.
     const _authz = resolveRequestAuth(req);
+    const _loopbackChat = ['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress || '');
     if (_authz.rejected) return res.status(401).json({ error: 'invalid or expired session' });
-    if (_authz.userId === 'anonymous') return res.status(401).json({ error: 'authentication required' });
+    // Loopback chat clients (opencode, console, local tooling) ride the local
+    // admin fallback — the proxy already reserves anonymous for loopback trust;
+    // remote anonymous stays refused.
+    if (_authz.userId === 'anonymous' && !_loopbackChat) {
+        return res.status(401).json({ error: 'authentication required' });
+    }
     if (!_authz._mgr.hasFeature({ role: _authz.role, features: _authz.features }, 'chat')) {
         return res.status(403).json({ error: 'chat feature not enabled for this account' });
     }
@@ -3778,17 +4086,31 @@ app.get(['/v1/models', '/models'], async (req, res) => {
                 mgr.hasFeature({ role: na.role, features: na.features }, 'cloud');
             const ids = new Set(data.data.map(m => m.id));
             if (cloudOk) {
-                const isAdminOrLegacy = na.isLegacy || na.role === 'admin';
-                if (isAdminOrLegacy) {
-                    for (const m of NVIDIA_MODELS) {
-                        const nid = NVIDIA_PREFIX + m;
-                        if (!ids.has(nid)) {
-                            data.data.push({ id: nid, object: 'model', created: Math.floor(Date.now() / 1000), owned_by: 'nvidia-nim' });
-                        }
+                // The NIM catalog is listed for every cloud-enabled caller, not
+                // just admins: the models are NVIDIA's free tier, the route is
+                // server-side and already cost-free to us, and hiding the list
+                // behind an admin check meant members only ever saw the single
+                // opaque 'nvidia-free' alias with no way to tell what they are
+                // actually talking to.
+                for (const m of NVIDIA_MODELS) {
+                    const nid = NVIDIA_PREFIX + m;
+                    if (!ids.has(nid)) {
+                        data.data.push({ id: nid, object: 'model', created: Math.floor(Date.now() / 1000), owned_by: 'nvidia-nim' });
                     }
                 }
                 if (!ids.has(FREE_CLOUD_ID)) {
                     data.data.push({ id: FREE_CLOUD_ID, object: 'model', created: Math.floor(Date.now() / 1000), owned_by: 'foveai-cloud' });
+                }
+                // Ollama Cloud: routed per-model as 'ollama/<id>'. The list is
+                // seeded by XRLF_OLLAMA_MODELS only — routing itself is
+                // permissive, so an unlisted id still resolves server-side.
+                if (OLLAMA_API_KEY) {
+                    for (const m of OLLAMA_MODELS) {
+                        const oid = OLLAMA_PREFIX + m;
+                        if (!ids.has(oid)) {
+                            data.data.push({ id: oid, object: 'model', created: Math.floor(Date.now() / 1000), owned_by: 'ollama-cloud' });
+                        }
+                    }
                 }
             }
         }
@@ -6018,3 +6340,74 @@ app.post('/api/files/mkdir', requireFeature('tools'), async (req, res) => {
         res.status(500).json({ error: e.message });
     }
 });
+
+// ── Creative Engine pass-through (:8412) ──────────────────────────────────
+// /api/dream (+ catalog, preheat, upscale) belong to foveai-creative.
+// The image editor posts from any Multigate surface; same-origin proxy.
+const CREATIVE_URL = process.env.FOVEAI_CREATIVE_URL || 'http://127.0.0.1:8412';
+const creativeProxy = async (req, res) => {
+    const target = CREATIVE_URL + req.url;
+    try {
+        const upstream = await fetch(target, {
+            method: req.method,
+            headers: { 'Content-Type': 'application/json' },
+            body: ['GET', 'HEAD'].includes(req.method) ? undefined : JSON.stringify(req.body || {}),
+            signal: AbortSignal.timeout(600000),
+        });
+        const buf = Buffer.from(await upstream.arrayBuffer());
+        res.status(upstream.status).type(upstream.headers.get('content-type') || 'application/json').send(buf);
+    } catch (e) {
+        res.status(502).json({ error: `creative engine unreachable: ${e.message}` });
+    }
+};
+app.all('/api/dream*', creativeProxy);          // /api/dream, /api/dream/catalog
+app.post('/api/preheat', creativeProxy);
+app.post('/api/upscale/display', creativeProxy);
+
+// ── Transformative State Drive (TSD) · Photonic Znake & 1,000-Pentahedron Legion ──
+app.get('/tsd', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'tsd_blaster.html'));
+});
+
+app.all('/api/tsd/:action', (req, res) => {
+    const action = req.params.action;
+    const repoRoot = path.resolve(__dirname, '..');
+    const pyBin = path.join(repoRoot, '.venv', 'bin', 'python');
+    const prompt = (req.body && req.body.prompt) || (req.query && req.query.prompt) || 'Verify 1,000 Virtual Pentahedrons on TSD';
+
+    let pyCode = '';
+    if (action === 'status') {
+        pyCode = 'import json; from runtime.xrl_swarm import get_tsd_motherboard; mb=get_tsd_motherboard(); print(json.dumps({"status":"ok","telemetry":mb.telemetry(),"biosphere":mb.biosphere_scale_hierarchy()}))';
+    } else if (action === 'seek-and-destroy') {
+        pyCode = 'import json; from runtime.xrl_swarm import get_tsd_motherboard; mb=get_tsd_motherboard(); r=mb.seek_and_destroy_tasks(); r.pop("lightshow",None); r["telemetry"]=mb.telemetry(); print(json.dumps(r))';
+    } else if (action === 'dream-2036') {
+        pyCode = 'import json; from runtime.xrl_swarm import get_tsd_motherboard; mb=get_tsd_motherboard(); print(json.dumps(mb.dream_cycle_evolution()))';
+    } else if (action === 'legion') {
+        pyCode = 'import json, sys; from runtime.xrl_swarm import get_tsd_motherboard; mb=get_tsd_motherboard(); r=mb.legion_countermodel(sys.argv[1]); r["telemetry"]=mb.telemetry(); print(json.dumps(r))';
+    } else if (action === 'rejuvenate') {
+        pyCode = 'import json; from runtime.repo_youth_engine import RepoYouthEngine; print(json.dumps(RepoYouthEngine().rejuvenate()))';
+    } else if (action === 'benchmark') {
+        pyCode = 'import json; from runtime.benchmark_tsd_legion import run_comprehensive_benchmark; print(json.dumps(run_comprehensive_benchmark()))';
+    } else {
+        return res.status(404).json({ error: `Unknown TSD action: ${action}` });
+    }
+
+    execFile(
+        pyBin,
+        ['-c', pyCode, prompt],
+        { cwd: repoRoot, env: { ...process.env, PYTHONPATH: repoRoot }, timeout: 30000 },
+        (err, stdout, stderr) => {
+            if (err) {
+                return res.status(500).json({ error: err.message, stderr: stderr ? stderr.slice(0, 500) : '' });
+            }
+            try {
+                const lines = stdout.trim().split('\n');
+                const jsonLine = lines[lines.length - 1];
+                res.json(JSON.parse(jsonLine));
+            } catch (parseErr) {
+                res.json({ raw_output: stdout, stderr });
+            }
+        }
+    );
+});
+

@@ -40,11 +40,39 @@ const path = require('path');
 //
 // We can raise these later if needed, but the foveation tech should keep
 // the real budget tiny. That's the whole design.
-const XRLF_MAX_BUDGET    = parseInt(process.env.XRLF_CTX_XRLF_MAX_CHARS  || '8000', 10);
-const LOCAL_MAX_BUDGET   = parseInt(process.env.XRLF_CTX_LOCAL_MAX_CHARS || '8000',  10);
-const CLOUD_MAX_BUDGET   = parseInt(process.env.XRLF_CTX_CLOUD_MAX_CHARS || '16000', 10);
-const DEFAULT_MAX_BUDGET = CLOUD_MAX_BUDGET;
-const MIN_BUDGET_CHARS   = parseInt(process.env.XRLF_CTX_MIN_CHARS   || '2000',  10);
+//
+// ── Canonical context contract (until explicitly changed) ──────────────
+// The window is EXACTLY DEFINED: XRLF_CANONICAL_CTX tokens, split 3/7:
+//   injected (persona + foveated ring + directives) ≤ 30%
+//   delegated to chat (turns + reply headroom)              ≥ 70%
+// The composer adapts to fit; the budget never floats below canonical.
+const CANONICAL_CTX_TOKENS = parseInt(process.env.XRLF_CANONICAL_CTX || '4000', 10);
+const CHARS_PER_TOKEN      = parseFloat(process.env.XRLF_CHARS_PER_TOKEN || '4');
+const CANONICAL_BUDGET_CHARS = Math.round(CANONICAL_CTX_TOKENS * CHARS_PER_TOKEN); // 16000
+const INJECT_SHARE         = parseFloat(process.env.XRLF_INJECT_SHARE || '0.3');   // 3/7 — 4800 injected / 11200 chat
+// Rounding rule: ALWAYS round DOWN to the sign-family steps (4000/8000/
+// 16000/32000/64000). The consistent downward slack is not lost — it is
+// the standing overflow buffer that absorbs estimator drift (tokens↔chars,
+// multibyte chars, marker overhead) before anything overtransgresses.
+const FAMILY_STEPS_TOKENS  = [4000, 8000, 16000, 32000, 64000];
+function floorToFamily(tokens) {
+    let step = FAMILY_STEPS_TOKENS[0];
+    for (const s of FAMILY_STEPS_TOKENS) if (tokens >= s) step = s;
+    return step;
+}
+const INJECT_MAX_CHARS     = Math.floor(CANONICAL_BUDGET_CHARS * INJECT_SHARE);    // 4800
+
+const XRLF_MAX_BUDGET    = parseInt(process.env.XRLF_CTX_XRLF_MAX_CHARS  || CANONICAL_BUDGET_CHARS, 10);
+const LOCAL_MAX_BUDGET   = parseInt(process.env.XRLF_CTX_LOCAL_MAX_CHARS || CANONICAL_BUDGET_CHARS,  10);
+const CLOUD_MAX_BUDGET   = parseInt(process.env.XRLF_CTX_CLOUD_MAX_CHARS || CANONICAL_BUDGET_CHARS, 10);
+const DEFAULT_MAX_BUDGET = CANONICAL_BUDGET_CHARS;
+const MIN_BUDGET_CHARS   = parseInt(process.env.XRLF_CTX_MIN_CHARS   || CANONICAL_BUDGET_CHARS,  10);
+// Agentic expansion: canonical is the DEFAULT, not the ceiling. Traffic that
+// declares its needs (x-context-budget header — opencode) expands up to the
+// engine's real capacity (xrlf_config.yaml n_ctx, 16000 tok = 64000 signs),
+// always floored to a family step. Chat clients without the header ride canonical.
+const ENGINE_CAPACITY_TOKENS = parseInt(process.env.XRLF_ENGINE_N_CTX || '16384', 10);
+const ENGINE_CAPACITY_CHARS  = ENGINE_CAPACITY_TOKENS * CHARS_PER_TOKEN;   // 64000
 const BACKOFF_FACTOR     = parseFloat(process.env.XRLF_CTX_BACKOFF   || '0.5');    // halve on failure
 const RECOVERY_STEP      = parseInt(process.env.XRLF_CTX_RECOVERY     || '1000', 10); // +1K chars on success
 const MAX_RETRIES        = parseInt(process.env.XRLF_CTX_MAX_RETRIES || '3',     10);
@@ -219,67 +247,119 @@ function onFailure(statusCode, errorText, fullText) {
  * @returns {{ messages: Array, truncated: boolean, originalChars: number, finalChars: number, warning: string|null }}
  */
 function applyBudget(messages, keepLast = 4, budgetCap = null) {
-    // Count total chars across ALL messages (system + conversation)
-    // The ring block, HUD, foveated memory injections are ALL system messages
-    // and they ALL count against the budget. Nothing is free.
-    let totalChars = 0;
-    for (const m of messages) {
-        totalChars += typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content || '').length;
-    }
+    const sizeOf = (m) => typeof m.content === 'string'
+        ? m.content.length : JSON.stringify(m.content || '').length;
+    const sumAll = (ms) => { let n = 0; for (const m of ms) n += sizeOf(m); return n; };
 
-    const effectiveBudget = (budgetCap && budgetCap > 0) ? Math.min(currentBudget, budgetCap) : currentBudget;
+    // Requested budget expands UP from canonical, floored to a family step
+    // (slack = overflow buffer), capped by engine capacity — never above.
+    const effectiveBudget = (budgetCap && budgetCap > 0)
+        ? Math.floor(Math.min(
+              ENGINE_CAPACITY_CHARS,
+              floorToFamily(Math.max(CANONICAL_CTX_TOKENS, Math.round(budgetCap / CHARS_PER_TOKEN))
+          ) * CHARS_PER_TOKEN) / 1) 
+        : currentBudget;
+
+    // Count total chars across ALL messages (system + conversation).
+    // The ring block, HUD, foveated memory injections are ALL system
+    // messages and they ALL count against the budget. Nothing is free.
+    let msgs = messages.map(m => ({ ...m }));
+    let totalChars = sumAll(msgs);
+
+    // ── 3/7 contract — enforced on EVERY request ──────────────────────
+    // Under-band injections stay untouched (safety margin). Over the
+    // band: msg[0] is the core persona block — never dropped, only
+    // end-clipped if it alone is oversized; trailing injections (HUD,
+    // ring, memory) drop newest-first, then tail-clip the last survivor.
+    let bandTouched = false;
+    if (msgs.length > 0 && msgs[0].role === 'system') {
+        let systemMsgs = msgs.filter(m => m.role === 'system');
+        let systemChars = 0;
+        for (const m of systemMsgs) systemChars += sizeOf(m);
+        if (systemChars > INJECT_MAX_CHARS) {
+            bandTouched = true;
+            const first = systemMsgs[0];
+            const firstChars = sizeOf(first);
+            if (firstChars > INJECT_MAX_CHARS) {
+                // core block alone oversized → clip tail, keep directive head
+                const CORE_MARK = '\n…[injected clipped to 3/7 band]';
+                const fc = typeof first.content === 'string'
+                    ? first.content : JSON.stringify(first.content || '');
+                first.content = fc.slice(0, INJECT_MAX_CHARS - CORE_MARK.length)
+                    + CORE_MARK;
+                systemMsgs = [first];
+                systemChars = INJECT_MAX_CHARS;
+            } else {
+                // drop trailing injections (newest appended last) while over band
+                while (systemMsgs.length > 1 && systemChars > INJECT_MAX_CHARS) {
+                    systemChars -= sizeOf(systemMsgs.pop());
+                }
+                // tail-clip the last surviving injection to land in the band
+                if (systemChars > INJECT_MAX_CHARS) {
+                    const lastInj = systemMsgs[systemMsgs.length - 1];
+                    const rc = sizeOf(lastInj);
+                    const cut = rc - (systemChars - INJECT_MAX_CHARS);
+                    if (cut > 0) {
+                        const TAIL_MARK = '\n…[injection tail-clipped to 3/7 band]';
+                        const lc = typeof lastInj.content === 'string'
+                            ? lastInj.content : JSON.stringify(lastInj.content || '');
+                        lastInj.content = lc.slice(0, Math.max(0, cut - TAIL_MARK.length))
+                            + TAIL_MARK;
+                    }
+                    systemChars = INJECT_MAX_CHARS;
+                }
+            }
+            const convo = msgs.filter(m => m.role !== 'system');
+            msgs = [...systemMsgs, ...convo];
+            totalChars = systemChars + convo.reduce((n, m) => n + sizeOf(m), 0);
+            console.warn(`[ContextHealer] ⚖️ 3/7 enforced: injected ${systemChars}/${INJECT_MAX_CHARS} chars — chat keeps ≥ 70%.`);
+        }
+    }
 
     if (totalChars <= effectiveBudget) {
-        return { messages, truncated: false, originalChars: totalChars, finalChars: totalChars, warning: null };
+        return bandTouched
+            ? { messages: msgs, truncated: true, originalChars: sumAll(messages), finalChars: totalChars,
+                warning: `⚖️ 3/7 band enforced (injected ≤ ${INJECT_MAX_CHARS} chars).` }
+            : { messages, truncated: false, originalChars: totalChars,
+                finalChars: totalChars, warning: null };
     }
 
-    // Separate system messages (ring block + HUD + foveated memory) from conversation
-    const systemMsgs = messages.filter(m => m.role === 'system');
-    const convoMsgs  = messages.filter(m => m.role !== 'system');
+    // ── over the full canonical budget: trim conversation ──────────────
+    let systemMsgs = msgs.filter(m => m.role === 'system');
+    const convoMsgs = msgs.filter(m => m.role !== 'system');
 
-    // System messages are PRESERVED but they count against the budget.
-    // The conversation must fit in whatever budget is left after the ring block.
     let systemChars = 0;
-    for (const m of systemMsgs) {
-        systemChars += typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content || '').length;
-    }
+    for (const m of systemMsgs) systemChars += sizeOf(m);
 
-    // Conversation budget = total budget minus system messages (ring block etc.)
     const convoBudget = Math.max(0, effectiveBudget - systemChars);
 
     if (systemChars >= effectiveBudget) {
-        // System messages alone exceed budget — ring block is too big!
-        // The foveation should have kept it small. Warn but still send.
         console.warn(`[ContextHealer] ⚠️ System messages (${systemChars} chars) exceed budget (${effectiveBudget}). Ring block may be too large — check foveation settings.`);
     }
 
-    // Truncate conversation to fit within convoBudget, keeping most recent messages
+    // Truncate conversation to fit convoBudget, keeping the most recent
     const keep = Math.max(2, keepLast);
     let kept = convoMsgs.slice(-keep);
     let keptChars = 0;
-    for (const m of kept) {
-        keptChars += typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content || '').length;
-    }
+    for (const m of kept) keptChars += sizeOf(m);
 
-    // If kept messages still exceed convo budget, progressively drop older ones
     while (kept.length > 1 && keptChars > convoBudget) {
         const droppedMsg = kept.shift();
-        keptChars -= typeof droppedMsg.content === 'string' ? droppedMsg.content.length : JSON.stringify(droppedMsg.content || '').length;
+        keptChars -= sizeOf(droppedMsg);
     }
 
     const dropped = convoMsgs.length - kept.length;
+    const originalChars = sumAll(messages);
     const result = [...systemMsgs, ...kept];
 
     let finalChars = 0;
-    for (const m of result) {
-        finalChars += typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content || '').length;
-    }
+    for (const m of result) finalChars += sizeOf(m);
 
-    const warning = `⚠️ Context overflow protection: ${dropped} messages dropped (${totalChars} → ${finalChars} chars). Budget: ${effectiveBudget} (system=${systemChars}, convo=${convoBudget}). The proxy auto-shrunk to prevent upstream crash.`;
+    const warning = `⚠️ Context overflow protection: ${dropped} messages dropped (${originalChars} → ${finalChars} chars). Budget: ${effectiveBudget} (system=${systemChars}, convo=${convoBudget}). The proxy auto-shrunk to prevent upstream crash.`;
 
-    console.log(`[ContextHealer] ✂️ Truncated ${dropped} messages (${totalChars} → ${finalChars} chars, budget=${effectiveBudget}, system=${systemChars}, convo=${convoBudget})`);
+    console.log(`[ContextHealer] ✂️ Truncated ${dropped} messages (budget=${effectiveBudget}, system=${systemChars}, convo=${convoBudget})`);
 
-    return { messages: result, truncated: true, originalChars: totalChars, finalChars, warning };
+    return { messages: result, truncated: true, originalChars, finalChars, warning };
 }
 
 /**

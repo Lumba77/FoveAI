@@ -22,6 +22,15 @@ namespace Lumax.Quest3Bridge
         public int ServerSampleRate = 24000;
         public float BufferSeconds = 5.0f;
 
+        [Header("Spatializer")]
+        [Tooltip("0 = flat 2D (cheapest), 1 = fully positional 3D. When > 0 the source is pinned to the XR head each frame so the spatializer sees the listener position, not the scene origin.")]
+        [Range(0f, 1f)] public float SpatialBlend = 1f;
+        [Tooltip("Run the AudioSource spatializer on the TTS stream. Requires a spatializer plugin to be present; leave off if none is installed.")]
+        public bool EnableSpatializerPlugin = false;
+        [Tooltip("Only meaningful when EnableSpatializerPlugin is on — lets a plugin's reverb run after spatialization.")]
+        public bool SpatializePostEffects = true;
+        public float TTSVolume = 1f;
+
         [Header("Lip-Sync")]
         public bool EnableLipSync = true;
         [Range(0f, 0.99f)]
@@ -42,6 +51,10 @@ namespace Lumax.Quest3Bridge
         private AudioSource _audioSource;
         private bool _isConnected;
 
+        /// <summary>Identifier used by the shared AudioSource claim table.</summary>
+        private const string AudioRole = "tts";
+        private Transform _spatialAnchor;
+
         private AudioClip _streamClip;
         private float[] _streamBuffer;
         private int _streamBufferSize;
@@ -57,14 +70,89 @@ namespace Lumax.Quest3Bridge
 
         private void Awake()
         {
-            _audioSource = GetComponent<AudioSource>();
+            _audioSource = AcquireAudioSource(AudioRole);
             _audioSource.loop = true;
             _audioSource.playOnAwake = false;
+            _audioSource.volume = TTSVolume;
+            _audioSource.mute = false;
+            ApplySpatializerSettings();
 
             _streamBufferSize = Mathf.CeilToInt(ServerSampleRate * BufferSeconds);
             _streamBuffer = new float[_streamBufferSize];
             _streamClip = AudioClip.Create("TTS_Stream", _streamBufferSize, 1, ServerSampleRate, false);
             _audioSource.clip = _streamClip;
+        }
+
+        /// <summary>
+        /// Resolves the AudioSource this client owns. In FoveAI.unity Quest3TTSClient and
+        /// Quest3STTClient share one GameObject and therefore one AudioSource, so the TTS
+        /// stream was being played through the source that holds the MIC clip — inaudible
+        /// TTS. The claim table gives each client an exclusive instance.
+        /// </summary>
+        private AudioSource AcquireAudioSource(string role)
+        {
+            var existing = GetComponent<AudioSource>();
+            if (existing != null && VoiceAudioSourceRegistry.TryClaim(existing, role))
+            {
+                return existing;
+            }
+
+            if (existing != null)
+            {
+                Debug.LogWarning($"[Quest3TTSClient] Shared AudioSource on '{name}' is already claimed by " +
+                                 $"'{VoiceAudioSourceRegistry.OwnerOf(existing)}' — creating a dedicated " +
+                                 "'Audio_tts' child so TTS never plays the mic clip.");
+            }
+
+            var host = new GameObject("Audio_" + role);
+            host.transform.SetParent(transform, false);
+            var dedicated = host.AddComponent<AudioSource>();
+            dedicated.playOnAwake = false;
+            dedicated.loop = false;
+            VoiceAudioSourceRegistry.ForceClaim(dedicated, role);
+            return dedicated;
+        }
+
+        private void ApplySpatializerSettings()
+        {
+            if (_audioSource == null) return;
+            _audioSource.spatialBlend = Mathf.Clamp01(SpatialBlend);
+            _audioSource.spatialize = EnableSpatializerPlugin && _audioSource.spatialBlend > 0.001f;
+            _audioSource.spatializePostEffects = SpatializePostEffects;
+            _audioSource.dopplerLevel = 0f;   // speech has no meaningful doppler
+            _audioSource.rolloffMode = AudioRolloffMode.Linear;
+            _audioSource.minDistance = 1f;
+            _audioSource.maxDistance = 30f;
+        }
+
+        /// <summary>
+        /// Keeps a 3D-configured TTS source at the listener. The clients live on a scene
+        /// object at (2.4, 0.3, -1.2), which would spatialize speech to the wrong place.
+        /// </summary>
+        private void UpdateSpatialAnchor()
+        {
+            if (_audioSource == null || _audioSource.spatialBlend <= 0.001f) return;
+
+            if (_spatialAnchor == null)
+            {
+                Camera cam = Camera.main;
+                if (cam != null) _spatialAnchor = cam.transform;
+                else return;
+            }
+
+            _audioSource.transform.position = _spatialAnchor.position;
+            _audioSource.transform.rotation = _spatialAnchor.rotation;
+        }
+
+        private void OnDestroy()
+        {
+            if (_audioSource != null)
+            {
+                _audioSource.Stop();
+                _audioSource.clip = null;
+                VoiceAudioSourceRegistry.Release(_audioSource);
+                _audioSource = null;
+            }
         }
 
         private System.Action<string> _onChatTextReceived;
@@ -116,6 +204,8 @@ namespace Lumax.Quest3Bridge
             }
 
             SmoothVisemes();
+
+            UpdateSpatialAnchor();
         }
 
         public void Speak(string text)

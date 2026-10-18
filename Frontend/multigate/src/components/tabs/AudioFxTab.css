@@ -1,0 +1,280 @@
+/* ── Audio FX (PipeWire EQ + mic FX) ───────────────────────────────────────
+   Colour contract: every value below is a FUI role from the generated
+   palette (public/fui_palette.css ← runtime/fui_colors.py). No hex, no rgba
+   literal, no inline colour in the component. Role semantics used here:
+     info   → lane/table framing and guiding accents (identity, not health)
+     idle   → "nothing is happening" (0 dB, bypassed, empty track)
+     ok     → FX engaged, preset applied
+     busy   → a control is in flight
+     warn   → backend unreachable (the deliberate OFFLINE state)
+     crit   → a control failed; the control never lies about this
+     select → the row the user has chosen
+   Canvas stays DARK: panels are the --fui-canvas* roles, nothing else. */
+
+.afx-root {
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 14px 16px 28px;
+  background: var(--fui-canvas);
+  color: var(--fui-canvas-fg);
+  font-family: 'Share Tech Mono', ui-monospace, monospace;
+  font-size: 0.78rem;
+}
+
+/* Trademark 1 — lollipop band: the six archetype hues as adjacent blocks,
+   read as a striped band around the header. Identity, never state. */
+.afx-band {
+  height: 6px;
+  border-radius: 3px;
+  margin-bottom: 10px;
+  background: linear-gradient(
+    90deg,
+    var(--fui-companion) 0% 16.6%,
+    var(--fui-friend) 16.6% 33.3%,
+    var(--fui-beloved) 33.3% 50%,
+    var(--fui-tool) 50% 66.6%,
+    var(--fui-inventor) 66.6% 83.3%,
+    var(--fui-assistant) 83.3% 100%
+  );
+}
+
+.afx-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.afx-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.95rem;
+  letter-spacing: 2px;
+  color: var(--fui-canvas-fg);
+  margin: 0;
+}
+.afx-sub {
+  color: var(--fui-canvas-fg-dim);
+  font-size: 0.72rem;
+  margin: 0 0 12px;
+  max-width: 70ch;
+  line-height: 1.5;
+}
+
+/* State chip — the only place a STATE colour ever carries meaning */
+.afx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--fui-idle);
+  color: var(--fui-idle);
+  font-size: 0.7rem;
+  letter-spacing: 1px;
+  white-space: nowrap;
+}
+.afx-chip--ok    { border-color: var(--fui-ok);    color: var(--fui-ok); }
+.afx-chip--busy  { border-color: var(--fui-busy);  color: var(--fui-busy); }
+.afx-chip--warn  { border-color: var(--fui-warn);  color: var(--fui-warn); }
+.afx-chip--crit  { border-color: var(--fui-crit);  color: var(--fui-crit); }
+.afx-chip--idle  { border-color: var(--fui-idle);  color: var(--fui-idle); }
+.afx-chip--select { border-color: var(--fui-select); color: var(--fui-select); }
+
+.afx-offline {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+  border: 2px solid var(--fui-warn);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--fui-warn) 12%, transparent);
+  color: var(--fui-warn);
+  line-height: 1.5;
+}
+.afx-offline-body { flex: 1; min-width: 0; }
+.afx-offline-head {
+  font-family: 'Orbitron', sans-serif;
+  letter-spacing: 2px;
+  font-size: 0.78rem;
+  margin-bottom: 4px;
+}
+.afx-offline-detail {
+  color: var(--fui-canvas-fg);
+  font-size: 0.72rem;
+  word-break: break-word;
+}
+
+.afx-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-start;
+}
+.afx-panel {
+  flex: 1 1 320px;
+  min-width: 280px;
+  background: var(--fui-canvas-panel);
+  border: 1px solid color-mix(in srgb, var(--fui-info) 25%, transparent);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.afx-panel--preset { flex: 1 1 260px; min-width: 240px; }
+
+/* table header — a GUIDING colour (framing/accent), not a health signal */
+.afx-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  background: color-mix(in srgb, var(--fui-info) 14%, transparent);
+  border-bottom: 2px solid var(--fui-info);
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.68rem;
+  letter-spacing: 1.5px;
+  color: var(--fui-canvas-fg);
+}
+.afx-panel-body { padding: 10px; }
+
+.afx-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--fui-canvas-fg) 8%, transparent);
+}
+.afx-row:last-child { border-bottom: none; }
+.afx-row-label {
+  font-size: 0.72rem;
+  letter-spacing: 1px;
+  color: var(--fui-canvas-fg-dim);
+  white-space: nowrap;
+}
+.afx-row-value {
+  font-size: 0.78rem;
+  color: var(--fui-canvas-fg);
+  white-space: nowrap;
+}
+.afx-row-value--idle { color: var(--fui-idle); }
+.afx-row-note {
+  color: var(--fui-canvas-fg-dim);
+  font-size: 0.66rem;
+  margin-left: 6px;
+}
+
+/* Meter: track is dim canvas ink, fill is info when the band is off zero */
+.afx-meter {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--fui-canvas-fg) 10%, transparent);
+  overflow: hidden;
+  min-width: 60px;
+}
+.afx-meter-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--fui-idle);
+}
+.afx-meter-fill--live { background: var(--fui-info); }
+.afx-meter-track { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+
+/* Knob (read-only gauge for the mic FX lane) */
+.afx-knobs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+}
+.afx-knob {
+  border: 1px solid color-mix(in srgb, var(--fui-info) 18%, transparent);
+  border-radius: 6px;
+  padding: 8px;
+  text-align: center;
+}
+.afx-knob-label {
+  font-size: 0.62rem;
+  letter-spacing: 1px;
+  color: var(--fui-canvas-fg-dim);
+  text-transform: uppercase;
+}
+.afx-knob-value {
+  font-size: 0.85rem;
+  margin: 4px 0 6px;
+  color: var(--fui-canvas-fg);
+}
+.afx-knob-value--idle { color: var(--fui-idle); }
+
+.afx-btn {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.66rem;
+  letter-spacing: 1.2px;
+  padding: 7px 12px;
+  border-radius: 5px;
+  cursor: pointer;
+  color: var(--fui-canvas-fg);
+  background: color-mix(in srgb, var(--fui-info) 10%, transparent);
+  border: 1px solid var(--fui-info);
+}
+.afx-btn:hover:enabled { background: color-mix(in srgb, var(--fui-info) 22%, transparent); }
+.afx-btn:disabled {
+  cursor: not-allowed;
+  color: var(--fui-idle);
+  border-color: var(--fui-idle);
+  background: color-mix(in srgb, var(--fui-idle) 10%, transparent);
+}
+.afx-btn--busy {
+  color: var(--fui-busy);
+  border-color: var(--fui-busy);
+  background: color-mix(in srgb, var(--fui-busy) 14%, transparent);
+}
+.afx-btn--crit {
+  color: var(--fui-crit);
+  border-color: var(--fui-crit);
+  background: color-mix(in srgb, var(--fui-crit) 14%, transparent);
+}
+.afx-btn--select {
+  color: var(--fui-select);
+  border-color: var(--fui-select);
+  background: color-mix(in srgb, var(--fui-select) 16%, transparent);
+}
+.afx-btn--wide { width: 100%; }
+
+.afx-preset-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+.afx-preset {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in srgb, var(--fui-canvas-fg) 12%, transparent);
+  border-radius: 5px;
+}
+.afx-preset--selected { border-color: var(--fui-select); background: color-mix(in srgb, var(--fui-select) 12%, transparent); }
+.afx-preset--applied { border-color: var(--fui-ok); background: color-mix(in srgb, var(--fui-ok) 12%, transparent); }
+.afx-preset--failed { border-color: var(--fui-crit); background: color-mix(in srgb, var(--fui-crit) 12%, transparent); }
+.afx-preset-name { flex: 1; font-size: 0.72rem; letter-spacing: 0.5px; }
+.afx-preset-cat {
+  font-size: 0.6rem;
+  letter-spacing: 1px;
+  color: var(--fui-canvas-fg-dim);
+}
+.afx-preset-mark { font-size: 0.72rem; width: 1ch; text-align: center; }
+
+.afx-empty {
+  color: var(--fui-idle);
+  font-size: 0.72rem;
+  padding: 14px 4px;
+  text-align: center;
+  line-height: 1.5;
+}
+.afx-foot {
+  margin-top: 14px;
+  color: var(--fui-canvas-fg-dim);
+  font-size: 0.66rem;
+  line-height: 1.6;
+}

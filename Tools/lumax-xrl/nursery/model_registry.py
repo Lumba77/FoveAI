@@ -1,6 +1,6 @@
 """
-Model Registry for Forge Nursery
-Manages variant definitions stored in model_registry.json.
+Model Registry for FoveAI Labs
+Tracks efficient model variants, compression profiles, and semantic compression degrees.
 """
 
 import json
@@ -15,15 +15,19 @@ REGISTRY_PATH = os.path.join(os.path.dirname(__file__), "model_registry.json")
 
 @dataclass
 class VariantDefinition:
-    """A fine-tuned model variant definition."""
+    """A model variant definition with semantic compression profile."""
 
     id: str
     name: str
     description: str = ""
     base_model: str = "gemma-4-12b-it"
+    architecture: str = "dense-transformer"  # dense-transformer | hybrid-mamba-attn | mamba2-ssd | hybrid-mamba-moe
     datasets: list[str] = field(default_factory=list)
     training_config: dict = field(default_factory=dict)
     quant_type: str = "moq-3.0"
+    xrl_degree: int = 0  # 0-9 XRL compression/quality degree (higher = more compressed)
+    compression_profile: str = ""  # human-readable compression recipe
+    xrl_training: dict = field(default_factory=dict)  # XRL semantic/logic steering curriculum
     created_at: str = ""
     status: str = "defined"  # defined, training, trained, quantized, active
 
@@ -33,9 +37,13 @@ class VariantDefinition:
             "name": self.name,
             "description": self.description,
             "base_model": self.base_model,
+            "architecture": self.architecture,
             "datasets": self.datasets,
             "training_config": self.training_config,
             "quant_type": self.quant_type,
+            "xrl_degree": self.xrl_degree,
+            "compression_profile": self.compression_profile,
+            "xrl_training": self.xrl_training,
             "created_at": self.created_at,
             "status": self.status,
         }
@@ -47,9 +55,13 @@ class VariantDefinition:
             name=data.get("name", ""),
             description=data.get("description", ""),
             base_model=data.get("base_model", "gemma-4-12b-it"),
+            architecture=data.get("architecture", "dense-transformer"),
             datasets=data.get("datasets", []),
             training_config=data.get("training_config", {}),
             quant_type=data.get("quant_type", "moq-3.0"),
+            xrl_degree=data.get("xrl_degree", 0),
+            compression_profile=data.get("compression_profile", ""),
+            xrl_training=data.get("xrl_training", {}),
             created_at=data.get("created_at", ""),
             status=data.get("status", "defined"),
         )

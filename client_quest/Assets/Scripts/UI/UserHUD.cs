@@ -45,13 +45,19 @@ namespace FoveAI.UI
         [Header("References")]
         public FoveAIWebSocketClient wsClient;
 
-        // ── Corner palette — pipeline stage colors ──
-        private static readonly Color[] Palette =
+        // ── Corner palette — FUI state/identity colors (canonical, from
+        //     runtime/fui_colors.py via FuiPalette) — colors mean state or
+        //     identity, never decoration:
+        //     0 connection  = info  (inventor cyan)
+        //     1 AI/thinking = beloved (magenta)
+        //     2 emotion     = busy  (amber)
+        //     3 activity/voice = ok (tool green)
+        private static Color[] Palette => new[]
         {
-            new Color(0.0f, 0.94f, 1.0f,  1f),   // cyan — connection
-            new Color(0.85f, 0.15f, 0.85f, 1f),  // magenta — AI/thinking
-            new Color(1.0f, 0.78f, 0.10f, 1f),   // amber — emotion
-            new Color(0.30f, 0.95f, 0.45f, 1f),  // green — activity/voice
+            FoveAI.FuiPalette.State("info"),
+            FoveAI.FuiPalette.Archetype("beloved"),
+            FoveAI.FuiPalette.State("busy"),
+            FoveAI.FuiPalette.State("ok"),
         };
 
         private enum Corner { TL, TR, BL, BR }

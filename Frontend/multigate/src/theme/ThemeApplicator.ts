@@ -87,35 +87,37 @@ export function playClickSound(style: string = 'glass tap') {
  * Generates a procedural ambient drone based on the theme's audio prompt.
  * Reads keywords and selects appropriate frequencies/waveforms.
  */
-export function startAmbientLoop(prompt: string) {
+export function startAmbientLoop(prompt: string, acoustic?: any) {
   stopAmbientLoop();
   const ctx = getAudioCtx();
 
-  const isDark = /dark|deep|subterranean|void|abyss/.test(prompt);
-  const isCosmic = /cosmic|space|stellar|nebula/.test(prompt);
+  // Sound fingerprint (theme/sound_fingerprint.py) overrides keyword heuristics
+  const rootHz: number = acoustic?.root_hz ?? (/dark|deep|subterranean|void|abyss/.test(prompt) ? 42 : /cosmic|space|stellar|nebula/.test(prompt) ? 55 : 65);
+  const filterHz: number = acoustic?.filter_hz ?? (/dark|deep|subterranean/.test(prompt) ? 400 : /cosmic|space|stellar/.test(prompt) ? 800 : 600);
+  const midRatio: number = acoustic?.mid_ratio ?? (/industrial|mechanical|forge|steam/.test(prompt) ? 3 : 4);
   const isIndustrial = /industrial|mechanical|forge|steam/.test(prompt);
 
   ambientGain = ctx.createGain();
   ambientGain.gain.setValueAtTime(0, ctx.currentTime);
-  ambientGain.gain.linearRampToValueAtTime(0.12, ctx.currentTime + 3);
+  ambientGain.gain.linearRampToValueAtTime((0.12 * (acoustic?.drone_gain ?? 1)), ctx.currentTime + 3);
 
   const masterFilter = ctx.createBiquadFilter();
   masterFilter.type = 'lowpass';
-  masterFilter.frequency.value = isDark ? 400 : isCosmic ? 800 : 600;
+  masterFilter.frequency.value = filterHz;
 
-  // Layer 1: Sub-bass drone
+  // Layer 1: Sub-bass drone (root from the image's hue sector)
   const drone = ctx.createOscillator();
   drone.type = 'sine';
-  drone.frequency.value = isDark ? 42 : isCosmic ? 55 : 65;
+  drone.frequency.value = rootHz;
   const droneGain = ctx.createGain();
   droneGain.gain.value = 0.6;
   drone.connect(droneGain);
   droneGain.connect(masterFilter);
 
-  // Layer 2: Mid harmonic
+  // Layer 2: Mid harmonic (warmth density from the image)
   const mid = ctx.createOscillator();
   mid.type = 'triangle';
-  mid.frequency.value = drone.frequency.value * (isIndustrial ? 3 : 4);
+  mid.frequency.value = drone.frequency.value * midRatio;
   const midGain = ctx.createGain();
   midGain.gain.value = 0.15;
   mid.connect(midGain);
@@ -135,12 +137,35 @@ export function startAmbientLoop(prompt: string) {
   noiseSource.connect(noiseFilter);
   noiseFilter.connect(masterFilter);
 
+  // Layer 4: Saturation shimmer (overtone sparkle — presence of color)
+  let shimmerOsc: OscillatorNode | null = null;
+  if (acoustic?.shimmer_hz && acoustic?.shimmer_gain) {
+    shimmerOsc = ctx.createOscillator();
+    shimmerOsc.type = 'sine';
+    shimmerOsc.frequency.value = acoustic.shimmer_hz;
+    const shimmerGain = ctx.createGain();
+    shimmerGain.gain.value = acoustic.shimmer_gain;
+    shimmerOsc.connect(shimmerGain);
+    shimmerGain.connect(masterFilter);
+  }
+
+  // Layer 5: Contrast pulse (edgy images breathe — LFO on the filter)
+  if (acoustic?.pulse_hz && acoustic.pulse_hz > 0) {
+    const pulseLfo = ctx.createOscillator();
+    pulseLfo.frequency.value = acoustic.pulse_hz;
+    const pulseDepth = ctx.createGain();
+    pulseDepth.gain.value = filterHz * 0.25;
+    pulseLfo.connect(pulseDepth);
+    pulseDepth.connect(masterFilter.frequency);
+  }
+
   masterFilter.connect(ambientGain!);
   ambientGain!.connect(ctx.destination);
 
   drone.start();
   mid.start();
   noiseSource.start();
+  shimmerOsc?.start();
 
   ambientSource = drone; // track for stopping
 }
@@ -197,6 +222,58 @@ function injectThemeVariables(theme: MasterTheme) {
   root.style.setProperty('--fv-shadow', shadowMap[s.shadow_intensity]);
   root.style.setProperty('--fv-inset-hi', `inset 0 1px 0 rgba(255,255,255,0.09)`);
   root.style.setProperty('--fv-inset-press', `inset 0 2px 6px rgba(0,0,0,0.45)`);
+
+  // ── Finish layer: material, gloss, light, pattern, cutout, fade ──
+  // Canonical tokens (runtime/fui_colors.py grammar) — every theme drives
+  // the .fui-* helper classes through these. Structure serves readability.
+  const finish = (theme as any).fui_finish || {};
+  const material: string = finish.material
+    || (s.shadow_intensity === 'glowing' ? 'neon' : 'satin');
+  const gloss: number = typeof finish.gloss === 'number' ? finish.gloss : s.glass_opacity;
+  const pattern: string = finish.pattern || 'none';
+  const patternStrength: number = typeof finish.pattern_strength === 'number'
+    ? finish.pattern_strength : 0.06;
+  const fade: number = typeof finish.fade === 'number' ? finish.fade : 24;
+  root.style.setProperty('--fui-material', material);
+  root.style.setProperty('--fui-gloss', String(gloss));
+  root.style.setProperty('--fui-highlight',
+    `inset 0 1px 0 rgba(255,255,255,${Math.min(0.3, gloss).toFixed(3)})`);
+  root.style.setProperty('--fui-shadow-rest', shadowMap[s.shadow_intensity]);
+  root.style.setProperty('--fui-shadow-hover', shadowMap[s.shadow_intensity]);
+  const stripe = pattern === 'stripes'
+    ? `repeating-linear-gradient(135deg, rgba(127,127,127,${patternStrength}) 0 1px, transparent 1px 7px)`
+    : 'none';
+  root.style.setProperty('--fui-pattern', stripe);
+  root.style.setProperty('--fui-shape', s.border_radius);
+  root.style.setProperty('--fui-cutout', `inset 0 2px 6px rgba(0,0,0,0.45)`);
+  root.style.setProperty('--fui-cutout-hi', `inset 0 1px 0 rgba(255,255,255,0.09)`);
+  root.style.setProperty('--fui-fade', `${fade}px`);
+}
+
+// ── Soundscape player (rendered long-loop OGG) ─────────────────────────────
+let soundscapeEl: HTMLAudioElement | null = null;
+
+export function playSoundscape(url: string, volume = 0.45) {
+  stopSoundscape();
+  soundscapeEl = new Audio(url);
+  soundscapeEl.loop = true;
+  soundscapeEl.volume = volume;
+  soundscapeEl.play().catch(() => {
+    // autoplay policy: first user gesture required — retry on next click
+    const wake = () => {
+      soundscapeEl?.play().catch(() => {});
+      window.removeEventListener('pointerdown', wake);
+    };
+    window.addEventListener('pointerdown', wake);
+  });
+}
+
+export function stopSoundscape() {
+  if (soundscapeEl) {
+    soundscapeEl.pause();
+    soundscapeEl.src = '';
+    soundscapeEl = null;
+  }
 }
 
 // ── Background Image ───────────────────────────────────────────────────────
@@ -389,19 +466,35 @@ export async function applyMasterTheme(theme: MasterTheme, options = { sound: tr
   if (theme.background_image_url) {
     applyBackgroundImage(theme.background_image_url);
   } else if (theme.background_prompt) {
-    // Request image generation from creative_service.py
+    // Request image generation from creative_service.py — hifi-first:
+    // try Z-Image (its own MemAvailable preflight 422s softly when RAM is
+    // tight), fall back to the default SD pipeline.
     try {
-      const res = await fetch('/api/dream', {
+      let res = await fetch('/api/dream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(120000),
         body: JSON.stringify({
           prompt: theme.background_prompt,
           negative_prompt: 'blurry, low quality, text, watermark, cartoon',
           width: 1920, height: 1080,
-          steps: 28, cfg_scale: 7.5,
+          model_type: 'zimage',
         }),
       });
+      if (!res.ok) {
+        console.warn('zimage unavailable (', res.status, ') — SD fallback');
+        res = await fetch('/api/dream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(600000),
+          body: JSON.stringify({
+            prompt: theme.background_prompt,
+            negative_prompt: 'blurry, low quality, text, watermark, cartoon',
+            width: 1920, height: 1080,
+            steps: 28, cfg_scale: 7.5,
+          }),
+        });
+      }
       if (res.ok) {
         const data = await res.json();
         if (data.image_url) {
@@ -422,9 +515,20 @@ export async function applyMasterTheme(theme: MasterTheme, options = { sound: tr
   }
 
   // 5. Audio
-  if (options.sound && theme.generative_audio) {
+  // Soundscape first: the rendered, seamless-loop OGG (theme/soundscape.py —
+  // the Dirigent-specified recording). The engine stores it in the schema's
+  // audio_assets slot (or top-level); Web Audio ambient is the fallback.
+  stopSoundscape();
+  const soundscape = (theme as any).soundscape_url
+    || (theme as any).audio_assets?.soundscape_url;
+  if (soundscape) {
+    playSoundscape(soundscape);
+  } else if (options.sound && theme.generative_audio) {
     attachClickSounds(theme.generative_audio.ui_clicks);
-    startAmbientLoop(theme.generative_audio.ambient_loop_prompt);
+    startAmbientLoop(
+      theme.generative_audio.ambient_loop_prompt,
+      (theme.generative_audio as any).acoustic,
+    );
   }
 
   // 6. Announce

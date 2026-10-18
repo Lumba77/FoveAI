@@ -39,7 +39,12 @@ namespace FoveAI.XR
             "VRBrowser_Panel",
             "UserHUD_System",
             "ChatRelayPanel",
-            "ChatCanvas",
+            // ChatCanvas is deliberately NOT debris: it is the app's primary
+            // surface. Hiding it at boot left the headset showing pure
+            // passthrough with nothing to interact with, and the panel's
+            // authored local position (+Z) put it behind the camera anyway.
+            // It is placed in front of the user at boot instead — see
+            // ShowPrimarySurface().
         };
 
         [Header("Panel Positioning")]
@@ -60,8 +65,17 @@ namespace FoveAI.XR
         private string ChatUrl => webUiBase + "/chat";
         private string SettingsUrl => webUiBase + "/settings";
 
-        private InputDevice _leftDevice;
-        private InputDevice _rightDevice;
+        // ── Input System paths ──────────────────────────────────────
+        // This project ships the NEW Input System only (activeInputHandler: 1)
+        // and UnityEngine.InputLegacyModule is not installed, so
+        // InputDevices.GetDevicesWithCharacteristics always returned an empty
+        // list: the menu-button and pinch toggles below could never fire and
+        // the summoned panels were unreachable. Bind the same actions the
+        // working XRRigFixer uses, on <XRController>{LeftHand|RightHand}.
+        private UnityEngine.InputSystem.InputAction _leftMenuAction;
+        private UnityEngine.InputSystem.InputAction _rightMenuAction;
+        private UnityEngine.InputSystem.InputAction _leftGripAction;
+        private UnityEngine.InputSystem.InputAction _rightGripAction;
         private bool _leftMenuPressed;
         private bool _rightMenuPressed;
         private bool _leftPinchActive;
@@ -78,8 +92,10 @@ namespace FoveAI.XR
             FindAvatarContainer();
             FindPanels();
             HideAllPanelsAtBoot();
+            ShowPrimarySurface();
             DisableSceneDressing();
             EnsureVAD();
+            EnsureControllerRide();
             EnsureWebPanel();
             StartCoroutine(RecheckDressing());
 
@@ -158,6 +174,31 @@ namespace FoveAI.XR
             _activePanel = null;
         }
 
+        /// <summary>
+        /// Put the chat surface in front of the user and show it, so the headset
+        /// opens on something you can actually talk to instead of bare passthrough.
+        /// The scene authors every canvas at +Z, which is BEHIND a camera looking
+        /// down -Z, so it must be positioned, not merely activated.
+        /// </summary>
+        private void ShowPrimarySurface()
+        {
+            if (chatPanel == null)
+            {
+                QuestDebugOverlay.LogWarning("[CleanSceneBoot] No chat surface found to show");
+                return;
+            }
+
+            PositionPanelInFront(chatPanel, 1f);   // chat sits right, Alice stays clear
+            chatPanel.SetActive(true);
+            _activePanel = chatPanel;
+
+            var ui = chatPanel.GetComponent<FoveAI.UI.SpatialUIManager>();
+            if (ui != null) ui.ActivateInput();
+
+            QuestDebugOverlay.Log(
+                $"[CleanSceneBoot] Primary chat surface shown at {chatPanel.transform.position}");
+        }
+
         private void EnsureVAD()
         {
             // Ensure QuestMicrophoneVAD is attached and configured for instant response
@@ -179,6 +220,21 @@ namespace FoveAI.XR
             QuestDebugOverlay.Log("[CleanSceneBoot] VAD configured for instant response (threshold=0.008, silence=0.45s, minSpeech=0.15s)");
         }
 
+        /// <summary>
+        /// The house controller ride — button mappings, doubles, grab/carry.
+        /// One component, mounted at boot like the VAD.
+        /// </summary>
+        private void EnsureControllerRide()
+        {
+            var ride = FindAnyObjectByType<QuestControllerRide>();
+            if (ride == null)
+            {
+                var rideObj = new GameObject("QuestControllerRide");
+                ride = rideObj.AddComponent<QuestControllerRide>();
+                QuestDebugOverlay.Log("[CleanSceneBoot] Mounted QuestControllerRide (Y/X/A/B + doubles + grab)");
+            }
+        }
+
         private void SetPrivateFloat(System.Type type, object obj, string fieldName, float value)
         {
             var field = type.GetField(fieldName, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
@@ -196,32 +252,37 @@ namespace FoveAI.XR
 
         private void RefreshDevices()
         {
-            if (!_leftDevice.isValid)
+            if (_leftMenuAction == null)
             {
-                var devs = new System.Collections.Generic.List<InputDevice>();
-                InputDevices.GetDevicesWithCharacteristics(InputDeviceCharacteristics.Left, devs);
-                if (devs.Count > 0) _leftDevice = devs[0];
+                _leftMenuAction = Bind("<XRController>{LeftHand}/menuButton", UnityEngine.InputSystem.InputActionType.Button);
+                _leftGripAction = Bind("<XRController>{LeftHand}/grip", UnityEngine.InputSystem.InputActionType.Value);
             }
-            if (!_rightDevice.isValid)
+            if (_rightMenuAction == null)
             {
-                var devs = new System.Collections.Generic.List<InputDevice>();
-                InputDevices.GetDevicesWithCharacteristics(InputDeviceCharacteristics.Right, devs);
-                if (devs.Count > 0) _rightDevice = devs[0];
+                _rightMenuAction = Bind("<XRController>{RightHand}/menuButton", UnityEngine.InputSystem.InputActionType.Button);
+                _rightGripAction = Bind("<XRController>{RightHand}/grip", UnityEngine.InputSystem.InputActionType.Value);
             }
+        }
+
+        private static UnityEngine.InputSystem.InputAction Bind(
+            string path, UnityEngine.InputSystem.InputActionType type)
+        {
+            var action = new UnityEngine.InputSystem.InputAction(
+                name: path, type: type, binding: path);
+            action.Enable();
+            return action;
+        }
+
+        private static bool Held(UnityEngine.InputSystem.InputAction action, float threshold)
+        {
+            if (action == null || !action.enabled) return false;
+            return action.ReadValue<float>() >= threshold;
         }
 
         private void HandleInput()
         {
             // ─── Left Controller Menu Button → Settings Panel ─────────
-            bool leftMenu = false;
-            if (_leftDevice.isValid)
-            {
-                if (_leftDevice.TryGetFeatureValue(CommonUsages.menuButton, out bool menu) && menu)
-                    leftMenu = true;
-            }
-            // OVRInput fallback
-            if (OVRInput.GetDown(OVRInput.Button.Start) || OVRInput.GetDown(OVRInput.RawButton.Start))
-                leftMenu = true;
+            bool leftMenu = Held(_leftMenuAction, 0.5f);
 
             if (leftMenu && !_leftMenuPressed)
             {
@@ -231,15 +292,7 @@ namespace FoveAI.XR
             _leftMenuPressed = leftMenu;
 
             // ─── Right Controller Menu Button → Chat Panel ───────────
-            bool rightMenu = false;
-            if (_rightDevice.isValid)
-            {
-                if (_rightDevice.TryGetFeatureValue(CommonUsages.menuButton, out bool menu) && menu)
-                    rightMenu = true;
-            }
-            // OVRInput fallback — Right secondary button (B/Y)
-            if (OVRInput.GetDown(OVRInput.Button.Two) || OVRInput.GetDown(OVRInput.RawButton.Y))
-                rightMenu = true;
+            bool rightMenu = Held(_rightMenuAction, 0.5f);
 
             if (rightMenu && !_rightMenuPressed)
             {
@@ -249,7 +302,7 @@ namespace FoveAI.XR
             _rightMenuPressed = rightMenu;
 
             // ─── Left Hand Pinch → Settings Panel ─────────────────────
-            bool leftPinch = DetectPinch(_leftDevice);
+            bool leftPinch = DetectPinch(rightHand: false);
             if (leftPinch && !_leftPinchActive)
             {
                 ToggleWebPanel(SettingsUrl, -1f, settingsPanel);
@@ -258,7 +311,7 @@ namespace FoveAI.XR
             _leftPinchActive = leftPinch;
 
             // ─── Right Hand Pinch → Chat Panel ────────────────────────
-            bool rightPinch = DetectPinch(_rightDevice);
+            bool rightPinch = DetectPinch(rightHand: true);
             if (rightPinch && !_rightPinchActive)
             {
                 ToggleWebPanel(ChatUrl, 1f, chatPanel);
@@ -349,16 +402,12 @@ namespace FoveAI.XR
         /// Detect select gesture: controller trigger/grip OR hand-tracking pinch
         /// (thumb tip ↔ index tip distance) via the XR Hands subsystem.
         /// </summary>
-        private bool DetectPinch(InputDevice device)
+        private bool DetectPinch(bool rightHand)
         {
-            if (device.isValid)
-            {
-                if (device.TryGetFeatureValue(CommonUsages.trigger, out float trigger) && trigger >= pinchThreshold)
-                    return true;
-                if (device.TryGetFeatureValue(CommonUsages.grip, out float grip) && grip >= pinchThreshold)
-                    return true;
-            }
-            return DetectHandPinch(device == _rightDevice);
+            var grip = rightHand ? _rightGripAction : _leftGripAction;
+            if (Held(grip, pinchThreshold))
+                return true;
+            return DetectHandPinch(rightHand);
         }
 
         /// <summary>

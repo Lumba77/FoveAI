@@ -10,7 +10,11 @@
         "Unity.XR.ARFoundation",
         "Unity.TextMeshPro",
         "Unity.XR.Interaction.Toolkit",
-        "Unity.XR.CoreUtils"
+        "Unity.XR.CoreUtils",
+        "VRM10",
+        "UniGLTF",
+        "UniGLTF.Utils",
+        "VRM"
     ],
     "includePlatforms": [
         "Editor"

@@ -27,6 +27,18 @@ This file is a self-optimizing loop. When an AI agent makes a mistake and you co
 tell the agent to document the pattern here so it mathematically never repeats the mistake.
 
 # 📋 Lessons
+- CANONICAL CONTEXT CONTRACT (2026-10-15): the chat context window is EXACTLY DEFINED — `XRLF_CANONICAL_CTX`, default **4000 tokens = 16000 chars** (chars-per-token 4), fixed until explicitly changed. Allocation 3/7: injected (persona + foveated ring + HUD + directives) ≤ **4800 chars (30%)**, chat (turns + reply headroom) ≥ **11200 chars (70%)** — enforced on EVERY request in `foveated-memory/core/context-healer.js` (incl. totals under budget). Rounding rule: budgets ALWAYS round DOWN to the sign-family steps (4000/8000/16000/32000/64000) — the consistent downward slack is the standing overflow buffer (absorbs tokens↔chars drift, multibyte chars, clip-marker overhead). Rounding UP is forbidden; engine capacity (xrlf_config.yaml n_ctx) is separate room, not the contract. MEDIA GRAMMAR: image/video proportions are ALWAYS preserved — never distort; scale to fit; overscale ("overtrass") where most suitable, canonical first choice = HORIZONTAL (fill width, crop height) unless overruled; BACKGROUND graphics center horizontally as the norm unless overruled. Canonical classes from the FUI engine: `.fui-media`
+(horizontal default, centered), `.fui-media-v` (vertical), `.fui-media-fit`
+(contain), `.fui-media-bg` (background, centered). Emitted into
+fui_palette.css + all foveai/*.css by `python3 runtime/fui_colors.py`.
+THEME POLICY (2026-10-15): legacy themes (foveai-celestial, cyber-noir,
+aurora-borealis — plus multigate statics Obsidian Glass Archive / Celestial
+Nebula) are FROZEN reference, marked `"legacy": true` in the manifest —
+never edit them. New themes are authored as -fui skins: bind a theme's
+identity accents to FUI roles and let the canonical vocabulary carry the
+rest (family variants via `runtime/fui_colors.py`, FUI Composer in the
+Theme Machine, server render via POST `:8400/api/theme/fui`). The old death spiral (empty-response → shrink 2000→1000→500 with an uncompressible 4445-char system block) died with this: budget can never float below canonical.
+- THEME PROPAGATION LESSON (THE WAY): the theme engine silently failed to repaint "all parts of the app" because each frontend invented its own token vocabulary — multigate `--fv-*` (React ThemeApplicator), dashboard/settings `--fv-*` CSS fallbacks, XR `--cel-*`, Studio `fv_bg_dark/fv_accent` WS keys, plus inline rgba literals — so a theme change died at the first surface that didn't speak its dialect. THE WAY (2026-10-15): one canonical semantic vocabulary = the FUI roles in `runtime/fui_colors.py` (archetype identity colors + state colors + dark canvas). Every surface binds its private tokens to `--fui-*` / FUI roles (fui_palette.css / module imports); themes are just role-value sets — ONE blob ("FoveAI Signum", authored by `master_theme()`) emitted in EVERY dialect via `python3 runtime/fui_colors.py`. Add a surface = bind its tokens to FUI; never author per-surface palettes again. Verify propagation: active theme at `:8400/api/themes` + `data/active_theme.json` + `:8403/internal/theme-broadcast → /ws/theme` fanout (Studio/theme_sync.js). The :8403 plain-HTTP broadcast endpoint currently drops connections — run theme_api.py (:8415) as the relay, that's the designed upstream.
 - FRONTEND STABILITY CONTRACT: `Frontend/multigate/STABILITY.md` is the work queue + status for the Multigate frontend; `Frontend/multigate/reference/` holds the frozen functional specs (main-page, gate-page, verification). Read them BEFORE touching frontend code; update STATUS after every session; never claim done without the probe pass. Vault is parked (`src/vault-parked/`) — no revival without a canvas-layer rebuild. The user's core product = vocal face-to-face AI in VR; the web frontend is a side door and must cost days, not months. (2026-10-08)
 - Visual verification is MANDATORY before claiming UI changes stable: render with headless Chromium (playwright; scripts in `Tools/pw-verify/`, run from `/tmp/opencode` with `export PATH="$HOME/.local/node24/bin:$PATH"`), screenshot every arm stage, READ the screenshots. Blind geometry edits caused hours of rework (oval stage, yolk ball, overlapping LCD) — never describe intent as if it were a result. Quest WebView caching serves stale builds: bump the BUILD marker and tell the user to long-press refresh / use private window. (2026-10-08)
 - Language Server / Multi-Root Workspace Override (OOM Protection): NEVER modify `.vscode/settings.json` and expect it to apply if a Multi-Root Workspace (`FoveAI.code-workspace`) is open. The `.code-workspace` settings block overrides local settings. Furthermore, Python language servers (Pyright/Pyrefly) MUST have explicit `python.analysis.exclude` rules for large Unity caches (`client_quest`, `Library`, `PackageCache`) and `node_modules` inside the `.code-workspace` file. Without these, the language server will parse thousands of C# scripts, eat all physical RAM, and cause a 10-minute OS swap-death freeze. If the server bloats again, set `"python.languageServer": "None"` to kill it.
@@ -61,6 +73,50 @@ tell the agent to document the pattern here so it mathematically never repeats t
 - Director spooky voice & Avalanche music (2026-09-06): `DirectorVoiceEngine.ts` gives the Off-Scene Director a deep, pitch-down Leonard Cohen-style narrator voice (pitch=0, rate=0.7, low-pass filter at 800Hz, 4s reverb tail). The "Avalanche" dark ambient music mode plays a procedural slow minor chord progression (Am-F-G-Am, 16s per chord) with sub-bass pulse, detune drift, and ghost overtones — inspired by Leonard Cohen's "Avalanche". Press **M** to toggle music. The engine connects to the XRLF WebSocket (port 8411) and automatically speaks narrator lines and starts music during horror/mystery/surreal Director events. SoftLayer params: `director.voicePitch`, `director.voiceRate`, `director.voiceVolume`, `director.reverbAmount`, `director.filterCutoff`, `director.avalancheMusic`, `director.avalancheVolume`. Tray has test-voice and toggle-music entries.
 - Director Codec2 radio effect (2026-09-06): The Director's narrator voice now has a FreeDV/Codec2-style radio transmission quality — squelch-open burst ("ksssh") before speech, continuous bandpass-filtered static bed underneath, and squelch-close burst when speech ends. Simulated entirely with Web Audio API (no external WASM needed): white noise through bandpass filters at 800-1500Hz, gain envelopes for squelch character. Toggle via `director.radioEffect` SoftLayer param, intensity via `director.radioIntensity` (0=clean, 1=heavy static). The Director sounds like he's speaking through an old HF radio from beyond.
 - Director "Mount Zion" reverb (2026-09-06): The narrator voice reverb retuned to "soft but dark reverberated from Mount Zion" — an 8-second convolution tail with 40ms pre-delay (sound crosses a vast stone plateau before the first reflection), heavy low-frequency bias (one-pole LP at 0.15 coefficient for a dark, warm tail), 200ms soft smoothstep attack (gentle reflections, not percussive), slow exponential decay (power 1.8 — the tail lingers like incense smoke), stereo decorrelation (different PRNG seeds per channel for wide, otherworldly imaging), and a 55Hz stone-resonance rumble woven into the tail. Voice defaults retuned: rate 0.65 (slower, softer), volume 0.7 (let the reverb breathe), reverbAmount 0.65 (wet — the reverb IS the character), filterCutoff 600Hz (darker, no harshness).
+
+# 🛡️ HOUSE IDENTITY — THE FUI COLOR LANGUAGE (SIGNUM)
+
+The pedagogical color signum born in the Consciousness Equalizer
+(`~/.local/bin/foveai-menu`, menu #2 "Equalizer"). Color NEVER means
+decoration — it means state or identity, so users learn the app by color alone.
+
+Single source of truth: `runtime/fui_colors.py` (zero deps, stdlib only).
+NEVER hard-code hexes or ANSI codes in app code — import from the module.
+
+Two families:
+- ARCHETYPES (identity): companion=red, friend=gold, beloved=magenta,
+  tool/engineer=green, inventor=cyan, assistant=sky. `archetype_ansi(i)`
+  cycles them for categorical item coloring (the lollipop stripes).
+- STATES (health): ok=green ●, busy=orange ◐, warn=gold ⚠, crit=red ✖/○,
+  idle=gray dim, info=cyan, select=invert ▶.
+
+Medium bindings — `runtime/fui_colors.py` IS the canonical palette for EVERY
+platform (ANSI values included so terminal keeps exact parity):
+- Terminal/SSH → ansi (`staircase_ansi`, `state_ansi`, `rainbow_band`)
+- Desktop (Qt/GTK/PIL) → `state_hex()` direct import
+- Web/site/dashboard/XR/multigate → regenerate + link
+  `python3 runtime/fui_colors.py` writes `assets/fui_palette.css|json` and
+  copies into `Frontend/{multigate,XR_Vessel}/public` + `foveated-memory/public`;
+  pages link `fui_palette.css` and consume `--fui-*` variables
+- Android/Unity (Quest) → parse `assets/fui_palette.json` (hex + rgb + ansi + glyphs)
+Never hand-copy values into CSS/C#/Python — regenerate from the module.
+TUIs must gate color with `use_color()` (isatty + NO_FUI_COLOR env override).
+Trademark 1 — lollipop band: `rainbow_band(w)` — the six archetype hues as
+adjacent blocks read as striped lollipop. Use as signature band around headers.
+Trademark 2 — luminance staircase: `staircase_ansi(i)` — menu rows alternate
+DARK ↔ LIGHT (normal-intensity darks vs bold lights, different hues), so a
+menu column reads like an accordion/staircase, not a uniform rainbow.
+Canvas rule: main app backgrounds stay DARK (#1E1E1E → #2D2D2D gradient or a
+dark soft-gradient image); FUI colors are GUIDING colors only — table headers,
+table framing, content-area accents. Guiding colors switch dynamically to the
+active main theme's accent when a theme is run/edited (Studio does this via
+the theme_update WS); fallbacks come from fui_colors roles, never hard-coded.
+TUIs must gate color with `use_color()` (isatty + NO_FUI_COLOR env override).
+
+Verified in: foveai-menu (reference), FoveAI_Console.py, FoveAI_Taskbar_Linux.py
+(icons), FoveAI_Studio.py (theme fallbacks). New surfaces MUST adopt it.
+
+ECONOMY RULE (2026-10-15): every generated asset encodes to the LEAST possible size/bitrate without compromising quality — soundscapes = Opus mono 24kHz ~30kbps (~0.37MB/loop, ceiling 600KB, Vorbis fallback), images = compressed formats, never ship raw WAV/PCM/BMP. Consistent rounding creates spare headroom = standing overflow buffers.
 
 # 🛡️ GLOBAL SAFETY RULES
 

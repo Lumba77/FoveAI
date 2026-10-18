@@ -1,3 +1,24 @@
 {
-  "theme_name": "cyber-noir"
+  "theme_name": "FoveAI Signum",
+  "id": "foveai-signum",
+  "fv_accent": "#00DCFF",
+  "fv_accent_2": "#FF3CC8",
+  "fv_ok": "#00E664",
+  "fv_warn": "#FF9E1F",
+  "fv_danger": "#FF3232",
+  "fv_bg_dark": "#1E1E1E",
+  "fv_bg_panel": "#2D2D2D",
+  "fv_text_main": "#E0E0E0",
+  "fv_text_muted": "#888888",
+  "background_prompt": "Dark soft graphite gradient canvas, #1E1E1E to #2D2D2D, subtle vertical luminance falloff, no objects, no stars, minimal, cinematic depth, 8k. Guiding color is a faint cyan bloom.",
+  "ui_structure": {
+    "menu_position": "left",
+    "border_radius": "6px",
+    "glass_opacity": 0.14,
+    "shadow_intensity": "soft",
+    "light_angle": "135deg",
+    "time_of_day_sync": false,
+    "animation_style": "breathe",
+    "ornamentation": "minimal"
+  }
 }

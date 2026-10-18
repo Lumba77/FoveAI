@@ -115,10 +115,14 @@ class XRLFPacker:
         base_model_name: str = "gemma-4-12b-it-qat-GGUF-MoQ",
         xrl_source_model: str = "qwen3.5-4b",
         flags: int = int(GEMMA4_DEFAULT_FLAGS),
+        xrl_degree: int = 0,
+        compression_profile: str = "",
     ):
         self.base_model_name = base_model_name
         self.xrl_source_model = xrl_source_model
         self.flags = flags
+        self.xrl_degree = max(0, min(9, xrl_degree))
+        self.compression_profile = compression_profile or ""
         self._sections: list[_SectionBlob] = []
         self._gguf_path: str | None = None  # streamed separately
         self._mmproj_path: str | None = None  # streamed separately
@@ -267,7 +271,15 @@ class XRLFPacker:
         )
         return self
 
-    def add_runtime_meta(self) -> "XRLFPacker":
+    def add_runtime_meta(
+        self, xrl_degree: int | None = None, compression_profile: str | None = None
+    ) -> "XRLFPacker":
+        degree = self.xrl_degree if xrl_degree is None else max(0, min(9, xrl_degree))
+        profile = (
+            self.compression_profile
+            if compression_profile is None
+            else (compression_profile or "")
+        )
         meta = {
             "xrlf_version": FORMAT_VERSION,
             "build_time": int(time.time()),
@@ -276,9 +288,25 @@ class XRLFPacker:
             "flags": self.flags,
             "capability_map": GEMMA4_CAPABILITY_MAP,
             "required_runtime": "xrlf-runtime>=1.0",
+            "xrl_degree": degree,
+            "compression_profile": profile,
         }
         self._add_json_section(SectionType.RUNTIME_META, meta)
         return self
+
+    @staticmethod
+    def stamp_name(name: str, xrl_degree: int) -> str:
+        """Insert the -XRL-<degree> suffix before the final extension.
+
+        Examples:
+            gemma-4-12b.xrlf, 3 -> gemma-4-12b-XRL-3.xrlf
+            Qwen3.5-9B.gguf, 3 -> Qwen3.5-9B-XRL-3.gguf
+        """
+        degree = max(0, min(9, xrl_degree))
+        if "." in name:
+            stem, ext = name.rsplit(".", 1)
+            return f"{stem}-XRL-{degree}.{ext}"
+        return f"{name}-XRL-{degree}"
 
     # ── Write ─────────────────────────────────────────────────────────────────
 

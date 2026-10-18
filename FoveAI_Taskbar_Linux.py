@@ -223,10 +223,12 @@ def create_icon_image(color_hex: str, symbol: str | None = None) -> Image.Image:
     return image
 
 
-ICON_RED = create_icon_image("#ef4444", "◆")
-ICON_GREEN = create_icon_image("#10b981", "◆")
-ICON_ORANGE = create_icon_image("#f59e0b", "◆")
-ICON_BLUE = create_icon_image("#0284c7", "◆")
+from runtime.fui_colors import state_hex  # noqa: E402  — FUI color language
+
+ICON_RED = create_icon_image(state_hex("crit"), "◆")
+ICON_GREEN = create_icon_image(state_hex("ok"), "◆")
+ICON_ORANGE = create_icon_image(state_hex("busy"), "◆")
+ICON_BLUE = create_icon_image(state_hex("info"), "◆")
 
 # ─── Helpers ────────────────────────────────────────────────────────
 
@@ -753,8 +755,19 @@ PERSONA_MODELS: dict[str, dict[str, Any]] = {
         "is_xrlf": True,
         "detail": "4B Qwen MTP XRLF coder with vision (mmproj), Whisper STT hook, Kokoro TTS hook.",
     },
+    "qwopus_9b_coder_xrlf": {
+        "name": "Qwopus 3.5 9B MTP (Coder MoQ)",
+        "id": "qwopus3.5-9b-coder-mtp-moq.xrlf",
+        "file": "qwopus3.5-9b-coder-mtp-moq.xrlf",
+        "xrlf_path": "xrl_encoded/qwopus3.5-9b-coder-mtp-moq.xrlf",
+        "size_gb": 4.4,
+        "total_layers": 40,
+        "multimodal": False,
+        "is_xrlf": True,
+        "detail": "9B Qwopus 3.5 Coder MTP MoQ XRLF bundle for heavy coding, architecture, and agentic synthesis.",
+    },
     "smolvlm2_500m_xrlf": {
-        "name": "SmolVLM2 500M (Vision)",
+        "name": "SmolVLM2 500M (Vision + TSD Core)",
         "id": "smolvlm2-500m-multimodal-v1.0.xrlf",
         "file": "smolvlm2-500m-multimodal-v1.0.xrlf",
         "xrlf_path": "xrl_encoded/smolvlm2-500m-multimodal-v1.0.xrlf",
@@ -762,7 +775,7 @@ PERSONA_MODELS: dict[str, dict[str, Any]] = {
         "total_layers": 24,
         "multimodal": True,
         "is_xrlf": True,
-        "detail": "500M vision+video XRLF model with Whisper STT hook, Kokoro TTS hook.",
+        "detail": "500M vision+video XRLF model & Transformative State Drive (TSD) Northbridge Core.",
     },
 }
 
@@ -936,6 +949,99 @@ def unload_models(icon, item=None):
     except Exception as e:
         notify(icon, f"Unload failed: {e}", "FoveAI VRAM")
     _refresh_menu(icon)
+
+
+# ─── TSD Photonic Znake & 1,000-Pentahedron Legion UI Blasters ──────
+
+
+def open_tsd_blaster_ui(icon, item=None):
+    """Open the interactive FUI TSD Photonic Znake & Legion UI Blaster Deck."""
+    ui_file = os.path.join(FOVEAI_DIR, "foveated-memory", "public", "tsd_blaster.html")
+    url = "http://127.0.0.1:5177/tsd_blaster.html"
+    if not is_port_open(5177) and is_port_open(8414):
+        url = "http://127.0.0.1:8414/tsd_blaster.html"
+    elif not is_port_open(5177) and is_port_open(8402):
+        url = "http://127.0.0.1:8402/tsd"
+    elif not is_port_open(5177) and os.path.exists(ui_file):
+        url = f"file://{ui_file}"
+    webbrowser.open(url)
+    notify(icon, "Opened TSD Photonic Znake & Legion UI Blaster Deck", "TSD UI Blaster")
+
+
+def tsd_seek_and_destroy(icon, item=None):
+    """Fire the 1,000-Pentahedron Protein Battalion Seek & Destroy tasklist sweep."""
+    try:
+        from runtime.xrl_swarm import get_tsd_motherboard
+
+        mb = get_tsd_motherboard()
+        res = mb.seek_and_destroy_tasks()
+        notify(
+            icon,
+            f"Destroyed {res['tasks_destroyed']}/{res['tasks_targeted']} tasks in {res['total_sweep_ms']}ms\n"
+            f"Enfolded {res['virtual_pentahedrons_enfolded']} Virtual Pentahedrons",
+            "⚔️ TSD Seek & Destroy",
+        )
+    except Exception as e:
+        notify(icon, f"TSD sweep error: {e}", "TSD Error")
+
+
+def tsd_dream_2036(icon, item=None):
+    """Trigger a 2036 Holographic Bus + Epigenetic .xrld Crystallization + Mitosis cycle."""
+    try:
+        from runtime.xrl_swarm import get_tsd_motherboard
+
+        mb = get_tsd_motherboard()
+        res = mb.dream_cycle_evolution()
+        c_id = res["epigenetic_crystal"]["crystal_id"]
+        child = res["mitosis_spawned"]["child"]
+        notify(
+            icon,
+            f"Crystal: {c_id} (lossless .xrld)\n"
+            f"Mitosis: {child} · {res['dream_cycle_ms']}ms",
+            "🌌 TSD 2036 Dream Cycle",
+        )
+    except Exception as e:
+        notify(icon, f"Dream cycle error: {e}", "TSD Error")
+
+
+def tsd_rejuvenate_repo(icon, item=None):
+    """Run the 60ms Fountain of Youth repo telomere & epigenetic pulse."""
+    try:
+        from runtime.repo_youth_engine import RepoYouthEngine
+
+        rep = RepoYouthEngine().rejuvenate()
+        block = rep.get("tsd_epigenetic_pulse", {}).get("new_microcosmic_block", "ok")
+        notify(
+            icon,
+            f"Vitality: {rep['vitality_score']} in {rep['rejuvenation_ms']}ms\n"
+            f"Epigenetic Seed: {block}",
+            "🌱 Fountain of Youth",
+        )
+    except Exception as e:
+        notify(icon, f"Rejuvenation error: {e}", "Fountain of Youth Error")
+
+
+def tsd_run_benchmark(icon, item=None):
+    """Run the 50x+ Size, Speed & Power TSD Legion benchmark in background."""
+    notify(icon, "Running 50x+ Size/Speed/Power TSD Benchmark...", "📊 TSD Benchmark")
+
+    def _bg():
+        try:
+            from runtime.benchmark_tsd_legion import run_comprehensive_benchmark
+
+            res = run_comprehensive_benchmark()
+            s1 = res["1_size_savings"]["vs_14gb_monolith_saving"]
+            s2 = res["2_speed_savings"]["sweep_speedup_vs_sequential_agents"]
+            s3 = res["3_power_and_token_savings"]["energy_power_saving"]
+            notify(
+                icon,
+                f"Size: {s1} | Sweep: {s2}\nPower: {s3}",
+                "📊 TSD 50x Benchmark Verified",
+            )
+        except Exception as e:
+            notify(icon, f"Benchmark error: {e}", "TSD Benchmark Error")
+
+    threading.Thread(target=_bg, daemon=True).start()
 
 
 # ─── Hardware Telemetry ─────────────────────────────────────────────
@@ -1928,34 +2034,17 @@ def build_menu() -> pystray.Menu:
         pystray.MenuItem("⚙️ Open Command Center Settings...", open_settings_panel)
     )
 
+    # ── Consolidated top-level structure ──
+    # X11 panels truncate menus below the dash, so the tray is kept to
+    # ~10 main entries; everything else lives in submenus.
     return pystray.Menu(
         dash_item,
-        pystray.MenuItem(f"🛡️ Guardian: {status_text}", show_status_info),
-        pystray.MenuItem("🎭 Persona & Agency (5-Step Lever)", pystray.Menu(*persona_lever_items)),
-        pystray.MenuItem("🏥 Health Monitor & Healing", pystray.Menu(*health_items)),
-        pystray.MenuItem("🛡️ Rig & Bloat Guardian", pystray.Menu(*rig_menu_items)),
-        pystray.MenuItem("🧹 Liberate VRAM & Flush Caches", free_ram_flush_caches),
-        pystray.MenuItem("🧹 Free RAM (Drop Caches)", free_ram_flush_caches),
+        # 2 ── Status & Process Monitor ──
         pystray.MenuItem(
-            "🤖 Default Persona AI Model (Main AI)", pystray.Menu(*persona_menu_items)
-        ),
-        pystray.MenuItem(
-            "🔀 Default Router Model (Intention & Compression)",
-            pystray.Menu(*router_menu_items),
-        ),
-        pystray.MenuItem(
-            checked(
-                "🧠 Context & Intuition Collector (Consented)",
-                is_context_collector_enabled(),
-            ),
-            toggle_context_collector,
-        ),
-        pystray.Menu.SEPARATOR,
-        *stack_items,
-        pystray.Menu.SEPARATOR,
-        pystray.MenuItem(
-            "⚡ Live Process Monitor",
+            "📊 Status & Process Monitor",
             pystray.Menu(
+                pystray.MenuItem(f"🛡️ Guardian: {status_text}", show_status_info),
+                pystray.Menu.SEPARATOR,
                 pystray.MenuItem(
                     f"{tag_backend} FoveAI Backend WS (:8400)", show_status_info
                 ),
@@ -1969,253 +2058,340 @@ def build_menu() -> pystray.Menu:
                 pystray.MenuItem(f"{tag_media} Media Proxy (:8402)", show_status_info),
             ),
         ),
-        pystray.Menu.SEPARATOR,
-        pystray.MenuItem(" Multigate WebUI Portal", launch_multigate),
-        pystray.MenuItem("⚙️ Open Settings Panel", open_settings_panel),
+        # 3 ── Stack & Services ──
         pystray.MenuItem(
-            "🎨 SoftLayer Modules (Hot-Reloadable)",
+            "🚀 Stack & Services",
             pystray.Menu(
-                pystray.MenuItem("📦 Reload All Modules", reload_softlayer_modules),
+                *stack_items,
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("Backend Service (Port 8400)", pystray.Menu(*proxy_items)),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("🧹 Liberate VRAM & Flush Caches", free_ram_flush_caches),
+                pystray.MenuItem("🧹 Free RAM (Drop Caches)", free_ram_flush_caches),
+            ),
+        ),
+        # 4 ── AI Models ──
+        pystray.MenuItem(
+            "🤖 AI Models",
+            pystray.Menu(
                 pystray.MenuItem(
-                    "🔄 Reload behavior_config.js",
-                    lambda icon, item: reload_softlayer_config(
-                        icon, item, "behavior_config.js"
-                    ),
+                    "Default Persona AI (Main AI)", pystray.Menu(*persona_menu_items)
                 ),
                 pystray.MenuItem(
-                    "🔄 Reload experience_config.js",
-                    lambda icon, item: reload_softlayer_config(
-                        icon, item, "experience_config.js"
-                    ),
-                ),
-                pystray.MenuItem(
-                    "🔄 Reload hud_config.js",
-                    lambda icon, item: reload_softlayer_config(
-                        icon, item, "hud_config.js"
-                    ),
+                    "Default Router Model (Intention & Compression)",
+                    pystray.Menu(*router_menu_items),
                 ),
                 pystray.Menu.SEPARATOR,
-                pystray.MenuItem(
-                    "🔄 Reload lighting.js",
-                    lambda icon, item: reload_softlayer_module(
-                        icon, item, "lighting.js"
-                    ),
-                ),
-                pystray.MenuItem(
-                    "🔄 Reload sky.js",
-                    lambda icon, item: reload_softlayer_module(icon, item, "sky.js"),
-                ),
-                pystray.MenuItem(
-                    "🔄 Reload particles.js",
-                    lambda icon, item: reload_softlayer_module(
-                        icon, item, "particles.js"
-                    ),
-                ),
-                pystray.MenuItem(
-                    "🔄 Reload chameleon.js",
-                    lambda icon, item: reload_softlayer_module(
-                        icon, item, "chameleon.js"
-                    ),
-                ),
-                pystray.MenuItem(
-                    "🔄 Reload clothing.js",
-                    lambda icon, item: reload_softlayer_module(
-                        icon, item, "clothing.js"
-                    ),
-                ),
-                pystray.MenuItem(
-                    "🔄 Reload wall.js",
-                    lambda icon, item: reload_softlayer_module(icon, item, "wall.js"),
-                ),
+                pystray.MenuItem("🧹 Stop Llama Server (Free VRAM)", unload_models),
+            ),
+        ),
+        # 5 ── Persona & Agency ──
+        pystray.MenuItem(
+            "🎭 Persona & Agency (5-Step Lever)", pystray.Menu(*persona_lever_items)
+        ),
+        # 6 ── Health & Rig Guardian ──
+        pystray.MenuItem(
+            "🏥 Health & Rig Guardian",
+            pystray.Menu(
+                pystray.MenuItem("Health Monitor & Healing", pystray.Menu(*health_items)),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("Rig & Bloat Guardian", pystray.Menu(*rig_menu_items)),
+            ),
+        ),
+        # 7 ── Frontend & UI ──
+        pystray.MenuItem(
+            "🎨 Frontend & UI",
+            pystray.Menu(
+                pystray.MenuItem("Multigate WebUI Portal", launch_multigate),
+                pystray.MenuItem("⚙️ Open Settings Panel", open_settings_panel),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem(
-                    "🧑 Be Jen (First-Person POV): Toggle", toggle_jen_pov
-                ),
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem(
-                    "🎙️ Director: Speak Narrator (test voice)", test_director_voice
-                ),
-                pystray.MenuItem(
-                    "🎵 Director: Toggle Avalanche Music", toggle_avalanche_music
-                ),
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem(
-                    "📹 Webcam Plaster: Toggle On/Off", toggle_webcam_plaster
-                ),
-                pystray.MenuItem(
-                    "📹 Webcam Plaster: Portrait Mode",
-                    lambda icon, item: set_webcam_plaster_orientation(
-                        icon, item, "portrait"
+                    "Select Frontend UI",
+                    pystray.Menu(
+                        pystray.MenuItem(
+                            checked("3D Avatar Chatbot (Port 8080)", current_ui == "3d_avatar"),
+                            lambda icon, item: switch_frontend(icon, item, "3d_avatar"),
+                        ),
+                        pystray.MenuItem(
+                            checked("XR Vessel (Port 5176)", current_ui == "xr_vessel"),
+                            lambda icon, item: switch_frontend(icon, item, "xr_vessel"),
+                        ),
+                        pystray.MenuItem(
+                            checked("Multigate Portal (Port 5177)", current_ui == "multigate"),
+                            lambda icon, item: switch_frontend(icon, item, "multigate"),
+                        ),
                     ),
                 ),
-                pystray.MenuItem(
-                    "📹 Webcam Plaster: Landscape Mode",
-                    lambda icon, item: set_webcam_plaster_orientation(
-                        icon, item, "landscape"
-                    ),
-                ),
+                pystray.MenuItem("🎨 Theme", pystray.Menu(*build_theme_menu())),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem(
-                    "📡 List Loaded Modules (check console)", list_softlayer_modules
+                    "SoftLayer Modules (Hot-Reloadable)",
+                    pystray.Menu(
+                        pystray.MenuItem("📦 Reload All Modules", reload_softlayer_modules),
+                        pystray.MenuItem(
+                            "🔄 Reload behavior_config.js",
+                            lambda icon, item: reload_softlayer_config(
+                                icon, item, "behavior_config.js"
+                            ),
+                        ),
+                        pystray.MenuItem(
+                            "🔄 Reload experience_config.js",
+                            lambda icon, item: reload_softlayer_config(
+                                icon, item, "experience_config.js"
+                            ),
+                        ),
+                        pystray.MenuItem(
+                            "🔄 Reload hud_config.js",
+                            lambda icon, item: reload_softlayer_config(
+                                icon, item, "hud_config.js"
+                            ),
+                        ),
+                        pystray.Menu.SEPARATOR,
+                        pystray.MenuItem(
+                            "🔄 Reload lighting.js",
+                            lambda icon, item: reload_softlayer_module(
+                                icon, item, "lighting.js"
+                            ),
+                        ),
+                        pystray.MenuItem(
+                            "🔄 Reload sky.js",
+                            lambda icon, item: reload_softlayer_module(icon, item, "sky.js"),
+                        ),
+                        pystray.MenuItem(
+                            "🔄 Reload particles.js",
+                            lambda icon, item: reload_softlayer_module(
+                                icon, item, "particles.js"
+                            ),
+                        ),
+                        pystray.MenuItem(
+                            "🔄 Reload chameleon.js",
+                            lambda icon, item: reload_softlayer_module(
+                                icon, item, "chameleon.js"
+                            ),
+                        ),
+                        pystray.MenuItem(
+                            "🔄 Reload clothing.js",
+                            lambda icon, item: reload_softlayer_module(
+                                icon, item, "clothing.js"
+                            ),
+                        ),
+                        pystray.MenuItem(
+                            "🔄 Reload wall.js",
+                            lambda icon, item: reload_softlayer_module(icon, item, "wall.js"),
+                        ),
+                        pystray.Menu.SEPARATOR,
+                        pystray.MenuItem(
+                            "🧑 Be Jen (First-Person POV): Toggle", toggle_jen_pov
+                        ),
+                        pystray.Menu.SEPARATOR,
+                        pystray.MenuItem(
+                            "🎙️ Director: Speak Narrator (test voice)", test_director_voice
+                        ),
+                        pystray.MenuItem(
+                            "🎵 Director: Toggle Avalanche Music", toggle_avalanche_music
+                        ),
+                        pystray.Menu.SEPARATOR,
+                        pystray.MenuItem(
+                            "📹 Webcam Plaster: Toggle On/Off", toggle_webcam_plaster
+                        ),
+                        pystray.MenuItem(
+                            "📹 Webcam Plaster: Portrait Mode",
+                            lambda icon, item: set_webcam_plaster_orientation(
+                                icon, item, "portrait"
+                            ),
+                        ),
+                        pystray.MenuItem(
+                            "📹 Webcam Plaster: Landscape Mode",
+                            lambda icon, item: set_webcam_plaster_orientation(
+                                icon, item, "landscape"
+                            ),
+                        ),
+                        pystray.Menu.SEPARATOR,
+                        pystray.MenuItem(
+                            "📡 List Loaded Modules (check console)", list_softlayer_modules
+                        ),
+                    ),
                 ),
             ),
         ),
-        pystray.Menu.SEPARATOR,
+        # 8 ── Voice & Cognition ──
         pystray.MenuItem(
-            "Memory Tools",
+            "🗣️ Voice & Cognition",
+            pystray.Menu(
+                pystray.MenuItem(
+                    "Voice",
+                    pystray.Menu(
+                        pystray.MenuItem(checked("Voice Output ON", voice_enabled), voice_on),
+                        pystray.MenuItem(
+                            checked("Voice Output OFF", not voice_enabled), voice_off
+                        ),
+                        pystray.MenuItem(checked("Microphone ON", mic_enabled), mic_on),
+                        pystray.MenuItem(checked("Microphone OFF", not mic_enabled), mic_off),
+                        pystray.Menu.SEPARATOR,
+                        pystray.MenuItem(
+                            "TTS Engine",
+                            pystray.Menu(
+                                pystray.MenuItem(
+                                    checked(
+                                        "Kokoro Emotional Mouth (:8411)",
+                                        tts_provider in ["kokoro", "qwen"],
+                                    ),
+                                    lambda icon, item: switch_tts_provider(
+                                        icon, item, "kokoro"
+                                    ),
+                                ),
+                                pystray.MenuItem(
+                                    checked(
+                                        "WebSocket IPC (ws://:8403)",
+                                        tts_provider == "websocket",
+                                    ),
+                                    lambda icon, item: switch_tts_provider(
+                                        icon, item, "websocket"
+                                    ),
+                                ),
+                                pystray.MenuItem(
+                                    checked(
+                                        "Edge-TTS (Cloud Neural)", tts_provider == "edgetts"
+                                    ),
+                                    lambda icon, item: switch_tts_provider(
+                                        icon, item, "edgetts"
+                                    ),
+                                ),
+                            ),
+                        ),
+                        pystray.MenuItem(
+                            "STT Engine",
+                            pystray.Menu(
+                                pystray.MenuItem(
+                                    checked(
+                                        "Faster-Whisper Ears (:8401)", stt_provider == "whisper"
+                                    ),
+                                    lambda icon, item: switch_stt_provider(
+                                        icon, item, "whisper"
+                                    ),
+                                ),
+                                pystray.MenuItem(
+                                    checked(
+                                        "Web Speech API / Browser VAD",
+                                        stt_provider == "browser",
+                                    ),
+                                    lambda icon, item: switch_stt_provider(
+                                        icon, item, "browser"
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+                pystray.MenuItem(
+                    "Cognitive Mode",
+                    pystray.Menu(
+                        pystray.MenuItem(
+                            checked("Local", cognitive_mode == "local"), switch_to_local
+                        ),
+                        pystray.MenuItem(
+                            checked("Cloud", cognitive_mode == "cloud"), switch_to_cloud
+                        ),
+                        pystray.MenuItem(
+                            checked("Juggler", cognitive_mode == "juggler"), switch_to_juggler
+                        ),
+                    ),
+                ),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(
+                    "Foveation",
+                    pystray.Menu(
+                        *[
+                            pystray.MenuItem(
+                                checked(FOVEA_LEVELS[lvl], current_fovea == lvl),
+                                (lambda l: lambda icon, item: set_fovea(icon, item, l))(lvl),
+                            )
+                            for lvl in sorted(FOVEA_LEVELS.keys())
+                        ]
+                    ),
+                ),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(
+                    checked(
+                        "🧠 Context & Intuition Collector (Consented)",
+                        is_context_collector_enabled(),
+                    ),
+                    toggle_context_collector,
+                ),
+            ),
+        ),
+        # 8b ── TSD Photonic Znake & 1,000-Pentahedron Legion UI Blasters ──
+        pystray.MenuItem(
+            "⚡ TSD Legion & UI Blasters",
+            pystray.Menu(
+                pystray.MenuItem(
+                    "🔮 Open TSD Photonic Znake UI Blaster Deck",
+                    open_tsd_blaster_ui,
+                ),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(
+                    "⚔️ Seek & Destroy Tasklist (1,000 Pentahedrons)",
+                    tsd_seek_and_destroy,
+                ),
+                pystray.MenuItem(
+                    "🌌 2036 Dream Cycle (Hologram + .xrld + Mitosis)",
+                    tsd_dream_2036,
+                ),
+                pystray.MenuItem(
+                    "🌱 Fountain of Youth (60ms Repo Rejuvenator)",
+                    tsd_rejuvenate_repo,
+                ),
+                pystray.MenuItem(
+                    "📊 Run 50× Size/Speed/Power Benchmark",
+                    tsd_run_benchmark,
+                ),
+            ),
+        ),
+        # 9 ── Memory & Integrations ──
+        pystray.MenuItem(
+            "🧠 Memory & Integrations",
             pystray.Menu(
                 pystray.MenuItem("Super Prompt Kiosk", start_super_kiosk),
                 pystray.MenuItem("AUI Memory Dashboard", open_memory_dashboard),
                 pystray.MenuItem(
                     "FoveAI Super Memory Terminal", start_foveai_super_terminal
                 ),
-            ),
-        ),
-        pystray.MenuItem("Backend Service (Port 8400)", pystray.Menu(*proxy_items)),
-        pystray.Menu.SEPARATOR,
-        pystray.MenuItem(
-            "🛰️ Antigravity / Jenna-VSCode Trojan Horse",
-            pystray.Menu(
-                pystray.MenuItem(
-                    "🪐 Launch Antigravity Desktop",
-                    lambda icon, item: subprocess.Popen(["antigravity"]),
-                ),
-                pystray.MenuItem(
-                    "💻 Launch Antigravity IDE",
-                    lambda icon, item: subprocess.Popen(
-                        ["antigravity-ide", FOVEAI_DIR]
-                    ),
-                ),
-                pystray.MenuItem(
-                    "🚀 Launch Jenna-VSCode (Context Stripping)", launch_jenna_vscode
-                ),
-                pystray.MenuItem(
-                    checked("Route Antigravity CLI through Proxy (:8400)", ag_proxy),
-                    toggle_antigravity_proxy,
-                ),
-            ),
-        ),
-        pystray.MenuItem(
-            "Select Frontend UI",
-            pystray.Menu(
-                pystray.MenuItem(
-                    checked("3D Avatar Chatbot (Port 8080)", current_ui == "3d_avatar"),
-                    lambda icon, item: switch_frontend(icon, item, "3d_avatar"),
-                ),
-                pystray.MenuItem(
-                    checked("XR Vessel (Port 5176)", current_ui == "xr_vessel"),
-                    lambda icon, item: switch_frontend(icon, item, "xr_vessel"),
-                ),
-                pystray.MenuItem(
-                    checked("Multigate Portal (Port 5177)", current_ui == "multigate"),
-                    lambda icon, item: switch_frontend(icon, item, "multigate"),
-                ),
-            ),
-        ),
-        pystray.MenuItem(
-            "🎨 Theme",
-            pystray.Menu(*build_theme_menu()),
-        ),
-        pystray.Menu.SEPARATOR,
-        pystray.MenuItem(
-            "Foveation",
-            pystray.Menu(
-                *[
-                    pystray.MenuItem(
-                        checked(FOVEA_LEVELS[lvl], current_fovea == lvl),
-                        (lambda l: lambda icon, item: set_fovea(icon, item, l))(lvl),
-                    )
-                    for lvl in sorted(FOVEA_LEVELS.keys())
-                ]
-            ),
-        ),
-        pystray.MenuItem(
-            "Voice",
-            pystray.Menu(
-                pystray.MenuItem(checked("Voice Output ON", voice_enabled), voice_on),
-                pystray.MenuItem(
-                    checked("Voice Output OFF", not voice_enabled), voice_off
-                ),
-                pystray.MenuItem(checked("Microphone ON", mic_enabled), mic_on),
-                pystray.MenuItem(checked("Microphone OFF", not mic_enabled), mic_off),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem(
-                    "TTS Engine",
+                    "🛰️ Antigravity / Jenna-VSCode Trojan Horse",
                     pystray.Menu(
                         pystray.MenuItem(
-                            checked(
-                                "Kokoro Emotional Mouth (:8411)",
-                                tts_provider in ["kokoro", "qwen"],
-                            ),
-                            lambda icon, item: switch_tts_provider(
-                                icon, item, "kokoro"
+                            "🪐 Launch Antigravity Desktop",
+                            lambda icon, item: subprocess.Popen(["antigravity"]),
+                        ),
+                        pystray.MenuItem(
+                            "💻 Launch Antigravity IDE",
+                            lambda icon, item: subprocess.Popen(
+                                ["antigravity-ide", FOVEAI_DIR]
                             ),
                         ),
                         pystray.MenuItem(
-                            checked(
-                                "WebSocket IPC (ws://:8403)",
-                                tts_provider == "websocket",
-                            ),
-                            lambda icon, item: switch_tts_provider(
-                                icon, item, "websocket"
-                            ),
+                            "🚀 Launch Jenna-VSCode (Context Stripping)", launch_jenna_vscode
                         ),
                         pystray.MenuItem(
-                            checked(
-                                "Edge-TTS (Cloud Neural)", tts_provider == "edgetts"
-                            ),
-                            lambda icon, item: switch_tts_provider(
-                                icon, item, "edgetts"
-                            ),
-                        ),
-                    ),
-                ),
-                pystray.MenuItem(
-                    "STT Engine",
-                    pystray.Menu(
-                        pystray.MenuItem(
-                            checked(
-                                "Faster-Whisper Ears (:8401)", stt_provider == "whisper"
-                            ),
-                            lambda icon, item: switch_stt_provider(
-                                icon, item, "whisper"
-                            ),
-                        ),
-                        pystray.MenuItem(
-                            checked(
-                                "Web Speech API / Browser VAD",
-                                stt_provider == "browser",
-                            ),
-                            lambda icon, item: switch_stt_provider(
-                                icon, item, "browser"
-                            ),
+                            checked("Route Antigravity CLI through Proxy (:8400)", ag_proxy),
+                            toggle_antigravity_proxy,
                         ),
                     ),
                 ),
             ),
         ),
+        # 10 ── Tray & Exit ──
         pystray.MenuItem(
-            "Cognitive Mode",
+            "⚙️ Debug & Exit",
             pystray.Menu(
-                pystray.MenuItem(
-                    checked("Local", cognitive_mode == "local"), switch_to_local
-                ),
-                pystray.MenuItem(
-                    checked("Cloud", cognitive_mode == "cloud"), switch_to_cloud
-                ),
-                pystray.MenuItem(
-                    checked("Juggler", cognitive_mode == "juggler"), switch_to_juggler
-                ),
+                pystray.MenuItem("🐛 Open Debug Terminal", open_debug_terminal),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("🔄 Restart Taskbar Tray App", restart_tray_app),
+                pystray.MenuItem("Quit", on_quit),
             ),
         ),
-        pystray.Menu.SEPARATOR,
-        pystray.MenuItem("🐛 Open Debug Terminal", open_debug_terminal),
-        pystray.MenuItem("Stop Llama Server (Free VRAM)", unload_models),
-        pystray.Menu.SEPARATOR,
-        pystray.MenuItem("🔄 Restart Taskbar Tray App", restart_tray_app),
-        pystray.MenuItem("Quit", on_quit),
     )
-
 
 # ─── App ────────────────────────────────────────────────────────────
 

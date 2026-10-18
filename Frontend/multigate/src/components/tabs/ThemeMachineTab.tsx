@@ -1,9 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { applyMasterTheme, startAmbientLoop, stopAmbientLoop } from '../../theme/ThemeApplicator';
 import type { MasterTheme } from '../../theme/ThemeApplicator';
+import FuiComposer from './FuiComposer';
 
 // ── Hardcoded themes (will grow as user generates new ones via image drop) ──
 const THEMES: MasterTheme[] = [
+  {
+    theme_name: 'FoveAI Signum',
+    fv_accent: '#00DCFF',
+    fv_accent_2: '#FF3CC8',
+    fv_ok: '#00E664',
+    fv_warn: '#FF9E1F',
+    fv_danger: '#FF3232',
+    background_prompt: 'Dark soft graphite gradient canvas, #1E1E1E to #2D2D2D, subtle vertical luminance falloff, no objects, no stars, minimal, cinematic depth, 8k. Guiding color is a faint cyan bloom.',
+    generative_audio: {
+      ambient_loop_prompt: 'clean sub-bass drone, soft glass hum, minimal breathe',
+      ui_clicks: 'soft glass tick',
+    },
+    ui_structure: {
+      menu_position: 'left',
+      border_radius: '6px',
+      glass_opacity: 0.14,
+      shadow_intensity: 'soft',
+      light_angle: '135deg',
+      time_of_day_sync: false,
+      animation_style: 'breathe',
+      ornamentation: 'minimal',
+    },
+  },
   {
     theme_name: 'Obsidian Glass Archive',
     fv_accent: '#6ab3d4',
@@ -58,11 +82,45 @@ export default function ThemeMachineTab() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
-  const [activeThemeId, setActiveThemeId] = useState('Obsidian Glass Archive');
+  const [activeThemeId, setActiveThemeId] = useState('FoveAI Signum');
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(false);
   const [applying, setApplying] = useState(false);
   const [galleryThemes, setGalleryThemes] = useState<any[]>(THEMES);
+  const [fuiVariant, setFuiVariant] = useState('signum');
+
+  // Render a canonical -fui theme variant via the FUI engine
+  // (runtime/fui_colors.py → writes css + manifest + live-apply).
+  const handleFuiRender = async () => {
+    setIsProcessing(true);
+    setTerminalOutput(prev => [
+      ...prev, '',
+      '='.repeat(80),
+      `🎨 Rendering -fui variant: ${fuiVariant}…`,
+      `→ runtime/fui_colors.py (FUI engine)`,
+    ]);
+    try {
+      const res = await fetch('/api/theme/fui', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ variant: fuiVariant, image_url: imagePreview || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      const applied = galleryThemes.find(t => t.theme_name.includes('Signum')) || THEMES[0];
+      if (applied) await applyMasterTheme(applied, { sound: false });
+      setTerminalOutput(prev => [
+        ...prev,
+        `✅ ${data.variant} rendered${data.applied ? ' + applied live' : ''}`,
+        ...((data.written || []) as string[]).slice(0, 6).map(w => `   ${w}`),
+        `✨ -fui ${fuiVariant} is live.`,
+      ]);
+    } catch (e: any) {
+      setTerminalOutput(prev => [...prev, `❌ FUI render failed: ${e.message}`]);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
   
   useEffect(() => {
     fetch('/api/themes')
@@ -264,6 +322,64 @@ export default function ThemeMachineTab() {
         }}>
           {isProcessing ? '⏳ Master Webdesigner thinking...' : '✨ Generate Theme Blueprint'}
         </button>
+
+        {/* -fui variant render — the authoritative FUI family engine */}
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <select
+            value={fuiVariant}
+            onChange={e => setFuiVariant(e.target.value)}
+            style={{ padding: '11px 12px', background: 'var(--fv-surface, rgba(255,255,255,0.08))',
+                     color: 'var(--fv-text, #fff)', border: '1px solid var(--fv-border, rgba(255,255,255,0.12))',
+                     borderRadius: '8px', fontSize: '0.9rem' }}
+          >
+            <option value="signum">Signum — dark, balanced (authoritative)</option>
+            <option value="whisper">Whisper — dark, discreet</option>
+            <option value="screamer">Screamer — dark, very screamy</option>
+            <option value="daylight">Daylight — light canvas</option>
+          </select>
+          <button
+            onClick={handleFuiRender}
+            disabled={isProcessing}
+            style={{
+              padding: '11px 20px', fontWeight: 'bold', fontSize: '0.95rem',
+              background: 'var(--fv-accent, #00DCFF)', color: '#000',
+              border: 'none', borderRadius: '8px', cursor: 'pointer',
+            }}
+          >
+            🎨 Render -fui Theme
+          </button>
+        </div>
+
+        {/* FUI Composer — dial the full -fui vocabulary with live scoped preview */}
+        <FuiComposer onCommit={async (draft) => {
+          const blob = {
+            theme_name: `FUI ${draft.variant.charAt(0).toUpperCase() + draft.variant.slice(1)} (custom)`,
+            id: `fui-${draft.variant}`, fui_family: true, fui_variant: draft.variant,
+            fv_accent: draft.fv_accent, fv_accent_2: draft.fv_accent_2,
+            fv_ok: draft.fv_ok, fv_warn: draft.fv_warn, fv_danger: draft.fv_danger,
+            background_prompt: '',
+            fui_finish: {
+              material: draft.material, gloss: draft.gloss,
+              pattern: draft.pattern, pattern_strength: draft.pattern_strength,
+              fade: draft.fade,
+            },
+            ui_structure: {
+              menu_position: 'left',
+              border_radius: `${draft.shape_radius}px`,
+              glass_opacity: draft.gloss,
+              shadow_intensity: draft.material === 'neon' ? 'glowing' : 'soft',
+              light_angle: `${draft.light_angle}deg`,
+              time_of_day_sync: false,
+              animation_style: 'breathe',
+              ornamentation: draft.ornamentation,
+            },
+          };
+          applyMasterTheme(blob as MasterTheme, { sound: false });
+          await fetch('/api/theme/set_active', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(blob),
+          });
+        }} />
 
         {/* Terminal */}
         <div style={{

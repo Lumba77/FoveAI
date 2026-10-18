@@ -1,0 +1,274 @@
+
+  scanned references : 207
+  DEAD (service down): 91
+  off-series ports   : 82
+  could be same-origin: 64
+
+  ── DEAD REFERENCES (these break pages when the service is down)
+    :5173  Backend/Cognition/soul_core.py:102  http
+            "http://127.0.0.1:5173",
+    :5173  Backend/Cognition/soul_core.py:103  http
+            "http://localhost:5173",
+    :7272  Backend/Cognition/soul_core.py:178  http
+            r = httpx.get("http://127.0.0.1:7272/v1/models", timeout=2.0)
+    :7272  Backend/Cognition/soul_core.py:1143  http
+            r = httpx.get("http://127.0.0.1:7272/v1/models", timeout=2.0)
+    :7272  Backend/Cognition/system_probe.py:42  http
+            "lmstudio": "http://127.0.0.1:7272/v1/models",
+    :7272  foveated-memory/bin/foveated-memory.js:25  http
+            .option('-u, --upstream <url>',   'Upstream LLM base URL (e.g. http://127.0.0.1:7272/v1)', 'http://127.0.0.1:7272/v1')
+    :7272  foveated-memory/bin/foveated-memory.js:25  http
+            .option('-u, --upstream <url>',   'Upstream LLM base URL (e.g. http://127.0.0.1:7272/v1)', 'http://127.0.0.1:7272/v1')
+    :8000  Backend/autonomous_sentry.py:81  http
+            running the sentry on the host (http://127.0.0.1:8000/...). Long /compagent work can block the Soul
+    :8000  Frontend/multigate/src/components/SettingsOverlay.tsx:18  http
+            const [wsUrl, setWsUrl] = useState('ws://127.0.0.1:8000');
+    :8000  Frontend/multigate/src/components/SettingsOverlay.tsx:18  ws
+            const [wsUrl, setWsUrl] = useState('ws://127.0.0.1:8000');
+    :8001  Frontend/XR_Vessel/src/components/SettingsTab.ts:16  http
+            { id: 'ears',     label: 'Ears (STT)',             emoji: '👂', healthUrl: 'http://localhost:8001/health', restartUrl: nu
+    :8002  Backend/Cognition/tokenslayer_proxy_server.py:306  http
+            "http://127.0.0.1:8002/v1/chat/completions",
+    :8002  Frontend/XR_Vessel/src/components/COMAX.ts:245  http
+            wrapper.querySelector('#db-health')?.addEventListener('click', async () => { dbOut.textContent = 'HEALTH: Checking...'; 
+    :8003  Backend/Cognition/generate_high_fidelity_map.py:8  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/generate_master_blueprint.py:7  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/generate_tiled_map.py:8  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/generate_weaver_map.py:7  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/visualize_architecture.py:8  http
+            url = "http://localhost:8003/api/dream"
+    :8003  Backend/Cognition/visualize_relay.py:7  http
+            URL = "http://localhost:8003/api/dream"
+    :8003  Backend/Creativity/start_creative_with_env.py:80  http
+            print("The service is now running on http://localhost:8003")
+    :8003  Backend/Monetizing/agent_core.py:1002  http
+            self.creative_url = "http://localhost:8003"
+    :8004  Backend/Cognition/SituationalAwarenessDaemon.py:137  http
+            "http://127.0.0.1:8004/tts",
+    :8004  Backend/Cognition/compagent_archive_v1.py:270  http
+            os.getenv("TTS_SERVICE_URL") or "http://localhost:8004/tts"
+    :8004  Frontend/XR_Vessel/src/components/SettingsTab.ts:17  http
+            { id: 'mouth',    label: 'Mouth (TTS)',            emoji: '🗣️', healthUrl: 'http://localhost:8004/health', restartUrl: n
+    :8005  Backend/app/IPC/websocket_server.py:1572  http
+            self.mouth_url = "http://127.0.0.1:8005"
+    :8006  Backend/Cognition/soul_coder_chat.py:9  http
+            Web UI:  http://localhost:8006
+    :8006  Backend/Cognition/soul_coder_chat.py:10  http
+            API:     http://localhost:8006/api/chat
+    :8006  Backend/Cognition/soul_core.py:1623  http
+            return await proxy_request(request, f"http://127.0.0.1:8006/{path}")
+    :8006  Backend/Cognition/soul_core.py:1631  http
+            return await proxy_request(request, f"http://127.0.0.1:8006/api/soundboard/{path}")
+    :8010  Backend/autonomous_sentry.py:135  http
+            "FoveAI_SENTRY_AUTONOMOUS_HEALTH_URL", "http://127.0.0.1:8010/health"
+    :8010  Frontend/XR_Vessel/src/components/SpatialBuilder.ts:23  http
+            const response = await fetch('http://localhost:8010/spatial/transpile', {
+    :8080  Backend/Cognition/soul_core.py:100  http
+            "http://127.0.0.1:8080",
+    :8080  Backend/Cognition/soul_core.py:101  http
+            "http://localhost:8080",
+    :8080  Backend/autonomous_sentry.py:128  http
+            "FoveAI_SENTRY_WEBUI_HEALTH_URL", "http://127.0.0.1:8080/health"
+    :8103  Backend/Cognition/tokenslayer_proxy_server.py:677  http
+            expand_hint = f"curl -X POST http://localhost:8103/api/xrl/expand -H 'Content-Type: application/json' -d '{{\"uris\": [\
+    :8105  Frontend/XR_Vessel/src/components/ForgeNurseryTab.ts:176  http
+            fetch('http://localhost:8105/api/status').catch(() => null),
+    :8105  Frontend/XR_Vessel/src/components/ForgeNurseryTab.ts:177  http
+            fetch('http://localhost:8105/api/variants').catch(() => null),
+    :8105  Frontend/XR_Vessel/src/components/ForgeNurseryTab.ts:178  http
+            fetch('http://localhost:8105/api/datasets').catch(() => null),
+    :8105  Frontend/XR_Vessel/src/components/ForgeNurseryTab.ts:179  http
+            fetch('http://localhost:8105/api/training/jobs').catch(() => null),
+    :8105  Frontend/XR_Vessel/src/components/ForgeNurseryTab.ts:275  http
+            await fetch(`http://localhost:8105/api/variants/${variantId}`, { method: 'DELETE' });
+    :8105  Frontend/XR_Vessel/src/components/ForgeNurseryTab.ts:343  http
+            const res = await fetch(`http://localhost:8105/api/quantize/models/${vid}`).catch(() => null);
+    :8105  Frontend/XR_Vessel/src/components/ForgeNurseryTab.ts:382  http
+            const res = await fetch('http://localhost:8105/api/variants', {
+    :8105  Frontend/XR_Vessel/src/components/ForgeNurseryTab.ts:412  http
+            const res = await fetch('http://localhost:8105/api/forge', {
+    :8106  Backend/Memory/smart_context.py:18  http
+            DOWNSTREAM_URL = "http://127.0.0.1:8106/v1/chat/completions"
+    :8106  Backend/Memory/smart_context.py:157  http
+            response = await client.get("http://127.0.0.1:8106/v1/models")
+    :8106  foveated-memory/public/graphtest.html:215  http
+            <option value="http://127.0.0.1:8106/v1/chat/completions">Raw Benchmark Proxy (:8106)</option>
+    :8106  foveated-memory/public/graphtest.html:231  http
+            <option value="http://127.0.0.1:8106/v1/chat/completions">Raw Benchmark Proxy (:8106)</option>
+    :8106  foveated-memory/public/graphtest.html:757  http
+            const urlB = document.getElementById('proxySelectB').value || "http://127.0.0.1:8106/v1/chat/completions";
+    :8109  Backend/Memory/smart_context.py:15  http
+            STARDUST_URL = "http://127.0.0.1:8109"
+    :8110  Backend/Cognition/soul_core.py:954  http
+            "http://127.0.0.1:8110/motor/publish",
+    :8113  Backend/Cognition/SituationalAwarenessDaemon.py:163  http
+            "http://127.0.0.1:8113/api/stt/impulse",
+    :8113  Backend/Cognition/compagent_archive_v1.py:3465  http
+            "http://127.0.0.1:8113/solve/apply",
+    :8123  Backend/Cognition/HomeCore.py:14  http
+            HA_URL = os.getenv("HA_URL", "http://localhost:8123/api")
+    :8406  Backend/Cognition/compagent.py:297  http
+            os.getenv("TTS_SERVICE_URL") or "http://localhost:8406/tts"
+    :8406  Backend/Cognition/compagent.py:1469  http
+            "http://localhost:8406/say", json={"text": text}, timeout=30
+    :8406  Backend/Creativity/ask.py:24  http
+            LOCAL_ROUTER_FAST = "http://127.0.0.1:8406"  # 380M draft
+    :8406  Backend/Creativity/tandem.py:88  http
+            LOCAL_ROUTER_FAST = "http://127.0.0.1:8406"   # 380M draft — 140ms classifier
+    :8406  foveated-memory/core/smart-router.js:41  http
+            ? process.env.XRLF_DORMANT_BASE_URL || 'http://127.0.0.1:8406'
+    :8407  Backend/Creativity/ask.py:25  http  [optional by design]
+            LOCAL_ROUTER = "http://127.0.0.1:8407"     # 941M core
+    :8407  Backend/Creativity/tandem.py:89  http  [optional by design]
+            LOCAL_ROUTER = "http://127.0.0.1:8407"         # 941M core — planning
+    :8408  Backend/Creativity/ask.py:23  http
+            LOCAL_ROLEPLAY = "http://127.0.0.1:8408"   # 9B Qwen3.5 MoQ-3.6, CUDA
+    :8408  Backend/Creativity/tandem.py:90  http
+            LOCAL_ROLEPLAY = "http://127.0.0.1:8408"      # 4B super-coder — roleplay/memory legs
+    :8790  Backend/Cognition/kiosk_templates/ai_chat/main.py:67  http
+            print("AI Chat on http://127.0.0.1:8790")
+    :8791  Backend/Cognition/kiosk_templates/ai_persona/main.py:79  http
+            print("AI Persona on http://127.0.0.1:8791")
+    :8792  Backend/Cognition/kiosk_templates/meter_widget/main.py:63  http
+            print("Meter Widget on http://127.0.0.1:8792")
+    :8793  Backend/Cognition/kiosk_templates/music_app/main.py:37  http
+            print("Music Toy on http://127.0.0.1:8793")
+    :8794  Backend/Cognition/kiosk_templates/web_browser/main.py:59  http
+            print("Mini Browser on http://127.0.0.1:8794")
+    :8888  Backend/Cognition/ag_coder.py:92  http
+            or os.getenv("FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1")
+    :8888  Backend/Cognition/autonomous_core.py:151  http
+            os.getenv("FoveAI_LOCAL_BASE_URL", "").strip() or "http://localhost:8888/v1"
+    :8888  Backend/Cognition/compagent.py:257  http
+            os.getenv("FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1").strip()
+    :8888  Backend/Cognition/compagent.py:258  http
+            or "http://localhost:8888/v1"
+    :8888  Backend/Cognition/compagent.py:996  http
+            os.getenv("FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1")
+    :8888  Backend/Cognition/compagent.py:4665  http
+            "FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1"
+    :8888  Backend/Cognition/compagent_archive_v1.py:120  http
+            os.getenv("FoveAI_LOCAL_BASE_URL", "").strip() or "http://localhost:8888/v1"
+    :8888  Backend/Cognition/compagent_archive_v1.py:230  http
+            os.getenv("FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1").strip()
+    :8888  Backend/Cognition/compagent_archive_v1.py:231  http
+            or "http://localhost:8888/v1"
+    :8888  Backend/Cognition/compagent_archive_v1.py:966  http
+            os.getenv("FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1")
+    :8888  Backend/Cognition/compagent_archive_v1.py:3639  http
+            "FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1"
+    :8888  Backend/Cognition/compagent_lmstudio_worker.py:31  http
+            lmstudio_url = os.getenv("LMSTUDIO_URL", "http://localhost:8888")
+    :8888  Backend/Cognition/lmstudio_http.py:23  http
+            return os.getenv("FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1").rstrip("/")
+    :8888  Backend/Cognition/soul_coder_api.py:35  http
+            FoveAI_LOCAL_BASE_URL = os.getenv("FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1")
+    :8888  Backend/Cognition/soul_coder_chat.py:32  http
+            FoveAI_LOCAL_BASE_URL = os.getenv("FoveAI_LOCAL_BASE_URL", "http://localhost:8888/v1")
+    :8888  Backend/Cognition/soul_core.py:168  http
+            r = httpx.get("http://127.0.0.1:8888/v1/models", timeout=2.0)
+    :8888  Backend/Cognition/soul_core.py:1112  http
+            base_url = os.environ.get("FoveAI_LOCAL_BASE_URL", "http://127.0.0.1:8888/v1")
+    :8888  Backend/Cognition/soul_core.py:1122  http
+            r = httpx.get("http://127.0.0.1:8888/v1/models", timeout=2.0)
+    :8888  Backend/Cognition/swarm_orchestrator.py:378  http
+            os.getenv("FoveAI_BACKUP_BASE_URL", "http://localhost:8888/v1"),
+    :8888  Backend/Cognition/system_probe.py:41  http
+            "unsloth": "http://127.0.0.1:8888/v1/models",
+    :8888  Backend/Memory/lumax_mcp_server.py:74  http
+            LOCAL_LLM_BASE = os.getenv("LOCAL_LLM_BASE", "http://127.0.0.1:8888/v1")
+    :19847  Backend/Cognition/MusicalDirector.py:31  http
+            TOPBAR_CUE_URL = "http://127.0.0.1:19847/soundtrack_cue"
+    :19847  foveated-memory/core/emotional-resonance.js:91  http
+            const TOPBAR_CUE_URL = "http://127.0.0.1:19847/soundtrack_cue";
+    :48736  Backend/app/mcp_client.py:10  http
+            MCP_URL = "http://127.0.0.1:48736/mcpbridge/"
+
+  ── NOT IN THE COGNITIVE SERIES
+    :5173  Backend/Cognition/soul_core.py:102
+    :5173  Backend/Cognition/soul_core.py:103
+    :7272  Backend/Cognition/soul_core.py:178
+    :7272  Backend/Cognition/soul_core.py:1143
+    :7272  Backend/Cognition/system_probe.py:42
+    :7272  foveated-memory/bin/foveated-memory.js:25
+    :7272  foveated-memory/bin/foveated-memory.js:25
+    :8000  Frontend/multigate/src/components/SettingsOverlay.tsx:18
+    :8000  Frontend/multigate/src/components/SettingsOverlay.tsx:18
+    :8000  Backend/autonomous_sentry.py:81
+    :8001  Frontend/XR_Vessel/src/components/SettingsTab.ts:16
+    :8002  Frontend/XR_Vessel/src/components/COMAX.ts:245
+    :8002  Backend/Cognition/tokenslayer_proxy_server.py:306
+    :8003  Backend/Monetizing/agent_core.py:1002
+    :8003  Backend/Creativity/start_creative_with_env.py:80
+    :8003  Backend/Cognition/generate_tiled_map.py:8
+    :8003  Backend/Cognition/generate_high_fidelity_map.py:8
+    :8003  Backend/Cognition/generate_weaver_map.py:7
+    :8003  Backend/Cognition/visualize_relay.py:7
+    :8003  Backend/Cognition/generate_master_blueprint.py:7
+    :8003  Backend/Cognition/visualize_architecture.py:8
+    :8004  Frontend/XR_Vessel/src/components/SettingsTab.ts:17
+    :8004  Backend/Cognition/SituationalAwarenessDaemon.py:137
+    :8004  Backend/Cognition/compagent_archive_v1.py:270
+    :8005  Backend/app/IPC/websocket_server.py:1572
+    :8006  Backend/Cognition/soul_core.py:1623
+    :8006  Backend/Cognition/soul_core.py:1631
+    :8006  Backend/Cognition/soul_coder_chat.py:9
+    :8006  Backend/Cognition/soul_coder_chat.py:10
+    :8010  Frontend/XR_Vessel/src/components/SpatialBuilder.ts:23
+    :8010  Backend/autonomous_sentry.py:135
+    :8080  Backend/autonomous_sentry.py:128
+    :8080  Backend/Cognition/soul_core.py:100
+    :8080  Backend/Cognition/soul_core.py:101
+    :8103  Backend/Cognition/tokenslayer_proxy_server.py:677
+    :8105  Frontend/XR_Vessel/src/components/ForgeNurseryTab.ts:176
+    :8105  Frontend/XR_Vessel/src/components/ForgeNurseryTab.ts:177
+    :8105  Frontend/XR_Vessel/src/components/ForgeNurseryTab.ts:178
+    :8105  Frontend/XR_Vessel/src/components/ForgeNurseryTab.ts:179
+    :8105  Frontend/XR_Vessel/src/components/ForgeNurseryTab.ts:275
+    :8105  Frontend/XR_Vessel/src/components/ForgeNurseryTab.ts:343
+    :8105  Frontend/XR_Vessel/src/components/ForgeNurseryTab.ts:382
+    :8105  Frontend/XR_Vessel/src/components/ForgeNurseryTab.ts:412
+    :8106  Backend/Memory/smart_context.py:18
+    :8106  Backend/Memory/smart_context.py:157
+    :8106  foveated-memory/public/graphtest.html:215
+    :8106  foveated-memory/public/graphtest.html:231
+    :8106  foveated-memory/public/graphtest.html:757
+    :8109  Backend/Memory/smart_context.py:15
+    :8110  Backend/Cognition/soul_core.py:954
+    :8113  Backend/Cognition/SituationalAwarenessDaemon.py:163
+    :8113  Backend/Cognition/compagent_archive_v1.py:3465
+    :8123  Backend/Cognition/HomeCore.py:14
+    :8790  Backend/Cognition/kiosk_templates/ai_chat/main.py:67
+    :8791  Backend/Cognition/kiosk_templates/ai_persona/main.py:79
+    :8792  Backend/Cognition/kiosk_templates/meter_widget/main.py:63
+    :8793  Backend/Cognition/kiosk_templates/music_app/main.py:37
+    :8794  Backend/Cognition/kiosk_templates/web_browser/main.py:59
+    :8888  Backend/Cognition/autonomous_core.py:151
+    :8888  Backend/Cognition/compagent.py:257
+    :8888  Backend/Cognition/compagent.py:258
+    :8888  Backend/Cognition/compagent.py:996
+    :8888  Backend/Cognition/compagent.py:4665
+    :8888  Backend/Cognition/lmstudio_http.py:23
+    :8888  Backend/Cognition/soul_core.py:168
+    :8888  Backend/Cognition/soul_core.py:1112
+    :8888  Backend/Cognition/soul_core.py:1122
+    :8888  Backend/Cognition/soul_coder_api.py:35
+    :8888  Backend/Cognition/system_probe.py:41
+    :8888  Backend/Cognition/compagent_lmstudio_worker.py:31
+    :8888  Backend/Cognition/ag_coder.py:92
+    :8888  Backend/Cognition/compagent_archive_v1.py:120
+    :8888  Backend/Cognition/compagent_archive_v1.py:230
+    :8888  Backend/Cognition/compagent_archive_v1.py:231
+    :8888  Backend/Cognition/compagent_archive_v1.py:966
+    :8888  Backend/Cognition/compagent_archive_v1.py:3639
+    :8888  Backend/Cognition/soul_coder_chat.py:32
+    :8888  Backend/Cognition/swarm_orchestrator.py:378
+    :8888  Backend/Memory/lumax_mcp_server.py:74
+    :19847  Backend/Cognition/MusicalDirector.py:31
+    :19847  foveated-memory/core/emotional-resonance.js:91
+    :48736  Backend/app/mcp_client.py:10
+
