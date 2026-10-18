@@ -4167,6 +4167,12 @@ app.get(['/v1/models', '/models'], async (req, res) => {
         if (data && data.data && !data.data.find(m => m.id === 'foveated-proxy-auto')) {
             // data.data.unshift({ id: 'foveated-proxy-auto', object: 'model', created: Math.floor(Date.now()/1000), owned_by: 'foveated-proxy' });
         }
+        // Dedupe by id — upstream lists (ollama cloud returns devin-opus/
+        // devin-sonnet-4 twice) leak duplicates into pickers that key on id.
+        if (data && Array.isArray(data.data)) {
+            const seen = new Set();
+            data.data = data.data.filter(m => m && m.id && !seen.has(m.id) && seen.add(m.id));
+        }
         res.json(data);
     } catch (err) {
         console.error(`[Fovea] /v1/models handler failed:`, err.message);
