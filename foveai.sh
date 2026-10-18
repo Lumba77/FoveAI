@@ -249,6 +249,7 @@ FLEET_UNITS=(
     foveai-nerve.service
     foveai-residency.service
     foveai-backend.service
+    foveai-nova.service
     foveai-xrlf.service
     foveai-soul.service
     foveai-tts.service
