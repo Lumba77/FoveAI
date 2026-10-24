@@ -342,3 +342,8 @@ runlogs/
 *.log.*
 *.db-wal
 *.db-shm
+
+# Large binary runtimes & VM disk images (>100MB)
+Tools/llama-b11053-cuda/llama-b11053/libcublas*
+Frontend/XR_Vessel/public/webvm/custom-disk-images/*.ext2
+*.ext2
