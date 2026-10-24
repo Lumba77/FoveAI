@@ -1,0 +1,30 @@
+{
+  "name": "xrlf-server",
+  "version": "3.0.0",
+  "description": "XRLF Protocol 3.0 — Extended Reasoning Language & Holonic Agent Memory Framework",
+  "main": "run_xrlf.py",
+  "bin": {
+    "xrlf": "./run_xrlf.py",
+    "xrl-client": "./tools/xrl_agent_client.py"
+  },
+  "scripts": {
+    "test": "python3 -m unittest discover tests",
+    "start": "python3 run_xrlf.py"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Lumba77/XRLF-1.0.git"
+  },
+  "keywords": [
+    "xrlf",
+    "xrl-3.0",
+    "open-xrl",
+    "holonic-state",
+    "agent-memory",
+    "llm",
+    "mamba2",
+    "edge-ai"
+  ],
+  "author": "Daniel Lundberg",
+  "license": "Apache-2.0"
+}
