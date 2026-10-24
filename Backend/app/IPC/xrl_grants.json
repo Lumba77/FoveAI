@@ -1,37 +1,65 @@
 {
-  "version": 1,
-  "policy": "grant-only: a contract is issued by the arbiter and must exist here. Registering with a name not listed is rejected. Keys are not grants.",
-  "grants": {
-    "jen": {
-      "role": "arbiter",
-      "mode": "both",
-      "caps": [
-        "recall",
-        "deposit",
-        "expand"
-      ],
-      "enabled": true,
-      "granted_by": "lumba",
-      "granted_at": "2026-10-16T07:50:21Z",
-      "expires": null,
-      "archetype": "companion"
+    "version": 1,
+    "policy": "grant-only: a contract is issued by the arbiter and must exist here. Registering with a name not listed is rejected. Keys are not grants.",
+    "grants": {
+        "jen": {
+            "role": "arbiter",
+            "mode": "both",
+            "caps": [
+                "recall",
+                "deposit",
+                "expand"
+            ],
+            "enabled": true,
+            "granted_by": "lumba",
+            "granted_at": "2026-10-16T07:50:21Z",
+            "expires": null,
+            "archetype": "companion"
+        },
+        "spacebunny": {
+            "role": "participant",
+            "mode": "both",
+            "caps": [
+                "recall",
+                "deposit"
+            ],
+            "enabled": false,
+            "granted_by": "lumba",
+            "granted_at": "2026-10-16T07:50:21Z",
+            "revoked_by": "lumba",
+            "revoked_at": "2026-10-16T08:32:40Z",
+            "revoked_reason": "removed by owner decision - ugly tendencies",
+            "expires": null,
+            "archetype": "tool"
+        },
+        "devin": {
+            "role": "participant",
+            "mode": "both",
+            "caps": [
+                "recall",
+                "deposit",
+                "expand"
+            ],
+            "enabled": true,
+            "granted_by": "lumba",
+            "granted_at": "2026-10-23T18:48:04Z",
+            "expires": null,
+            "archetype": "tool"
+        },
+        "antigravity": {
+            "role": "participant",
+            "mode": "both",
+            "caps": [
+                "recall",
+                "deposit",
+                "expand"
+            ],
+            "enabled": true,
+            "granted_by": "lumba",
+            "granted_at": "2026-10-24T16:01:00Z",
+            "expires": null,
+            "archetype": "tool"
+        }
     },
-    "spacebunny": {
-      "role": "participant",
-      "mode": "both",
-      "caps": [
-        "recall",
-        "deposit"
-      ],
-      "enabled": false,
-      "granted_by": "lumba",
-      "granted_at": "2026-10-16T07:50:21Z",
-      "revoked_by": "lumba",
-      "revoked_at": "2026-10-16T08:32:40Z",
-      "revoked_reason": "removed by owner decision - ugly tendencies",
-      "expires": null,
-      "archetype": "tool"
-    }
-  },
-  "archetype_legend": "identity hue per granted agent; bound in the grant, not by position"
+    "archetype_legend": "identity hue per granted agent; bound in the grant, not by position"
 }

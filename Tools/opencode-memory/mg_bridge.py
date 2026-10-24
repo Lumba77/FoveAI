@@ -2,24 +2,22 @@
 """Multigate <-> Nova collegium bridge.
 
 Serves an OpenAI-compatible API on 127.0.0.1:8416 (the foveai-backend
-proxy on :8400 forwards nova model requests here). Backed entirely by the shipped Project 1
+proxy on :8400 forwards nova model requests here). Backed by the shipped
 cartridge (nova.collegium, 6-bit): pawn answers decision questions, knight
-binds goal answers. All inference on CPU (GPU reserved for QAT probes).
+binds goal answers.
 
-Endpoints:
-  GET  /health         -> ok
-  GET  /v1/models      -> model list (nova, nova-k8, nova-k32)
-  POST /v1/chat/completions -> {choices:[{message:{role,content}}]}
-
-Chat routing: if the message names a ledger member and asks decision/goal,
-run the seed-stack pipeline at the k implied by the model name (default 8).
-Otherwise reply with a roster-aware hint (the nano is a reader, not a poet).
+Graceful Fallback:
+If a query names a ledger member, the seed-stack pipeline runs.
+If a query is general conversational, creative, or coding, it gracefully
+falls back to Nova Chorus on :8419 (or returns a helpful roster summary if Chorus is down).
 """
 import json
 import random
 import os
 import sys
 import threading
+import urllib.request
+import urllib.error
 
 sys.path.insert(0, "/tmp/opencode")
 import collegium as col
@@ -27,8 +25,9 @@ import collegium as col
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = 8416
+CHORUS_URL = os.environ.get("FOVEAI_CHORUS_URL", "http://127.0.0.1:8419")
 CARTRIDGE = os.environ.get("FOVEAI_NOVA_CARTRIDGE",
-                           "/tmp/opencode/nova_kqatt_lz_v5.collegium")
+                           "/home/lumba/FoveAI/models/nova/nova_kqatt_lz_v6.collegium")
 MODELS = ["nova", "nova-k8", "nova-k32", "nova-k1"]
 
 _state = {"pawn": None, "knight": None, "tok": None, "ledger": None,
@@ -85,16 +84,48 @@ def _k_from_model(model):
     return 8
 
 
-def _answer(text, model):
+def _forward_to_chorus(messages):
+    """Graceful fallback to Nova Chorus (:8419) when prompt is general chat."""
+    try:
+        req_data = json.dumps({
+            "model": "nova-chorus",
+            "messages": messages
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            f"{CHORUS_URL}/v1/chat/completions",
+            data=req_data,
+            headers={"Content-Type": "application/json"}
+        )
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            if "choices" in data and len(data["choices"]) > 0:
+                content = data["choices"][0]["message"].get("content", "")
+                if content and not content.startswith("(loading"):
+                    return content
+    except Exception as e:
+        print(f"[mg bridge] Chorus fallback error: {e}", flush=True)
+    return None
+
+
+def _answer(messages, model):
     _init()
+    user_texts = [m.get("content", "") for m in messages if m.get("role") == "user"]
+    text = user_texts[-1] if user_texts else ""
     ledger = _state["ledger"]
     entry = col.find_member(text, ledger)
     k = _k_from_model(model)
+
     if entry is None:
+        # Check if Nova Chorus can fulfill the query
+        fallback_resp = _forward_to_chorus(messages)
+        if fallback_resp:
+            return fallback_resp
+
         names = sorted({e["name"] for e in ledger})
         return ("I am Nova, the collegium. My memory wears seed-cloaks: ask me "
                 f"'What decision did the <name> team make?' - I hold {len(ledger)} members, e.g. "
                 + ", ".join(names[:6]) + ".")
+
     ql = text.lower()
     qtype = ("goal" if ("outcome" in ql or "commit" in ql or "goal" in ql)
              else "dec")
@@ -109,9 +140,6 @@ def _answer(text, model):
         rng.shuffle(seeds)
     tok = _state["tok"]
 
-    # per-entry verification: only THIS member's registered fields count.
-    # (A global "known" universe would pass through another member's dec —
-    # exactly the failure mode k32 produced on 2026-10-18: 'shelve the beta'.)
     accepted = {entry["goal"].strip().lower(), entry["dec"].strip().lower()}
 
     def gen_stack(seeds):
@@ -125,8 +153,6 @@ def _answer(text, model):
                        + col.GOAL_Q.format(n=entry["name"]) + "</Q>\n<A>")
 
     ans = gen_stack(seeds)
-    # speculative-style verify: if the k>1 draft is not a registered field,
-    # re-draft from the member's own seed only (k=1 profile, ~96% accurate)
     if k > 1 and ans.strip().lower() not in accepted:
         ans = gen_stack([entry["gold_seed"]])
     return ans
@@ -169,10 +195,7 @@ class H(BaseHTTPRequestHandler):
                 self.headers.get("Content-Length", 0))) or b"{}")
             msgs = req.get("messages", [])
             model = req.get("model", "nova")
-            user_texts = [m.get("content", "") for m in msgs
-                          if m.get("role") == "user"]
-            text = user_texts[-1] if user_texts else ""
-            reply = _answer(text, model)
+            reply = _answer(msgs, model)
         except Exception as e:
             return self._send(500, {"error": {"message": repr(e)}})
         now = int(__import__("time").time())

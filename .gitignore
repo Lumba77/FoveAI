@@ -334,3 +334,11 @@ Nursery/
 *.env.pre-*bak
 *.env.*bak
 cloudflare-gateway-ca.pem
+
+# ── Live runtime logs and test triage ──
+memory/ui_health/
+runlogs/
+*.log
+*.log.*
+*.db-wal
+*.db-shm
