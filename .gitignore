@@ -347,3 +347,13 @@ runlogs/
 Tools/llama-b11053-cuda/llama-b11053/libcublas*
 Frontend/XR_Vessel/public/webvm/custom-disk-images/*.ext2
 *.ext2
+
+# Secrets & Service Account tokens (Google Cloud, Hugging Face, Firebase)
+foveai-firebase-adminsdk-*.json
+*-adminsdk-*.json
+.wh
+.wh.*
+*.key
+*.pem
+*.token
+
