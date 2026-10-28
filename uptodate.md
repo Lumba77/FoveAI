@@ -19,6 +19,7 @@ FoveAI refactors away from brittle, high-latency multi-model HTTP swarms into a 
 | **Motor / Autonomous** | `motor_daemon.py` | **8410** | Native avatar agency. `foveai-motor.service`. |
 | **Subconscious** | `Backend/Cognition/subconscious_daemon.py` | **8409** | Telemetry eval + dispatch. `foveai-subconscious.service`. `/health` added 2026-09-19. |
 | **Multigate WebUI** | `Frontend/multigate` (Vite) | **5177** | Browser UI; same-origin `/api/*` proxied to :8400. `foveai-multigate.service`. Requires Node ≥20 (Node 24 in `~/.local`). |
+| **Sleipnir Central Thalamus** | `Tools/thalamus_xrl_bridge.py` | **8420** | Swarm router for 5 Mamba-2 colonies (History, Finance, Constitutive, Receptor, Companion). 136 tok/s inference, 432Hz chords, Kantian memory rings. |
 | **WebXR Vessel UI** | Spatial Frontend | 5176 | Optional/deprecated — normally offline. |
 | **Sovereign Core (Soul)** | `compagent.py` | 8402 (`SOUL_PORT`) | Cognition loop, motor intent extraction, avatar coordination. |
 | **LM Studio (Optional)** | BYO-GGUF Gateway | 1234 | Optional legacy fallback; normally offline. Browser access proxied via `/api/lmstudio`. |
@@ -791,3 +792,11 @@ a real 1.9MB photo → accepted.
 - **Where it lives:** `/mnt/foveai/motherboard/` on `sdb2` (`foveai-ssd`). Full session archive: `/mnt/foveai/sessions/xrlfb-1000-model-architecture_2026-10-16/`.
 - **Live surfaces:** `http://127.0.0.1:5177/tsd_blaster.html` (also `:8414`), `/api/tsd/*`, chat modes `juggle`/`tandem`/`legion`, tray submenu "TSD Legion & UI Blasters".
 - **Caveat:** performance claims are session-reported, not yet independently benchmarked. Concept note `Docs/XRL_HIVE_MIND.md` still says "concept note".
+
+## 2026-10-26
+- Audio chain LIVE end-to-end: RODE mic → effect_input.eq → HDMI → Samsung, verified by ear
+- Root cause: missing `audio` group + seat ACL held by stale session — see .logs/AUDIO_HANDOVER.md
+- Variator GUI on TV (X :2): ScrewKnob rows, LCD hover-scroll, FreqBal buttons, scene presets, yt/file player
+- Tools: eq_play, eq_demo_gen.py, tv_audio_hud.py, foveai_smoke.py (audio_loop), xrl_reindex/repo_survey/repo_fix suite (~100 ledgered fixes)
+- Persistent: foveai-tv-hud.service (vinyl painter, yields to sessions/X)
+- Pending: whisper :8430 cold-start, Quest mic route, GUI row-width fit
