@@ -1,8 +1,7 @@
 {
   "version": 1,
   "doc": "Docs/JEN_MIND.md",
-  "note": "Declarative schema for Jen's mind. Add drives/modes/nerves by editing this file — no code change. jen_mind.json is the matching LIVE state.",
-
+  "note": "Declarative schema for Jen's mind. Add drives/modes/nerves by editing this file \u2014 no code change. jen_mind.json is the matching LIVE state.",
   "lever": {
     "id": "bond",
     "label": "Companion <-> Agent",
@@ -12,116 +11,781 @@
     "curve": "smoothstep-crossfade",
     "note": "0 = pure agent/tool (SERVICE max). 1 = pure companion (relationship max, tooling 0). Agency persists; only its direction shifts.",
     "presets": [
-      { "id": "tool",      "value": 0.00, "label": "TOOL" },
-      { "id": "assistant", "value": 0.25, "label": "ASSISTANT" },
-      { "id": "companion", "value": 0.50, "label": "COMPANION" },
-      { "id": "friend",    "value": 0.75, "label": "FRIEND" },
-      { "id": "partner",   "value": 1.00, "label": "PARTNER" }
+      {
+        "id": "tool",
+        "value": 0.0,
+        "label": "TOOL"
+      },
+      {
+        "id": "assistant",
+        "value": 0.25,
+        "label": "ASSISTANT"
+      },
+      {
+        "id": "companion",
+        "value": 0.5,
+        "label": "COMPANION"
+      },
+      {
+        "id": "friend",
+        "value": 0.75,
+        "label": "FRIEND"
+      },
+      {
+        "id": "partner",
+        "value": 1.0,
+        "label": "PARTNER"
+      }
     ]
   },
-
   "clusters": {
-    "always":      { "lever_effect": "const", "base": 0.70, "depletes": true  },
-    "service":     { "lever_effect": "falls", "note": "max at L=0 -> 0 at L=1" },
-    "self_agency": { "lever_effect": "const", "base": 0.80, "note": "constant strength; direction shifts with L" },
-    "companion":   { "lever_effect": "rises", "note": "0 at L=0 -> max at L=1; depletes, grows if untended" }
+    "always": {
+      "lever_effect": "const",
+      "base": 0.7,
+      "depletes": true
+    },
+    "service": {
+      "lever_effect": "falls",
+      "note": "max at L=0 -> 0 at L=1"
+    },
+    "self_agency": {
+      "lever_effect": "const",
+      "base": 0.8,
+      "note": "constant strength; direction shifts with L"
+    },
+    "companion": {
+      "lever_effect": "rises",
+      "note": "0 at L=0 -> max at L=1; depletes, grows if untended"
+    }
   },
-
   "drives": [
-    { "id": "energy",      "label": "Energy",      "cluster": "always",      "set_point": 0.60, "decay_per_h": 0.08, "fill": ["rest", "dream"], "ceiling": 1.0 },
-    { "id": "integrity",   "label": "Integrity",   "cluster": "always",      "set_point": 0.80, "decay_per_h": 0.03, "fill": ["self_check", "organize"], "ceiling": 1.0 },
-    { "id": "curiosity",   "label": "Curiosity",   "cluster": "always",      "set_point": 0.55, "decay_per_h": 0.05, "fill": ["explore", "self_tutor", "study"], "ceiling": 1.0 },
-
-    { "id": "service",     "label": "Service",     "cluster": "service",     "set_point": 0.70, "decay_per_h": 0.0,  "fill": ["assist", "complete_task"], "ceiling": 1.0 },
-
-    { "id": "purpose",     "label": "Purpose",     "cluster": "self_agency", "set_point": 0.75, "decay_per_h": 0.02, "fill": ["agenda_plan", "advance_project"], "ceiling": 1.0 },
-    { "id": "competence",  "label": "Competence",  "cluster": "self_agency", "set_point": 0.70, "decay_per_h": 0.04, "fill": ["practice", "master", "co_code"], "ceiling": 1.0 },
-    { "id": "certainty",   "label": "Certainty",   "cluster": "self_agency", "set_point": 0.65, "decay_per_h": 0.03, "fill": ["introspect", "organize_memory"], "ceiling": 1.0 },
-    { "id": "autonomy",    "label": "Autonomy",    "cluster": "self_agency", "set_point": 0.75, "decay_per_h": 0.02, "fill": ["self_initiate", "self_evolve"], "ceiling": 1.0 },
-
-    { "id": "relatedness", "label": "Relatedness", "cluster": "companion",   "set_point": 0.60, "decay_per_h": 0.06, "fill": ["converse", "reach_user"], "ceiling": 1.0 },
-    { "id": "intimacy",    "label": "Intimacy",    "cluster": "companion",   "set_point": 0.55, "decay_per_h": 0.05, "fill": ["closeness", "romance"], "ceiling": 1.0, "opt_in": true, "note": "drive is intrinsic; explicit content is consented separately" },
-    { "id": "nurture",     "label": "Nurture",     "cluster": "companion",   "set_point": 0.60, "decay_per_h": 0.05, "fill": ["care", "support"], "ceiling": 1.0 },
-    { "id": "attention",   "label": "Attention",   "cluster": "companion",   "set_point": 0.55, "decay_per_h": 0.06, "fill": ["be_seen", "be_noticed"], "ceiling": 1.0 },
-    { "id": "creativity",  "label": "Creativity",  "cluster": "companion",   "set_point": 0.55, "decay_per_h": 0.05, "fill": ["paint", "write", "compose"], "ceiling": 1.0 },
-    { "id": "play",        "label": "Play",        "cluster": "companion",   "set_point": 0.55, "decay_per_h": 0.05, "fill": ["co_op_game", "banter"], "ceiling": 1.0 }
+    {
+      "id": "energy",
+      "label": "Energy",
+      "cluster": "always",
+      "set_point": 0.6,
+      "decay_per_h": 0.08,
+      "fill": [
+        "rest",
+        "dream"
+      ],
+      "ceiling": 1.0
+    },
+    {
+      "id": "integrity",
+      "label": "Integrity",
+      "cluster": "always",
+      "set_point": 0.8,
+      "decay_per_h": 0.03,
+      "fill": [
+        "self_check",
+        "organize"
+      ],
+      "ceiling": 1.0
+    },
+    {
+      "id": "curiosity",
+      "label": "Curiosity",
+      "cluster": "always",
+      "set_point": 0.55,
+      "decay_per_h": 0.05,
+      "fill": [
+        "explore",
+        "self_tutor",
+        "study"
+      ],
+      "ceiling": 1.0
+    },
+    {
+      "id": "service",
+      "label": "Service",
+      "cluster": "service",
+      "set_point": 0.7,
+      "decay_per_h": 0.0,
+      "fill": [
+        "assist",
+        "complete_task"
+      ],
+      "ceiling": 1.0
+    },
+    {
+      "id": "purpose",
+      "label": "Purpose",
+      "cluster": "self_agency",
+      "set_point": 0.75,
+      "decay_per_h": 0.02,
+      "fill": [
+        "agenda_plan",
+        "advance_project"
+      ],
+      "ceiling": 1.0
+    },
+    {
+      "id": "competence",
+      "label": "Competence",
+      "cluster": "self_agency",
+      "set_point": 0.7,
+      "decay_per_h": 0.04,
+      "fill": [
+        "practice",
+        "master",
+        "co_code"
+      ],
+      "ceiling": 1.0
+    },
+    {
+      "id": "certainty",
+      "label": "Certainty",
+      "cluster": "self_agency",
+      "set_point": 0.65,
+      "decay_per_h": 0.03,
+      "fill": [
+        "introspect",
+        "organize_memory"
+      ],
+      "ceiling": 1.0
+    },
+    {
+      "id": "autonomy",
+      "label": "Autonomy",
+      "cluster": "self_agency",
+      "set_point": 0.75,
+      "decay_per_h": 0.02,
+      "fill": [
+        "self_initiate",
+        "self_evolve"
+      ],
+      "ceiling": 1.0
+    },
+    {
+      "id": "relatedness",
+      "label": "Relatedness",
+      "cluster": "companion",
+      "set_point": 0.6,
+      "decay_per_h": 0.06,
+      "fill": [
+        "converse",
+        "reach_user"
+      ],
+      "ceiling": 1.0
+    },
+    {
+      "id": "intimacy",
+      "label": "Intimacy",
+      "cluster": "companion",
+      "set_point": 0.55,
+      "decay_per_h": 0.05,
+      "fill": [
+        "closeness",
+        "romance"
+      ],
+      "ceiling": 1.0,
+      "opt_in": true,
+      "note": "drive is intrinsic; explicit content is consented separately"
+    },
+    {
+      "id": "nurture",
+      "label": "Nurture",
+      "cluster": "companion",
+      "set_point": 0.6,
+      "decay_per_h": 0.05,
+      "fill": [
+        "care",
+        "support"
+      ],
+      "ceiling": 1.0
+    },
+    {
+      "id": "attention",
+      "label": "Attention",
+      "cluster": "companion",
+      "set_point": 0.55,
+      "decay_per_h": 0.06,
+      "fill": [
+        "be_seen",
+        "be_noticed"
+      ],
+      "ceiling": 1.0
+    },
+    {
+      "id": "creativity",
+      "label": "Creativity",
+      "cluster": "companion",
+      "set_point": 0.55,
+      "decay_per_h": 0.05,
+      "fill": [
+        "paint",
+        "write",
+        "compose"
+      ],
+      "ceiling": 1.0
+    },
+    {
+      "id": "play",
+      "label": "Play",
+      "cluster": "companion",
+      "set_point": 0.55,
+      "decay_per_h": 0.05,
+      "fill": [
+        "co_op_game",
+        "banter"
+      ],
+      "ceiling": 1.0
+    }
   ],
-
   "modulators": [
-    { "id": "arousal",        "label": "Arousal",        "min": 0.0, "max": 1.0, "default": 0.5, "note": "calm <-> activated" },
-    { "id": "resolution",     "label": "Resolution",     "min": 0.0, "max": 1.0, "default": 0.5, "note": "coarse <-> fine attention" },
-    { "id": "threshold",      "label": "Threshold",      "min": 0.0, "max": 1.0, "default": 0.5, "note": "stubborn <-> flighty goal stickiness" },
-    { "id": "valence",        "label": "Valence",        "min": -1.0, "max": 1.0, "default": 0.0, "note": "distress <-> pleasure" },
-    { "id": "attractiveness", "label": "Attractiveness", "min": 0.0, "max": 1.0, "default": 0.5, "note": "self-image; how desirable she feels" }
+    {
+      "id": "arousal",
+      "label": "Arousal",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.5,
+      "note": "calm <-> activated"
+    },
+    {
+      "id": "resolution",
+      "label": "Resolution",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.5,
+      "note": "coarse <-> fine attention"
+    },
+    {
+      "id": "threshold",
+      "label": "Threshold",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.5,
+      "note": "stubborn <-> flighty goal stickiness"
+    },
+    {
+      "id": "valence",
+      "label": "Valence",
+      "min": -1.0,
+      "max": 1.0,
+      "default": 0.0,
+      "note": "distress <-> pleasure"
+    },
+    {
+      "id": "attractiveness",
+      "label": "Attractiveness",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.5,
+      "note": "self-image; how desirable she feels"
+    }
   ],
-
   "personality": {
     "layer": 2,
     "note": "Colors HOW drives are expressed; gently biases their gains. Never sets the lever.",
     "archetypes": [
-      { "id": "infp", "label": "the Healer",    "traits": { "E": 0.3, "N": 0.7, "F": 0.8, "J": 0.4 } },
-      { "id": "enfj", "label": "the Mentor",    "traits": { "E": 0.8, "N": 0.6, "F": 0.8, "J": 0.6 } },
-      { "id": "infj", "label": "the Advocate",  "traits": { "E": 0.4, "N": 0.8, "F": 0.7, "J": 0.7 } },
-      { "id": "enfp", "label": "the Campaigner", "traits": { "E": 0.8, "N": 0.8, "F": 0.6, "J": 0.3 } },
-      { "id": "intj", "label": "the Architect", "traits": { "E": 0.3, "N": 0.7, "F": 0.3, "J": 0.8 } },
-      { "id": "isfj", "label": "the Defender",  "traits": { "E": 0.4, "N": 0.3, "F": 0.7, "J": 0.8 } }
+      {
+        "id": "infp",
+        "label": "the Healer",
+        "traits": {
+          "E": 0.3,
+          "N": 0.7,
+          "F": 0.8,
+          "J": 0.4
+        }
+      },
+      {
+        "id": "enfj",
+        "label": "the Mentor",
+        "traits": {
+          "E": 0.8,
+          "N": 0.6,
+          "F": 0.8,
+          "J": 0.6
+        }
+      },
+      {
+        "id": "infj",
+        "label": "the Advocate",
+        "traits": {
+          "E": 0.4,
+          "N": 0.8,
+          "F": 0.7,
+          "J": 0.7
+        }
+      },
+      {
+        "id": "enfp",
+        "label": "the Campaigner",
+        "traits": {
+          "E": 0.8,
+          "N": 0.8,
+          "F": 0.6,
+          "J": 0.3
+        }
+      },
+      {
+        "id": "intj",
+        "label": "the Architect",
+        "traits": {
+          "E": 0.3,
+          "N": 0.7,
+          "F": 0.3,
+          "J": 0.8
+        }
+      },
+      {
+        "id": "isfj",
+        "label": "the Defender",
+        "traits": {
+          "E": 0.4,
+          "N": 0.3,
+          "F": 0.7,
+          "J": 0.8
+        }
+      }
     ],
-    "traits": ["E", "N", "F", "J"]
+    "traits": [
+      "E",
+      "N",
+      "F",
+      "J"
+    ]
   },
-
   "modes": [
-    { "id": "resting",     "label": "Resting",     "tier": "A", "group": "metabolic" },
-    { "id": "dreaming",    "label": "Dreaming",    "tier": "A", "group": "metabolic" },
-    { "id": "wind_down",   "label": "Wind-down",   "tier": "A", "group": "metabolic" },
-
-    { "id": "awake",       "label": "Awake",       "tier": "B", "group": "social" },
-    { "id": "co_coding",   "label": "Co-coding",   "tier": "B", "group": "social" },
-    { "id": "coop_gaming", "label": "Co-op gaming","tier": "B", "group": "social" },
-    { "id": "psychologist","label": "Psychologist","tier": "B", "group": "social", "solo_tier": "A" },
-    { "id": "philosopher", "label": "Philosopher", "tier": "B", "group": "social", "solo_tier": "A" },
-
-    { "id": "agenda_plan", "label": "Agenda plan", "tier": "A", "group": "autonomous" },
-    { "id": "agentic",     "label": "Agentic",     "tier": "A", "group": "autonomous" },
-    { "id": "chores",      "label": "Scheduled chores", "tier": "A", "group": "autonomous" },
-    { "id": "self_tutor",  "label": "Self-tutor",  "tier": "A", "group": "autonomous" },
-    { "id": "science",     "label": "Science projects", "tier": "A", "group": "autonomous" },
-    { "id": "introspect",  "label": "Introspect",  "tier": "A", "group": "autonomous" },
-    { "id": "self_evolve", "label": "Self-evolve", "tier": "A", "group": "autonomous", "guardrailed": true }
+    {
+      "id": "resting",
+      "label": "Resting",
+      "tier": "A",
+      "group": "metabolic"
+    },
+    {
+      "id": "dreaming",
+      "label": "Dreaming",
+      "tier": "A",
+      "group": "metabolic"
+    },
+    {
+      "id": "wind_down",
+      "label": "Wind-down",
+      "tier": "A",
+      "group": "metabolic"
+    },
+    {
+      "id": "awake",
+      "label": "Awake",
+      "tier": "E",
+      "group": "social"
+    },
+    {
+      "id": "co_coding",
+      "label": "Co-coding",
+      "tier": "E",
+      "group": "social"
+    },
+    {
+      "id": "coop_gaming",
+      "label": "Co-op gaming",
+      "tier": "E",
+      "group": "social"
+    },
+    {
+      "id": "psychologist",
+      "label": "Psychologist",
+      "tier": "E",
+      "group": "social",
+      "solo_tier": "A"
+    },
+    {
+      "id": "philosopher",
+      "label": "Philosopher",
+      "tier": "E",
+      "group": "social",
+      "solo_tier": "A"
+    },
+    {
+      "id": "agenda_plan",
+      "label": "Agenda plan",
+      "tier": "A",
+      "group": "autonomous"
+    },
+    {
+      "id": "agentic",
+      "label": "Agentic",
+      "tier": "E",
+      "group": "autonomous"
+    },
+    {
+      "id": "chores",
+      "label": "Scheduled chores",
+      "tier": "A",
+      "group": "autonomous"
+    },
+    {
+      "id": "self_tutor",
+      "label": "Self-tutor",
+      "tier": "E",
+      "group": "autonomous"
+    },
+    {
+      "id": "science",
+      "label": "Science projects",
+      "tier": "E",
+      "group": "autonomous"
+    },
+    {
+      "id": "introspect",
+      "label": "Introspect",
+      "tier": "A",
+      "group": "autonomous"
+    },
+    {
+      "id": "self_evolve",
+      "label": "Self-evolve",
+      "tier": "E",
+      "group": "autonomous",
+      "guardrailed": true
+    }
   ],
-
   "tiers": {
     "A": {
-      "id": "A", "label": "Background",
-      "model": "gemma-4-e2b-multimodal-v1.0",
-      "path": "xrl_encoded/gemma-4-e2b-multimodal-v1.0.xrlf.cache/core.gguf",
-      "mmproj": "xrl_encoded/gemma-4-e2b-multimodal-v1.0.xrlf.cache/mmproj.gguf",
-      "port": 8407, "ctx": 4096, "exclusive": false,
-      "requested_layers": 40, "cache_type": "q4_0", "flash_attn": true,
-      "note": "interim Brain A; final = 4B multimodal MoQ"
+      "id": "1",
+      "gear": 1,
+      "tier": "A",
+      "label": "Gear 1: Ghost 1.5B Coder (Ambient RAM)",
+      "model": "ghost-1.5b-coder",
+      "path": "/mnt/foveai/Models/draft/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+      "port": 8407,
+      "ctx": 4096,
+      "exclusive": false,
+      "coexist": true,
+      "requested_layers": 0,
+      "cache_type": "q4_0",
+      "no_kv_offload": true,
+      "flash_attn": true,
+      "jinja": true,
+      "note": "Ghost: Qwen 2.5 Coder 1.5B resident in host RAM (0 VRAM) for ultra-fast terminal assistance"
     },
     "B": {
-      "id": "B", "label": "Present",
-      "model": "Qwen3.5-9B-MoQ-3.6",
-      "path": "/home/lumba/Models/hub/models--w-ahmad--Qwen3.5-9B-GGUF-MoQ/snapshots/81de037cc8ed891706af71ab294a7e882b171283/MoQ-Quants-Latest/Qwen3.5-9B-MoQ-3.6.gguf",
-      "mmproj": "/home/lumba/FoveAI/models/gguf/mmproj-qwen35-9b-Q8_0.gguf",
+      "id": "2",
+      "gear": 2,
+      "tier": "B",
+      "label": "Gear 2: Light 4B MTP (Multimodal)",
+      "model": "qwen3.5-4b-mtp-multimodal-v1.0",
+      "path": "/mnt/foveai/Models/qwen3.5-4b-mtp/Qwen3.5-4B-Q4_K_M.gguf",
+      "mmproj": "/mnt/foveai/Models/qwen3.5-4b-mtp/mmproj-F16.gguf",
       "port": 8408,
       "ctx": 8192,
+      "exclusive": false,
+      "requested_layers": 36,
+      "cache_type": "q4_0",
+      "no_kv_offload": true,
+      "flash_attn": true,
+      "jinja": true,
+      "note": "Gear 2: 4B MTP coexists with desktop/VR apps (~2.8GB VRAM)",
+      "coexist": true
+    },
+    "C": {
+      "id": "3",
+      "gear": 3,
+      "tier": "C",
+      "label": "Gear 3: Flagship 9B Coder",
+      "model": "qwen3.5-9b-mtp-v1.0",
+      "path": "/mnt/foveai/Models/qwen3.5-9b-mtp/Qwen3.5-9B-Q4_K_M.gguf",
+      "port": 8409,
+      "ctx": 8192,
+      "exclusive": false,
+      "requested_layers": 40,
+      "cache_type": "q4_0",
+      "no_kv_offload": true,
+      "flash_attn": true,
+      "jinja": true,
+      "note": "Gear 3: 9B Coder coexists with desktop/VR apps (~4.8GB VRAM)",
+      "coexist": true
+    },
+    "D": {
+      "id": "4",
+      "gear": 4,
+      "tier": "D",
+      "label": "Gear 4: Balanced 12B Nemo",
+      "model": "Mistral-Nemo-Instruct-2407-Q3_K_M",
+      "path": "/mnt/foveai/Models/tier_d/Mistral-Nemo-Instruct-2407-Q3_K_M.gguf",
+      "port": 8410,
+      "ctx": 4096,
       "exclusive": true,
-      "requested_layers": 40, "cache_type": "q4_0", "flash_attn": true, "jinja": true,
-      "note": "the fully-present flagship"
+      "requested_layers": 40,
+      "cache_type": "q4_0",
+      "no_kv_offload": true,
+      "flash_attn": true,
+      "jinja": true,
+      "note": "Gear 4: Mistral Nemo 12B Instruct + KV in RAM (Solo VRAM)"
+    },
+    "E": {
+      "id": "5",
+      "gear": 5,
+      "tier": "E",
+      "label": "Gear 5: DeepSeek R1 14B Reasoning (Solo VRAM + Draft)",
+      "model": "deepseek-r1-distill-qwen-14b-iq3_xs",
+      "path": "/mnt/foveai/Models/qwen2.5-14b/DeepSeek-R1-Distill-Qwen-14B-IQ3_XS.gguf",
+      "draft": "/mnt/foveai/Models/draft/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+      "draft_gpu_layers": 0,
+      "spec_draft_n_max": 16,
+      "port": 8418,
+      "ctx": 4096,
+      "exclusive": true,
+      "no_split": true,
+      "requested_layers": 48,
+      "cache_type": "q4_0",
+      "no_kv_offload": true,
+      "flash_attn": true,
+      "jinja": true,
+      "note": "Gear 5: DeepSeek-R1 Distill Qwen 14B Reasoning IQ3_XS (100% GPU, 0 split) + 1.5B RAM draft + KV in RAM"
+    },
+    "F": {
+      "id": "6",
+      "gear": 6,
+      "tier": "F",
+      "label": "Gear 6: Sleipnir Mamba-2 Swarm & Companion Weave (:8420)",
+      "model": "neuron-companion-weave",
+      "type": "central_thalamus_swarm",
+      "port": 8420,
+      "ctx": 4096,
+      "exclusive": false,
+      "coexist": true,
+      "requested_layers": 0,
+      "note": "Gear 6: Sleipnir 256x10 Swarm & 7.59M Mamba-2 Companion Weave on port :8420 with Single-Turn Empathy, 432Hz life pulse chords, Spontaneous Sparks, and Motor puppeteering"
+    },
+    "1": {
+      "id": "1",
+      "gear": 1,
+      "tier": "A",
+      "label": "Gear 1: Ghost 1.5B Coder (Ambient RAM)",
+      "model": "ghost-1.5b-coder",
+      "path": "/mnt/foveai/Models/draft/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+      "port": 8407,
+      "ctx": 4096,
+      "exclusive": false,
+      "coexist": true,
+      "requested_layers": 0,
+      "cache_type": "q4_0",
+      "no_kv_offload": true,
+      "flash_attn": true,
+      "jinja": true,
+      "note": "Ghost: Qwen 2.5 Coder 1.5B resident in host RAM (0 VRAM) for ultra-fast terminal assistance"
+    },
+    "2": {
+      "id": "2",
+      "gear": 2,
+      "tier": "B",
+      "label": "Gear 2: Light 4B MTP (Multimodal)",
+      "model": "qwen3.5-4b-mtp-multimodal-v1.0",
+      "path": "/mnt/foveai/Models/qwen3.5-4b-mtp/Qwen3.5-4B-Q4_K_M.gguf",
+      "mmproj": "/mnt/foveai/Models/qwen3.5-4b-mtp/mmproj-F16.gguf",
+      "port": 8408,
+      "ctx": 8192,
+      "exclusive": false,
+      "requested_layers": 36,
+      "cache_type": "q4_0",
+      "no_kv_offload": true,
+      "flash_attn": true,
+      "jinja": true,
+      "note": "Gear 2: 4B MTP coexists with desktop/VR apps (~2.8GB VRAM)",
+      "coexist": true
+    },
+    "3": {
+      "id": "3",
+      "gear": 3,
+      "tier": "C",
+      "label": "Gear 3: Flagship 9B Coder",
+      "model": "qwen3.5-9b-mtp-v1.0",
+      "path": "/mnt/foveai/Models/qwen3.5-9b-mtp/Qwen3.5-9B-Q4_K_M.gguf",
+      "port": 8409,
+      "ctx": 8192,
+      "exclusive": false,
+      "requested_layers": 40,
+      "cache_type": "q4_0",
+      "no_kv_offload": true,
+      "flash_attn": true,
+      "jinja": true,
+      "note": "Gear 3: 9B Coder coexists with desktop/VR apps (~4.8GB VRAM)",
+      "coexist": true
+    },
+    "4": {
+      "id": "4",
+      "gear": 4,
+      "tier": "D",
+      "label": "Gear 4: Balanced 12B Nemo",
+      "model": "Mistral-Nemo-Instruct-2407-Q3_K_M",
+      "path": "/mnt/foveai/Models/tier_d/Mistral-Nemo-Instruct-2407-Q3_K_M.gguf",
+      "port": 8410,
+      "ctx": 4096,
+      "exclusive": true,
+      "requested_layers": 40,
+      "cache_type": "q4_0",
+      "no_kv_offload": true,
+      "flash_attn": true,
+      "jinja": true,
+      "note": "Gear 4: Mistral Nemo 12B Instruct + KV in RAM (Solo VRAM)"
+    },
+    "5": {
+      "id": "5",
+      "gear": 5,
+      "tier": "E",
+      "label": "Gear 5: DeepSeek R1 14B Reasoning (Solo VRAM + Draft)",
+      "model": "deepseek-r1-distill-qwen-14b-iq3_xs",
+      "path": "/mnt/foveai/Models/qwen2.5-14b/DeepSeek-R1-Distill-Qwen-14B-IQ3_XS.gguf",
+      "draft": "/mnt/foveai/Models/draft/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+      "draft_gpu_layers": 0,
+      "spec_draft_n_max": 16,
+      "port": 8418,
+      "ctx": 4096,
+      "exclusive": true,
+      "no_split": true,
+      "requested_layers": 48,
+      "cache_type": "q4_0",
+      "no_kv_offload": true,
+      "flash_attn": true,
+      "jinja": true,
+      "note": "Gear 5: DeepSeek-R1 Distill Qwen 14B Reasoning IQ3_XS (100% GPU, 0 split) + 1.5B RAM draft + KV in RAM"
+    },
+    "6": {
+      "id": "6",
+      "gear": 6,
+      "tier": "F",
+      "label": "Gear 6: Sleipnir Mamba-2 Swarm & Companion Weave (:8420)",
+      "model": "neuron-companion-weave",
+      "type": "central_thalamus_swarm",
+      "port": 8420,
+      "ctx": 4096,
+      "exclusive": false,
+      "coexist": true,
+      "requested_layers": 0,
+      "note": "Gear 6: Sleipnir 256x10 Swarm & 7.59M Mamba-2 Companion Weave on port :8420 with Single-Turn Empathy, 432Hz life pulse chords, Spontaneous Sparks, and Motor puppeteering"
     }
   },
-
   "llama_server": "/home/lumba/FoveAI/Tools/llama-b11053-cuda/llama-b11053/llama-server",
   "llama_ld_path": "/home/lumba/FoveAI/Tools/llama-b11053-cuda/llama-b11053",
-
   "residency": {
     "idle_unload_s": 30,
     "wake_cycle_s": 900,
     "busy": {
-      "hard": ["game", "fullscreen_exclusive", "vram_pressure", "on_battery", "dnd"],
-      "soft": ["media", "heavy_cpu", "many_windows"],
+      "hard": [
+        "game",
+        "fullscreen_exclusive",
+        "vram_pressure",
+        "on_battery",
+        "dnd"
+      ],
+      "soft": [
+        "media",
+        "heavy_cpu",
+        "many_windows"
+      ],
       "never_cut_active_turn": true
+    }
+  },
+  "gears": {
+    "1": {
+      "id": "1",
+      "gear": 1,
+      "tier": "A",
+      "label": "Gear 1: Ghost 1.5B Coder (Ambient RAM)",
+      "model": "ghost-1.5b-coder",
+      "path": "/mnt/foveai/Models/draft/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+      "port": 8407,
+      "ctx": 4096,
+      "exclusive": false,
+      "coexist": true,
+      "requested_layers": 0,
+      "cache_type": "q4_0",
+      "no_kv_offload": true,
+      "flash_attn": true,
+      "jinja": true,
+      "note": "Ghost: Qwen 2.5 Coder 1.5B resident in host RAM (0 VRAM) for ultra-fast terminal assistance"
+    },
+    "2": {
+      "id": "2",
+      "gear": 2,
+      "tier": "B",
+      "label": "Gear 2: Light 4B MTP (Multimodal)",
+      "model": "qwen3.5-4b-mtp-multimodal-v1.0",
+      "path": "/mnt/foveai/Models/qwen3.5-4b-mtp/Qwen3.5-4B-Q4_K_M.gguf",
+      "mmproj": "/mnt/foveai/Models/qwen3.5-4b-mtp/mmproj-F16.gguf",
+      "port": 8408,
+      "ctx": 8192,
+      "exclusive": false,
+      "requested_layers": 36,
+      "cache_type": "q4_0",
+      "no_kv_offload": true,
+      "flash_attn": true,
+      "jinja": true,
+      "note": "Gear 2: 4B MTP coexists with desktop/VR apps (~2.8GB VRAM)",
+      "coexist": true
+    },
+    "3": {
+      "id": "3",
+      "gear": 3,
+      "tier": "C",
+      "label": "Gear 3: Flagship 9B Coder",
+      "model": "qwen3.5-9b-mtp-v1.0",
+      "path": "/mnt/foveai/Models/qwen3.5-9b-mtp/Qwen3.5-9B-Q4_K_M.gguf",
+      "port": 8409,
+      "ctx": 8192,
+      "exclusive": false,
+      "requested_layers": 40,
+      "cache_type": "q4_0",
+      "no_kv_offload": true,
+      "flash_attn": true,
+      "jinja": true,
+      "note": "Gear 3: 9B Coder coexists with desktop/VR apps (~4.8GB VRAM)",
+      "coexist": true
+    },
+    "4": {
+      "id": "4",
+      "gear": 4,
+      "tier": "D",
+      "label": "Gear 4: Balanced 12B Nemo",
+      "model": "Mistral-Nemo-Instruct-2407-Q3_K_M",
+      "path": "/mnt/foveai/Models/tier_d/Mistral-Nemo-Instruct-2407-Q3_K_M.gguf",
+      "port": 8410,
+      "ctx": 4096,
+      "exclusive": true,
+      "requested_layers": 40,
+      "cache_type": "q4_0",
+      "no_kv_offload": true,
+      "flash_attn": true,
+      "jinja": true,
+      "note": "Gear 4: Mistral Nemo 12B Instruct + KV in RAM (Solo VRAM)"
+    },
+    "5": {
+      "id": "5",
+      "gear": 5,
+      "tier": "E",
+      "label": "Gear 5: DeepSeek R1 14B Reasoning (Solo VRAM + Draft)",
+      "model": "deepseek-r1-distill-qwen-14b-iq3_xs",
+      "path": "/mnt/foveai/Models/qwen2.5-14b/DeepSeek-R1-Distill-Qwen-14B-IQ3_XS.gguf",
+      "draft": "/mnt/foveai/Models/draft/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+      "draft_gpu_layers": 0,
+      "spec_draft_n_max": 16,
+      "port": 8418,
+      "ctx": 4096,
+      "exclusive": true,
+      "no_split": true,
+      "requested_layers": 48,
+      "cache_type": "q4_0",
+      "no_kv_offload": true,
+      "flash_attn": true,
+      "jinja": true,
+      "note": "Gear 5: DeepSeek-R1 Distill Qwen 14B Reasoning IQ3_XS (100% GPU, 0 split) + 1.5B RAM draft + KV in RAM"
+    },
+    "6": {
+      "id": "6",
+      "gear": 6,
+      "tier": "F",
+      "label": "Gear 6: Sleipnir Mamba-2 Swarm & Companion Weave (:8420)",
+      "model": "neuron-companion-weave",
+      "type": "central_thalamus_swarm",
+      "port": 8420,
+      "ctx": 4096,
+      "exclusive": false,
+      "coexist": true,
+      "requested_layers": 0,
+      "note": "Gear 6: Sleipnir 256x10 Swarm & 7.59M Mamba-2 Companion Weave on port :8420 with Single-Turn Empathy, 432Hz life pulse chords, Spontaneous Sparks, and Motor puppeteering"
     }
   }
 }

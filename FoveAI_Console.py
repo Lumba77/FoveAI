@@ -47,6 +47,7 @@ from runtime.fui_colors import (  # noqa: E402
     rainbow_band,
     state_ansi,
     staircase_ansi,
+    striped,
     use_color,
 )
 
@@ -107,6 +108,34 @@ PERSONA_MODELS = {
         "xrlf_path": "xrl_encoded/qwen3.5-4b-mtp-multimodal-v1.0.xrlf",
         "size_gb": 2.9,
         "multimodal": True,
+    },
+    "gear_6_swarm": {
+        "name": "Gear 6: Sleipnir Mamba-2 Swarm & Companion Weave",
+        "id": "neuron-companion-weave",
+        "xrlf_path": "/mnt/foveai/nano-xrl-bases/neuron-companion-weave",
+        "size_gb": 0.06,
+        "multimodal": True,
+    },
+    "gear_5_14b": {
+        "name": "Gear 5: DeepSeek R1 14B Reasoning (MoQ)",
+        "id": "deepseek-r1-distill-qwen-14b-iq3_xs",
+        "xrlf_path": "/mnt/foveai/Models/qwen2.5-14b/DeepSeek-R1-Distill-Qwen-14B-IQ3_XS.gguf",
+        "size_gb": 6.0,
+        "multimodal": False,
+    },
+    "gear_4_12b": {
+        "name": "Gear 4: Mistral-Nemo 12B Instruct",
+        "id": "Mistral-Nemo-Instruct-2407-Q3_K_M",
+        "xrlf_path": "/mnt/foveai/Models/tier_d/Mistral-Nemo-Instruct-2407-Q3_K_M.gguf",
+        "size_gb": 5.8,
+        "multimodal": False,
+    },
+    "gear_1_ram": {
+        "name": "Gear 1: Ambient RAM 1.5B (0 MB VRAM)",
+        "id": "qwen2.5-coder-1.5b-instruct",
+        "xrlf_path": "/mnt/foveai/Models/draft/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf",
+        "size_gb": 1.1,
+        "multimodal": False,
     },
     "smolvlm2": {
         "name": "SmolVLM2 500M (Vision)",
@@ -441,30 +470,186 @@ def print_status() -> None:
     print()
 
 
-# ─── Menus ──────────────────────────────────────────────────────────
+# ─── Menus (Menu Entry 2 Standard TUI: Tab & Arrow Controls + Mode Color Guidance) ──
 
 
 def menu(title: str, items: list) -> None:
-    """items: list of (label, callable). 0/back returns."""
-    while True:
-        print(striped(f"\n== {title} ==", state_ansi("info"), "", USE_COLOR))
-        for i, (label, _) in enumerate(items, 1):
-            num = colorize(f"{i:>2}.", staircase_ansi(i - 1), USE_COLOR)
-            row = f"  {num} {label}"
-            print(row)
-        back = colorize("0.", ANSI_DIM, USE_COLOR)
-        print(f"  {back} back")
-        choice = input("> ").strip()
-        if choice in ("0", "q", "back"):
-            return
-        try:
-            idx = int(choice) - 1
-            if 0 <= idx < len(items):
-                items[idx][1]()
-            else:
-                print("  ?")
-        except (ValueError, IndexError):
-            print("  ?")
+    """
+    Interactive Menu Entry 2 Standard TUI for all FoveAI_Console menus.
+    - Whole frameset dynamically colored by active Persona Mode (1-6)
+    - [←/→] cycles Persona Mode (re-coloring the entire frameset live!)
+    - [Tab] switches between Left & Right compact boxes
+    - [↑/↓] moves '>>' cursor
+    - [Enter] executes action
+    - [q/Esc/0] returns
+    Falls back to line input if stdin is not a TTY.
+    """
+    if not sys.stdin.isatty():
+        while True:
+            print(striped(f"\n== {title} ==", state_ansi("info"), "", 0, USE_COLOR))
+            for i, (label, _) in enumerate(items, 1):
+                num = colorize(f"{i:>2}.", staircase_ansi(i - 1), USE_COLOR)
+                print(f"  {num} {label}")
+            print(f"  {colorize('0.', ANSI_DIM, USE_COLOR)} back")
+            choice = input("> ").strip()
+            if choice in ("0", "q", "back", ""):
+                return
+            if choice.isdigit() and 1 <= int(choice) <= len(items):
+                items[int(choice) - 1][1]()
+        return
+
+    import shutil
+    from scripts.foveai_menu import (
+        ARCHETYPE_PALETTE,
+        get_active_persona_meta,
+        get_key,
+         get_tier,
+        make_compact_box,
+        pad_line,
+        switch_archetype_slot,
+    )
+
+    selected = 0
+    n = len(items)
+    status_msg = f"✓ {title} · [Tab] Switch Box · [↑/↓] Move · [←/→] Persona Mode Color"
+
+    c_yellow = "\033[1;33m"
+    c_dim = "\033[2m"
+    c_rev = "\033[7m"
+    c_rst = "\033[0m"
+
+    sys.stdout.write("\033[?25l")
+    try:
+        while True:
+            cols = shutil.get_terminal_size((80, 24)).columns
+            width = min(82, max(68, cols - 4))
+            c_w = width - 4
+            w_box = (width - 2) // 2
+            gap = width - (w_box * 2)
+
+            slot, cid, p_name, p_mbti, theme_color, ai_name = get_active_persona_meta()
+            tier = get_tier()
+
+            out = []
+            out.append(f"{theme_color}╔{'═' * (width - 2)}╗{c_rst}")
+            hdr_str = f"{c_yellow}FOVEAI CONSOLE — {title.upper()}{c_rst} · [{slot}] {theme_color}{p_name.upper()}{c_rst} [{p_mbti}]"
+            out.append(f"{theme_color}║{c_rst} {pad_line(hdr_str, c_w, 'center')} {theme_color}║{c_rst}")
+
+            p_modes = [
+                ('1', 'companion', 'Comp'),
+                ('2', 'friend',    'Friend'),
+                ('3', 'beloved',   'Beloved'),
+                ('4', 'tool',      'Engineer'),
+                ('5', 'inventor',  'Inventor'),
+                ('6', 'assistant', 'Assist'),
+            ]
+            m_parts = []
+            for sk, scid, sname in p_modes:
+                p_col = ARCHETYPE_PALETTE[scid]['ansi']
+                if sk == slot:
+                    m_parts.append(f"{p_col}▶[{sk}:{sname}]◀{c_rst}")
+                else:
+                    m_parts.append(f"{c_dim}[{c_rst}{p_col}{sk}:{sname[:4]}{c_rst}{c_dim}]{c_rst}")
+            out.append(f"{theme_color}║{c_rst} {pad_line(' '.join(m_parts), c_w, 'center')} {theme_color}║{c_rst}")
+            out.append(f"{theme_color}╚{'═' * (width - 2)}╝{c_rst}")
+
+            half = max(4, (n + 1) // 2)
+            active_zone = 0 if selected < half else 1
+
+            rows_l = []
+            for idx in range(half):
+                if idx < n:
+                    lbl, _ = items[idx]
+                    is_sel = (selected == idx)
+                    ptr = f"{theme_color}>>{c_rst} " if is_sel else "   "
+                    num_s = f"[{idx+1:2d}]"
+                    if is_sel:
+                        rows_l.append(f"{ptr}{c_rev}{theme_color}{num_s} {lbl}{c_rst}")
+                    else:
+                        rows_l.append(f"{ptr}{theme_color}{num_s}{c_rst} {lbl}")
+                else:
+                    rows_l.append("")
+
+            rows_r = []
+            for idx in range(half, half * 2):
+                if idx < n:
+                    lbl, _ = items[idx]
+                    is_sel = (selected == idx)
+                    ptr = f"{theme_color}>>{c_rst} " if is_sel else "   "
+                    num_s = f"[{idx+1:2d}]"
+                    if is_sel:
+                        rows_r.append(f"{ptr}{c_rev}{theme_color}{num_s} {lbl}{c_rst}")
+                    else:
+                        rows_r.append(f"{ptr}{theme_color}{num_s}{c_rst} {lbl}")
+                else:
+                    rows_r.append(f"   {c_dim}· Model: {tier}{c_rst}" if idx == half * 2 - 1 else "")
+
+            box_l = make_compact_box(f"[1-{half}] PRIMARY CONTROLS", rows_l, (active_zone == 0), w_box, theme_color=theme_color)
+            box_r = make_compact_box(f"[Tab] EXTENDED & TOOLS", rows_r, (active_zone == 1), w_box, theme_color=theme_color)
+
+            for l, r in zip(box_l, box_r):
+                out.append(l + (' ' * gap) + r)
+
+            out.append(f"{theme_color}┌{'─' * (width - 2)}┐{c_rst}")
+            out.append(f"{theme_color}│{c_rst} {pad_line(f'{theme_color}{status_msg}{c_rst}', c_w, 'center')} {theme_color}│{c_rst}")
+            out.append(f"{theme_color}├{'─' * (width - 2)}┤{c_rst}")
+            h1 = f"{c_dim}[Tab]: Switch Box   [↑/↓]: Move   [←/→]: Persona Mode Color   [Enter]: Select{c_rst}"
+            h2 = f"{c_dim}[1-9]: Direct Item  [0/q/Esc]: Back to Previous Menu{c_rst}"
+            out.append(f"{theme_color}│{c_rst} {pad_line(h1, c_w)} {theme_color}│{c_rst}")
+            out.append(f"{theme_color}│{c_rst} {pad_line(h2, c_w)} {theme_color}│{c_rst}")
+            out.append(f"{theme_color}└{'─' * (width - 2)}┘{c_rst}")
+
+            sys.stdout.write("\033[H\033[2J" + "\n".join(out))
+            sys.stdout.flush()
+
+            k = get_key()
+            if k in ('q', 'ESC', '0'):
+                return
+            elif k == 'UP':
+                selected = (selected - 1) % n
+                status_msg = f"Selected: {items[selected][0]}"
+            elif k == 'DOWN':
+                selected = (selected + 1) % n
+                status_msg = f"Selected: {items[selected][0]}"
+            elif k in ('TAB', '\t', 'BTAB'):
+                if selected < half and selected + half < n:
+                    selected += half
+                elif selected >= half:
+                    selected -= half
+                status_msg = f"✓ Switched Box — Selected: {items[selected][0]}"
+            elif k in ('LEFT', 'RIGHT'):
+                cur_s, _, _, _, _, _ = get_active_persona_meta()
+                d_s = -1 if k == 'LEFT' else 1
+                ns = str(((int(cur_s) - 1 + d_s) % 6) + 1)
+                switch_archetype_slot(ns)
+                _, _, pn, pm, _, _ = get_active_persona_meta()
+                status_msg = f"✓ Persona Mode → [{ns}] {pn.upper()} [{pm}] (Whole Frameset Color Updated!)"
+            elif k in ('ENTER', ' '):
+                sys.stdout.write("\033[?25h\033[2J\033[H")
+                sys.stdout.flush()
+                items[selected][1]()
+                sys.stdout.write("\n\033[2mPress Enter to continue...\033[0m")
+                sys.stdout.flush()
+                try:
+                    get_key()
+                except Exception:
+                    pass
+                sys.stdout.write("\033[?25l")
+            elif k.isdigit() and 1 <= int(k) <= min(9, n):
+                selected = int(k) - 1
+                sys.stdout.write("\033[?25h\033[2J\033[H")
+                sys.stdout.flush()
+                items[selected][1]()
+                sys.stdout.write("\n\033[2mPress Enter to continue...\033[0m")
+                sys.stdout.flush()
+                try:
+                    get_key()
+                except Exception:
+                    pass
+                sys.stdout.write("\033[?25l")
+    finally:
+        sys.stdout.write("\033[?25h")
+        sys.stdout.flush()
 
 
 # ─── Runtime / Mode / Diagnostics (settings.html ports) ─────────────
@@ -855,14 +1040,14 @@ def soul_lever_menu() -> None:
                 with open(sf, "r", encoding="utf-8") as f: d = json.load(f)
                 d.update(payload)
                 with open(sf, "w", encoding="utf-8") as f: json.dump(d, f, indent=2)
-            except Exception: pass
+            except Exception as _e: print('  warn: persist failed (FoveAI_Console.py:1043) ' + str(_e))
         mf = os.path.join(FOVEAI_DIR, "Backend", "Cognition", "jen_mind.json")
         if os.path.exists(mf):
             try:
                 with open(mf, "r", encoding="utf-8") as f: m = json.load(f)
                 m["lever"] = float(val)
                 with open(mf, "w", encoding="utf-8") as f: json.dump(m, f, indent=2)
-            except Exception: pass
+            except Exception as _e: print('  warn: persist failed (FoveAI_Console.py:1050) ' + str(_e))
         print(f"\n✓ Applied: {name} ({val:.2f}) [{mbti}]")
         input("Press Enter to continue...")
 
@@ -1151,6 +1336,148 @@ def spotify_menu() -> None:
         break
 
 
+# ─── Audio Variator EQ & TV Xorg (:2) Controls ─────────────────────
+
+SETEQ_BIN = os.path.join(FOVEAI_DIR, "Tools", "audio-variator-eq", "set-eq")
+EQ_GUI_BIN = os.path.join(FOVEAI_DIR, "Tools", "audio-variator-eq", "pipewire-eq-full")
+EQ_PLAY_BIN = os.path.join(FOVEAI_DIR, "Tools", "eq_play")
+
+
+def _sudo_sh(shell_cmd: str) -> None:
+    pass_file = "/home/lumba/.sudo_pass"
+    if os.path.exists(pass_file):
+        with open(pass_file, "rb") as pf:
+            pw = pf.read()
+        p = subprocess.Popen(
+            ["sudo", "-S", "sh", "-c", shell_cmd],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        p.stdin.write(pw)
+        p.stdin.close()
+        p.wait(timeout=8)
+    else:
+        subprocess.call(["sudo", "sh", "-c", shell_cmd])
+
+
+def launch_tv_eq_gui() -> None:
+    """Auto-stop gdm, launch bare Xorg :2 on TV if not running, set cursor, and launch pipewire-eq-full."""
+    print("  📺 Checking Xorg :2 on TV...")
+    x_running = subprocess.call(["pgrep", "-f", "Xorg :2"], stdout=subprocess.DEVNULL) == 0
+    if not x_running:
+        print("  🛑 Auto-stopping gdm.service to free DRM/display for TV Xorg :2...")
+        _sudo_sh("systemctl stop gdm || true")
+        print("  🚀 Starting bare Xorg :2 via openvt...")
+        subprocess.Popen(
+            ["sudo", "-S", "openvt", "-s", "--", "Xorg", ":2", "-nolisten", "tcp"],
+            stdin=open("/home/lumba/.sudo_pass") if os.path.exists("/home/lumba/.sudo_pass") else subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        time.sleep(2.2)
+    env = os.environ.copy()
+    env["DISPLAY"] = ":2"
+    env["XDG_RUNTIME_DIR"] = f"/run/user/{os.getuid()}"
+    subprocess.call(["xhost", "+SI:localuser:lumba"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.call(["xsetroot", "-cursor_name", "left_ptr"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.call(["pkill", "-f", "pipewire-eq-full"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.Popen([EQ_GUI_BIN], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    print("  ✓ Launched 4-Window pipewire-eq-full on TV (DISPLAY=:2)")
+
+
+def stop_tv_eq_gui() -> None:
+    """Stop pipewire-eq-full and Xorg :2, and auto-respawn gdm.service."""
+    print("  ⏻ Closing TV EQ Rack (Xorg :2) and restoring gdm.service...")
+    subprocess.call(["pkill", "-f", "pipewire-eq-full"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    _sudo_sh("pkill -f 'Xorg :2' || true; sleep 0.5; systemctl start gdm")
+    print("  ✓ Xorg :2 stopped and gdm.service started.")
+
+
+def eq_console_menu() -> None:
+    def run_eq(*a):
+        subprocess.call([SETEQ_BIN, *a])
+
+    def play_prompt():
+        q = input("  Search/URL/file: ").strip()
+        if q:
+            subprocess.call([EQ_PLAY_BIN, q])
+
+    def pick_preset():
+        try:
+            out = subprocess.check_output([SETEQ_BIN, "--presets-json"], text=True, timeout=5)
+            scenes = sorted(json.loads(out).get("scenes", {}).keys())
+        except Exception as e:
+            print(f"  Presets error: {e}")
+            return
+        for i, s in enumerate(scenes, 1):
+            print(f"  {i:2d}) {s}")
+        p = input("  Scene # (0=cancel): ").strip()
+        if p.isdigit() and 1 <= int(p) <= len(scenes):
+            run_eq("--preset", scenes[int(p) - 1])
+
+    menu(
+        "Audio Variator EQ & TV Display (:2)",
+        [
+            ("Show EQ state", lambda: run_eq()),
+            ("Bass boost (+5 dB)", lambda: run_eq("--bass", "5")),
+            ("Treble boost (+4 dB)", lambda: run_eq("--treble", "4")),
+            ("Flatten / Reset EQ", lambda: run_eq("--reset")),
+            ("Pitch +1 semitone", lambda: run_eq("--pitch", "1")),
+            ("Pitch -1 semitone", lambda: run_eq("--pitch", "-1")),
+            ("Reverb room (30%)", lambda: run_eq("--reverb", "30", "--reverb-type", "room")),
+            ("Reverb off", lambda: run_eq("--reverb", "0")),
+            ("Toggle bypass", lambda: run_eq("--toggle-bypass")),
+            ("Select scene preset...", pick_preset),
+            ("Play audio through EQ (yt/url/file)", play_prompt),
+            ("Demo synth loop through EQ", lambda: subprocess.call([EQ_PLAY_BIN, "--demo"])),
+            ("Stop EQ playback", lambda: subprocess.call([EQ_PLAY_BIN, "--stop"])),
+            ("Launch TV EQ Rack GUI on bare Xorg :2 (auto-stop GDM)", launch_tv_eq_gui),
+            ("Close TV EQ Rack & Restore GDM (auto-start GDM)", stop_tv_eq_gui),
+            ("Restart TV Vinyl HUD service (fb0)", lambda: subprocess.call(["sudo", "systemctl", "restart", "foveai-tv-hud"])),
+        ],
+    )
+
+
+def modulizer_menu() -> None:
+    MOD_SCRIPT = os.path.join(FOVEAI_DIR, "Tools", "agy_context_modulizer.py")
+    env = read_env()
+    cur_lvl = int(env.get("XRLF_PROXY_AGGRESSION", "3") or "3")
+    cur_router = env.get("FOVEAI_OMNI_ROUTER_MODEL", "foveai-omni-router-v2.xrlf")
+
+    def apply_level(lvl: int):
+        st, _ = http_post(f"{PROXY_API}/api/fovea", {"level": lvl}, timeout=4)
+        set_env_key("XRLF_PROXY_AGGRESSION", str(lvl))
+        print(f"  ✓ Context Compression Perk → Level {lvl}: {FOVEA_LEVELS.get(lvl, lvl)} (live push [{st}])")
+
+    def farm_prompt():
+        fp = input("  File path to farm/compress: ").strip()
+        if fp:
+            subprocess.call([VENV_PYTHON, MOD_SCRIPT, "farm", fp])
+
+    level_items = [
+        (
+            f"{'✅' if k == cur_lvl else '  '} Compression L{k}: {v}",
+            (lambda lv: lambda: apply_level(lv))(k),
+        )
+        for k, v in FOVEA_LEVELS.items()
+    ]
+
+    menu(
+        f"Context Compression & Antigravity Modulizer (Active: L{cur_lvl} {FOVEA_LEVELS.get(cur_lvl,'')} | Router: {cur_router})",
+        [
+            *level_items,
+            ("Select Omni Router model (Intention & Compression)", router_menu),
+            ("Print Antigravity XRL Contract HUD & 6-Ring Digest (<= 4800 chars)", lambda: subprocess.call([VENV_PYTHON, MOD_SCRIPT, "hud"])),
+            ("Farm & compress large file via Foveated Memory", farm_prompt),
+            ("Inspect Context Healer & Canonical 3/7 Budget", diag_context),
+            ("Run Runtime Smoke Suite (foveai_smoke.py)", lambda: subprocess.call([VENV_PYTHON, os.path.join(FOVEAI_DIR, "Tools", "foveai_smoke.py")])),
+            ("Run Deep Repo Survey / Bug Hunt (repo_survey.py)", lambda: subprocess.call([VENV_PYTHON, os.path.join(FOVEAI_DIR, "Tools", "repo_survey.py")])),
+        ],
+    )
+
+
 def main_menu() -> None:
     while True:
         print_status()
@@ -1171,6 +1498,8 @@ def main_menu() -> None:
                 ("Diagnostics (system/coherence/context/subsystems)", diagnostics_menu),
                 ("Tools (health, RAM, VRAM, zombies)", tools_menu),
                 ("Spotify media player (play/pause/skip/now playing)", spotify_menu),
+                ("Audio Variator EQ & TV Xorg (:2) controls", eq_console_menu),
+                ("Antigravity Context Modulizer & Smoke/Bug Hunt", modulizer_menu),
             ],
         )
         break
@@ -1214,6 +1543,10 @@ USAGE = """FoveAI Console — command reference
   context                   healer budget debugger
   open <panel|dashboard|kiosk|multigate|xr>  open a web surface
   spotify [status|play|pause|next|prev|launch] Spotify media player
+  eq [args|gui|play|demo|stop]  Audio Variator EQ & TV Xorg (:2) GUI
+  modulize [hud|farm|fovea]     Antigravity sidecar context modulizer
+  smoke [--only ...]            Run FoveAI runtime smoke suite
+  survey [--full|--light]       Run deep repo survey / bug hunt
   help                      this text
 
 No arguments → interactive menu.
@@ -1368,23 +1701,44 @@ def cli(args: list) -> int:
                 with open(sf, "r", encoding="utf-8") as f: d = json.load(f)
                 d.update(payload)
                 with open(sf, "w", encoding="utf-8") as f: json.dump(d, f, indent=2)
-            except Exception: pass
+            except Exception as _e: print('  warn: persist failed (FoveAI_Console.py:1704) ' + str(_e))
         mf = os.path.join(FOVEAI_DIR, "Backend", "Cognition", "jen_mind.json")
         if os.path.exists(mf):
             try:
                 with open(mf, "r", encoding="utf-8") as f: m = json.load(f)
                 m["lever"] = float(val)
                 with open(mf, "w", encoding="utf-8") as f: json.dump(m, f, indent=2)
-            except Exception: pass
+            except Exception as _e: print('  warn: persist failed (FoveAI_Console.py:1711) ' + str(_e))
         print(f"  ✓ Soul lever set to {name} ({val:.2f}) [{mbti}]")
         return 0
-    elif cmd == "fovea":
+    elif cmd in ("fovea", "compress"):
         if not arg:
-            print("  usage: fovea 0-6")
-            return 1
+            modulizer_menu()
+            return 0
         st, txt = http_post(f"{PROXY_API}/api/fovea", {"level": int(arg)}, timeout=4)
         set_env_key("XRLF_PROXY_AGGRESSION", arg)
         print(f"  Foveation → {FOVEA_LEVELS.get(int(arg), arg)}  (live push [{st}])")
+    elif cmd in ("modulize", "modulizer"):
+        return subprocess.call([VENV_PYTHON, os.path.join(FOVEAI_DIR, "Tools", "agy_context_modulizer.py"), *(rest or ["hud"])])
+    elif cmd == "eq":
+        if not rest:
+            eq_console_menu()
+        elif rest[0] == "gui":
+            launch_tv_eq_gui()
+        elif rest[0] in ("stop-tv", "quit-tv", "close-tv"):
+            stop_tv_eq_gui()
+        elif rest[0] == "play":
+            subprocess.call([EQ_PLAY_BIN, *rest[1:]])
+        elif rest[0] == "demo":
+            subprocess.call([EQ_PLAY_BIN, "--demo"])
+        elif rest[0] == "stop":
+            subprocess.call([EQ_PLAY_BIN, "--stop"])
+        else:
+            subprocess.call([SETEQ_BIN, *rest])
+    elif cmd == "smoke":
+        return subprocess.call([VENV_PYTHON, os.path.join(FOVEAI_DIR, "Tools", "foveai_smoke.py"), *rest])
+    elif cmd == "survey":
+        return subprocess.call([VENV_PYTHON, os.path.join(FOVEAI_DIR, "Tools", "repo_survey.py"), *rest])
     elif cmd == "cap":
         st, txt = http_post(f"{PROXY_API}/api/cap", {"cap": int(arg or 0)}, timeout=4)
         print(f"  cap → [{st}] {txt[:120]}")

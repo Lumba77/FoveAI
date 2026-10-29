@@ -94,11 +94,24 @@ export class BracketParser {
         // Strip out direct <edit_file path="...">...</edit_file> blocks from clean text
         const workingTextNoEdits = workingText.replace(/<edit_file\s+path=["\']([^"\']+)["\']\s*>[\s\S]*?<\/edit_file>/gi, '');
 
+        // Extract and strip 432Hz life pulse chord tags: <CHORD=C_MAJ7>, <CHORD=A_MINOR>, etc.
+        const chordMatch = workingTextNoEdits.match(/<CHORD=([A-Z0-9_]+)>/i);
+        if (chordMatch) {
+            const chord = chordMatch[1].toUpperCase();
+            window.dispatchEvent(new CustomEvent('foveai_chord_trigger', { detail: { chord } }));
+        }
+
+        // Strip swarm spark, defer, and chord directives so TTS never speaks them
+        const workingTextCleaned = workingTextNoEdits
+            .replace(/<CHORD=[A-Z0-9_]+>/gi, '')
+            .replace(/<SPARK\s+source=["\'][^"\']+["\']\s*>/gi, '')
+            .replace(/<DEFER\s+to=["\'][^"\']+["\']\s*>/gi, '');
+
         const tokens: BracketToken[] = [];
         let primaryEmotion: string | undefined;
 
         // First pass: match typed bracket tokens (e.g. <audio:sigh_content>)
-        const cleanText = workingTextNoEdits.replace(this.BRACKET_REGEX, (fullMatch, type, tagContent) => {
+        const cleanText = workingTextCleaned.replace(this.BRACKET_REGEX, (fullMatch, type, tagContent) => {
             const tag = tagContent.trim();
             const params: Record<string, string> = {};
 
@@ -325,8 +338,13 @@ export class BracketParser {
             .replace(/<\/\s*thought\b/gi, '');
         // Strip edit_file blocks completely
         const noEdits = noThink.replace(/<edit_file\s+path=["\']([^"\']+)[\"\\']\s*>[\s\S]*?<\/edit_file>/gi, '');
+        // Strip swarm tags
+        const noSwarm = noEdits
+            .replace(/<CHORD=[A-Z0-9_]+>/gi, '')
+            .replace(/<SPARK\s+source=["\'][^"\']+["\']\s*>/gi, '')
+            .replace(/<DEFER\s+to=["\'][^"\']+["\']\s*>/gi, '');
         // First strip typed tokens, then simple bracket forms
-        const noTyped = noEdits.replace(this.BRACKET_REGEX, '');
+        const noTyped = noSwarm.replace(this.BRACKET_REGEX, '');
         const noSimple = noTyped.replace(this.SIMPLE_BRACKET_REGEX, (fullMatch, tagContent) => {
             // Skip HTML tags
             if (/^(div|span|p|br|b|i|em|a|img|script|style|code|pre|h[1-6]|ul|ol|li|table|tr|td|th|meta|link|head|body|html|input|form|button|svg|path|circle|rect|line|text)$/.test(tagContent)) {

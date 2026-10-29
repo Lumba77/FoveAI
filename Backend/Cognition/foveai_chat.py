@@ -227,12 +227,12 @@ def get_active_persona_theme() -> dict:
         from scripts.foveai_menu import ARCHETYPE_PALETTE, SLOT_INFO
     except Exception:
         ARCHETYPE_PALETTE = {
-            'companion': {'name': 'COMPANION', 'icon': '🤝', 'mbti': 'ENFJ', 'desc': 'Teacher & Co-op Partner [ENFJ]',   'ansi': '\033[1;31m'},
-            'friend':    {'name': 'FRIEND',    'icon': '🌸', 'mbti': 'ENFP', 'desc': 'Deep Bonds & Protector [ENFP]',     'ansi': '\033[1;33m'},
-            'beloved':   {'name': 'BELOVED',   'icon': '💖', 'mbti': 'INFP', 'desc': 'Romance, Lust & Initiative [INFP]', 'ansi': '\033[1;35m'},
-            'tool':      {'name': 'ENGINEER',  'icon': '🔧', 'mbti': 'INTJ', 'desc': 'Coder, Engineer & Architect [INTJ]','ansi': '\033[1;32m'},
-            'inventor':  {'name': 'INVENTOR',  'icon': '💡', 'mbti': 'ENTP', 'desc': 'Inventor, Idealist & Visionary [ENTP]','ansi': '\033[1;36m'},
-            'assistant': {'name': 'ASSISTANT', 'icon': '💼', 'mbti': 'ISTJ', 'desc': 'Planner & Helper [ISTJ]',           'ansi': '\033[38;5;75m'},
+            'companion': {'name': 'COMPANION', 'icon': '🤝', 'emoticon': '(◕‿◕✿)', 'mbti': 'ENFJ', 'desc': 'Teacher & Co-op Partner [ENFJ]',   'ansi': '\033[1;31m'},
+            'friend':    {'name': 'FRIEND',    'icon': '🌸', 'emoticon': '(^‿^)',   'mbti': 'ENFP', 'desc': 'Deep Bonds & Protector [ENFP]',     'ansi': '\033[1;33m'},
+            'beloved':   {'name': 'BELOVED',   'icon': '💖', 'emoticon': '(｡♥‿♥｡)', 'mbti': 'INFP', 'desc': 'Romance, Lust & Initiative [INFP]', 'ansi': '\033[1;35m'},
+            'tool':      {'name': 'ENGINEER',  'icon': '🔧', 'emoticon': '(⌐■_■)',   'mbti': 'INTJ', 'desc': 'Coder, Engineer & Architect [INTJ]','ansi': '\033[1;32m'},
+            'inventor':  {'name': 'INVENTOR',  'icon': '💡', 'emoticon': '(✧ω✧)',   'mbti': 'ENTP', 'desc': 'Inventor, Idealist & Visionary [ENTP]','ansi': '\033[1;36m'},
+            'assistant': {'name': 'ASSISTANT', 'icon': '💼', 'emoticon': '(•◡•)ゞ', 'mbti': 'ISTJ', 'desc': 'Planner & Helper [ISTJ]',           'ansi': '\033[38;5;75m'},
         }
         SLOT_INFO = {
             '1': ('Comp',     'ENFJ', 0.15, 'The Empathetic Mentor', '\033[1;31m',   'companion'),
@@ -263,6 +263,7 @@ def get_active_persona_theme() -> dict:
         "cid": cid,
         "name": pal.get('name', 'FRIEND'),
         "icon": pal.get('icon', '🌸'),
+        "emoticon": pal.get('emoticon', '(^‿^)'),
         "mbti": pal.get('mbti', 'ENFP'),
         "preset_name": meta[3] if len(meta) > 3 else pal.get('name', 'Friend'),
         "desc": pal.get('desc', ''),
@@ -270,18 +271,40 @@ def get_active_persona_theme() -> dict:
     }
 
 
+# Canonical gear/tier map — mirrors Backend/Cognition/jen_mind.schema.json.
+# load_key is what runtime.residency.load() accepts (digit or letter alias).
+GEAR_TIERS = [
+    {"gear": "1", "tier": "A", "name": "Gear 1 · Tier A: Ghost 1.5B Coder (Ambient RAM) (:8407)", "short": "Gear 1 · 1.5B Ghost", "port": 8407, "model": "ghost-1.5b-coder",                      "load_key": "1"},
+    {"gear": "2", "tier": "B", "name": "Gear 2 · Tier B: Light 4B MTP (:8408)",                 "short": "Gear 2 · 4B",       "port": 8408, "model": "qwen3.5-4b-mtp-multimodal-v1.0",       "load_key": "2"},
+    {"gear": "3", "tier": "C", "name": "Gear 3 · Tier C: Flagship 9B Coder (:8409)",            "short": "Gear 3 · 9B",       "port": 8409, "model": "qwen3.5-9b-mtp-v1.0",                  "load_key": "3"},
+    {"gear": "4", "tier": "D", "name": "Gear 4 · Tier D: Balanced 12B Nemo (:8410)",            "short": "Gear 4 · 12B",      "port": 8410, "model": "Mistral-Nemo-Instruct-2407-Q3_K_M",    "load_key": "4"},
+    {"gear": "5", "tier": "E", "name": "Gear 5 · Tier E: DeepSeek R1 14B Reasoning (:8418)",    "short": "Gear 5 · 14B R1",   "port": 8418, "model": "deepseek-r1-distill-qwen-14b-iq3_xs", "load_key": "5"},
+    {"gear": "6", "tier": "F", "name": "Gear 6 · Tier F: Sleipnir Mamba-2 Swarm & Companion Weave (:8420)", "short": "Gear 6 · Swarm", "port": 8420, "model": "neuron-companion-weave", "load_key": "6"},
+]
+
+GEAR_BY_KEY = {g["gear"]: g for g in GEAR_TIERS} | {g["tier"]: g for g in GEAR_TIERS}
+GEAR_PORTS = [g["port"] for g in GEAR_TIERS]
+# Default chat gear — Gear 5 (14B) offers best balance of speed & intellect.
+DEFAULT_GEAR = "5"
+
+
+def _tier_label(t) -> str | None:
+    g = GEAR_BY_KEY.get(str(t)) if t else None
+    return g["short"] if g else None
+
+
 def get_model_catalog() -> list[dict]:
-    """Returns catalog of local tiers and available cloud/runtime models."""
+    """Returns catalog of local gears/tiers and available cloud/runtime models."""
     models = [
-        {"id": "Tier B", "name": "Qwen3.5-9B-MoQ (VRAM :8408)", "type": "tier_b", "tag": "flagship"},
-        {"id": "Tier A", "name": "Gemma-4-E2B (Light :8407)", "type": "tier_a", "tag": "light"},
+        {"id": f"Gear {g['gear']}", "name": g["name"], "type": "gear", "tag": "gear", "load_key": g["load_key"]}
+        for g in GEAR_TIERS
     ]
     try:
         import urllib.request
         req = urllib.request.Request("http://127.0.0.1:8400/v1/models", headers={"User-Agent": "foveai-cli"})
         with urllib.request.urlopen(req, timeout=1.0) as resp:
             data = json.loads(resp.read().decode())
-            seen = {"Tier B", "Tier A"}
+            seen = {f"Gear {g['gear']}" for g in GEAR_TIERS}
             for m in data.get("data", []):
                 mid = m.get("id")
                 owner = m.get("owned_by", "")
@@ -305,11 +328,10 @@ def get_active_model_info() -> dict:
         tier = mind.get("residency", {}).get("tier")
     except Exception:
         pass
-    if tier == "B":
-        return {"id": "Tier B", "name": "Tier B · Qwen 9B :8408", "type": "tier_b", "short": "Tier B · 9B"}
-    elif tier == "A":
-        return {"id": "Tier A", "name": "Tier A · Gemma 4B :8407", "type": "tier_a", "short": "Tier A · 4B"}
-    return {"id": "Idle", "name": "VRAM Idle (auto-wake)", "type": "idle", "short": "Tier: Idle"}
+    g = GEAR_BY_KEY.get(str(tier)) if tier else None
+    if g:
+        return {"id": f"Gear {g['gear']}", "name": g["name"], "type": "gear", "short": g["short"], "load_key": g["load_key"]}
+    return {"id": "Idle", "name": "VRAM Idle (auto-wake)", "type": "idle", "short": "Gear: Idle"}
 
 
 CHAT_SETTINGS = {
@@ -466,8 +488,8 @@ def render_commands_help_box(theme: dict, width: int = None) -> str:
             ("/chat  /normal  ", "Conversational Co-Pilot (default chat mode)"),
         ]),
         ("🤖 HARDWARE & MODELS", [
-            ("/swap  /tier b  ", "Hot-swap to Present Flagship Tier B (9B VRAM :8408)"),
-            ("/light /tier a  ", "Hot-swap to Background Light Tier A (4B :8407)"),
+            ("/swap  /gear 3   ", "Hot-swap to Gear 3 Flagship 9B (:8409)"),
+            ("/light /gear 1   ", "Hot-swap to Gear 1 Ambient RAM 1.5B (:8407)"),
             ("/model          ", "Interactively select model or Cloud/NIM proxy"),
         ]),
         ("🧠 MEMORY & COGNITION", [
@@ -537,14 +559,15 @@ def render_greeting_card(
     else:
         title_str = "FOVEAI"
 
-    p_badge = f"{theme['icon']} [{theme['slot']}] {theme['name']} [{theme['mbti']}]"
+    p_emoticon = theme.get('emoticon', '(^‿^)')
+    p_badge = f"{theme['icon']} [{theme['slot']}] {theme['name']} {p_emoticon} [{theme['mbti']}]"
     preset_desc = theme.get('preset_name', '')
     if inner_w >= 52:
         line1 = f"Consciousness : {c_bold}{p_badge}{c_rst} {c_dim}· {preset_desc}{c_rst}"
     elif inner_w >= 36:
         line1 = f"Persona       : {c_bold}{p_badge}{c_rst}"
     elif inner_w >= 24:
-        line1 = f"Persona: {theme['icon']} {theme['name']}"
+        line1 = f"Persona: {theme['icon']} {theme['name']} {p_emoticon}"
     else:
         line1 = f"{theme['icon']} {theme['name']}"
 
@@ -572,15 +595,25 @@ def render_greeting_card(
     else:
         line3 = opt_tiny
 
+    try:
+        from runtime.fui_colors import rainbow_band
+        lolly_band = rainbow_band(inner_w - 4)
+    except Exception:
+        lolly_band = ""
+
     lines = [
         f"{c_theme}╭{'─' * (card_w - 2)}╮{c_rst}",
         f"{c_theme}│{c_rst} {pad_line(c_bold + title_str + c_rst, inner_w, 'center')} {c_theme}│{c_rst}",
+    ]
+    if lolly_band:
+        lines.append(f"{c_theme}│{c_rst} {pad_line(lolly_band, inner_w, 'center')} {c_theme}│{c_rst}")
+    lines.extend([
         f"{c_theme}├{'─' * (card_w - 2)}┤{c_rst}",
         f"{c_theme}│{c_rst} {pad_line(line1, inner_w)} {c_theme}│{c_rst}",
         f"{c_theme}│{c_rst} {pad_line(line2, inner_w)} {c_theme}│{c_rst}",
         f"{c_theme}│{c_rst} {pad_line(line3, inner_w, 'center')} {c_theme}│{c_rst}",
         f"{c_theme}╰{'─' * (card_w - 2)}╯{c_rst}",
-    ]
+    ])
     return "\n".join(lines)
 
 
@@ -881,16 +914,22 @@ def run_dropdown_picker(comp_name: str, history: list, initial_tab: int = 0, wor
                     # Switch Model
                     chosen = model_catalog[sel_idx]
                     m_type = chosen["type"]
-                    if m_type == "tier_b":
+                    if m_type == "gear":
                         try:
                             from runtime.residency import load
-                            load("B")
+                            load(chosen.get("load_key", "2"))
+                        except Exception:
+                            pass
+                    elif m_type == "tier_b":
+                        try:
+                            from runtime.residency import load
+                            load("3")
                         except Exception:
                             pass
                     elif m_type == "tier_a":
                         try:
                             from runtime.residency import load
-                            load("A")
+                            load("1")
                         except Exception:
                             pass
                     elif m_type == "cloud":
@@ -988,14 +1027,14 @@ def stream_chat_model(messages: list[dict], max_tokens: int = 4096, speaker_name
         from runtime.residency import read_mind
         mind = read_mind()
         res = mind.get("residency", {})
-        port = res.get("port") or 8408
+        port = res.get("port") or GEAR_BY_KEY[DEFAULT_GEAR]["port"]
     except Exception:
-        port = 8408
+        port = GEAR_BY_KEY[DEFAULT_GEAR]["port"]
 
     if not theme:
         theme = get_active_persona_theme()
 
-    ports = [port] + [p for p in [8408, 8407, 8400] if p != port]
+    ports = [port] + [p for p in GEAR_PORTS + [8400] if p != port]
     for p in ports:
         try:
             headers = {"Content-Type": "application/json"}
@@ -1009,7 +1048,6 @@ def stream_chat_model(messages: list[dict], max_tokens: int = 4096, speaker_name
                     "max_tokens": max_tokens,
                     "temperature": 0.7,
                     "stream": True,
-                    "chat_template_kwargs": {"enable_thinking": False}
                 }).encode("utf-8")
             )
             term_w = get_term_width()
@@ -1021,9 +1059,19 @@ def stream_chat_model(messages: list[dict], max_tokens: int = 4096, speaker_name
             else:
                 card_w = max(26, term_w - 2)
 
-            hdr_full = f"╭─ 💬 {speaker_name} · {theme.get('icon', '')} {theme.get('name', '')} [{theme.get('mbti', '')}] "
-            hdr_med  = f"╭─ 💬 {speaker_name} · {theme.get('name', '')} "
-            hdr_min  = f"╭─ 💬 {speaker_name} "
+            active_m = get_active_model_info()
+            tier_badge = active_m.get("short") or active_m.get("label", "Active Model")
+            if " · " in tier_badge:
+                tier_badge = tier_badge.split(" · ")[-1]
+
+            emoticon = theme.get("emoticon") or "(^‿^)"
+            p_icon = theme.get("icon", "🌸")
+            p_name = theme.get("name", "")
+            p_mbti = theme.get("mbti", "")
+
+            hdr_full = f"╭─ {p_icon} {speaker_name} {emoticon} [{p_name} · {p_mbti}] ── [⚡ {tier_badge}] "
+            hdr_med  = f"╭─ {p_icon} {speaker_name} {emoticon} [{p_name}] ── [⚡ {tier_badge}] "
+            hdr_min  = f"╭─ {p_icon} {speaker_name} {emoticon} "
             avail_w  = card_w - len(ai_indent) - 4
             if visual_len(hdr_full) <= avail_w:
                 pref = hdr_full
@@ -1127,7 +1175,7 @@ def stream_chat_model(messages: list[dict], max_tokens: int = 4096, speaker_name
                         self.col += v_buf
                         self.buf = ""
                     pad = max(0, self.inner_w - self.col)
-                    sys.stdout.write((" " * pad) + f"{self.frame}_\\{self.reset}\n")
+                    sys.stdout.write((" " * pad) + f" {self.frame}│{self.reset}\n")
                     self.col = 0
                     self.at_start = True
                     sys.stdout.flush()
@@ -1139,7 +1187,7 @@ def stream_chat_model(messages: list[dict], max_tokens: int = 4096, speaker_name
                 if not clean:
                     return
                 max_box_w = max(26, min(70, term_w - 6))
-                pref = "╭─ 💭 monologue "
+                pref = "┌─ 💭 (｡•́‿•̀｡) Monologue "
                 pref_len = visual_len(pref)
 
                 max_inner = max_box_w - 4
@@ -1164,10 +1212,10 @@ def stream_chat_model(messages: list[dict], max_tokens: int = 4096, speaker_name
                 actual_box_w = pref_len + dashes + 1
                 actual_inner_w = actual_box_w - 4
 
-                sys.stdout.write(f"\r\033[K{ai_indent}{CYAN_DIM}{pref}{'─' * dashes}╮{RESET}\n")
+                sys.stdout.write(f"\r\033[K{ai_indent}{CYAN_DIM}{pref}{'─' * dashes}┐{RESET}\n")
                 for line in wrapped_lines:
                     sys.stdout.write(f"{ai_indent}{CYAN_DIM}│{RESET} {MUTED}{pad_line(line, actual_inner_w)}{RESET} {CYAN_DIM}│{RESET}\n")
-                sys.stdout.write(f"{ai_indent}{CYAN_DIM}╰{'─' * (actual_box_w - 2)}╯{RESET}\n")
+                sys.stdout.write(f"{ai_indent}{CYAN_DIM}└{'─' * (actual_box_w - 2)}┘{RESET}\n")
                 sys.stdout.flush()
 
             def print_ai_bubble_header():
@@ -1198,35 +1246,38 @@ def stream_chat_model(messages: list[dict], max_tokens: int = 4096, speaker_name
                             if fr:
                                 last_finish_reason = fr
                         delta = choices[0].get("delta", {}) if choices else {}
+                        reasoning = delta.get("reasoning_content")
+                        if reasoning:
+                            raw_buf += reasoning
+                            if not speech_header_printed:
+                                # Show that Jen/DeepSeek is actively reasoning
+                                pass
+
                         content = delta.get("content")
                         if content:
                             content_tokens.append(content)
-                            if not thought_parsed:
-                                raw_buf += content
+                            if raw_buf and not thought_parsed:
+                                # We have collected reasoning_content or <thought>
                                 if "<thought>" in raw_buf and "</thought>" in raw_buf:
                                     t_start = raw_buf.find("<thought>") + 9
                                     t_end = raw_buf.find("</thought>")
                                     thought_content = raw_buf[t_start:t_end]
                                     render_monologue_box(thought_content)
                                     thought_parsed = True
-                                    after = raw_buf[t_end + 10:].lstrip()
-                                    if after:
-                                        if not speech_header_printed:
-                                            print_ai_bubble_header()
-                                            speech_header_printed = True
-                                        writer.put(after)
-                                elif not raw_buf.startswith("<") and len(raw_buf) > 12:
-                                    # Model did not generate a <thought> tag, stream normally
+                                elif not raw_buf.startswith("<"):
+                                    render_monologue_box(raw_buf.strip())
                                     thought_parsed = True
-                                    if not speech_header_printed:
-                                        print_ai_bubble_header()
-                                        speech_header_printed = True
-                                    writer.put(raw_buf)
-                            else:
+                            elif not thought_parsed and not raw_buf.startswith("<") and len(raw_buf) > 12:
+                                thought_parsed = True
                                 if not speech_header_printed:
                                     print_ai_bubble_header()
                                     speech_header_printed = True
-                                writer.put(content)
+                                writer.put(raw_buf)
+
+                            if not speech_header_printed:
+                                print_ai_bubble_header()
+                                speech_header_printed = True
+                            writer.put(content)
                     except Exception:
                         pass
 
@@ -1263,18 +1314,18 @@ def stream_chat_model(messages: list[dict], max_tokens: int = 4096, speaker_name
     return None
 
 
-def read_user_message(header_line: str, user_border: str, reset: str, active_w: int, card_w: int = None, inner_w: int = None) -> str | None:
-    """Reads user input and upon pressing Enter collects all text into a functional table with a right speech tail."""
-    actual_card_w = card_w if card_w else min(84, max(40, active_w))
-    actual_inner_w = inner_w if inner_w else (actual_card_w - 4)
+def read_user_message(top_bar: str, user_border: str, reset: str, actual_card_w: int, actual_inner_w: int, indent: str = "   ") -> str | None:
+    """Reads user input inside a clean, rock-solid ASCII box card with complete 4-sided borders."""
+    term_w = get_term_width()
+    term_h = shutil.get_terminal_size((80, 24)).lines
 
     # 1. Print top border of user card cleanly
-    sys.stdout.write(f"\n{header_line}\n")
+    sys.stdout.write(f"\n{top_bar}\n")
     sys.stdout.flush()
 
     # 2. Wrap ANSI color sequences in \001 and \002 (GNU Readline non-printing markers)
-    rl_prompt = f"\001{user_border}\002  /_ \001{reset}\002"
-    rl_cont   = f"\001{user_border}\002   │ \001{reset}\002"
+    rl_prompt = f"\001{user_border}\002{indent}│ \001{reset}\002"
+    rl_cont   = f"\001{user_border}\002{indent}│ \001{reset}\002"
 
     lines = []
     in_block = False
@@ -1321,46 +1372,32 @@ def read_user_message(header_line: str, user_border: str, reset: str, active_w: 
             lines.append(nxt)
 
     user_text = "\n".join(lines).strip()
-    if not user_text:
-        sys.stdout.write(f"   {user_border}╰{'─' * (actual_card_w - 5)}╯{reset}\n")
-        sys.stdout.flush()
-        return ""
 
-    if user_text.startswith("/"):
-        sys.stdout.write(f"   {user_border}╰{'─' * (actual_card_w - 5)}╯{reset}\n")
-        sys.stdout.flush()
-        return user_text
-
-    # 3. Upon pressing Enter: collect user text into functional table / chat bubble
-    term_w = get_term_width()
-    term_h = shutil.get_terminal_size((80, 24)).lines
-
-    # Calculate exact number of physical rows occupied on screen by the raw input
+    # 3. Calculate physical rows occupied by raw terminal input
+    prompt_len = len(indent) + 2  # "   │ " is 5 columns
     total_physical_rows = 0
-    for i, l in enumerate(lines):
-        p_len = 5 if i == 0 else 5
-        t_len = p_len + visual_len(l)
-        if t_len <= 0:
-            total_physical_rows += 1
-        else:
-            total_physical_rows += ((t_len - 1) // term_w) + 1
+    for l in lines:
+        t_len = prompt_len + visual_len(l)
+        total_physical_rows += max(1, (t_len - 1) // term_w + 1)
 
+    bot_dashes = "─" * max(1, actual_card_w - 2)
+
+    # 4. Redraw user message into a complete 4-sided chat bubble with left & right borders
     try:
-        if total_physical_rows <= 8 and total_physical_rows < (term_h - 2):
-            # Rewind cursor back up over the raw unbordered typed text and clear it
+        if total_physical_rows > 0 and total_physical_rows <= (term_h - 2):
             sys.stdout.write(f"\033[{total_physical_rows}A\r\033[J")
-            # Word-wrap the collected text cleanly inside actual_inner_w
-            wrapped = wrap_lines_to_width(lines, actual_inner_w)
-            for i, chunk in enumerate(wrapped):
-                if i == len(wrapped) - 1:
-                    sys.stdout.write(f"  {user_border}/_ {reset}{pad_line(chunk, actual_inner_w)} {user_border}│{reset}\n")
-                else:
-                    sys.stdout.write(f"   {user_border}│{reset} {pad_line(chunk, actual_inner_w)} {user_border}│{reset}\n")
+            wrapped = wrap_lines_to_width(lines if user_text else [""], actual_inner_w)
+            for chunk in wrapped:
+                sys.stdout.write(f"{indent}{user_border}│{reset} {pad_line(chunk, actual_inner_w)} {user_border}│{reset}\n")
+        else:
+            wrapped = wrap_lines_to_width(lines if user_text else [""], actual_inner_w)
+            for chunk in wrapped:
+                sys.stdout.write(f"{indent}{user_border}│{reset} {pad_line(chunk, actual_inner_w)} {user_border}│{reset}\n")
     except Exception:
         pass
 
-    # 4. Cleanly close bottom of user card
-    sys.stdout.write(f"   {user_border}╰{'─' * (actual_card_w - 5)}╯{reset}\n")
+    # 5. Cleanly close bottom of user card with exact matching bottom border
+    sys.stdout.write(f"{indent}{user_border}╰{bot_dashes}╯{reset}\n")
     sys.stdout.flush()
 
     return user_text
@@ -1471,10 +1508,9 @@ def _run_interactive_chat():
             try:
                 mind = read_mind()
                 t = mind.get("residency", {}).get("tier")
-                if t == "B":
-                    tier_tag = "\033[1;32mTier B · 9B\033[0m"
-                elif t == "A":
-                    tier_tag = "\033[1;33mTier A · 4B\033[0m"
+                lbl = _tier_label(t)
+                if lbl:
+                    tier_tag = f"\033[1;32m{lbl}\033[0m" if t in ("3", "C") else f"\033[1;33m{lbl}\033[0m"
                 elif t:
                     tier_tag = f"\033[1;36mTier {t}\033[0m"
             except Exception:
@@ -1489,33 +1525,30 @@ def _run_interactive_chat():
         mode_info = CHAT_WORKFLOW_MODES.get(active_workflow_mode, CHAT_WORKFLOW_MODES["normal"])
         mode_badge = f" {mode_info['tag']} ──" if mode_info.get("tag") else ""
 
-        full_hdr    = f"   {USER_BORDER}╭─ 👤 {USER_TITLE}{user_name}{RESET} {USER_BORDER}& {theme['icon']} {comp_name} ── [{tier_tag}{USER_BORDER}] ── {theme['icon']} [{theme['slot']}] {theme['name']} [{theme['mbti']}]{USER_BORDER}{mode_badge} [/menu: Selector] "
-        med_hdr     = f"   {USER_BORDER}╭─ 👤 {USER_TITLE}{user_name}{RESET} {USER_BORDER}& {theme['icon']} {comp_name} ── [{tier_tag}{USER_BORDER}]{USER_BORDER}{mode_badge} [/menu] "
-        short_hdr   = f"   {USER_BORDER}╭─ 👤 {USER_TITLE}{user_name}{RESET} {USER_BORDER}& {theme['icon']} {comp_name} ── [{tier_tag}{USER_BORDER}] [/menu] "
-        compact_hdr = f"   {USER_BORDER}╭─ 👤 {USER_TITLE}{user_name}{RESET} {USER_BORDER}& {theme['icon']} {comp_name} ── [/menu] "
-        small_hdr   = f"   {USER_BORDER}╭─ 👤 {USER_TITLE}{user_name}{RESET} {USER_BORDER}[/menu] "
-        tiny_hdr    = f"   {USER_BORDER}╭─ 👤 "
-
-        if visual_len(full_hdr) <= active_w - 4:
-            hdr_prefix = full_hdr
-        elif visual_len(med_hdr) <= active_w - 4:
-            hdr_prefix = med_hdr
-        elif visual_len(short_hdr) <= active_w - 4:
-            hdr_prefix = short_hdr
-        elif visual_len(compact_hdr) <= active_w - 4:
-            hdr_prefix = compact_hdr
-        elif visual_len(small_hdr) <= active_w - 4:
-            hdr_prefix = small_hdr
+        user_indent = "   "
+        if term_w >= 60:
+            card_w = min(84, term_w - 6)
+        elif term_w >= 44:
+            card_w = term_w - 4
         else:
-            hdr_prefix = tiny_hdr
+            card_w = max(26, term_w - 2)
 
-        vis_len = visual_len(hdr_prefix)
-        dashes = max(2, active_w - vis_len - 1)
-        actual_card_w = vis_len + dashes + 1
-        actual_inner_w = actual_card_w - 7
-        header_line = f"{hdr_prefix}{'─' * dashes}╮{RESET}"
+        pref = f"╭─ 👤 {USER_TITLE}{user_name}{RESET} "
+        v_pref = visual_len(pref)
+        hint = "[/menu] "
+        v_hint = visual_len(hint)
+        avail = card_w - v_pref - 1
+        if avail >= v_hint + 4:
+            dashes_left = max(2, avail - v_hint - 1)
+            top_bar = f"{user_indent}{USER_BORDER}{pref}{'─' * dashes_left} {hint}─╮{RESET}"
+        else:
+            dashes = max(2, card_w - v_pref - 1)
+            top_bar = f"{user_indent}{USER_BORDER}{pref}{'─' * dashes}╮{RESET}"
 
-        line = read_user_message(header_line, USER_BORDER, RESET, active_w, actual_card_w, actual_inner_w)
+        actual_card_w = visual_len(top_bar) - len(user_indent)
+        actual_inner_w = actual_card_w - 4
+
+        line = read_user_message(top_bar, USER_BORDER, RESET, actual_card_w, actual_inner_w, indent=user_indent)
         if line is None:
             print(f"\n[{comp_name}] See you soon, {user_name}!")
             break
@@ -1684,18 +1717,31 @@ def _run_interactive_chat():
             continue
 
         # --- Hardware & Model Commands ---
-        if low in ("/swap", "/tier b") and load:
-            print("⚡ Hot-swapping to Tier B (Qwen3.5-9B-MoQ on VRAM)...")
-            res = load("B")
+        if low in ("/swap", "/tier b", "/flagship") and load:
+            print("⚡ Hot-swapping to Gear 3 — Flagship 9B Coder (:8409)...")
+            res = load("3")
             refresh_pinned_header(user_name, comp_name, theme, active_workflow_mode, term_w)
             print(f"Status: {res}")
             continue
 
         if low in ("/light", "/tier a") and load:
-            print("⚡ Hot-swapping to Tier A (Gemma-4-E2B light)...")
-            res = load("A")
+            print("⚡ Hot-swapping to Gear 1 — Ambient RAM 1.5B (:8407)...")
+            res = load("1")
             refresh_pinned_header(user_name, comp_name, theme, active_workflow_mode, term_w)
             print(f"Status: {res}")
+            continue
+
+        if low.startswith("/gear") and load:
+            parts = low.split()
+            gnum = parts[1] if len(parts) > 1 else ""
+            g = GEAR_BY_KEY.get(gnum)
+            if g:
+                print(f"⚡ Shifting to {g['name']}...")
+                res = load(g["load_key"])
+                refresh_pinned_header(user_name, comp_name, theme, active_workflow_mode, term_w)
+                print(f"Status: {res}")
+            else:
+                print("Usage: /gear <1-6>")
             continue
 
         if low in ("/status", "/mind"):
@@ -1733,9 +1779,22 @@ def _run_interactive_chat():
 
         # /model command: interactively list & choose model
         if low.startswith("/model"):
-            print("\n🤖 Available FoveAI Models & Providers:")
-            print("  [1] Tier B (Local Flagship): Qwen3.5-9B-MoQ + Eagle3 (VRAM :8408)")
-            print("  [2] Tier A (Local Light):    Gemma-4-E2B Multimodal (:8407)")
+            # live gear availability (locked gears marked)
+            locks = {}
+            try:
+                import urllib.request
+                req = urllib.request.Request("http://127.0.0.1:8400/api/gears/available", headers={"User-Agent": "foveai-cli"})
+                with urllib.request.urlopen(req, timeout=1.0) as resp:
+                    locks = json.loads(resp.read().decode()).get("locked_reasons", {})
+            except Exception:
+                pass
+
+            print("\n🤖 FoveAI Gears & Providers:")
+            idx = 1
+            for g in GEAR_TIERS:
+                lock_note = f"  ⛔ {locks[g['gear']]}" if g["gear"] in locks else ""
+                print(f"  [{idx}] {g['name']}{lock_note}")
+                idx += 1
             cloud_options = []
             try:
                 import urllib.request
@@ -1743,7 +1802,6 @@ def _run_interactive_chat():
                 with urllib.request.urlopen(req, timeout=1.0) as resp:
                     m_data = json.loads(resp.read().decode())
                     seen = set()
-                    idx = 3
                     for m in m_data.get("data", []):
                         mid = m.get("id")
                         owner = m.get("owned_by", "")
@@ -1756,14 +1814,35 @@ def _run_interactive_chat():
                 pass
 
             choice = input("\nSelect model number (or press Enter to cancel): ").strip()
-            if choice == "1" and load:
-                print("⚡ Loading Tier B (Qwen3.5-9B-MoQ on VRAM)...")
-                load("B")
-                refresh_pinned_header(user_name, comp_name, theme, active_workflow_mode, term_w)
-            elif choice == "2" and load:
-                print("⚡ Loading Tier A (Gemma-4-E2B light)...")
-                load("A")
-                refresh_pinned_header(user_name, comp_name, theme, active_workflow_mode, term_w)
+            if choice.isdigit() and 1 <= int(choice) <= len(GEAR_TIERS) and load:
+                g = GEAR_TIERS[int(choice) - 1]
+                if g["gear"] in locks:
+                    reason = locks[g['gear']]
+                    print(f"⛔ {reason}")
+                    # VRAM-bound locks need abort (SIGSTOP keeps memory mapped);
+                    # pause suffices for CPU-side pressure only.
+                    ans = input("   Free memory? [p]ause job (keeps VRAM) / [a]bort job (frees VRAM, requeues if queue-managed) / N: ").strip().lower()
+                    if ans in ("p", "a", "y", "abort", "pause"):
+                        import subprocess as _sp
+                        cmd = "abort" if ans.startswith("a") else "pause"
+                        _sp.call([sys.executable, "-m", "runtime.residency", cmd], cwd="/home/lumba/FoveAI")
+                        locks = {}
+                        try:
+                            req = urllib.request.Request("http://127.0.0.1:8400/api/gears/available", headers={"User-Agent": "foveai-cli"})
+                            with urllib.request.urlopen(req, timeout=2.0) as resp:
+                                locks = json.loads(resp.read().decode()).get("locked_reasons", {})
+                        except Exception:
+                            pass
+                        if g["gear"] in locks:
+                            print(f"   Still locked: {locks[g['gear']]}")
+                        else:
+                            print(f"⚡ Room freed — shifting to {g['name']}...")
+                            load(g["load_key"])
+                            refresh_pinned_header(user_name, comp_name, theme, active_workflow_mode, term_w)
+                else:
+                    print(f"⚡ Shifting to {g['name']}...")
+                    load(g["load_key"])
+                    refresh_pinned_header(user_name, comp_name, theme, active_workflow_mode, term_w)
             elif choice.isdigit():
                 chosen_num = int(choice)
                 match = next((item for item in cloud_options if item[0] == chosen_num), None)
@@ -1806,9 +1885,9 @@ def _run_interactive_chat():
         if CHAT_SETTINGS.get("auto_tier_b") and read_mind and load:
             mind = read_mind()
             cur_tier = mind.get("residency", {}).get("tier")
-            if cur_tier != "B" and any(k in low for k in deep_keywords):
-                print("⚡ Deep reasoning requested — auto hot-swapping to Flagship Tier B on VRAM...")
-                load("B")
+            if cur_tier not in ("3", "C") and any(k in low for k in deep_keywords):
+                print("⚡ Deep reasoning requested — auto hot-swapping to Gear 3 Flagship 9B on VRAM...")
+                load("3")
 
         history.append({"role": "user", "content": line})
         chat_turns = [m for m in history if m.get("role") != "system"]
@@ -1833,10 +1912,10 @@ def _run_interactive_chat():
         sys.stdout.flush()
         reply = stream_chat_model(active_hist, max_tokens=4096, speaker_name=comp_name, theme=theme)
         if not reply and load:
-            sys.stdout.write("\r\033[K⚡ Waking model into VRAM (loading Flagship Tier B :8408)...\n")
+            sys.stdout.write(f"\r\033[K⚡ Waking model (loading {GEAR_BY_KEY[DEFAULT_GEAR]['short']} :{GEAR_BY_KEY[DEFAULT_GEAR]['port']})...\n")
             sys.stdout.flush()
             try:
-                load("B")
+                load(DEFAULT_GEAR)
                 reply = stream_chat_model(active_hist, max_tokens=4096, speaker_name=comp_name, theme=theme)
             except Exception as e:
                 print(f"⚠️ Failed to auto-wake model: {e}")

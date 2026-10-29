@@ -924,12 +924,18 @@ function _flushLogQueue() {
 
 // Request logger (BEFORE body parsing!)
 const SILENT_LOG_PATHS = new Set(['/health', '/api/status', '/v1/models', '/favicon.ico']);
+const WEB_ACTIVITY_FILE = path.resolve(__dirname, '..', 'data', 'web_activity.timestamp');
 app.use((req, res, next) => {
     if (req.method !== 'OPTIONS') {
         const urlPath = req.path || (req.url ? req.url.split('?')[0] : '');
         if (!SILENT_LOG_PATHS.has(urlPath)) {
             console.log(`[Proxy] ${req.method} ${req.url}`);
             logDebug(`[${new Date().toISOString()}] Socket Hit: ${req.method} ${req.url}\n`);
+            // Touch web activity timestamp on user hits (chat, voice, memory, tools)
+            try {
+                fs.mkdirSync(path.dirname(WEB_ACTIVITY_FILE), { recursive: true });
+                fs.writeFileSync(WEB_ACTIVITY_FILE, String(Date.now()));
+            } catch (_) {}
         }
     }
     next();
@@ -2103,6 +2109,15 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
         if (!body.max_tokens) {
             body.max_tokens = parseInt(process.env.XRLF_NVIDIA_MAX_TOKENS || '2048', 10);
         }
+    } else {
+        // Local engine ceiling (default 512 tokens). Prevents RAM/draft models (e.g. Gear 1 1.5B)
+        // from runaway repetition loops exhausting the 4096 context window and crashing llama-server.
+        if (!body.max_tokens) {
+            body.max_tokens = parseInt(process.env.XRLF_LOCAL_MAX_TOKENS || '512', 10);
+        }
+        if (body.repeat_penalty === undefined) {
+            body.repeat_penalty = parseFloat(process.env.XRLF_LOCAL_REPEAT_PENALTY || '1.1');
+        }
     }
     const currentEnvModel = isEffCloud
         ? (process.env.XRLF_MODEL_CLOUD_ID || process.env.XRLF_PROXY_MODEL || UPSTREAM_MODEL).trim()
@@ -2152,13 +2167,10 @@ async function handleChatCompletion(req, res, injectMessages = null, store, work
                 return res.status(400).json({ error: `BYOK provider '${byokCfg.provider}' needs a custom base URL — set one on your settings page` });
             }
 
-            // Only use Swarm Router in local Cognitive Mode and when repo context override is enabled
+            const isLocalTarget = !nvidiaRequested && !freeCloudRequested && !byokRequested && !ollamaRequested && !novaRequested && !(config._cloud_mode && config._api_key) && !isEffCloud;
+
             // Only use Swarm Router in local Cognitive Mode and when repo context override is enabled.
-// ollama/* must be excluded like the other explicit side-routes: the swarm picks a
-// LOCAL node, which silently replaced the Ollama Cloud upstream and sent the
-// request to the local runtime — surfacing as a confusing context-overflow 500.
-if (!nvidiaRequested && !freeCloudRequested && !byokRequested && !ollamaRequested && !novaRequested &&
-        !isEffCloud && REPO_ENABLED && REPO_CONTEXT_OVERRIDE) {
+            if (isLocalTarget && REPO_ENABLED && REPO_CONTEXT_OVERRIDE) {
                 const bestNode = swarmRouter.route(requiredCapability);
                 if (bestNode) {
                     targetUpstream = bestNode;
@@ -2166,37 +2178,47 @@ if (!nvidiaRequested && !freeCloudRequested && !byokRequested && !ollamaRequeste
                 }
             }
 
+            // ── Residency gate ──────────────────────────────────────────
+            // Authoritative check: if ANY gear is currently resident & present in jen_mind.json
+            // (e.g. Gear 1 RAM-only on :8407 or Gear 2 on :8408), route directly to its active port
+            // instead of letting a stale SwarmRouter node trigger a false wake loop.
+            if (isLocalTarget) {
+                residency.touchTurn();
+                const cur = residency.resident();
+                if (cur && cur.port && (cur.state === 'present' || !cur.state)) {
+                    targetUpstream = `http://127.0.0.1:${cur.port}`;
+                } else {
+                    const managed = (cur && cur.tier) || residency.managedTier(targetUpstream) || '2';
+                    residency.requestWake(managed);
+                    return res.status(200).json({
+                        id: `chatcmpl-${uuidv4().slice(0, 8)}`,
+                        object: 'chat.completion',
+                        model: body.model || 'foveated-proxy',
+                        choices: [{ message: { role: 'assistant', content: residency.wakeNotice(managed) }, index: 0, finish_reason: 'waking' }],
+                        usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+                        _residency: { waking: managed },
+                    });
+                }
+            }
+
             // Ensure upstream URL doesn't have double /v1 if node already has it
             let fetchUrl = `${targetUpstream}/v1/chat/completions`;
             if (targetUpstream.endsWith('/v1')) fetchUrl = `${targetUpstream}/chat/completions`;
 
-            logDebug(`[${new Date().toISOString()}] before fetch to ${fetchUrl} (attempt ${retryCount + 1}/${MAX_CTX_RETRIES + 1})\n`);
-            // Serialize concurrent requests to the local runtime — overlapping
-            // decode frees trip llama.cpp's CUDA pool assert → SIGABRT (see
-            // runtime_stderr.log). Slot is released when the response body ends.
-            const isLocalTarget = !nvidiaRequested && !freeCloudRequested && !byokRequested && !novaRequested && !(config._cloud_mode && config._api_key) && !isEffCloud;
-            // ── Residency gate ──────────────────────────────────────────
-            // A managed local port with no tier resident is not a failure —
-            // it is Jen asleep. Wake her and tell the caller, don't 502.
-            if (isLocalTarget) {
-                residency.touchTurn();
-                const managed = residency.managedTier(targetUpstream);
-                if (managed) {
-                    const cur = residency.resident();
-                    const ready = cur && cur.tier === managed && (cur.state === 'present' || !cur.state);
-                    if (!ready) {
-                        residency.requestWake(managed);
-                        return res.status(200).json({
-                            id: `chatcmpl-${uuidv4().slice(0, 8)}`,
-                            object: 'chat.completion',
-                            model: body.model || 'foveated-proxy',
-                            choices: [{ message: { role: 'assistant', content: residency.wakeNotice(managed) }, index: 0, finish_reason: 'waking' }],
-                            usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
-                            _residency: { waking: managed },
-                        });
-                    }
-                }
+            // Reasoning model control (REASONING_MODEL=0 / XRLF_MODEL_THINKING=false / FOVEAI_MODEL_THINKING=false)
+            const reasoningDisabled = process.env.REASONING_MODEL === '0' ||
+                                      process.env.REASONING_MODEL === 'false' ||
+                                      process.env.XRLF_MODEL_THINKING === 'false' ||
+                                      process.env.FOVEAI_MODEL_THINKING === 'false';
+            if (reasoningDisabled) {
+                body.chat_template_kwargs = {
+                    enable_thinking: false,
+                    thinking: false,
+                    ...(body.chat_template_kwargs || {})
+                };
             }
+
+            logDebug(`[${new Date().toISOString()}] before fetch to ${fetchUrl} (attempt ${retryCount + 1}/${MAX_CTX_RETRIES + 1})\n`);
 let releaseSlot = null;
             if (isLocalTarget) {
                 releaseSlot = await acquireLocalUpstream();
@@ -2248,7 +2270,7 @@ let releaseSlot = null;
 
             // Can't retry — return error as valid JSON with choices
             console.error(`[ContextHealer] ❌ Giving up after ${retryCount} retries. Budget=${getBudget()}.`);
-            const isCtx = reason && reason.includes('context');
+            const isCtx = Boolean(reason && reason.includes('context') && !reason.includes('non-context'));
             const errorContent = isCtx
                 ? `⚠️ Context overflow: The upstream model could not process this request even after auto-shrinking the context to ${getBudget()} chars. Please reduce the input size or increase XRLF_CANONICAL_CTX. (Upstream: ${upstreamRes.status})`
                 : `⚠️ Upstream error ${upstreamRes.status}: ${(lastErrorText || reason || 'Unknown error').slice(0, 300)}`;
@@ -3187,9 +3209,9 @@ app.post(['/api/soul/update_soul', '/update_soul'], async (req, res) => {
 //
 // XRLF_URL = native model API (STT/TTS/vision on :8402)
 // TTS_URL  = TTS service (Kokoro on :8411)
-// STT_URL  = STT service (Whisper on :8401 — the HEARING lane)
+// STT_URL  = STT service (Whisper on :8401 WS, :8430 HTTP — the HEARING lane)
 const TTS_URL = process.env.TTS_URL || 'http://127.0.0.1:8411';
-const STT_URL = process.env.STT_URL || 'http://127.0.0.1:8401';
+const STT_URL = process.env.STT_URL || 'http://127.0.0.1:8430';
 const XRLF_URL = process.env.XRLF_URL || 'http://127.0.0.1:8402';
 
 // ── STT: POST /api/soul/stt ─────────────────────────────────────────────────
@@ -3225,9 +3247,9 @@ app.post('/api/soul/stt', requireFeature('voice'), async (req, res) => {
         console.warn(`[Voice/STT] Native STT unavailable: ${e.message}`);
     }
 
-    // Fallback: STT service (Whisper) on :8409
+    // Fallback: STT service (Whisper) on :8430 /stt
     try {
-        const r = await fetch(`${STT_URL}/api/soul/stt`, {
+        const r = await fetch(`${STT_URL}/stt`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ audio_base64, format: format || 'audio/webm', filename: filename || 'recording.webm' }),
@@ -3240,7 +3262,7 @@ app.post('/api/soul/stt', requireFeature('voice'), async (req, res) => {
         }
         console.warn(`[Voice/STT] STT service returned ${r.status}`);
     } catch (e) {
-        console.warn(`[Voice/STT] Whisper STT (:8409) unavailable: ${e.message}`);
+        console.warn(`[Voice/STT] Whisper STT (:8430) unavailable: ${e.message}`);
     }
 
     // Last resort: return empty so the frontend doesn't hang
@@ -4357,6 +4379,20 @@ app.get('/api/status', async (req, res) => {
 
 // ── /api/residency/status endpoint (Tier A / Tier B live probe) ─────────────
 app.get('/api/residency/status', async (req, res) => {
+    // 1. First consult truth in jen_mind.json
+    const r = residency.resident();
+    if (r && r.tier && r.port) {
+        const gears = {
+            '1': 'Gear 1: Ambient RAM 1.5B (:8407)',
+            '2': 'Gear 2: Light 4B MTP (:8408)',
+            '3': 'Gear 3: Flagship 9B Coder (:8409)',
+            '4': 'Gear 4: Balanced 12B Nemo (:8410)',
+            '5': 'Gear 5: DeepSeek R1 14B Reasoning (MoQ) (:8418)',
+            '6': 'Gear 6: Sleipnir Mamba-2 Swarm & Companion Weave (:8420)'
+        };
+        return res.json({ tier: String(r.tier), label: gears[String(r.tier)] || `Gear ${r.tier}`, port: r.port });
+    }
+
     const checkPort = (port) => new Promise(resolve => {
         const s = new net.Socket();
         s.setTimeout(250);
@@ -4370,17 +4406,84 @@ app.get('/api/residency/status', async (req, res) => {
     let label = 'Idle (VRAM released)';
     let port = null;
 
-    if (await checkPort(8408)) {
-        tier = 'B';
-        label = 'Tier B (9B on VRAM :8408)';
+    if (await checkPort(8420)) {
+        tier = '6';
+        label = 'Gear 6: Sleipnir Mamba-2 Swarm & Companion Weave (:8420)';
+        port = 8420;
+    } else if (await checkPort(8418)) {
+        tier = '5';
+        label = 'Gear 5: DeepSeek R1 14B Reasoning (MoQ) (:8418)';
+        port = 8418;
+    } else if (await checkPort(8410)) {
+        tier = '4';
+        label = 'Gear 4: Balanced 12B Nemo (:8410)';
+        port = 8410;
+    } else if (await checkPort(8409)) {
+        tier = '3';
+        label = 'Gear 3: Flagship 9B Coder (:8409)';
+        port = 8409;
+    } else if (await checkPort(8408)) {
+        tier = '2';
+        label = 'Gear 2: Light 4B MTP (:8408)';
         port = 8408;
     } else if (await checkPort(8407)) {
-        tier = 'A';
-        label = 'Tier A (4B Light :8407)';
+        tier = '1';
+        label = 'Gear 1: Ambient RAM 1.5B (:8407)';
         port = 8407;
     }
 
     res.json({ tier, label, port });
+});
+
+// Dynamic Context-Aware Model & Gear Availability (/api/gears/available)
+app.get('/api/gears/available', (_req, res) => {
+    const py = path.resolve(__dirname, '..', '.venv', 'bin', 'python');
+    execFile(py, ['/home/lumba/FoveAI/runtime/available_models.py'], { cwd: path.resolve(__dirname, '..') }, (err, stdout) => {
+        if (err) return res.status(500).json({ error: err.message });
+        try { res.json(JSON.parse(stdout)); } catch (_) { res.json({ error: 'failed to parse available gears' }); }
+    });
+});
+
+// Shifting gears over HTTP (Multigate, Settings, Unity WebView)
+app.post('/api/residency/shift', async (req, res) => {
+    const { gear } = req.body || {};
+    if (!gear) return res.status(400).json({ error: 'gear is required (1-6 or A-F)' });
+    const py = path.resolve(__dirname, '..', '.venv', 'bin', 'python');
+    const script = path.resolve(__dirname, '..', 'runtime', 'residency.py');
+    execFile(py, ['-m', 'runtime.residency', 'shift', String(gear), '-f'], { cwd: path.resolve(__dirname, '..') }, (err, stdout, stderr) => {
+        if (err) return res.status(500).json({ error: stderr || err.message });
+        try {
+            const data = JSON.parse(stdout);
+            // Sync proxy's upstream URL to the shifted gear port immediately
+            if (data && data.port) {
+                config.upstream_url = `http://127.0.0.1:${data.port}/v1`;
+                console.log(`[Residency] 🔀 Upstream repointed to shifted gear port :${data.port}`);
+            }
+            res.json(data);
+        } catch (_) {
+            res.json({ ok: true, output: stdout.trim() });
+        }
+    });
+});
+
+// Dynamic GPU Duty / Throttle endpoint (auto vs manual, 40%, 60%, 80%, 100%)
+app.get('/api/duty', (_req, res) => {
+    const py = path.resolve(__dirname, '..', '.venv', 'bin', 'python');
+    execFile(py, ['/home/lumba/FoveAI/runtime/throttle_controller.py'], { cwd: path.resolve(__dirname, '..') }, (err, stdout) => {
+        if (err) return res.json({ mode: 'manual', duty: 100, allowed: [40, 60, 80, 100] });
+        try { res.json(JSON.parse(stdout)); } catch (_) { res.json({ mode: 'manual', duty: 100, allowed: [40, 60, 80, 100] }); }
+    });
+});
+
+app.post('/api/duty', (req, res) => {
+    const { pct, mode } = req.body || {};
+    const py = path.resolve(__dirname, '..', '.venv', 'bin', 'python');
+    const arg = mode ? String(mode) : String(pct);
+    if (!arg) return res.status(400).json({ error: 'pct or mode is required' });
+    execFile(py, ['/home/lumba/FoveAI/runtime/throttle_controller.py', arg], { cwd: path.resolve(__dirname, '..') }, (err, stdout) => {
+        if (err) return res.status(500).json({ error: err.message });
+        try { res.json(JSON.parse(stdout)); } catch (_) { res.json({ ok: true, output: stdout.trim() }); }
+    });
 });
 
 // ── /api/sessions endpoint (returns list of available sessions across all stores) ────────────────

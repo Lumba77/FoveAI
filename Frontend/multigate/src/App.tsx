@@ -400,6 +400,7 @@ function App() {
   });
   const [availableModels, setAvailableModels] = useState<any[]>([]);
   const [swappingModel, setSwappingModel] = useState<string | null>(null);
+  const [dutyInfo, setDutyInfo] = useState<{ mode: string; duty: number } | null>(null);
   const [chatProvider, setChatProvider] = useState<'xrlf_proxy' | 'lmstudio' | 'cloud'>(() => {
     try {
       const saved = localStorage.getItem('foveai_chat_provider');
@@ -418,12 +419,12 @@ function App() {
     // xrlf_proxy has no static fleet — its picker is populated live from
     // /xrlf/v1/packages (the loadable .xrlf files the runtime can hot-swap).
     xrlf_proxy: [
-      { id: 'local-3b', label: '💻 3B' },
-      { id: 'local-4b', label: '💻 4B' },
-      { id: 'local-7b', label: '💻 7B' },
-      { id: 'local-8b', label: '💻 8B' },
-      { id: 'local-9b', label: '💻 9B' },
-      { id: 'local-12b', label: '💻 12B' },
+      { id: '1', label: '⚙️ Gear 1: Ambient RAM (1.5B)' },
+      { id: '2', label: '⚙️ Gear 2: Light 4B MTP (Multimodal)' },
+      { id: '3', label: '⚙️ Gear 3: Flagship 9B Coder' },
+      { id: '4', label: '⚙️ Gear 4: Balanced 12B Nemo' },
+      { id: '5', label: '🧠 Gear 5: DeepSeek R1 14B Reasoning (MoQ)' },
+      { id: '6', label: '🌿 Gear 6: Sleipnir Mamba-2 Swarm & Companion Weave (:8420)' },
     ],
     lmstudio: [
       { id: 'local-3b', label: '💻 3B' },
@@ -447,11 +448,15 @@ function App() {
   const [contextBudget, setContextBudget] = useState(4000);
   const [compressionLevel, setCompressionLevel] = useState(3);
 
-  // Audio input mode — TXT (text only) / PTT (hold ball to talk) / VAD (hands-free)
+  // Audio input mode — default directly to Vocal VAD / hands-free on web load
   const [inputMode, setInputMode] = useState<'TXT' | 'PTT' | 'VAD'>(() => {
     const saved = localStorage.getItem('foveai_input_mode');
-    return saved === 'VAD' || saved === 'TXT' ? saved : 'PTT';
+    return saved === 'TXT' || saved === 'PTT' ? saved : 'VAD';
   });
+  const [hasMic, setHasMic] = useState<boolean>(true);
+  const [hasSpeaker, setHasSpeaker] = useState<boolean>(true);
+  const [audioInputs, setAudioInputs] = useState<{ deviceId: string; label: string }[]>([]);
+  const [selectedMicId, setSelectedMicId] = useState<string>(() => localStorage.getItem('foveai_mic_device_id') || '');
   const [isRecording, setIsRecording] = useState(false);
   /* transient speech preview (2026-10-08 user rule): when speaking from
      another tab, the transcription surfaces as a transient bubble by the
@@ -462,12 +467,73 @@ function App() {
   /* 2026-10-08 user rule: the portraits are ALWAYS present — they are the
      faces of the conversation, on every tab. Pin defaults ON; 📌 unpins. */
   const [jenPinned, setJenPinned] = useState(true);
-  const [activeMode, setActiveMode] = useState<'TEXT' | 'DICTATE' | 'Vocal PTT' | 'Vocal VAD' | 'Video PTT' | 'Video VAD'>('TEXT');
+  const [activeMode, setActiveMode] = useState<'TEXT' | 'DICTATE' | 'Vocal PTT' | 'Vocal VAD' | 'Video PTT' | 'Video VAD'>(() => {
+    const saved = localStorage.getItem('foveai_input_mode');
+    return saved === 'TXT' ? 'TEXT' : saved === 'PTT' ? 'Vocal PTT' : 'Vocal VAD';
+  });
   const [pendingMode, setPendingMode] = useState<'TEXT' | 'DICTATE' | 'Vocal PTT' | 'Vocal VAD' | 'Video PTT' | 'Video VAD' | null>(null);
   
   const interactionModes: ('TEXT' | 'DICTATE' | 'Vocal PTT' | 'Vocal VAD' | 'Video PTT' | 'Video VAD')[] = [
     'TEXT', 'DICTATE', 'Vocal PTT', 'Vocal VAD', 'Video PTT', 'Video VAD'
   ];
+
+  // Hardware audio device probe: if no mic or no speaker is available, lock to TEXT only
+  useEffect(() => {
+    const probeAudioDevices = async () => {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+          setHasMic(false);
+          setHasSpeaker(false);
+          setInputMode('TXT');
+          setActiveMode('TEXT');
+          return;
+        }
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const inputs = devices.filter(d => d.kind === 'audioinput').map((d, idx) => ({
+          deviceId: d.deviceId,
+          label: d.label || `Microphone ${idx + 1}`
+        }));
+        setAudioInputs(inputs);
+        const micFound = inputs.length > 0;
+        // If device enumeration lists output devices, check speaker; default true if browser doesn't report audiooutput
+        const speakerFound = devices.some(d => d.kind === 'audiooutput') || !devices.some(d => 'kind' in d && d.kind === 'audiooutput');
+
+        setHasMic(micFound);
+        setHasSpeaker(speakerFound);
+
+        // Do NOT override browser default on Quest 3 / mobile headsets!
+        // On Quest 3, the browser's built-in headset mic is the default device;
+        // it only captured silence previously because echoCancellation/noiseSuppression/autoGainControl
+        // were enabled by default in getUserMedia({ audio: true }).
+        const ua = navigator.userAgent || '';
+        const isQuest = /OculusBrowser|Quest|VR/i.test(ua);
+        if (!isQuest && inputs.length > 0 && !localStorage.getItem('foveai_mic_device_id')) {
+          const preferred = inputs.find(d => /rode|nt-usb|usb|camera|webcam/i.test(d.label));
+          if (preferred && preferred.deviceId) {
+            setSelectedMicId(preferred.deviceId);
+          }
+        }
+
+        if (!micFound || !speakerFound) {
+          console.warn(`[Hardware] Audio device missing: mic=${micFound}, speaker=${speakerFound}. Defaulting to TEXT mode.`);
+          setInputMode('TXT');
+          setActiveMode('TEXT');
+        }
+      } catch (e) {
+        console.warn('[Hardware] Could not enumerate audio devices:', e);
+      }
+    };
+    probeAudioDevices();
+    if (navigator.mediaDevices?.addEventListener) {
+      navigator.mediaDevices.addEventListener('devicechange', probeAudioDevices);
+      return () => navigator.mediaDevices.removeEventListener('devicechange', probeAudioDevices);
+    }
+  }, []);
+
+  const audioHardwareReady = hasMic && hasSpeaker;
+  const availableInteractionModeList = audioHardwareReady 
+    ? interactionModes 
+    : (['TEXT'] as ('TEXT' | 'DICTATE' | 'Vocal PTT' | 'Vocal VAD' | 'Video PTT' | 'Video VAD')[]);
 
   const getModeExplanation = (m: string | null) => {
     switch (m) {
@@ -484,16 +550,17 @@ function App() {
   const lastRollRef = useRef<number>(0);
   const handleRollStep = (dir: number) => {
     if (inputValue.trim()) return;
+    if (!audioHardwareReady) return; // Disallow cycling away from TEXT when audio hardware is missing
     const now = Date.now();
     if (now - lastRollRef.current < 500) return; // Throttle mode change to once every 0.5 second
     lastRollRef.current = now;
     
     setPendingMode(prev => {
        const current = prev || activeMode;
-       let idx = interactionModes.indexOf(current as any) + dir;
-       if (idx < 0) idx = interactionModes.length - 1;
-       if (idx >= interactionModes.length) idx = 0;
-       return interactionModes[idx];
+       let idx = availableInteractionModeList.indexOf(current as any) + dir;
+       if (idx < 0) idx = availableInteractionModeList.length - 1;
+       if (idx >= availableInteractionModeList.length) idx = 0;
+       return availableInteractionModeList[idx];
     });
   };
 
@@ -607,22 +674,58 @@ function App() {
             if (data && data.data) setAvailableModels(data.data);
           }
         } else {
-          // XRLF provider — loadable .xrlf packages from the runtime itself
-          // (:8402 via the /xrlf same-origin route). NOT the proxy's merged
-          // /v1/models registry, which mixes in router aliases and cloud
-          // providers that aren't selectable here.
-          const res = await fetch('/xrlf/v1/packages');
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.data && data.data.length) {
-              setAvailableModels(data.data);
-              const active = data.data.find((m: any) => m.active);
-              if (active) setSelectedModel(prev => (prev === 'auto' || !data.data.some((m: any) => m.id === prev)) ? active.id : prev);
-            } else {
-              setAvailableModels([]);
-            }
+          // XRLF / Local Gear provider — query live 6-gear transmission endpoint
+          // from the unified proxy (:8400/api/gears/available).
+          const [gearsRes, statusRes, dutyRes] = await Promise.all([
+            fetch('/api/gears/available').catch(() => null),
+            fetch('/api/residency/status').catch(() => null),
+            fetch('/api/duty').catch(() => null)
+          ]);
+
+          if (dutyRes && dutyRes.ok) {
+            const dData = await dutyRes.json().catch(() => null);
+            if (dData) setDutyInfo(dData);
+          }
+
+          if (gearsRes && gearsRes.ok) {
+            const gearsData = await gearsRes.json();
+            const statusData = statusRes && statusRes.ok ? await statusRes.json() : {};
+            const activeGear = String(statusData.tier || '');
+
+            const allGears = [
+              { id: '1', gear: 1, name: 'Gear 1: Ambient RAM (1.5B)', vram: '0 GB', model: 'qwen2.5-coder-1.5b-instruct' },
+              { id: '2', gear: 2, name: 'Gear 2: Light 4B MTP', vram: '~2.9 GB', model: 'qwen3.5-4b-mtp-multimodal-v1.0' },
+              { id: '3', gear: 3, name: 'Gear 3: Flagship 9B Coder', vram: '~4.8 GB', model: 'qwen3.5-9b-mtp-v1.0' },
+              { id: '4', gear: 4, name: 'Gear 4: Balanced 12B Nemo', vram: '~5.8 GB', model: 'Mistral-Nemo-Instruct-2407-Q3_K_M' },
+              { id: '5', gear: 5, name: 'Gear 5: DeepSeek R1 14B Reasoning (MoQ)', vram: '~6.0 GB', model: 'deepseek-r1-distill-qwen-14b-iq3_xs' },
+              { id: '6', gear: 6, name: 'Gear 6: Sleipnir Mamba-2 Swarm & Companion Weave (:8420)', vram: '~0.1 GB', model: 'neuron-companion-weave' }
+            ];
+
+            const allowedMap = gearsData.allowed_gears || {};
+            const lockedMap = gearsData.locked_reasons || {};
+
+            const modelsList = allGears.map(g => {
+              const isAllowed = !!allowedMap[g.id];
+              const isCurrent = activeGear === g.id || (activeGear === 'idle' && g.id === '1');
+              const lockedReason = lockedMap[g.id];
+              return {
+                id: g.id,
+                name: g.name,
+                model: g.model,
+                active: isCurrent,
+                allowed: isAllowed,
+                lockedReason: lockedReason,
+                label: `${isCurrent ? '● ' : isAllowed ? '○ ' : '🔒 '}${g.name} (${g.vram})${lockedReason ? ' — ' + lockedReason : ''}`
+              };
+            });
+
+            setAvailableModels(modelsList);
+            const curr = modelsList.find(m => m.active);
+            if (curr) setSelectedModel(curr.id);
           } else {
-            setAvailableModels([]);
+            // Fallback to static fleet
+            const fleet = MODEL_FLEETS.xrlf_proxy;
+            setAvailableModels(fleet.map(m => ({ id: m.id, name: m.label, label: m.label, allowed: true })));
           }
         }
       } catch (e) {
@@ -804,11 +907,42 @@ function App() {
           console.error('[chat] non-JSON reply body (status ' + response.status + '):', rawBody.slice(0, 2000));
         }
       }
-      const botReply = data.choices?.[0]?.message?.content;
-      const reasoning = data.choices?.[0]?.message?.reasoning_content;
+      const msgObj = data.choices?.[0]?.message || {};
+      const botReply = msgObj.content || (msgObj.reasoning_content && !msgObj.content ? msgObj.reasoning_content : '');
+      const reasoning = msgObj.reasoning_content;
       const fallback = data.error?.message || `Proxy error ${response.status}`;
 
-      setMessages(prev => [...prev, { role: 'assistant', content: botReply || fallback, at: Date.now(), ...(reasoning ? { reasoning } : {}) }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: botReply || reasoning || fallback, at: Date.now(), ...(reasoning ? { reasoning } : {}) }]);
+
+      // ── Synthesize & Voice Jen's reply via Kokoro TTS & AuralAwareness ──
+      if (botReply) {
+        const cleanSpoken = botReply
+          .replace(/<think>[\s\S]*?<\/think>/gi, '')
+          .replace(/```[\s\S]*?```/g, '')
+          .replace(/[#*_~`]/g, '')
+          .trim();
+        if (cleanSpoken && cleanSpoken.length > 1) {
+          fetch('/api/kokoro/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: cleanSpoken, voice: 'af_heart', speed: 1.05 })
+          })
+            .then(async (res) => {
+              if (res.ok) {
+                const blob = await res.blob();
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const b64 = (reader.result as string).split(',')[1];
+                  if (b64) {
+                    window.dispatchEvent(new CustomEvent('foveai_play_sound', { detail: { base64: b64, voice: 'jen' } }));
+                  }
+                };
+                reader.readAsDataURL(blob);
+              }
+            })
+            .catch((e) => console.warn('[Jen Voice] TTS playback failed:', e));
+        }
+      }
 
       // Auto-title the session once it has a few turns to describe
       sessionTurns.current += 1;
@@ -844,42 +978,42 @@ function App() {
     }
   };
 
-  // XRLF provider: choosing a package means "run this model" — hot-swap the
-  // runtime via POST /load (:8402 blocks until the model is loaded or fails).
+  // XRLF provider: choosing a model shifts gears via POST /api/residency/shift (:8400).
   const handleModelSelect = async (id: string) => {
     setSelectedModel(id);
     if (chatProvider !== 'xrlf_proxy' || id === 'auto') return;
-    const pkg = availableModels.find((m: any) => m.id === id);
-    if (!pkg || pkg.active) return;
+    const gearObj = availableModels.find((m: any) => m.id === id);
+    if (!gearObj || gearObj.active) return;
 
-    if (pkg.is_micro) {
-      setAvailableModels(prev => prev.map((m: any) => ({ ...m, active: m.id === id })));
+    if (gearObj.allowed === false) {
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `⚡ **${pkg.name || id}** activated as high-speed Micro Worker! Ready for UI automations, sub-second execution, and custom tools.`
+        content: `🔒 **${gearObj.name || id}** is currently locked (${gearObj.lockedReason || 'Insufficient VRAM or Solo access required'}). Choose Gear 1 or 2 while slot 12 training runs.`
       }]);
+      const activeOne = availableModels.find((m: any) => m.active);
+      if (activeOne) setSelectedModel(activeOne.id);
       return;
     }
 
     setSwappingModel(id);
-    setMessages(prev => [...prev, { role: 'assistant', content: `⏳ Loading XRLF package **${id}** (${pkg.size_mb} MB) — swapping model in VRAM, this takes a minute…` }]);
+    setMessages(prev => [...prev, { role: 'assistant', content: `⚙️ Shifting to **${gearObj.name || `Gear ${id}`}**…` }]);
     try {
-      const r = await fetch('/xrlf/load', {
+      const r = await fetch('/api/residency/shift', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: pkg.path })
+        body: JSON.stringify({ gear: id })
       });
       const jr = await r.json().catch(() => ({}));
-      if (!r.ok || jr.status === 'error') {
-        setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Model load failed: ${jr.error || `HTTP ${r.status}`}` }]);
+      if (!r.ok || jr.error) {
+        setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Gear shift failed: ${jr.error || `HTTP ${r.status}`}` }]);
         const still = availableModels.find((m: any) => m.active);
         if (still) setSelectedModel(still.id);
       } else {
         setAvailableModels(prev => prev.map((m: any) => ({ ...m, active: m.id === id })));
-        setMessages(prev => [...prev, { role: 'assistant', content: `✅ Now running **${jr.model || id}** — full XRLF stack active.` }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: `✅ Shifted to **${gearObj.name || `Gear ${id}`}** — active on ${jr.port ? `port :${jr.port}` : 'designated port'}.` }]);
       }
     } catch (e) {
-      setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Model load request failed: ${String(e)}` }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ Gear shift request failed: ${String(e)}` }]);
       const still = availableModels.find((m: any) => m.active);
       if (still) setSelectedModel(still.id);
     } finally {
@@ -895,6 +1029,15 @@ function App() {
   sendRef.current = handleSendMessage;
   const vadSendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const getAudioConstraints = (): MediaStreamConstraints => ({
+    audio: {
+      ...(selectedMicId ? { deviceId: { exact: selectedMicId } } : {}),
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    }
+  });
+
   useEffect(() => {
     if (inputMode !== 'VAD' || !currentUser || activeTab !== 'Copilot') return;
     let cancelled = false;
@@ -908,11 +1051,17 @@ function App() {
 
     const run = async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream = await navigator.mediaDevices.getUserMedia(getAudioConstraints());
       } catch (e) {
-        console.error('VAD mic access denied:', e);
-        setInputMode('PTT');
-        return;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+          });
+        } catch (fallbackErr) {
+          console.error('VAD mic access denied:', fallbackErr);
+          setInputMode('PTT');
+          return;
+        }
       }
       while (!cancelled) {
         const chunks: Blob[] = [];
@@ -947,7 +1096,7 @@ function App() {
       stream?.getTracks().forEach(t => t.stop());
       setIsRecording(false);
     };
-  }, [inputMode, currentUser, activeTab]);
+  }, [inputMode, currentUser, activeTab, selectedMicId]);
 
   // ----------------------------------------------------
   // RENDER SETUP SCREEN
@@ -1202,7 +1351,14 @@ function App() {
     if (isTyping || isProcessingAudio) return;
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(getAudioConstraints());
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+        });
+      }
       const recorder = new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
       audioChunksRef.current = [];
@@ -1751,21 +1907,27 @@ function App() {
                 }}
                 title="Select AI Model — XRLF choices hot-swap the runtime"
               >
-                {chatProvider === 'cloud' && <option value="auto">auto (Cloud Auto-Route)</option>}
-                {chatProvider === 'xrlf_proxy' && <option value="auto">auto (Active XRLF Model)</option>}
-                {chatProvider === 'lmstudio' && <option value="auto">auto (Active LM Studio Model)</option>}
-                {(MODEL_FLEETS[chatProvider] || []).map(m => (
-                  <option key={m.id} value={m.id}>{m.label}</option>
-                ))}
-                {chatProvider === 'xrlf_proxy' && availableModels.map((m: any) => (
-                  <option key={m.id} value={m.id}>{m.active ? '● ' : '○ '}{formatModelName(m.id, m.name)}</option>
-                ))}
-                {chatProvider === 'lmstudio' && availableModels.map((m: any) => (
-                  <option key={m.id} value={m.id}>{formatModelName(m.id)}</option>
-                ))}
-                {chatProvider === 'cloud' && availableModels.map((m: any) => (
-                  <option key={m.id} value={m.id}>{formatModelName(m.id)}</option>
-                ))}
+                {chatProvider === 'xrlf_proxy' ? (
+                  availableModels.map((m: any) => (
+                    <option key={m.id} value={m.id} disabled={m.allowed === false}>
+                      {m.label || m.name || m.id}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    {chatProvider === 'cloud' && <option value="auto">auto (Cloud Auto-Route)</option>}
+                    {chatProvider === 'lmstudio' && <option value="auto">auto (Active LM Studio Model)</option>}
+                    {(MODEL_FLEETS[chatProvider] || []).map(m => (
+                      <option key={m.id} value={m.id}>{m.label}</option>
+                    ))}
+                    {chatProvider === 'lmstudio' && availableModels.map((m: any) => (
+                      <option key={m.id} value={m.id}>{formatModelName(m.id)}</option>
+                    ))}
+                    {chatProvider === 'cloud' && availableModels.map((m: any) => (
+                      <option key={m.id} value={m.id}>{formatModelName(m.id)}</option>
+                    ))}
+                  </>
+                )}
               </select>
 
               {swappingModel && (
@@ -1774,10 +1936,78 @@ function App() {
                 </span>
               )}
 
+              {dutyInfo && dutyInfo.mode === 'manual' && dutyInfo.duty === 100 && (
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  fontSize: '0.7rem', background: 'rgba(255, 170, 0, 0.15)',
+                  border: '1px solid rgba(255, 170, 0, 0.4)',
+                  padding: '3px 8px', borderRadius: '4px', color: '#ffb300'
+                }}>
+                  ⚠️ GPU Pinned at Manual 100%
+                  <button
+                    onClick={async () => {
+                      try {
+                        const r = await fetch('/api/duty', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ mode: 'auto' })
+                        });
+                        if (r.ok) {
+                          const d = await r.json();
+                          setDutyInfo(d);
+                          fetchModels();
+                        }
+                      } catch {}
+                    }}
+                    style={{
+                      background: 'rgba(255, 170, 0, 0.3)', border: 'none',
+                      color: '#fff', borderRadius: '3px', padding: '2px 6px',
+                      cursor: 'pointer', fontSize: '0.65rem', fontFamily: 'inherit'
+                    }}
+                    title="Switch to Auto mode so web and chat engagement dynamically pause or throttle training"
+                  >
+                    Switch to Auto
+                  </button>
+                </span>
+              )}
+
               <span style={{ flex: 1 }} />
 
+              {audioHardwareReady && audioInputs.length > 0 && inputMode !== 'TXT' && (
+                <select
+                  value={selectedMicId}
+                  onChange={e => {
+                    const id = e.target.value;
+                    setSelectedMicId(id);
+                    localStorage.setItem('foveai_mic_device_id', id);
+                  }}
+                  style={{
+                    padding: '4px 8px',
+                    background: 'rgba(0,0,0,0.4)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    color: '#fff',
+                    borderRadius: '6px',
+                    fontFamily: 'Share Tech Mono',
+                    fontSize: '0.7rem',
+                    maxWidth: '180px',
+                    outline: 'none',
+                    cursor: 'pointer'
+                  }}
+                  title="Select Microphone Input (e.g. RODE NT-USB or Webcam Mic to bypass Quest 3 mic silence)"
+                >
+                  <option value="">🎤 Default Mic</option>
+                  {audioInputs.map(d => (
+                    <option key={d.deviceId} value={d.deviceId}>
+                      🎤 {d.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+
               <button
+                disabled={!audioHardwareReady}
                 onClick={() => {
+                  if (!audioHardwareReady) return;
                   const next = inputMode === 'TXT' ? 'PTT' : inputMode === 'PTT' ? 'VAD' : 'TXT';
                   setInputMode(next);
                   localStorage.setItem('foveai_input_mode', next);
@@ -1789,7 +2019,8 @@ function App() {
                   fontSize: '0.75rem',
                   letterSpacing: '0.08em',
                   borderRadius: '6px',
-                  cursor: 'pointer',
+                  cursor: audioHardwareReady ? 'pointer' : 'not-allowed',
+                  opacity: audioHardwareReady ? 1 : 0.4,
                   border: '1px solid',
                   transition: 'all 0.2s',
                   ...(inputMode === 'TXT' ? {
@@ -1806,7 +2037,7 @@ function App() {
                     borderColor: 'rgba(255,107,107,0.5)'
                   })
                 }}
-                title="Cycle input mode — TXT: text only · PTT: hold ball to talk · VAD: hands-free continuous"
+                title={audioHardwareReady ? "Cycle input mode — TXT: text only · PTT: hold ball to talk · VAD: hands-free continuous" : "Audio hardware not found (mic/speaker required for vocal modes)"}
               >
                 {inputMode}
               </button>
@@ -1969,14 +2200,40 @@ function App() {
                   </span>
                 )}
                 
-                {/* 2026-10-08 composer law: TEXT modes → the input area;
-                    VOCAL modes → no dead input box: a mode chip says the mic
-                    is live; speech transcribes and sends itself. */}
-                {inputMode === 'TXT' ? (
+                {/* Peaceful Coexistence: vocal/video mic chip badge + active text input */}
+                {inputMode !== 'TXT' && (
+                  <div
+                    className="vocal-mode-chip"
+                    aria-live="polite"
+                    style={{
+                      flex: '0 0 auto',
+                      maxWidth: '220px',
+                      padding: '8px 14px',
+                      fontSize: '0.8rem',
+                      borderRadius: '20px',
+                      cursor: 'pointer'
+                    }}
+                    title={inputMode === 'VAD' ? 'Vocal VAD active (listening). Click or type to send text' : 'Vocal PTT active. Hold ball to talk or type here'}
+                  >
+                    <span className={`mic-dot ${isRecording ? 'live' : ''}`} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {isRecording ? 'Listening…' : inputMode === 'VAD' ? 'VAD Voice' : 'PTT Voice'}
+                    </span>
+                  </div>
+                )}
+
                 <input 
                   type="text" 
                   className="chat-input"
-                  placeholder={pendingMode ? "" : getModeExplanation(activeMode)}
+                  placeholder={
+                    pendingMode
+                      ? ""
+                      : inputMode === 'VAD'
+                        ? "Speak anytime or type here to send..."
+                        : inputMode === 'PTT'
+                          ? "Hold ball to talk or type here..."
+                          : getModeExplanation(activeMode)
+                  }
                   value={pendingMode ? "" : inputValue}
                   onChange={e => { setInputValue(e.target.value); setPendingMode(null); }}
                   onKeyDown={handleKeyDown}
@@ -1989,16 +2246,6 @@ function App() {
                     background: pendingMode ? 'rgba(0, 243, 255, 0.05)' : undefined
                   }}
                 />
-                ) : (
-                <div className="vocal-mode-chip" aria-live="polite">
-                  <span className={`mic-dot ${isRecording ? 'live' : ''}`} />
-                  {isRecording
-                    ? 'listening — speak, words will send themselves'
-                    : inputMode === 'VAD'
-                      ? 'hands-free — speak anytime, words send themselves'
-                      : 'push-to-talk — hold the ball, speak, release'}
-                </div>
-                )}
                 
                 {pendingMode && (
                   <div style={{ position: 'absolute', bottom: '75px', right: '10px', pointerEvents: 'none', color: 'var(--accent-cyan)', fontFamily: 'Share Tech Mono', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(11, 15, 26, 0.8)', padding: '8px 16px', borderRadius: '12px', border: '1px solid rgba(0, 243, 255, 0.3)', backdropFilter: 'blur(8px)', boxShadow: '0 4px 15px rgba(0,0,0,0.5)', zIndex: 50 }}>

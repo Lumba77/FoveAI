@@ -793,10 +793,15 @@ a real 1.9MB photo → accepted.
 - **Live surfaces:** `http://127.0.0.1:5177/tsd_blaster.html` (also `:8414`), `/api/tsd/*`, chat modes `juggle`/`tandem`/`legion`, tray submenu "TSD Legion & UI Blasters".
 - **Caveat:** performance claims are session-reported, not yet independently benchmarked. Concept note `Docs/XRL_HIVE_MIND.md` still says "concept note".
 
-## 2026-10-26
+## 2026-10-29
 - Audio chain LIVE end-to-end: RODE mic → effect_input.eq → HDMI → Samsung, verified by ear
 - Root cause: missing `audio` group + seat ACL held by stale session — see .logs/AUDIO_HANDOVER.md
 - Variator GUI on TV (X :2): ScrewKnob rows, LCD hover-scroll, FreqBal buttons, scene presets, yt/file player
 - Tools: eq_play, eq_demo_gen.py, tv_audio_hud.py, foveai_smoke.py (audio_loop), xrl_reindex/repo_survey/repo_fix suite (~100 ledgered fixes)
 - Persistent: foveai-tv-hud.service (vinyl painter, yields to sessions/X)
-- Pending: whisper :8430 cold-start, Quest mic route, GUI row-width fit
+- Fixed false "Context overflow" (Upstream: 500) error by capping local model `max_tokens` (512) and correcting `isCtx` non-context substring check in `foveated-memory/server.js`.
+- Excised memory-hogging 32B model completely from all gear pickers and registries.
+- Upgraded Gear 5 to DeepSeek R1 14B Reasoning (MoQ) (`:8418`).
+- Installed Sleipnir Mamba-2 Swarm & Companion Weave as Gear 6 (`:8420`, ~60MB VRAM).
+- Updated BracketParser in Multigate & XR Vessel for `<CHORD=...>`, `<SPARK...>`, and `<DEFER...>` tokens with zero TypeScript errors.
+- Created sovereign snapshot backup `foveai-backup-20261029-004554.tar.gz` (2048 MB).

@@ -17,6 +17,7 @@ import time
 import asyncio
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
 from pathlib import Path
 import websockets
 import urllib.request
@@ -106,6 +107,9 @@ def deposit_kantian_memory(query: str, consensus: str, category: str = "relation
             pass
     except Exception as e:
         print(f"[bridge] Note: Kantian ingest :8400: {e}")
+
+class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+    daemon_threads = True
 
 class ThalamusHTTPHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -259,10 +263,12 @@ class ThalamusHTTPHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(resp_bytes)))
+            self.send_header("Connection", "close")
             self.end_headers()
             self.wfile.write(resp_bytes)
         else:
             self.send_response(404)
+            self.send_header("Connection", "close")
             self.end_headers()
 
     def do_GET(self):
@@ -277,10 +283,12 @@ class ThalamusHTTPHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
+            self.send_header("Connection", "close")
             self.end_headers()
             self.wfile.write(body)
         else:
             self.send_response(404)
+            self.send_header("Connection", "close")
             self.end_headers()
 
     def log_message(self, format, *args):
@@ -342,7 +350,7 @@ def main():
     t.start()
     
     # Start HTTP server
-    httpd = HTTPServer(("0.0.0.0", HTTP_PORT), ThalamusHTTPHandler)
+    httpd = ThreadedHTTPServer(("0.0.0.0", HTTP_PORT), ThalamusHTTPHandler)
     print(f"[bridge] Central Thalamus HTTP Router listening on port :{HTTP_PORT}...")
     try:
         httpd.serve_forever()

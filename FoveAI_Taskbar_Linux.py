@@ -744,6 +744,36 @@ PERSONA_MODELS: dict[str, dict[str, Any]] = {
         "is_xrlf": True,
         "detail": "Heavy 12B XRLF bundle: native STT, vision, foveated memory, draft model.",
     },
+    "gear_6_swarm": {
+        "name": "Gear 6: Sleipnir Mamba-2 Swarm & Companion Weave",
+        "id": "neuron-companion-weave",
+        "xrlf_path": "/mnt/foveai/nano-xrl-bases/neuron-companion-weave",
+        "size_gb": 0.06,
+        "total_layers": 8,
+        "multimodal": True,
+        "is_xrlf": False,
+        "detail": "Gear 6: 7.59M Mamba-2 Swarm & Companion Weave on port :8420 (~60MB VRAM).",
+    },
+    "gear_5_14b": {
+        "name": "Gear 5: DeepSeek R1 14B Reasoning (MoQ)",
+        "id": "deepseek-r1-distill-qwen-14b-iq3_xs",
+        "xrlf_path": "/mnt/foveai/Models/qwen2.5-14b/DeepSeek-R1-Distill-Qwen-14B-IQ3_XS.gguf",
+        "size_gb": 6.0,
+        "total_layers": 48,
+        "multimodal": False,
+        "is_xrlf": False,
+        "detail": "Gear 5: DeepSeek R1 14B Reasoning + RAM Draft + KV in RAM.",
+    },
+    "gear_4_12b": {
+        "name": "Gear 4: Mistral-Nemo 12B Instruct",
+        "id": "Mistral-Nemo-Instruct-2407-Q3_K_M",
+        "xrlf_path": "/mnt/foveai/Models/tier_d/Mistral-Nemo-Instruct-2407-Q3_K_M.gguf",
+        "size_gb": 5.8,
+        "total_layers": 40,
+        "multimodal": False,
+        "is_xrlf": False,
+        "detail": "Gear 4: 12B Mistral-Nemo Instruct + RAM Draft + KV in RAM.",
+    },
     "qwen_4b_multimodal": {
         "name": "Qwen 3.5 4B MTP (Coder)",
         "id": "qwen3.5-4b-mtp-multimodal-v1.0.xrlf",
@@ -958,11 +988,11 @@ def open_tsd_blaster_ui(icon, item=None):
     """Open the interactive FUI TSD Photonic Znake & Legion UI Blaster Deck."""
     ui_file = os.path.join(FOVEAI_DIR, "foveated-memory", "public", "tsd_blaster.html")
     url = "http://127.0.0.1:5177/tsd_blaster.html"
-    if not is_port_open(5177) and is_port_open(8414):
+    if not check_port_listener(5177) and check_port_listener(8414):
         url = "http://127.0.0.1:8414/tsd_blaster.html"
-    elif not is_port_open(5177) and is_port_open(8402):
+    elif not check_port_listener(5177) and check_port_listener(8402):
         url = "http://127.0.0.1:8402/tsd"
-    elif not is_port_open(5177) and os.path.exists(ui_file):
+    elif not check_port_listener(5177) and os.path.exists(ui_file):
         url = f"file://{ui_file}"
     webbrowser.open(url)
     notify(icon, "Opened TSD Photonic Znake & Legion UI Blaster Deck", "TSD UI Blaster")
