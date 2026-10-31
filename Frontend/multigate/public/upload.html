@@ -1,15 +1,1 @@
-<!DOCTYPE html><html><head><meta charset="utf-8"><title>FoveAI Upload</title>
-<style>body{font-family:monospace;background:#0a0a0a;color:#ccc;padding:20px}.drop{border:2px dashed #555;padding:50px;text-align:center;margin:20px 0;font-size:18px}.drop.dragover{border-color:#0f0;background:#111}#log{white-space:pre-wrap;background:#111;padding:10px;height:250px;overflow:auto;border:1px solid #333}</style></head><body>
-<h2>FoveAI Upload → https://sbjct-heat-anniversary-commons.trycloudflare.com → ~/FoveAI/Upload/</h2>
-<p id="status">Tunnel: https://sbjct-heat-anniversary-commons.trycloudflare.com - checking...</p>
-<div class="drop" id="d">Drop files here (or click to browse)<br><small>Works from PC, Quest, Phone, and Meta AI</small></div>
-<div id="log"></div><div id="list"></div>
-<script>
-const CF="https://sbjct-heat-anniversary-commons.trycloudflare.com";
-const LOCAL="http://127.0.0.1:8404/";
-async function check(){try{let r=await fetch(CF);document.getElementById('status').textContent="✓ Tunnel OK: "+CF;document.getElementById('status').style.color="#0f0";let t=await r.text();document.getElementById('list').innerHTML=t;}catch(e){document.getElementById('status').textContent="✗ Tunnel down: "+e;document.getElementById('status').style.color="red";}}
-check();
-function log(m){document.getElementById('log').textContent+=m+"\n";}
-async function up(f){log("→ "+f.name+" ("+f.size+" bytes) → "+CF);try{let r=await fetch(CF,{method:'POST',headers:{'X-Filename':f.name},body:f});let txt=await r.text();log("← "+txt);check();}catch(e){log("ERR "+e);}}
-let el=document.getElementById('d'); el.ondragover=e=>{e.preventDefault();el.classList.add('dragover')}; el.ondragleave=()=>el.classList.remove('dragover'); el.ondrop=e=>{e.preventDefault();el.classList.remove('dragover');[...e.dataTransfer.files].forEach(up)}; el.onclick=()=>{let i=document.createElement('input');i.type='file';i.multiple=true;i.onchange=()=>[...i.files].forEach(up);i.click()}
-</script></body></html>
+<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=/Tools/foveai_web_upload.html"></head><body>Redirecting to <a href="/Tools/foveai_web_upload.html">/Tools/foveai_web_upload.html</a></body></html>
