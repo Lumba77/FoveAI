@@ -36,7 +36,7 @@
       }
     </style>
     <link rel="stylesheet" href="/fui_palette.css">
-    <link rel="stylesheet" href="/foveai-aurora.css?v=1792309470" id="foveai-theme-stylesheet">
+    <link rel="stylesheet" href="/foveai-aurora.css?v=1793303366" id="foveai-theme-stylesheet">
     <script src="http://127.0.0.1:8415/foveai_theme_sync.js"></script>
 </head>
   <body>
@@ -76,14 +76,25 @@
           return false;
         };
         window.addEventListener('unhandledrejection', function(event) {
-          showError('Unhandled Promise: ' + String(event.reason && (event.reason.stack || event.reason.message || event.reason)));
+          const reasonStr = String(event.reason && (event.reason.stack || event.reason.message || event.reason));
+          // Benign Vite HMR websocket drops over Cloudflare tunnel should not crash the user UI
+          if (reasonStr.includes('@vite/client') || reasonStr.includes('WebSocket closed without opened')) {
+            console.debug('[Vite HMR Disconnect suppressed]', reasonStr);
+            return;
+          }
+          showError('Unhandled Promise: ' + reasonStr);
         });
         const origError = console.error;
         const origWarn = console.warn;
         let errorBuffer = [];
         function pushError(level, args) {
           try {
-            errorBuffer.push('[' + level + '] ' + Array.from(args).map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+            const str = Array.from(args).map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' ');
+            // Suppress benign Vite dev HMR websocket logs over tunnel
+            if (str.includes('[vite]') || str.includes('WebSocket closed without opened') || str.includes('@vite/client')) {
+              return;
+            }
+            errorBuffer.push('[' + level + '] ' + str);
             if (errorBuffer.length > 5) errorBuffer.shift();
             showError(errorBuffer.join('\n'));
           } catch(e) {}
