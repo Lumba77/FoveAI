@@ -1,0 +1,835 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>FoveAI VR/AR — Alicechan</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #0d120f;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+    color: #cfe8d0;
+  }
+  #stage {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+  }
+  #bubble {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 340px;
+    padding: 12px 18px;
+    border-radius: 12px;
+    background: rgba(18, 26, 20, 0.94);
+    border: 1px solid #456b4c;
+    color: #eafaea;
+    font-size: 15px;
+    line-height: 1.45;
+    opacity: 0;
+    transition: opacity 0.35s ease, transform 0.35s ease;
+    pointer-events: none;
+    z-index: 10;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.6);
+  }
+  #bubble.on {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-5px);
+  }
+  #top-bar {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    right: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 10;
+    pointer-events: none;
+  }
+  .hud-panel {
+    pointer-events: auto;
+    background: rgba(12, 18, 14, 0.85);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(63, 90, 68, 0.5);
+    border-radius: 10px;
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  select, input, button {
+    font-family: inherit;
+    outline: none;
+  }
+  select {
+    background: #1c2b20;
+    border: 1px solid #3f5a44;
+    border-radius: 6px;
+    color: #cfe8d0;
+    font-size: 12px;
+    padding: 6px 8px;
+    cursor: pointer;
+  }
+  #controls {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    width: calc(100% - 32px);
+    max-width: 520px;
+    z-index: 10;
+  }
+  #q {
+    flex: 1;
+    background: rgba(15, 22, 17, 0.9);
+    backdrop-filter: blur(8px);
+    border: 1px solid #3f5a44;
+    border-radius: 8px;
+    color: #e5f5e6;
+    font-size: 14px;
+    padding: 10px 14px;
+  }
+  #q:focus {
+    border-color: #62916b;
+  }
+  .btn {
+    pointer-events: auto;
+    background: #253828;
+    border: 1px solid #3f5a44;
+    border-radius: 8px;
+    color: #cfe8d0;
+    padding: 10px 16px;
+    font-size: 14px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+  .btn:hover {
+    background: #36503b;
+  }
+  .btn.active {
+    background: #8b3434 !important;
+    border-color: #cc4d4d !important;
+    color: #fff !important;
+  }
+  #ar-btn {
+    pointer-events: auto;
+    background: #1f3d27;
+    border: 1px solid #4a8056;
+    color: #bbf0c5;
+    padding: 8px 16px;
+    font-size: 13px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: none;
+  }
+  #vad-toggle {
+    font-size: 11px;
+    color: #8db594;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    user-select: none;
+  }
+</style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "/vr/vendor/three.module.js",
+    "three/addons/": "/vr/vendor/jsm/",
+    "@pixiv/three-vrm": "/vr/vendor/three-vrm.module.js"
+  }
+}
+</script>
+
+<script>if(navigator.xr){navigator.xr.isSessionSupported('immersive-vr').then(s=>console.log('VR supported',s))}</script>
+</head>
+<body>
+
+<div id="top-bar">
+  <div class="hud-panel">
+    <span style="font-size: 12px; font-weight:600; color: #a3e0ad;">Alicechan</span>
+    <select id="model-select">
+      <option value="fractal-alice" selected>Code name Fractal Alice · Whole Collective Swarm</option>
+      <option value="jen">Jen · Flagship (Qwen 9B MoQ)</option>
+      <option value="qwen32b">Qwen2.5-Coder 32B (MoQ-XRL)</option>
+      <option value="qwen14b">Qwen2.5 14B (IQ3_M)</option>
+      <option value="zamba">Zamba2 1.2B (SSM Hybrid)</option>
+      <option value="smollm">SmolLM2 135M (Fast Generalist)</option>
+      <option value="cell">Nano-Cell (39M Specialist)</option>
+    </select>
+  </div>
+  <button id="ar-btn" class="btn">Enter AR Passthrough</button>
+</div>
+
+<div id="audio-prompt" style="position: fixed; top: 68px; left: 50%; transform: translateX(-50%); background: rgba(18, 35, 22, 0.95); border: 1px solid #529661; color: #c4f7ce; padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 500; z-index: 100; cursor: pointer; box-shadow: 0 4px 20px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 8px; animation: pulse 2s infinite;">
+  <span>🔊</span><span>Tap screen or pull controller trigger to start Alice</span>
+</div>
+
+<div id="stage"></div>
+<div id="bubble"></div>
+
+<div id="controls">
+  <input id="q" placeholder="Type or speak to Alicechan..." autocomplete="off">
+  <button id="mic" class="btn" title="Mic">🎙</button>
+  <button id="send" class="btn">Send</button>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { VRMLoaderPlugin, VRMUtils } from '@pixiv/three-vrm';
+
+const stage = document.getElementById('stage');
+const bubble = document.getElementById('bubble');
+const qInput = document.getElementById('q');
+const micBtn = document.getElementById('mic');
+const sendBtn = document.getElementById('send');
+const arBtn = document.getElementById('ar-btn');
+const modelSelect = document.getElementById('model-select');
+
+// --- Auto-Refresh Disarm & Navigation Guard --------------------------------
+// Protect active speech sessions and typed text from accidental reloads
+window.addEventListener('beforeunload', (e) => {
+  if (qInput && qInput.value.trim().length > 0) {
+    e.preventDefault();
+    e.returnValue = '';
+    return '';
+  }
+});
+
+// --- 1. Audio Unlocker for WebXR / Browser Autoplay ------------------------
+let audioListener = null;
+let voiceAudio = null;
+let welcomed = false;
+
+async function unlockAudio() {
+  if (audioListener && audioListener.context && audioListener.context.state === 'suspended') {
+    try {
+      await audioListener.context.resume();
+    } catch (e) {}
+  }
+  const promptEl = document.getElementById('audio-prompt');
+  if (promptEl) promptEl.style.display = 'none';
+
+  if (!welcomed) {
+    welcomed = true;
+    showBubble("Welcome to WebXR! I'm Alicechan.");
+    speak("Welcome to WebXR! I'm Alicechan.");
+  }
+}
+window.addEventListener('pointerdown', unlockAudio);
+window.addEventListener('click', unlockAudio);
+window.addEventListener('touchstart', unlockAudio);
+window.addEventListener('keydown', unlockAudio);
+
+// --- 2. Three.js & WebXR Setup ----------------------------------------------
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.xr.enabled = true;
+stage.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, window.innerWidth / window.innerHeight, 0.1, 25.0);
+camera.position.set(0, 1.35, 1.85);
+
+// Direct Non-Spatial Stereo Audio (always crystal clear and full volume in Quest / Wolvic)
+audioListener = new THREE.AudioListener();
+camera.add(audioListener);
+
+voiceAudio = new THREE.Audio(audioListener);
+voiceAudio.setVolume(1.0);
+
+// Lighting
+scene.add(new THREE.AmbientLight(0xffffff, 1.25));
+const keyLight = new THREE.DirectionalLight(0xfffaee, 1.8);
+keyLight.position.set(1.5, 2.2, 1.5);
+scene.add(keyLight);
+
+const rimLight = new THREE.DirectionalLight(0x7fd8a8, 0.85);
+rimLight.position.set(-1.5, 1.2, -1.5);
+scene.add(rimLight);
+
+// WebXR AR Passthrough / VR Session Manager
+let currentXRSession = null;
+
+if (navigator.xr) {
+  Promise.all([
+    navigator.xr.isSessionSupported('immersive-ar').catch(() => false),
+    navigator.xr.isSessionSupported('immersive-vr').catch(() => false)
+  ]).then(([arSupported, vrSupported]) => {
+    if (arSupported || vrSupported) {
+      const mode = arSupported ? 'immersive-ar' : 'immersive-vr';
+      arBtn.style.display = 'block';
+      arBtn.textContent = arSupported ? 'Enter AR Passthrough' : 'Enter VR';
+
+      arBtn.onclick = async () => {
+        unlockAudio();
+        if (currentXRSession) {
+          await currentXRSession.end();
+          return;
+        }
+
+        arBtn.textContent = 'Starting XR...';
+        try {
+          const session = await navigator.xr.requestSession(mode, {
+            requiredFeatures: ['local-floor'],
+            optionalFeatures: ['dom-overlay', 'bounded-floor', 'plane-detection', 'hand-tracking'],
+            domOverlay: { root: document.body }
+          });
+          currentXRSession = session;
+          arBtn.textContent = 'Exit XR';
+          arBtn.classList.add('active');
+
+          session.addEventListener('end', () => {
+            currentXRSession = null;
+            arBtn.textContent = arSupported ? 'Enter AR Passthrough' : 'Enter VR';
+            arBtn.classList.remove('active');
+          });
+
+          await renderer.xr.setSession(session);
+        } catch (err) {
+          console.warn('XR start with dom-overlay failed, trying without overlay:', err);
+          try {
+            const fallbackSession = await navigator.xr.requestSession(mode, {
+              requiredFeatures: ['local-floor'],
+              optionalFeatures: ['bounded-floor', 'plane-detection', 'hand-tracking']
+            });
+            currentXRSession = fallbackSession;
+            arBtn.textContent = 'Exit XR';
+            arBtn.classList.add('active');
+
+            fallbackSession.addEventListener('end', () => {
+              currentXRSession = null;
+              arBtn.textContent = arSupported ? 'Enter AR Passthrough' : 'Enter VR';
+              arBtn.classList.remove('active');
+            });
+
+            await renderer.xr.setSession(fallbackSession);
+          } catch (e2) {
+            console.error('XR start failed:', e2);
+            arBtn.textContent = 'XR Error';
+            setTimeout(() => {
+              arBtn.textContent = arSupported ? 'Enter AR Passthrough' : 'Enter VR';
+            }, 3000);
+          }
+        }
+      };
+    }
+  });
+}
+
+// Quest VR Controllers & Hand Trigger Binding (Push-to-Talk)
+const controller0 = renderer.xr.getController(0);
+const controller1 = renderer.xr.getController(1);
+scene.add(controller0);
+scene.add(controller1);
+
+controller0.addEventListener('selectstart', () => { unlockAudio(); startVoiceRecording(); });
+controller0.addEventListener('selectend', () => stopVoiceRecording());
+controller1.addEventListener('selectstart', () => { unlockAudio(); startVoiceRecording(); });
+controller1.addEventListener('selectend', () => stopVoiceRecording());
+
+// 3D In-World Speech Bubble Sprite (visible right above Alice's head in VR/AR space)
+const bubbleCanvas = document.createElement('canvas');
+bubbleCanvas.width = 512;
+bubbleCanvas.height = 256;
+const bubbleCtx = bubbleCanvas.getContext('2d');
+const bubbleTexture = new THREE.CanvasTexture(bubbleCanvas);
+const bubbleMaterial = new THREE.SpriteMaterial({ map: bubbleTexture, transparent: true, depthWrite: false });
+const bubbleSprite = new THREE.Sprite(bubbleMaterial);
+bubbleSprite.scale.set(1.05, 0.52, 1);
+bubbleSprite.position.set(0, 1.88, 0);
+scene.add(bubbleSprite);
+
+function draw3DBubble(text) {
+  bubbleCtx.clearRect(0, 0, 512, 256);
+  if (!text) {
+    bubbleTexture.needsUpdate = true;
+    return;
+  }
+  bubbleCtx.fillStyle = 'rgba(10, 14, 20, 0.88)';
+  bubbleCtx.strokeStyle = 'rgba(127, 216, 168, 0.85)';
+  bubbleCtx.lineWidth = 4;
+  
+  // Rounded rect
+  const x = 16, y = 16, w = 480, h = 224, r = 24;
+  bubbleCtx.beginPath();
+  bubbleCtx.moveTo(x + r, y);
+  bubbleCtx.arcTo(x + w, y, x + w, y + h, r);
+  bubbleCtx.arcTo(x + w, y + h, x, y + h, r);
+  bubbleCtx.arcTo(x, y + h, x, y, r);
+  bubbleCtx.arcTo(x, y + w, y, r);
+  bubbleCtx.closePath();
+  bubbleCtx.fill();
+  bubbleCtx.stroke();
+
+  bubbleCtx.fillStyle = '#ffffff';
+  bubbleCtx.font = '24px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  bubbleCtx.textAlign = 'center';
+  
+  // Wrap text lines
+  const words = text.split(' ');
+  let line = '';
+  let curY = 65;
+  for (let n = 0; n < words.length; n++) {
+    const testLine = line + words[n] + ' ';
+    const metrics = bubbleCtx.measureText(testLine);
+    if (metrics.width > 440 && n > 0) {
+      bubbleCtx.fillText(line.trim(), 256, curY);
+      line = words[n] + ' ';
+      curY += 34;
+      if (curY > 210) break;
+    } else {
+      line = testLine;
+    }
+  }
+  bubbleCtx.fillText(line.trim(), 256, curY);
+  bubbleTexture.needsUpdate = true;
+}
+
+// --- 3. Advanced Procedural Animation System (NaturalPose & Additive Pipeline) -
+let vrm = null;
+let blinkTimer = 0;
+let nextBlinkInterval = 2.4;
+const clock = new THREE.Clock();
+
+const loader = new GLTFLoader();
+loader.register(parser => new VRMLoaderPlugin(parser));
+
+loader.load(
+  '/avatars/alicechan.vrm',
+  gltf => {
+    vrm = gltf.userData.vrm;
+    VRMUtils.removeUnnecessaryVertices(vrm.scene);
+    VRMUtils.combineSkeletons(vrm.scene);
+    vrm.scene.traverse(obj => { obj.frustumCulled = false; });
+
+    vrm.scene.rotation.y = Math.PI; // Face forward
+    scene.add(vrm.scene);
+
+    const box = new THREE.Box3().setFromObject(vrm.scene);
+    const height = box.max.y - box.min.y;
+    const targetHeight = 1.55;
+    const scale = targetHeight / (height || 1);
+    vrm.scene.scale.setScalar(scale);
+    vrm.scene.position.set(0, -box.min.y * scale, -1.2);
+
+
+    // AAA Natural Pose: drop shoulders 8 deg, lower arms 55 deg, slight elbow bend
+    try {
+      const L_sh = vrm.humanoid.getNormalizedBoneNode('leftShoulder');
+      const R_sh = vrm.humanoid.getNormalizedBoneNode('rightShoulder');
+      const L_arm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
+      const R_arm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
+      const L_el = vrm.humanoid.getNormalizedBoneNode('leftLowerArm');
+      const R_el = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
+      const L_h = vrm.humanoid.getNormalizedBoneNode('leftHand');
+      const R_h = vrm.humanoid.getNormalizedBoneNode('rightHand');
+
+      if (L_sh) L_sh.rotation.z = 0.14;   // +8 deg
+      if (R_sh) R_sh.rotation.z = -0.14;  // -8 deg
+      if (L_arm) L_arm.rotation.z = 0.96; // +55 deg down
+      if (R_arm) R_arm.rotation.z = -0.96;// -55 deg down
+      if (L_el) L_el.rotation.y = -0.26;  // -15 deg elbow bend
+      if (R_el) R_el.rotation.y = 0.26;   // +15 deg elbow bend
+      if (L_h) L_h.rotation.z = 0.14;
+      if (R_h) R_h.rotation.z = -0.14;
+    } catch (e) {
+      console.warn('NaturalPose setup exception:', e);
+    }
+  },
+  undefined,
+  err => console.error('VRM load error:', err)
+);
+
+// Frame Pipeline: Multi-layered Additive Oscillations
+function updateProceduralMotion(t, dt) {
+  if (!vrm) return;
+
+  // Layer 1: Natural Breathing (irrational frequency ratios)
+  const breath = Math.sin(t * 1.57) * 0.007;
+  vrm.scene.position.y += breath * dt;
+  vrm.scene.rotation.z = Math.sin(t * 0.43) * 0.012; // gentle torso sway
+
+  // Layer 2: Blinking
+  blinkTimer += dt;
+  if (blinkTimer > nextBlinkInterval) {
+    blinkTimer = 0;
+    nextBlinkInterval = 2.0 + Math.random() * 3.2;
+    if (vrm.expressionManager) {
+      vrm.expressionManager.setValue('blink', 1.0);
+      setTimeout(() => vrm.expressionManager?.setValue('blink', 0), 120);
+    }
+  }
+
+  // Layer 3: Head LookAt targeting Camera/VR Headset
+  if (vrm.lookAt) {
+    vrm.lookAt.target = camera;
+  }
+}
+
+renderer.setAnimationLoop(() => {
+  const dt = clock.getDelta();
+  updateProceduralMotion(clock.elapsedTime, dt);
+  if (vrm) vrm.update(dt);
+  renderer.render(scene, camera);
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// --- 4. Chat & Voice Integration (TTS + Audio Engine) -----------------------
+let activeAudio = null;
+
+function showBubble(text) {
+  bubble.textContent = text;
+  bubble.classList.add('on');
+  draw3DBubble(text);
+  
+  if (vrm?.expressionManager) {
+    vrm.expressionManager.setValue('happy', 0.5);
+    setTimeout(() => vrm.expressionManager?.setValue('happy', 0), 3000);
+  }
+  clearTimeout(bubble._timer);
+  bubble._timer = setTimeout(() => {
+    bubble.classList.remove('on');
+    draw3DBubble("");
+  }, 8500);
+}
+
+async function speak(text) {
+  if (!text || text.trim() === '...' || text.trim() === 'Thinking...') return;
+
+  if (voiceAudio && voiceAudio.isPlaying) {
+    try { voiceAudio.stop(); } catch (e) {}
+  }
+  if (activeAudio) {
+    try { activeAudio.pause(); } catch (e) {}
+    activeAudio = null;
+  }
+
+  try {
+    const res = await fetch('/api/kokoro/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, voice: 'af_heart', speed: 1.05 })
+    });
+    if (res.ok) {
+      const arrayBuffer = await res.arrayBuffer();
+
+      // Ensure Web Audio context is running
+      if (audioListener && audioListener.context && audioListener.context.state === 'suspended') {
+        try { await audioListener.context.resume(); } catch (e) {}
+      }
+
+      let played = false;
+      if (audioListener && audioListener.context && audioListener.context.state === 'running') {
+        try {
+          const buffer = await audioListener.context.decodeAudioData(arrayBuffer.slice(0));
+          voiceAudio.setBuffer(buffer);
+          voiceAudio.setVolume(1.0);
+          voiceAudio.play();
+          played = true;
+
+          let mouthOpen = true;
+          const lipTimer = setInterval(() => {
+            if (!voiceAudio.isPlaying) {
+              clearInterval(lipTimer);
+              if (vrm?.expressionManager) {
+                vrm.expressionManager.setValue('aa', 0);
+                vrm.expressionManager.setValue('oh', 0);
+              }
+            } else {
+              mouthOpen = !mouthOpen;
+              if (vrm?.expressionManager) {
+                vrm.expressionManager.setValue('aa', mouthOpen ? 0.65 : 0.15);
+                vrm.expressionManager.setValue('oh', mouthOpen ? 0.25 : 0);
+              }
+            }
+          }, 110);
+        } catch (decErr) {
+          console.warn('Audio decode failed:', decErr);
+        }
+      }
+
+      // If Web Audio did not start, fall back to direct HTML5 Audio
+      if (!played) {
+        const blob = new Blob([arrayBuffer], { type: 'audio/wav' });
+        const audioUrl = URL.createObjectURL(blob);
+        const audio = new Audio(audioUrl);
+        activeAudio = audio;
+        audio.play().catch(e => console.warn('HTML5 play failed:', e));
+
+        let mouthOpen = true;
+        const lipTimer = setInterval(() => {
+          if (audio.paused || audio.ended) {
+            clearInterval(lipTimer);
+            if (vrm?.expressionManager) {
+              vrm.expressionManager.setValue('aa', 0);
+              vrm.expressionManager.setValue('oh', 0);
+            }
+          } else {
+            mouthOpen = !mouthOpen;
+            if (vrm?.expressionManager) {
+              vrm.expressionManager.setValue('aa', mouthOpen ? 0.65 : 0.15);
+              vrm.expressionManager.setValue('oh', mouthOpen ? 0.25 : 0);
+            }
+          }
+        }, 110);
+      }
+      return;
+    }
+  } catch (err) {
+    console.warn('TTS playback error:', err);
+  }
+
+  // Fallback: Web Speech API
+  if ('speechSynthesis' in window) {
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.05;
+    window.speechSynthesis.speak(u);
+  }
+}
+
+async function ask(query) {
+  if (!query) return;
+  showBubble("Thinking...");
+
+  const selectedModel = modelSelect.value;
+  try {
+    const res = await fetch('/api/foveated/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: selectedModel,
+        messages: [
+          { role: 'system', content: 'You are Alicechan, a warm, perceptive spatial companion in WebXR. Always reply concisely in 1-2 natural spoken sentences directly to the user in Swedish or English matching the user.' },
+          { role: 'user', content: query }
+        ],
+        max_tokens: 65,
+        temperature: 0.7
+      })
+    });
+
+    const data = await res.json();
+    let reply = data?.choices?.[0]?.message?.content || "";
+    
+    // Clean out <think> tags or reasoning traces
+    reply = reply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    if (reply.includes("Thinking Process:")) {
+      const chunks = reply.split(/\n\n+/);
+      const spokenChunks = chunks.filter(c => !c.startsWith("Thinking Process:") && !c.startsWith("*"));
+      reply = spokenChunks.length ? spokenChunks[spokenChunks.length - 1] : chunks[chunks.length - 1];
+    }
+    reply = reply.replace(/^[*\s]+|[*\s]+$/g, '').trim();
+
+    if (!reply) reply = "I am right here with you in the room.";
+    showBubble(reply);
+    await speak(reply);
+  } catch (err) {
+    console.warn('Chat request failed:', err);
+    showBubble("I'm here with you in the room.");
+  }
+}
+
+// Draft persistence — restore draft immediately on load so nothing is ever lost
+const savedDraft = localStorage.getItem('foveai_vr_draft');
+if (savedDraft) {
+  qInput.value = savedDraft;
+}
+
+qInput.addEventListener('input', () => {
+  localStorage.setItem('foveai_vr_draft', qInput.value);
+});
+
+sendBtn.onclick = () => {
+  const val = qInput.value.trim();
+  if (val) {
+    ask(val);
+    qInput.value = '';
+    localStorage.removeItem('foveai_vr_draft');
+  }
+};
+
+qInput.onkeydown = e => {
+  if (e.key === 'Enter') {
+    sendBtn.click();
+  }
+};
+
+// --- 5. Voice Input (Continuous Speech Recognition + Push-to-Talk) -----------
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+let isRecognizing = false;
+
+if (SpeechRec) {
+  try {
+    recognition = new SpeechRec();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'sv-SE';
+
+    recognition.onresult = e => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; ++i) {
+        if (e.results[i].isFinal) {
+          const chunk = e.results[i][0].transcript.trim();
+          if (chunk) {
+            // Append to existing text so user can dictate entire thoughts smoothly
+            const cur = qInput.value.trim();
+            qInput.value = cur ? cur + ' ' + chunk : chunk;
+            localStorage.setItem('foveai_vr_draft', qInput.value);
+          }
+        } else {
+          interim = e.results[i][0].transcript;
+        }
+      }
+      if (interim) {
+        showBubble("Listening: " + interim);
+      }
+    };
+
+    recognition.onerror = e => {
+      console.warn('SpeechRec error:', e);
+    };
+
+    recognition.onend = () => {
+      if (isRecognizing) {
+        try { recognition.start(); } catch (err) {}
+      } else {
+        micBtn.classList.remove('active');
+      }
+    };
+  } catch (e) {
+    console.warn('SpeechRecognition init failed:', e);
+  }
+}
+
+// MediaRecorder Fallback (for Whisper HTTP bridge)
+let mediaRecorder = null;
+let audioChunks = [];
+
+function getSupportedMimeType() {
+  const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+  for (const t of types) {
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported(t)) return t;
+  }
+  return '';
+}
+
+async function startVoiceRecording() {
+  unlockAudio();
+  if (recognition) {
+    isRecognizing = true;
+    try {
+      recognition.start();
+      micBtn.classList.add('active');
+      showBubble("Listening... Speak comfortably");
+      return;
+    } catch (e) {}
+  }
+
+  if (mediaRecorder && mediaRecorder.state === 'recording') return;
+
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioChunks = [];
+    const mime = getSupportedMimeType();
+    mediaRecorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+
+    mediaRecorder.ondataavailable = e => {
+      if (e.data.size > 0) audioChunks.push(e.data);
+    };
+
+    mediaRecorder.onstop = async () => {
+      const audioBlob = new Blob(audioChunks, { type: mime || 'audio/webm' });
+      // STT server (:8430/stt) only accepts JSON {audio_base64, format}.
+      // Multipart FormData made it throw and return 500 (VR mic was dead).
+      const audioB64 = await new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onloadend = () => resolve(String(fr.result).split(',')[1] || '');
+        fr.onerror = reject;
+        fr.readAsDataURL(audioBlob);
+      });
+
+      showBubble("Transcribing voice...");
+      try {
+        const r = await fetch('/api/soul/stt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ audio_base64: audioB64, format: (mime || 'audio/webm').split(';')[0].split('/')[1] })
+        });
+        const json = await r.json();
+        if (json.text && json.text.trim()) {
+          const chunk = json.text.trim();
+          const cur = qInput.value.trim();
+          qInput.value = cur ? cur + ' ' + chunk : chunk;
+          localStorage.setItem('foveai_vr_draft', qInput.value);
+          showBubble("Transcribed. Tap Send when ready.");
+        } else {
+          showBubble("I didn't catch that.");
+        }
+      } catch (err) {
+        console.warn('Whisper STT failed:', err);
+        showBubble("STT error, try again.");
+      }
+    };
+
+    mediaRecorder.start();
+    micBtn.classList.add('active');
+    showBubble("Recording... (Tap mic or release trigger when done)");
+  } catch (err) {
+    console.warn('Microphone error:', err);
+  }
+}
+
+function stopVoiceRecording() {
+  if (recognition && isRecognizing) {
+    isRecognizing = false;
+    try { recognition.stop(); } catch (e) {}
+    micBtn.classList.remove('active');
+    showBubble("Done listening. Tap Send when ready.");
+    return;
+  }
+
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+    micBtn.classList.remove('active');
+  }
+}
+
+micBtn.onclick = () => {
+  if (isRecognizing || (mediaRecorder && mediaRecorder.state === 'recording')) {
+    stopVoiceRecording();
+  } else {
+    startVoiceRecording();
+  }
+};
+
+// Autoplay policy: if audio is still suspended after 2.5s, keep the prompt visible
+setTimeout(() => {
+  if (audioListener?.context?.state !== 'running') {
+    const promptEl = document.getElementById('audio-prompt');
+    if (promptEl) promptEl.style.display = 'flex';
+  }
+}, 2500);
+</script>
+</body>
+</html>
